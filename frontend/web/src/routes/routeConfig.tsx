@@ -36,6 +36,7 @@ const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage'
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
+const WechatAutomationPage = lazy(() => import('../pages/creator-ops/WechatAutomationPage').then((m) => ({ default: m.WechatAutomationPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
 const ModelSettingsPage = lazy(() => import('../pages/settings/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })));
 const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettingsPage').then((m) => ({ default: m.BillingSettingsPage })));
@@ -331,6 +332,20 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withSuspense(<XingtuCreatorPage platform="buyin" />),
     handle: {
       title: '精选联盟',
+      sidebar: {
+        groupKey: 'creatorOps',
+        icon: <Star {...menuIconProps} />,
+      },
+    },
+    visible: () => isElectronEgg,
+  },
+  {
+    key: 'creator-ops-wechat',
+    path: 'creator-ops/wechat',
+    fullPath: routePaths.wechatOps,
+    element: () => withSuspense(<WechatAutomationPage />),
+    handle: {
+      title: '微信',
       sidebar: {
         groupKey: 'creatorOps',
         icon: <Star {...menuIconProps} />,
