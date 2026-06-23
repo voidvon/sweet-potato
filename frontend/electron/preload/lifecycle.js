@@ -7,6 +7,8 @@ const { app, session } = require('electron');
 const { stopAutomationBridgeServer } = require('../service/browser-automation/bridge-server');
 const { closeCdpRuntime } = require('../service/browser-automation/cdp-runtime');
 
+let isQuitting = false;
+
 function allowMicrophoneCapture() {
   const insecureOrigins = [
     'http://192.168.11.55:9527',
@@ -51,6 +53,20 @@ function registerDevToolsShortcut(win) {
   });
 }
 
+function registerMacWindowCloseBehavior(win) {
+  if (process.platform !== 'darwin' || !win || win.isDestroyed()) {
+    return;
+  }
+
+  win.on('close', (event) => {
+    if (isQuitting) {
+      return;
+    }
+    event.preventDefault();
+    win.hide();
+  });
+}
+
 class Lifecycle {
 
   /**
@@ -73,8 +89,10 @@ class Lifecycle {
    */
   async windowReady() {
     logger.info('[lifecycle] window-ready');
+    const win = getMainWindow();
     registerMediaPermissions();
-    registerDevToolsShortcut(getMainWindow());
+    registerDevToolsShortcut(win);
+    registerMacWindowCloseBehavior(win);
 
     // Electron 模式不再启动本地后端，统一连接独立部署的服务端
     // 后端应该通过 Docker 或其他方式独立部署
@@ -95,6 +113,7 @@ class Lifecycle {
    */
   async beforeClose() {
     logger.info('[lifecycle] before-close');
+    isQuitting = true;
     void stopAutomationBridgeServer();
     void closeCdpRuntime();
   }

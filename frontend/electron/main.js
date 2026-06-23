@@ -1,6 +1,7 @@
 const { ElectronEgg } = require("ee-core");
 const path = require("path");
 const { app: electronApp } = require("electron");
+const { restoreMainWindow } = require("ee-core/electron/window");
 const { Lifecycle } = require("./preload/lifecycle");
 const { preload } = require("./preload");
 const { startAutomationBridgeServer } = require("./service/browser-automation/bridge-server");
@@ -15,9 +16,16 @@ electronApp.setPath(
   path.join(electronApp.getPath("appData"), appDataName),
 );
 
+function restoreDockMainWindow() {
+  restoreMainWindow();
+}
+
 async function bootstrap() {
   await prepareCdpRuntime();
   await startAutomationBridgeServer();
+
+  electronApp.on("activate", restoreDockMainWindow);
+  electronApp.on("second-instance", restoreDockMainWindow);
 
   // new app
   const app = new ElectronEgg();
