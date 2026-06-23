@@ -14,10 +14,10 @@
     "dev-electron": "ee-bin dev --serve=electron",
     "icon": "ee-bin icon",
     "re-sqlite": "electron-rebuild -f -w better-sqlite3",
-    "build-electron-w": "pnpm run build-electron && ee-bin build --cmds=win64",
-    "build-electron-m": "pnpm run build-electron && ee-bin build --cmds=mac",
-    "build-electron-m-arm64": "pnpm run build-electron && ee-bin build --cmds=mac_arm64",
-    "build-electron-l": "pnpm run build-electron && ee-bin build --cmds=linux"
+    "build-electron-w": "bash ./scripts/build-electron.sh win64",
+    "build-electron-m": "bash ./scripts/build-electron.sh mac",
+    "build-electron-m-arm64": "bash ./scripts/build-electron.sh mac_arm64",
+    "build-electron-l": "bash ./scripts/build-electron.sh linux"
   },
   "repository": "https://github.com/dromara/electron-egg.git",
   "keywords": [
