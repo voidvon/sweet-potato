@@ -40,23 +40,96 @@
   place-items: center;
 }
 
+.chat-message-shell {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+  padding-bottom: 26px;
+  position: relative;
+}
+
+.chat-message-shell.user {
+  align-self: flex-end;
+}
+
+.chat-message-shell.assistant {
+  align-self: flex-start;
+}
+
 .chat-message {
   border-radius: 24px;
   line-height: 1.7;
-  max-width: 72%;
   padding: 12px 14px;
   word-break: break-word;
 }
 
 .chat-message.user {
   background: #eaeaea;
-  align-self: flex-end;
 }
 
 .chat-message.assistant {
   background: #ffffff;
   color: #344054;
-  align-self: flex-start;
+}
+
+.chat-user-message-content {
+  position: relative;
+}
+
+.chat-user-message-hover-actions {
+  bottom: -4px;
+  display: inline-flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 8px;
+  transition: opacity 120ms ease;
+}
+
+.chat-message-shell:hover .chat-user-message-hover-actions,
+.chat-message-shell:focus-within .chat-user-message-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-user-message-hover-button.ant-btn {
+  color: #475467;
+  height: 28px;
+  min-width: 28px;
+  width: 28px;
+}
+
+.chat-user-message-hover-button.ant-btn:hover {
+  background: rgba(15, 23, 42, 0.06) !important;
+  color: #101828;
+}
+
+.chat-user-message-editor {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid #d0d5dd;
+  border-radius: 16px;
+  color: #101828;
+  display: block;
+  font: inherit;
+  min-height: 88px;
+  min-width: 400px;
+  outline: none;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.chat-user-message-editor:focus {
+  border-color: #98a2b3;
+  box-shadow: 0 0 0 3px rgba(152, 162, 179, 0.18);
+}
+
+.chat-user-message-editor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .chat-message-attachments {

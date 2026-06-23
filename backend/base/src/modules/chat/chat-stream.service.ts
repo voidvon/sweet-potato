@@ -28,6 +28,7 @@ export type ParsedChatStreamPayload = {
   capabilityContext?: SendChatPayload['capabilityContext'];
   requestedCapabilities?: SendChatPayload['requestedCapabilities'];
   conversationId?: string;
+  editMessageId?: string;
 };
 
 export function makeChatTitle(content: string) {
@@ -101,6 +102,7 @@ function parseStreamPayload(body: Record<string, unknown>): ParsedChatStreamPayl
     capabilityContext: parseCapabilityContext(body.capabilityContext),
     requestedCapabilities: parseRequestedCapabilities(body.requestedCapabilities),
     conversationId: String(body.conversationId || '').trim() || undefined,
+    editMessageId: String(body.editMessageId || '').trim() || undefined,
   };
 }
 
@@ -114,6 +116,7 @@ export async function handleCapabilityConversation(input: {
   requestedCapabilities?: SendChatPayload['requestedCapabilities'];
   conversation?: ChatConversation;
   existingHistory?: ChatMessage[];
+  editedUserMessage?: ChatMessage;
 }) {
   const invocation = resolveChatCapabilityInvocation(input.content, input.requestedCapabilities);
   if (!invocation) {
@@ -154,14 +157,14 @@ export async function handleCapabilityConversation(input: {
     updatedAt: now,
   };
   const userMessage: ChatMessage = {
-    id: randomBytes(12).toString('hex'),
+    id: input.editedUserMessage?.id || randomBytes(12).toString('hex'),
     conversationId: nextConversation.id,
     role: 'user',
     content: input.content,
     agentId: input.agent.id,
     modelConfigId: nextConversation.modelConfigId || undefined,
     attachments: input.attachments,
-    createdAt: now,
+    createdAt: input.editedUserMessage?.createdAt || now,
   };
   const assistantMessage: ChatMessage = {
     id: randomBytes(12).toString('hex'),
@@ -180,7 +183,16 @@ export async function handleCapabilityConversation(input: {
   } else {
     chatRepository.createConversation(nextConversation);
   }
-  chatRepository.createMessages([userMessage, assistantMessage]);
+  if (input.editedUserMessage) {
+    chatRepository.replaceMessageContent({
+      id: userMessage.id,
+      content: userMessage.content,
+      attachments: userMessage.attachments,
+    });
+    chatRepository.createMessages([assistantMessage]);
+  } else {
+    chatRepository.createMessages([userMessage, assistantMessage]);
+  }
 
   return {
     conversation: nextConversation,
@@ -228,6 +240,7 @@ export function createChatStreamExecutor() {
       capabilityContext,
       requestedCapabilities,
       conversationId,
+      editMessageId,
     } = payload;
 
     if (!userId || (!content && !attachments.length) || !agentId) {
@@ -269,6 +282,22 @@ export function createChatStreamExecutor() {
       sink.end();
       return;
     }
+    const editTarget = editMessageId ? chatRepository.findMessage(editMessageId) : undefined;
+    if (editMessageId && (!existingConversation || !editTarget || editTarget.conversationId !== existingConversation.id || editTarget.role !== 'user')) {
+      sink.send({ type: 'error', message: '待编辑消息不存在或不可编辑' });
+      sink.end();
+      return;
+    }
+    let existingHistory = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
+    if (editTarget) {
+      existingHistory = existingHistory.filter((item) => item.createdAt < editTarget.createdAt);
+      chatRepository.deleteMessagesAfter(existingConversation!.id, editTarget.createdAt);
+      chatRepository.replaceMessageContent({
+        id: editTarget.id,
+        content,
+        attachments,
+      });
+    }
     if (capabilityInvocation) {
       try {
         const handled = await handleCapabilityConversation({
@@ -280,7 +309,14 @@ export function createChatStreamExecutor() {
           capabilityContext,
           requestedCapabilities,
           conversation: existingConversation,
-          existingHistory: existingConversation ? chatRepository.listMessages(existingConversation.id) : [],
+          existingHistory,
+          editedUserMessage: editTarget
+            ? {
+                ...editTarget,
+                content,
+                attachments,
+              }
+            : undefined,
         });
         if (handled) {
           sink.send({ type: 'conversation', conversation: handled.conversation });
@@ -305,7 +341,7 @@ export function createChatStreamExecutor() {
       sink.end();
       return;
     }
-    const history = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
+    const history = existingHistory;
     const now = new Date().toISOString();
     const conversation: ChatConversation = existingConversation
       ? {
@@ -332,14 +368,14 @@ export function createChatStreamExecutor() {
         };
 
     const userMessage: ChatMessage = {
-      id: randomBytes(12).toString('hex'),
+      id: editTarget?.id || randomBytes(12).toString('hex'),
       conversationId: conversation.id,
       role: 'user',
       content: skillInvocation.userContent,
       agentId,
       modelConfigId: modelConfig.id,
       attachments,
-      createdAt: now,
+      createdAt: editTarget?.createdAt || now,
     };
     const assistantMessage: ChatMessage = {
       id: randomBytes(12).toString('hex'),
@@ -395,7 +431,16 @@ export function createChatStreamExecutor() {
       } else {
         chatRepository.createConversation(completedConversation);
       }
-      chatRepository.createMessages([userMessage, completedAssistantMessage]);
+      if (editTarget) {
+        chatRepository.replaceMessageContent({
+          id: userMessage.id,
+          content: userMessage.content,
+          attachments: userMessage.attachments,
+        });
+      } else {
+        chatRepository.createMessages([userMessage]);
+      }
+      chatRepository.createMessages([completedAssistantMessage]);
       const messages = chatRepository.listMessages(completedConversation.id);
       sink.send({ type: 'done', conversation: completedConversation, messages });
       sink.end();

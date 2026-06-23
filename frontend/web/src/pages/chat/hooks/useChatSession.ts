@@ -405,7 +405,7 @@ export function useChatSession() {
     });
   }, [activeConversationId, refreshConversations]);
 
-  const sendMessage = useCallback(async (override?: { content?: string; attachments?: ChatAttachment[]; clearComposer?: boolean }) => {
+  const sendMessage = useCallback(async (override?: { content?: string; attachments?: ChatAttachment[]; clearComposer?: boolean; editMessageId?: string }) => {
     const content = (override?.content ?? input).trim();
     const messageAttachments = override?.attachments ?? attachments;
     if ((!content && !messageAttachments.length) || !activeAgent || !currentUser) {
@@ -416,6 +416,9 @@ export function useChatSession() {
     const sendingAttachments = messageAttachments;
     const previousMessages = messages;
     const previousConversationId = activeConversationId;
+    const editMessageId = override?.editMessageId;
+    const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
+    const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
     setSending(true);
     setUserHasScrolledUp(false);
     const abortController = new AbortController();
@@ -444,7 +447,19 @@ export function useChatSession() {
       setInput('');
       setAttachments([]);
     }
-    setMessages((items) => [...items, optimisticUserMessage, optimisticAssistantMessage]);
+    if (editTargetIndex >= 0) {
+      setMessages([
+        ...baseMessages,
+        {
+          ...messages[editTargetIndex]!,
+          content: contentForSend,
+          attachments: sendingAttachments,
+        },
+        optimisticAssistantMessage,
+      ]);
+    } else {
+      setMessages((items) => [...items, optimisticUserMessage, optimisticAssistantMessage]);
+    }
     scrollToBottom(true);
 
     try {
@@ -453,6 +468,7 @@ export function useChatSession() {
         {
           userId: currentUser.id,
           conversationId: activeConversationId,
+          editMessageId,
           agentId: activeAgent.id,
           attachments: sendingAttachments,
           content: contentForSend,
@@ -549,6 +565,15 @@ export function useChatSession() {
     await sendMessage({ content, attachments: [], clearComposer: false });
   }, [sendMessage]);
 
+  const updateUserMessage = useCallback(async (messageId: string, content: string) => {
+    await sendMessage({
+      content,
+      attachments: [],
+      clearComposer: false,
+      editMessageId: messageId,
+    });
+  }, [sendMessage]);
+
   const stopSending = useCallback(() => {
     streamAbortControllerRef.current?.abort();
   }, []);
@@ -579,6 +604,7 @@ export function useChatSession() {
     showWelcome: !isResolvingConversation && !conversationOverlayLoading && !activeConversationId && messages.length === 0,
     startNewConversation,
     stopSending,
+    updateUserMessage,
     updateConversationTitle,
     userHasScrolledUp,
   };

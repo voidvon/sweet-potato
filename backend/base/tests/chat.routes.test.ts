@@ -88,3 +88,99 @@ test('chat conversation detail returns conversation and messages for owner only'
     rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('editing a user message replaces downstream chat history from that point', async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'chat-routes-edit-'));
+  const dataDir = path.join(tempRoot, 'data');
+  mkdirSync(dataDir, { recursive: true });
+  let appServer: ReturnType<ReturnType<typeof import('node:http').createServer>['listen']> | null = null;
+
+  try {
+    process.env.DATA_DIR = dataDir;
+
+    const [
+      { chatRepository },
+    ] = await Promise.all([
+      import('../src/modules/chat/chat.repository.js'),
+    ]);
+
+    const now = new Date().toISOString();
+    const conversationId = 'conversation-edit-history';
+    chatRepository.createConversation({
+      id: conversationId,
+      userId: 'user-edit',
+      title: 'Edit history',
+      agentId: 'quick-answer',
+      modelConfigId: null,
+      metadata: { previewText: 'old assistant answer' },
+      createdAt: now,
+      updatedAt: now,
+    });
+    chatRepository.createMessages([
+      {
+        id: 'message-user-1',
+        conversationId,
+        role: 'user',
+        content: '第一条消息',
+        agentId: 'quick-answer',
+        createdAt: '2026-06-23T10:00:00.000Z',
+      },
+      {
+        id: 'message-assistant-1',
+        conversationId,
+        role: 'assistant',
+        content: '第一条回复',
+        agentId: 'quick-answer',
+        createdAt: '2026-06-23T10:00:01.000Z',
+      },
+      {
+        id: 'message-user-2',
+        conversationId,
+        role: 'user',
+        content: '第二条旧消息',
+        agentId: 'quick-answer',
+        createdAt: '2026-06-23T10:00:02.000Z',
+      },
+      {
+        id: 'message-assistant-2',
+        conversationId,
+        role: 'assistant',
+        content: '第二条旧回复',
+        agentId: 'quick-answer',
+        createdAt: '2026-06-23T10:00:03.000Z',
+      },
+    ]);
+
+    chatRepository.deleteMessagesAfter(conversationId, '2026-06-23T10:00:02.000Z');
+    chatRepository.replaceMessageContent({
+      id: 'message-user-2',
+      content: '第二条新消息',
+      attachments: [],
+    });
+    chatRepository.createMessages([
+      {
+        id: 'message-assistant-3',
+        conversationId,
+        role: 'assistant',
+        content: '第二条新回复',
+        agentId: 'quick-answer',
+        createdAt: '2026-06-23T10:00:04.000Z',
+      },
+    ]);
+
+    const messages = chatRepository.listMessages(conversationId);
+    assert.deepEqual(
+      messages.map((item) => ({ id: item.id, content: item.content })),
+      [
+        { id: 'message-user-1', content: '第一条消息' },
+        { id: 'message-assistant-1', content: '第一条回复' },
+        { id: 'message-user-2', content: '第二条新消息' },
+        { id: 'message-assistant-3', content: '第二条新回复' },
+      ],
+    );
+  } finally {
+    appServer?.closeAllConnections?.();
+    appServer?.close();
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

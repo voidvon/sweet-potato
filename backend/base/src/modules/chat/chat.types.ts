@@ -44,6 +44,7 @@ export type ChatMessage = {
 export type SendChatPayload = {
   userId: string;
   conversationId?: string;
+  editMessageId?: string;
   agentId: string;
   modelConfigId?: string | null;
   attachments?: ChatAttachment[];

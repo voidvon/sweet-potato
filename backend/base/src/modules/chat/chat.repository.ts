@@ -144,6 +144,38 @@ export const chatRepository = {
     return this.findConversation(conversation.id);
   },
 
+  deleteMessagesAfter(conversationId: string, createdAt: string) {
+    db.prepare(`
+      DELETE FROM chat_messages
+      WHERE conversation_id = ? AND created_at > ?
+    `).run(conversationId, createdAt);
+  },
+
+  replaceMessageContent(input: {
+    id: string;
+    content: string;
+    attachments?: ChatMessage['attachments'];
+    updatedReasoningContent?: string | null;
+    isCompleted?: boolean;
+  }) {
+    db.prepare(`
+      UPDATE chat_messages
+      SET
+        content = @content,
+        attachments = @attachments,
+        reasoning_content = @reasoningContent,
+        is_completed = @isCompleted
+      WHERE id = @id
+    `).run({
+      id: input.id,
+      content: input.content,
+      attachments: JSON.stringify(input.attachments || []),
+      reasoningContent: input.updatedReasoningContent || null,
+      isCompleted: input.isCompleted === false ? 0 : 1,
+    });
+    return db.prepare(`${messageSelect} WHERE id = ?`).get(input.id) as ChatMessageRow | undefined;
+  },
+
   listMessages(conversationId: string) {
     const query = db.prepare(`
       ${messageSelect}
@@ -166,5 +198,10 @@ export const chatRepository = {
       messages.forEach((item) => query.run(serializeMessage(item)));
     });
     transaction();
+  },
+
+  findMessage(id: string) {
+    const row = db.prepare(`${messageSelect} WHERE id = ?`).get(id) as ChatMessageRow | undefined;
+    return row ? parseMessage(row) : undefined;
   },
 };
