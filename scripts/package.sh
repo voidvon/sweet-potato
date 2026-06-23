@@ -20,7 +20,7 @@ install_node_deps_if_needed() {
     echo "Installing node dependencies in $dir"
     (
       cd "$dir"
-      npm install
+      pnpm install
     )
   fi
 }
@@ -31,10 +31,10 @@ detect_build_script() {
 
   case "$arch" in
     arm64|aarch64)
-      echo "build-m-arm64"
+      echo "build-electron-m-arm64"
       ;;
     x86_64|amd64)
-      echo "build-m"
+      echo "build-electron-m"
       ;;
     *)
       echo "Unsupported macOS architecture: $arch" >&2
@@ -49,7 +49,7 @@ main() {
     exit 1
   fi
 
-  require_cmd npm
+  require_cmd pnpm
 
   install_node_deps_if_needed "$BACKEND_DIR"
   install_node_deps_if_needed "$FRONTEND_DIR"
@@ -58,10 +58,10 @@ main() {
   local build_script
   build_script="$(detect_build_script)"
 
-  echo "Packaging desktop app for macOS ($(uname -m)) with npm run $build_script"
+  echo "Packaging desktop app for macOS ($(uname -m)) with pnpm run $build_script"
   (
     cd "$FRONTEND_DIR"
-    npm run "$build_script"
+    pnpm run "$build_script"
   )
 
   echo "Packaging finished. Artifacts: $FRONTEND_DIR/out"
