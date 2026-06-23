@@ -53,12 +53,40 @@ export function ChatMessageList({
     editorRef.current?.setSelectionRange(length, length);
   }, [editingMessageId]);
 
+  function fallbackCopyText(content: string) {
+    const textarea = document.createElement('textarea');
+    textarea.value = content;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  }
+
   async function handleCopy(content: string) {
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else if (!fallbackCopyText(content)) {
+        throw new Error('copy_failed');
+      }
       message.success('已复制');
     } catch {
-      message.error('复制失败');
+      try {
+        if (!fallbackCopyText(content)) {
+          throw new Error('copy_failed');
+        }
+        message.success('已复制');
+      } catch {
+        message.error('复制失败');
+      }
     }
   }
 
@@ -166,15 +194,6 @@ export function ChatMessageList({
                   )}
                   {item.role === 'assistant' && (
                     <div className="chat-message-actions">
-                      <Button
-                        className="chat-message-action"
-                        icon={<CopyOutlined />}
-                        onClick={() => void handleCopy(answerContent)}
-                        size="small"
-                        type="text"
-                      >
-                        复制
-                      </Button>
                       {item.actions?.map((action) => (
                         <Button
                           className="chat-message-action"
@@ -208,6 +227,19 @@ export function ChatMessageList({
                       shape="circle"
                       icon={<EditOutlined />}
                       onClick={() => startEditing(item)}
+                      size="small"
+                      type="text"
+                    />
+                  </div>
+                )}
+                {item.role === 'assistant' && (
+                  <div className="chat-assistant-message-hover-actions">
+                    <Button
+                      aria-label="复制消息"
+                      className="chat-assistant-message-hover-button"
+                      shape="circle"
+                      icon={<CopyOutlined />}
+                      onClick={() => void handleCopy(answerContent)}
                       size="small"
                       type="text"
                     />
