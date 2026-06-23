@@ -1321,6 +1321,11 @@ export async function* streamBilledLlm(input: BilledLlmCallInput): AsyncGenerato
   });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180_000);
+  const upstreamSignal = input.signal;
+  const handleUpstreamAbort = () => {
+    controller.abort(upstreamSignal?.reason);
+  };
+  upstreamSignal?.addEventListener('abort', handleUpstreamAbort, { once: true });
   let finalUsage: NormalizedLlmUsage | null = null;
   let reasoningContent = '';
   let answerContent = '';
@@ -1426,11 +1431,15 @@ export async function* streamBilledLlm(input: BilledLlmCallInput): AsyncGenerato
       },
     });
     if (error instanceof Error && error.name === 'AbortError') {
+      if (upstreamSignal?.aborted) {
+        throw new Error('请求已取消');
+      }
       throw new Error('模型服务响应超时，请稍后重试');
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    upstreamSignal?.removeEventListener('abort', handleUpstreamAbort);
   }
 }
 

@@ -187,6 +187,7 @@ export async function* streamConfiguredModel(input: {
   history: ChatMessage[];
   content: string;
   attachments?: ChatAttachment[];
+  signal?: AbortSignal;
 }) {
   assertModelConfigReady(input.modelConfig);
   for await (const chunk of streamBilledLlm({
@@ -196,6 +197,7 @@ export async function* streamConfiguredModel(input: {
     sourceId: input.sourceId || randomBytes(12).toString('hex'),
     messages: buildMessages(input.agent, input.history, input.content, input.attachments || []),
     temperature: input.modelConfig.temperature,
+    signal: input.signal,
   })) {
     yield chunk;
   }

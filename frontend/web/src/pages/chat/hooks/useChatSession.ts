@@ -74,6 +74,7 @@ export function useChatSession() {
   const conversationOverlayLoadingHideTimerRef = useRef<number | null>(null);
   const conversationOverlayLoadingVisibleRef = useRef(false);
   const conversationOverlayLoadingShownAtRef = useRef<number | null>(null);
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId),
@@ -98,6 +99,7 @@ export function useChatSession() {
   }, [urlConversationId]);
 
   useEffect(() => () => {
+    streamAbortControllerRef.current?.abort();
     if (conversationOverlayLoadingShowTimerRef.current !== null) {
       window.clearTimeout(conversationOverlayLoadingShowTimerRef.current);
     }
@@ -183,6 +185,7 @@ export function useChatSession() {
   }, [clearConversationOverlayLoadingHideTimer, clearConversationOverlayLoadingShowTimer, setConversationOverlayLoadingVisible]);
 
   const loadConversation = useCallback(async (conversationId: string, options?: { syncUrl?: boolean; showOverlay?: boolean }) => {
+    streamAbortControllerRef.current?.abort();
     const requestId = conversationRequestRef.current + 1;
     conversationRequestRef.current = requestId;
     if (options?.showOverlay) {
@@ -305,6 +308,7 @@ export function useChatSession() {
   }, [loadConversation]);
 
   const startNewConversation = useCallback(() => {
+    streamAbortControllerRef.current?.abort();
     conversationRequestRef.current += 1;
     hydratedFromUrlRef.current = false;
     conversationOverlayLoadingRequestRef.current = 0;
@@ -414,6 +418,8 @@ export function useChatSession() {
     const previousConversationId = activeConversationId;
     setSending(true);
     setUserHasScrolledUp(false);
+    const abortController = new AbortController();
+    streamAbortControllerRef.current = abortController;
     const pendingAssistantId = `assistant-pending-${Date.now()}`;
     const optimisticUserMessage: ChatMessage = {
       id: `pending-${Date.now()}`,
@@ -434,20 +440,12 @@ export function useChatSession() {
       createdAt: new Date(Date.now() + 1).toISOString(),
       isCompleted: false,
     };
-    let hasRenderedOptimisticMessages = false;
-
-    function renderOptimisticMessages() {
-      if (hasRenderedOptimisticMessages) {
-        return;
-      }
-      hasRenderedOptimisticMessages = true;
-      if (override?.clearComposer !== false) {
-        setInput('');
-        setAttachments([]);
-      }
-      setMessages((items) => [...items, optimisticUserMessage, optimisticAssistantMessage]);
-      scrollToBottom(true);
+    if (override?.clearComposer !== false) {
+      setInput('');
+      setAttachments([]);
     }
+    setMessages((items) => [...items, optimisticUserMessage, optimisticAssistantMessage]);
+    scrollToBottom(true);
 
     try {
       const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
@@ -462,26 +460,22 @@ export function useChatSession() {
         },
         (event) => {
           if (event.type === 'conversation') {
-            renderOptimisticMessages();
             setActiveConversationId(event.conversation.id);
             syncConversationUrl(event.conversation.id);
             return;
           }
 
           if (event.type === 'user_message') {
-            renderOptimisticMessages();
             setMessages((items) => mergeMessage(items, event.message, optimisticUserMessage.id));
             return;
           }
 
           if (event.type === 'assistant_message') {
-            renderOptimisticMessages();
             setMessages((items) => mergeMessage(items, event.message, pendingAssistantId));
             return;
           }
 
           if (event.type === 'reasoning_delta') {
-            renderOptimisticMessages();
             setMessages((items) =>
               items.map((item) =>
                 item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)
@@ -493,7 +487,6 @@ export function useChatSession() {
           }
 
           if (event.type === 'answer_delta') {
-            renderOptimisticMessages();
             setMessages((items) =>
               items.map((item) =>
                 item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)
@@ -512,10 +505,28 @@ export function useChatSession() {
             setMessages(event.messages);
           }
         },
+        { signal: abortController.signal },
       );
       scrollToBottom(true);
       await refreshConversations();
     } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        setMessages((items) =>
+          items.map((item) =>
+            item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)
+              ? {
+                  ...item,
+                  content: item.content || '已停止生成',
+                  reasoningContent: item.reasoningContent || null,
+                  isCompleted: true,
+                }
+              : item,
+          ),
+        );
+        await refreshConversations();
+        return;
+      }
+
       setInput(content);
       setAttachments(sendingAttachments);
       setActiveConversationId(previousConversationId);
@@ -523,6 +534,9 @@ export function useChatSession() {
       setMessages(previousMessages);
       message.error(error instanceof Error ? error.message : '消息发送失败');
     } finally {
+      if (streamAbortControllerRef.current === abortController) {
+        streamAbortControllerRef.current = null;
+      }
       setSending(false);
     }
   }, [activeAgent, activeConversationId, attachments, currentUser, input, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
@@ -534,6 +548,10 @@ export function useChatSession() {
   const sendPresetMessage = useCallback(async (content: string) => {
     await sendMessage({ content, attachments: [], clearComposer: false });
   }, [sendMessage]);
+
+  const stopSending = useCallback(() => {
+    streamAbortControllerRef.current?.abort();
+  }, []);
 
   return {
     activeAgent,
@@ -560,6 +578,7 @@ export function useChatSession() {
     setInput,
     showWelcome: !isResolvingConversation && !conversationOverlayLoading && !activeConversationId && messages.length === 0,
     startNewConversation,
+    stopSending,
     updateConversationTitle,
     userHasScrolledUp,
   };

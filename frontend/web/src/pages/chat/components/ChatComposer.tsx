@@ -3,7 +3,7 @@ import type { FocusEvent, KeyboardEvent, SyntheticEvent } from 'react';
 import { Button, Dropdown, Image, Input, Space, Upload } from 'antd';
 import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import type { GetRef, InputRef, UploadProps } from 'antd';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import type { AiAgent, ChatAttachment } from '../../../types';
 import { FloatingComposer } from '../../../components/FloatingComposer';
 import { chatCapabilityChips, chatCapabilityOptions } from '../chatCapabilities';
@@ -20,6 +20,7 @@ type ChatComposerProps = {
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: () => void;
+  onStop: () => void;
   sending: boolean;
   showFloatingAddButton?: boolean;
   variant?: 'floating' | 'welcome';
@@ -101,6 +102,7 @@ export function ChatComposer({
   onInputChange,
   onRemoveAttachment,
   onSend,
+  onStop,
   sending,
   showFloatingAddButton = false,
   variant = 'floating',
@@ -336,6 +338,11 @@ export function ChatComposer({
     </div>
   ) : null;
 
+  const sendButtonIcon = sending ? <Square size={16} fill="currentColor" /> : <ArrowUp size={18} />;
+  const sendButtonDisabled = !sending && !hasContent;
+  const sendButtonLabel = sending ? '停止生成' : '发送消息';
+  const handlePrimaryAction = sending ? onStop : onSend;
+
   const toolbar = (
     <div className="chat-composer-toolbar">
       <Space size={8}>
@@ -355,10 +362,10 @@ export function ChatComposer({
       <Space size={12}>
         <Button
           className="send-button"
-          disabled={!hasContent}
-          icon={<ArrowUp size={18} />}
-          loading={sending}
-          onClick={onSend}
+          aria-label={sendButtonLabel}
+          disabled={sendButtonDisabled}
+          icon={sendButtonIcon}
+          onClick={handlePrimaryAction}
           type="primary"
         />
       </Space>
@@ -419,14 +426,14 @@ export function ChatComposer({
     return (
       <FloatingComposer
         after={(
-          <Button
-            className="chat-floating-send send-button"
-            disabled={!hasContent}
-            icon={<ArrowUp size={18} />}
-            loading={sending}
-            onClick={onSend}
-            type="primary"
-          />
+        <Button
+          className="chat-floating-send send-button"
+          aria-label={sendButtonLabel}
+          disabled={sendButtonDisabled}
+          icon={sendButtonIcon}
+          onClick={handlePrimaryAction}
+          type="primary"
+        />
         )}
         className="chat-floating-composer"
         input={(
@@ -434,7 +441,6 @@ export function ChatComposer({
             {mentionDropdown}
             <Input
               className="chat-floating-input"
-              disabled={sending}
               onBlur={handleInputBlur}
               onChange={(event) => {
                 onInputChange(event.target.value);
@@ -449,7 +455,7 @@ export function ChatComposer({
                 }
                 if (!event.shiftKey) {
                   event.preventDefault();
-                  onSend();
+                  handlePrimaryAction();
                 }
               }}
               onSelect={handleSelectionChange}
@@ -488,7 +494,7 @@ export function ChatComposer({
             }
             if (!event.shiftKey) {
               event.preventDefault();
-              onSend();
+              handlePrimaryAction();
             }
           }}
           onSelect={handleSelectionChange}

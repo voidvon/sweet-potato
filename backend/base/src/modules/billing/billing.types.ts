@@ -141,4 +141,5 @@ export type BilledLlmCallInput = {
   messages: BillingChatMessage[];
   temperature: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 };

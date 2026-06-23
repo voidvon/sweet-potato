@@ -45,6 +45,7 @@ export function ChatPage() {
       onInputChange={chat.setInput}
       onRemoveAttachment={chat.removeAttachment}
       onSend={() => void chat.sendCurrentMessage()}
+      onStop={chat.stopSending}
       sending={chat.sending}
       showFloatingAddButton={variant === 'floating'}
       variant={variant}

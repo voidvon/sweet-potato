@@ -60,26 +60,51 @@ export function clearChatConversationMessages(conversationId: string) {
   );
 }
 
+function createAbortError() {
+  const error = new Error('聊天请求已终止');
+  error.name = 'AbortError';
+  return error;
+}
+
 export async function streamChatMessage(
   payload: SendChatPayload,
   onEvent: (event: ChatStreamEvent) => void,
+  options?: {
+    signal?: AbortSignal;
+  },
 ) {
   await new Promise<void>((resolve, reject) => {
+    if (options?.signal?.aborted) {
+      reject(createAbortError());
+      return;
+    }
+
     const socket = new WebSocket(resolveWebSocketUrl(Api.streamMessageWs));
     let settled = false;
+
+    const handleAbort = () => {
+      settle(() => reject(createAbortError()));
+    };
 
     function settle(callback: () => void) {
       if (settled) {
         return;
       }
       settled = true;
+      options?.signal?.removeEventListener('abort', handleAbort);
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close();
       }
       callback();
     }
 
+    options?.signal?.addEventListener('abort', handleAbort, { once: true });
+
     socket.onopen = () => {
+      if (options?.signal?.aborted) {
+        settle(() => reject(createAbortError()));
+        return;
+      }
       socket.send(JSON.stringify(payload));
     };
 
@@ -100,6 +125,10 @@ export async function streamChatMessage(
     };
 
     socket.onerror = () => {
+      if (options?.signal?.aborted) {
+        settle(() => reject(createAbortError()));
+        return;
+      }
       settle(() => reject(new Error('聊天 WebSocket 连接失败')));
     };
 
@@ -107,7 +136,14 @@ export async function streamChatMessage(
       if (settled) {
         return;
       }
+      if (options?.signal?.aborted) {
+        settled = true;
+        options?.signal?.removeEventListener('abort', handleAbort);
+        reject(createAbortError());
+        return;
+      }
       settled = true;
+      options?.signal?.removeEventListener('abort', handleAbort);
       reject(new Error('聊天 WebSocket 连接已断开'));
     };
   });

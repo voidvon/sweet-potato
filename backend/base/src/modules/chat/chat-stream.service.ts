@@ -16,6 +16,7 @@ import type { ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } f
 export type ChatStreamSink = {
   send: (event: unknown) => void;
   end: () => void;
+  signal?: AbortSignal;
 };
 
 export type ParsedChatStreamPayload = {
@@ -192,6 +193,14 @@ export async function handleCapabilityConversation(input: {
 }
 
 function createWebSocketStreamSink(socket: WebSocket): ChatStreamSink {
+  const controller = new AbortController();
+  const abort = () => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+  socket.once('close', abort);
+  socket.once('error', abort);
   return {
     send(event: unknown) {
       if (socket.readyState === WebSocket.OPEN) {
@@ -199,10 +208,12 @@ function createWebSocketStreamSink(socket: WebSocket): ChatStreamSink {
       }
     },
     end() {
+      abort();
       if (socket.readyState === WebSocket.OPEN) {
         socket.close(1000, 'done');
       }
     },
+    signal: controller.signal,
   };
 }
 
@@ -354,6 +365,7 @@ export function createChatStreamExecutor() {
         history,
         content: skillInvocation.modelContent,
         attachments,
+        signal: sink.signal,
       })) {
         if (chunk.type === 'reasoning') {
           reasoningContent += chunk.delta;

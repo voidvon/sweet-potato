@@ -1,5 +1,6 @@
 import { Button, Empty, Image, message } from 'antd';
 import { CopyOutlined, DownCircleOutlined, FileOutlined } from '@ant-design/icons';
+import { ChevronRight } from 'lucide-react';
 import type { RefObject } from 'react';
 import type { ChatMessage } from '../../../types';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
@@ -52,7 +53,12 @@ export function ChatMessageList({
               <article className={`chat-message ${item.role}`} key={item.id}>
                 {thinkingContent && (
                   <details className={`chat-thinking ${item.isCompleted === false ? 'streaming' : ''}`} open={item.isCompleted === false}>
-                    <summary>{item.isCompleted === false ? '正在思考' : '思考过程'}</summary>
+                    <summary>
+                      <span className="chat-thinking-summary">
+                        <ChevronRight className="chat-thinking-summary-icon" size={16} />
+                        <span>{item.isCompleted === false ? '正在思考' : '思考过程'}</span>
+                      </span>
+                    </summary>
                     <MarkdownContent content={thinkingContent} />
                   </details>
                 )}

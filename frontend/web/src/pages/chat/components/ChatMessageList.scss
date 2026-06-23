@@ -108,28 +108,52 @@
 }
 
 .chat-thinking {
-  background: #f8fffb;
-  border: 1px solid #ccefe2;
-  border-radius: 7px;
-  margin-bottom: 10px;
-  padding: 10px 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f2f6fb 100%);
+  border-radius: 18px;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  font-size: 14px;
 }
 
 .chat-thinking.streaming {
-  border-color: #8adfbd;
-  box-shadow: 0 8px 22px rgba(0, 143, 122, 0.08);
+  background: linear-gradient(180deg, #f4fbf8 0%, #eef8f4 100%);
+  border-color: #cfe5da;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .chat-thinking summary {
-  color: #0f766e;
+  align-items: center;
+  color: #475467;
   cursor: pointer;
-  font-weight: 700;
-  margin-bottom: 8px;
+  display: flex;
+  list-style: none;
+  user-select: none;
+}
+
+.chat-thinking summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-thinking-summary {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.chat-thinking-summary-icon {
+  color: #667085;
+  flex: 0 0 auto;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.chat-thinking[open] .chat-thinking-summary-icon {
+  color: #344054;
+  transform: rotate(90deg);
 }
 
 .chat-thinking.streaming summary::after {
   animation: thinking-pulse 1.2s infinite ease-in-out;
-  background: #00c16a;
+  background: #12b76a;
   border-radius: 999px;
   content: "";
   display: inline-block;
@@ -139,7 +163,7 @@
 }
 
 .chat-thinking .chat-markdown {
-  color: #667085;
+  color: #475467;
   font-size: 13px;
 }
 
