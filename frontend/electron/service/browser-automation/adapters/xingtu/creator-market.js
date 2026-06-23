@@ -7,17 +7,25 @@ const { extractColumnLayoutTable } = require('../../core/column-layout-table');
 const { isLoginUrl } = require('./auth');
 
 function loadCreatorFilterSchema() {
+  const searchedPaths = [];
+  const localCandidate = path.join(__dirname, 'xingtu-creator-filter-schema.json');
+  searchedPaths.push(localCandidate);
+  if (fs.existsSync(localCandidate)) {
+    return require(localCandidate);
+  }
+
   let currentDir = __dirname;
 
   while (currentDir && currentDir !== path.dirname(currentDir)) {
     const candidate = path.join(currentDir, 'backend/base/src/shared/xingtu-creator-filter-schema.json');
+    searchedPaths.push(candidate);
     if (fs.existsSync(candidate)) {
       return require(candidate);
     }
     currentDir = path.dirname(currentDir);
   }
 
-  throw new Error('Cannot find backend/base/src/shared/xingtu-creator-filter-schema.json from Electron runtime');
+  throw new Error(`Cannot find xingtu-creator-filter-schema.json from Electron runtime. Searched: ${searchedPaths.join(', ')}`);
 }
 
 const creatorFilterSchema = loadCreatorFilterSchema();

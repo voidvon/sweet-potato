@@ -81,7 +81,7 @@ async function startAutomationBridgeServer() {
   const host = process.env.DESKTOP_AUTOMATION_BRIDGE_HOST || '127.0.0.1';
   const port = Number(process.env.DESKTOP_AUTOMATION_BRIDGE_PORT || 7074);
 
-  server = http.createServer((req, res) => {
+  const nextServer = http.createServer((req, res) => {
     void handleRequest(req, res).catch((error) => {
       writeJson(res, 500, {
         ok: false,
@@ -90,15 +90,25 @@ async function startAutomationBridgeServer() {
     });
   });
 
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server?.off('error', reject);
-      console.info('[browser-automation] bridge server listening', { host, port });
-      resolve();
+  try {
+    await new Promise((resolve, reject) => {
+      nextServer.once('error', reject);
+      nextServer.listen(port, host, () => {
+        nextServer.off('error', reject);
+        console.info('[browser-automation] bridge server listening', { host, port });
+        resolve();
+      });
     });
-  });
+  } catch (error) {
+    nextServer.close();
+    if (error && error.code === 'EADDRINUSE') {
+      console.warn('[browser-automation] bridge server port is already in use; app will continue without owning bridge server', { host, port });
+      return null;
+    }
+    throw error;
+  }
 
+  server = nextServer;
   return server;
 }
 
@@ -115,4 +125,3 @@ module.exports = {
   startAutomationBridgeServer,
   stopAutomationBridgeServer,
 };
-
