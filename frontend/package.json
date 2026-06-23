@@ -1,0 +1,50 @@
+{
+  "name": "ai-marketing-desktop",
+  "version": "4.2.0",
+  "description": "AI marketing automation desktop app based on electron-egg and React",
+  "main": "./public/electron/main.js",
+  "scripts": {
+    "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm install'); process.exit(1); }\"",
+    "dev": "node ./scripts/dev.cjs",
+    "build-web": "cd web && pnpm run build",
+    "build-electron-frontend": "cd web && pnpm run build --mode electron && cd ..",
+    "build-electron": "pnpm run build-electron-frontend && ee-bin build --cmds=electron && ee-bin encrypt",
+    "start": "ee-bin start",
+    "dev-frontend": "ee-bin dev --serve=frontend",
+    "dev-electron": "ee-bin dev --serve=electron",
+    "icon": "ee-bin icon",
+    "re-sqlite": "electron-rebuild -f -w better-sqlite3",
+    "build-electron-w": "pnpm run build-electron && ee-bin build --cmds=win64",
+    "build-electron-m": "pnpm run build-electron && ee-bin build --cmds=mac",
+    "build-electron-m-arm64": "pnpm run build-electron && ee-bin build --cmds=mac_arm64",
+    "build-electron-l": "pnpm run build-electron && ee-bin build --cmds=linux"
+  },
+  "repository": "https://github.com/dromara/electron-egg.git",
+  "keywords": [
+    "Electron",
+    "electron-egg",
+    "ElectronEgg",
+    "React",
+    "AI marketing"
+  ],
+  "author": "",
+  "license": "Apache",
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/node": "^22.19.1",
+    "debug": "^4.4.0",
+    "ee-bin": "^4.2.0",
+    "electron": "^39.2.6",
+    "electron-builder": "^26.3.5",
+    "sass-embedded": "^1.100.0"
+  },
+  "dependencies": {
+    "co": "^4.6.0",
+    "ee-core": "^4.1.5",
+    "electron-updater": "^6.7.3",
+    "es-object-atoms": "^1.1.2",
+    "mime-db": "^1.54.0",
+    "playwright-core": "^1.60.0"
+  },
+  "postinstall": "electron-builder install-app-deps"
+}

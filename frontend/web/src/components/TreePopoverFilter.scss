@@ -1,0 +1,46 @@
+.tree-popover-filter {
+  display: flex;
+  flex-direction: column;
+  height: var(--tree-popover-filter-height);
+  max-height: var(--tree-popover-filter-max-height);
+  max-width: var(--tree-popover-filter-max-width);
+  min-width: var(--tree-popover-filter-min-width);
+  overflow: hidden;
+  width: max-content;
+}
+
+.tree-popover-filter-overlay.ant-popover .ant-popover-container {
+  padding: 0;
+}
+
+.tree-popover-filter__body {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: none;
+  overflow: visible;
+}
+
+.tree-popover-filter__body .ant-cascader-panel {
+  border: 0;
+  height: 100%;
+  font-size: 12px;
+}
+
+.tree-popover-filter__body .ant-cascader-menu {
+  height: var(--tree-popover-filter-height);
+  max-height: var(--tree-popover-filter-max-height);
+  min-width: 140px;
+  overflow: auto;
+}
+
+.tree-popover-filter__body .ant-cascader-menu-item {
+  font-size: 12px;
+}
+
+.tree-popover-filter__body .ant-cascader-checkbox {
+  margin-inline-end: 8px;
+}
+
+.tree-popover-filter__select-all-option {
+  font-size: 12px;
+}

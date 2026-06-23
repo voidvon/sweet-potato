@@ -1,0 +1,129 @@
+.chat-page {
+  --chat-bg-rgb: 243 245 248;
+  --chat-bg: #f3f5f8;
+  --chat-panel: #ffffff;
+  --chat-border: #dfe4ea;
+  --chat-text: #101828;
+  --chat-muted: #667085;
+  background:
+    radial-gradient(circle at top left, rgba(43, 127, 255, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.06), transparent 26%),
+    var(--chat-bg);
+  color: var(--chat-text);
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.chat-page .video-workbench-layout,
+.chat-page .video-workbench-main,
+.chat-page .video-workbench-main-body {
+  min-width: 0;
+  width: 100%;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.chat-session-overlay {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+.chat-main-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.workspace-chat-title-shell {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.workspace-chat-title {
+  color: var(--chat-text);
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace:has(.chat-page) {
+  background: var(--chat-bg);
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.workspace:has(.chat-page) .workspace-header {
+  border-bottom-color: rgba(223, 228, 234, 0.92);
+  display: grid;
+  grid-template-columns: 292px minmax(0, 1fr);
+  padding: 0 16px;
+}
+
+.workspace:has(.chat-page) .workspace-header-extra {
+  justify-content: center;
+  margin-left: 0;
+  width: 100%;
+}
+
+.workspace:has(.chat-page) .workspace-header h1,
+.workspace:has(.chat-page) .workspace-header-extra {
+  min-width: 0;
+}
+
+.workspace:has(.chat-page) .workspace-content,
+.workspace:has(.chat-page) .workspace-surface,
+.workspace:has(.chat-page) .route-transition-frame {
+  min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .workspace:has(.chat-page) .workspace-header {
+    display: flex;
+    padding: 0 16px;
+  }
+
+  .workspace:has(.chat-page) .workspace-header h1 {
+    display: none;
+  }
+}
+
+.chat-page .chat-session-preview {
+  color: #98a2b3;
+  display: block;
+  flex: 1 1 auto;
+  font-size: 12px;
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

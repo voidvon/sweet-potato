@@ -1,0 +1,398 @@
+import { db } from '../../db/database.js';
+import type {
+  BillableUsageRecord,
+  BillingSettings,
+  CreditLedgerEntry,
+  CreditReservation,
+  CreditReservationStatus,
+  LlmUsageRecord,
+} from './billing.types.js';
+
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+type BillingSettingsRow = {
+  id: number;
+  video_upload_credits_per_mb: number;
+  video_upload_credits_per_second?: number;
+  video_understanding_credits_per_1m_tokens?: number;
+  video_understanding_usd_per_1m_tokens?: number;
+  usd_to_credit_rate?: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type CreditReservationRow = {
+  id: string;
+  user_id: string;
+  source_type: string;
+  source_id: string;
+  reserved_credits: number;
+  status: CreditReservationStatus;
+  snapshot: string;
+  created_at: string;
+  settled_at: string | null;
+};
+
+type LlmUsageRecordRow = {
+  id: string;
+  user_id: string;
+  model_config_id: string;
+  source_type: string;
+  source_id: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_prompt_tokens: number;
+  usage_raw: string;
+  billing_snapshot: string;
+  credit_base_cost?: number;
+  credit_billed_cost?: number;
+  usd_base_cost?: number;
+  usd_billed_cost?: number;
+  credit_cost: number;
+  status: 'completed' | 'failed';
+  created_at: string;
+};
+
+type CreditLedgerRow = {
+  id: string;
+  user_id: string;
+  type: CreditLedgerEntry['type'];
+  credit_delta: number;
+  credit_balance_after: number;
+  credit_base_cost?: number | null;
+  credit_billed_cost?: number | null;
+  usd_base_cost?: number | null;
+  usd_billed_cost?: number | null;
+  source_type: string | null;
+  source_id: string | null;
+  snapshot: string;
+  created_at: string;
+};
+
+type BillableUsageRecordRow = {
+  id: string;
+  user_id: string;
+  category: BillableUsageRecord['category'];
+  model_config_id: string | null;
+  provider: string | null;
+  model: string | null;
+  source_type: string;
+  source_id: string;
+  task_id: string | null;
+  session_id: string | null;
+  group_id: string | null;
+  pricing_mode: BillableUsageRecord['pricingMode'];
+  quantity_snapshot: string;
+  usage_raw: string;
+  request_snapshot: string;
+  response_snapshot: string;
+  credit_base_cost?: number;
+  credit_billed_cost?: number;
+  usd_base_cost?: number;
+  usd_billed_cost?: number;
+  credit_cost: number;
+  status: BillableUsageRecord['status'];
+  created_at: string;
+};
+
+function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
+  const understandingCreditsPer1MTokens = typeof row.video_understanding_credits_per_1m_tokens === 'number'
+    ? Number(row.video_understanding_credits_per_1m_tokens || 0)
+    : typeof row.video_understanding_usd_per_1m_tokens === 'number'
+      ? Number(row.video_understanding_usd_per_1m_tokens || 0) * Number(row.usd_to_credit_rate || 0)
+      : 0;
+  return {
+    id: 1,
+    videoUploadCreditsPerMb: typeof row.video_upload_credits_per_mb === 'number'
+      ? Number(row.video_upload_credits_per_mb || 0)
+      : Number(row.video_upload_credits_per_second || 0),
+    videoUnderstandingCreditsPer1MTokens: understandingCreditsPer1MTokens,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function parseReservation(row: CreditReservationRow): CreditReservation {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    reservedCredits: Number(row.reserved_credits || 0),
+    status: row.status,
+    snapshot: parseJsonObject(row.snapshot),
+    createdAt: row.created_at,
+    settledAt: row.settled_at,
+  };
+}
+
+function parseUsageRecord(row: LlmUsageRecordRow): LlmUsageRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    modelConfigId: row.model_config_id,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    promptTokens: Number(row.prompt_tokens || 0),
+    completionTokens: Number(row.completion_tokens || 0),
+    cachedPromptTokens: Number(row.cached_prompt_tokens || 0),
+    usageRaw: parseJsonObject(row.usage_raw),
+    billingSnapshot: parseJsonObject(row.billing_snapshot),
+    creditBaseCost: typeof row.credit_base_cost === 'number'
+      ? Number(row.credit_base_cost || 0)
+      : Number(row.credit_cost || 0),
+    creditBilledCost: typeof row.credit_billed_cost === 'number'
+      ? Number(row.credit_billed_cost || 0)
+      : Number(row.credit_cost || 0),
+    creditCost: Number(row.credit_cost || 0),
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+function parseLedgerRow(row: CreditLedgerRow): CreditLedgerEntry {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    creditDelta: Number(row.credit_delta || 0),
+    creditBalanceAfter: Number(row.credit_balance_after || 0),
+    creditBaseCost: row.credit_base_cost === null || typeof row.credit_base_cost === 'undefined'
+      ? null
+      : Number(row.credit_base_cost || 0),
+    creditBilledCost: row.credit_billed_cost === null || typeof row.credit_billed_cost === 'undefined'
+      ? null
+      : Number(row.credit_billed_cost || 0),
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    snapshot: parseJsonObject(row.snapshot),
+    createdAt: row.created_at,
+  };
+}
+
+function parseBillableUsageRecord(row: BillableUsageRecordRow): BillableUsageRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    category: row.category,
+    modelConfigId: row.model_config_id,
+    provider: row.provider,
+    model: row.model,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    taskId: row.task_id,
+    sessionId: row.session_id,
+    groupId: row.group_id,
+    pricingMode: row.pricing_mode,
+    quantitySnapshot: parseJsonObject(row.quantity_snapshot),
+    usageRaw: parseJsonObject(row.usage_raw),
+    requestSnapshot: parseJsonObject(row.request_snapshot),
+    responseSnapshot: parseJsonObject(row.response_snapshot),
+    creditBaseCost: typeof row.credit_base_cost === 'number'
+      ? Number(row.credit_base_cost || 0)
+      : Number(row.credit_cost || 0),
+    creditBilledCost: typeof row.credit_billed_cost === 'number'
+      ? Number(row.credit_billed_cost || 0)
+      : Number(row.credit_cost || 0),
+    creditCost: Number(row.credit_cost || 0),
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+export const billingRepository = {
+  getSettings() {
+    const row = db.prepare('SELECT * FROM billing_settings WHERE id = 1').get() as BillingSettingsRow | undefined;
+    return row ? parseBillingSettings(row) : null;
+  },
+
+  saveSettings(settings: BillingSettings) {
+    db.prepare(`
+      INSERT INTO billing_settings (
+        id, video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens, created_at, updated_at
+      )
+      VALUES (
+        @id, @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens, @createdAt, @updatedAt
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        video_upload_credits_per_mb = excluded.video_upload_credits_per_mb,
+        video_understanding_credits_per_1m_tokens = excluded.video_understanding_credits_per_1m_tokens,
+        updated_at = excluded.updated_at
+    `).run({
+      id: 1,
+      videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
+      videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
+      createdAt: settings.createdAt,
+      updatedAt: settings.updatedAt,
+    });
+  },
+
+  createReservation(reservation: CreditReservation) {
+    db.prepare(`
+      INSERT INTO credit_reservations (
+        id, user_id, source_type, source_id, reserved_credits, status, snapshot, created_at, settled_at
+      ) VALUES (
+        @id, @userId, @sourceType, @sourceId, @reservedCredits, @status, @snapshot, @createdAt, @settledAt
+      )
+    `).run({
+      ...reservation,
+      snapshot: JSON.stringify(reservation.snapshot || {}),
+    });
+  },
+
+  findReservation(id: string) {
+    const row = db.prepare('SELECT * FROM credit_reservations WHERE id = ?').get(id) as CreditReservationRow | undefined;
+    return row ? parseReservation(row) : null;
+  },
+
+  updateReservationStatus(id: string, status: CreditReservationStatus, settledAt?: string | null) {
+    db.prepare(`
+      UPDATE credit_reservations
+      SET status = @status, settled_at = @settledAt
+      WHERE id = @id
+    `).run({
+      id,
+      status,
+      settledAt: settledAt || null,
+    });
+  },
+
+  createUsageRecord(record: LlmUsageRecord) {
+    db.prepare(`
+      INSERT INTO llm_usage_records (
+        id, user_id, model_config_id, source_type, source_id, prompt_tokens, completion_tokens,
+        cached_prompt_tokens, usage_raw, billing_snapshot, credit_base_cost, credit_billed_cost,
+        credit_cost, status, created_at
+      ) VALUES (
+        @id, @userId, @modelConfigId, @sourceType, @sourceId, @promptTokens, @completionTokens,
+        @cachedPromptTokens, @usageRaw, @billingSnapshot, @creditBaseCost, @creditBilledCost,
+        @creditCost, @status, @createdAt
+      )
+    `).run({
+      ...record,
+      usageRaw: JSON.stringify(record.usageRaw || {}),
+      billingSnapshot: JSON.stringify(record.billingSnapshot || {}),
+    });
+  },
+
+  listUsageRecords(input: { userId?: string; limit?: number } = {}) {
+    const filters: string[] = [];
+    const params: Record<string, unknown> = {
+      limit: input.limit || 100,
+    };
+    if (input.userId) {
+      filters.push('user_id = @userId');
+      params.userId = input.userId;
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const rows = db.prepare(`
+      SELECT * FROM llm_usage_records
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT @limit
+    `).all(params) as LlmUsageRecordRow[];
+    return rows.map(parseUsageRecord);
+  },
+
+  findUsageRecordBySourceId(sourceId: string) {
+    const row = db.prepare(`
+      SELECT * FROM llm_usage_records
+      WHERE source_id = @sourceId
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get({ sourceId }) as LlmUsageRecordRow | undefined;
+    return row ? parseUsageRecord(row) : null;
+  },
+
+  createLedgerEntry(entry: CreditLedgerEntry) {
+    db.prepare(`
+      INSERT INTO credit_ledger (
+        id, user_id, type, credit_delta, credit_balance_after, credit_base_cost, credit_billed_cost,
+        source_type, source_id, snapshot, created_at
+      ) VALUES (
+        @id, @userId, @type, @creditDelta, @creditBalanceAfter, @creditBaseCost, @creditBilledCost,
+        @sourceType, @sourceId, @snapshot, @createdAt
+      )
+    `).run({
+      ...entry,
+      snapshot: JSON.stringify(entry.snapshot || {}),
+    });
+  },
+
+  createBillableUsageRecord(record: BillableUsageRecord) {
+    db.prepare(`
+      INSERT INTO billable_usage_records (
+        id, user_id, category, model_config_id, provider, model, source_type, source_id,
+        task_id, session_id, group_id, pricing_mode, quantity_snapshot, usage_raw,
+        request_snapshot, response_snapshot, credit_base_cost, credit_billed_cost, credit_cost,
+        status, created_at
+      ) VALUES (
+        @id, @userId, @category, @modelConfigId, @provider, @model, @sourceType, @sourceId,
+        @taskId, @sessionId, @groupId, @pricingMode, @quantitySnapshot, @usageRaw,
+        @requestSnapshot, @responseSnapshot, @creditBaseCost, @creditBilledCost, @creditCost,
+        @status, @createdAt
+      )
+    `).run({
+      ...record,
+      quantitySnapshot: JSON.stringify(record.quantitySnapshot || {}),
+      usageRaw: JSON.stringify(record.usageRaw || {}),
+      requestSnapshot: JSON.stringify(record.requestSnapshot || {}),
+      responseSnapshot: JSON.stringify(record.responseSnapshot || {}),
+    });
+  },
+
+  findBillableUsageRecordByCategoryAndSourceId(category: BillableUsageRecord['category'], sourceId: string) {
+    const row = db.prepare(`
+      SELECT * FROM billable_usage_records
+      WHERE category = ? AND source_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(category, sourceId) as BillableUsageRecordRow | undefined;
+    return row ? parseBillableUsageRecord(row) : null;
+  },
+
+  listBillableUsageRecords(input: { userId?: string; limit?: number } = {}) {
+    const filters: string[] = [];
+    const params: Record<string, unknown> = {
+      limit: input.limit || 100,
+    };
+    if (input.userId) {
+      filters.push('user_id = @userId');
+      params.userId = input.userId;
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const rows = db.prepare(`
+      SELECT * FROM billable_usage_records
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT @limit
+    `).all(params) as BillableUsageRecordRow[];
+    return rows.map(parseBillableUsageRecord);
+  },
+
+  listLedgerEntries(input: { userId?: string; limit?: number } = {}) {
+    const filters: string[] = [];
+    const params: Record<string, unknown> = {
+      limit: input.limit || 100,
+    };
+    if (input.userId) {
+      filters.push('user_id = @userId');
+      params.userId = input.userId;
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const rows = db.prepare(`
+      SELECT * FROM credit_ledger
+      ${where}
+      ORDER BY created_at DESC
+      LIMIT @limit
+    `).all(params) as CreditLedgerRow[];
+    return rows.map(parseLedgerRow);
+  },
+};

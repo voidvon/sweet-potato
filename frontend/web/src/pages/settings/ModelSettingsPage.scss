@@ -1,0 +1,194 @@
+.antd-form-grid {
+  display: grid;
+  gap: 0 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.antd-form-grid .full-span {
+  grid-column: 1 / -1;
+}
+
+.model-config-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.model-config-toolbar h2 {
+  margin-bottom: 0;
+}
+
+.model-subtext {
+  color: #667085;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.llm-price-form-item {
+  margin-bottom: 24px;
+}
+
+.llm-price-table {
+
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 14px 16px;
+    vertical-align: top;
+  }
+
+  .ant-table-thead > tr > th {
+    font-size: 13px;
+  }
+}
+
+.llm-price-lines {
+  display: grid;
+  gap: 6px;
+}
+
+.llm-price-line {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+}
+
+.llm-price-line span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.llm-price-line-compact {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+}
+
+.llm-price-line-compact span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.llm-price-line-compact strong {
+  color: #101828;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.llm-price-line strong {
+  color: #101828;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.model-url-text {
+  display: inline-block;
+  max-width: 300px;
+  color: #475467;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-model-modal .ant-modal-body {
+  max-height: min(72vh, 760px);
+  overflow: auto;
+  padding-right: 18px;
+}
+
+.audio-model-form {
+  display: grid;
+  gap: 4px;
+}
+
+.audio-form-section {
+  display: grid;
+  gap: 14px;
+}
+
+.section-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+}
+
+.section-heading h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.section-heading p {
+  color: #667085;
+  margin: 4px 0 0;
+}
+
+.llm-pricing-modal-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 80vh;
+}
+
+.llm-pricing-management-modal .ant-modal-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-table-wrapper {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.llm-pricing-management-modal .ant-spin-nested-loading,
+.llm-pricing-management-modal .ant-spin-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-table,
+.llm-pricing-management-modal .ant-table-container {
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-table-body {
+  overflow: auto !important;
+}
+
+@media (max-width: 760px) {
+  .antd-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .llm-price-form-item {
+    overflow-x: auto;
+  }
+
+  .llm-price-table {
+    min-width: 640px;
+  }
+
+  .model-config-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}

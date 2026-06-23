@@ -1,0 +1,78 @@
+import type { VideoModelProvider } from '../video-model-provider.types.js';
+
+export const volcengineSeedanceProvider: VideoModelProvider = {
+  id: 'volcengine-seedance',
+  name: '火山引擎 Seedance',
+  description: '火山方舟视频生成 API，支持按模型能力选择图片、视频、音频参考素材。',
+  keyLabel: '火山引擎 API Key',
+  keyPlaceholder: '请输入火山方舟 API Key',
+  keyHelp: '根据火山方舟视频生成 API 文档，调用地址为 /api/v3/contents/generations/tasks，使用 Bearer API Key 鉴权。',
+  defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+  defaultModel: 'doubao-seedance-2-0-260128',
+  models: [
+    {
+      id: 'doubao-seedance-2-0-260128',
+      name: 'Seedance 2.0',
+      description: '支持多模态参考生视频，可同时使用参考图、参考视频、参考音频。',
+      supportedReferenceTypes: ['image', 'video', 'audio'],
+      referencePolicy: {
+        imageMode: 'reference_images',
+        maxImages: 9,
+        allowVideo: true,
+        maxVideos: 3,
+        allowAudio: true,
+        maxAudios: 3,
+        audioRequiresVisualReference: true,
+      },
+      durationPolicy: {
+        minSeconds: 4,
+        maxSeconds: 15,
+        defaultSeconds: 5,
+        supportsAuto: true,
+      },
+    },
+    {
+      id: 'doubao-seedance-2-0-fast-260128',
+      name: 'Seedance 2.0 Fast',
+      description: '2.0 快速版，支持多模态参考生视频，可同时使用参考图、参考视频、参考音频。',
+      supportedReferenceTypes: ['image', 'video', 'audio'],
+      referencePolicy: {
+        imageMode: 'reference_images',
+        maxImages: 9,
+        allowVideo: true,
+        maxVideos: 3,
+        allowAudio: true,
+        maxAudios: 3,
+        audioRequiresVisualReference: true,
+      },
+      durationPolicy: {
+        minSeconds: 4,
+        maxSeconds: 15,
+        defaultSeconds: 5,
+        supportsAuto: true,
+      },
+    },
+    {
+      id: 'doubao-seedance-2-0-mini-260615',
+      name: 'Seedance 2.0 Mini',
+      description: '2.0 轻量版，支持多模态参考生视频，可同时使用参考图、参考视频、参考音频。',
+      disabled: true,
+      supportedReferenceTypes: ['image', 'video', 'audio'],
+      referencePolicy: {
+        imageMode: 'reference_images',
+        maxImages: 9,
+        allowVideo: true,
+        maxVideos: 3,
+        allowAudio: true,
+        maxAudios: 3,
+        audioRequiresVisualReference: true,
+      },
+      durationPolicy: {
+        minSeconds: 4,
+        maxSeconds: 15,
+        defaultSeconds: 5,
+        supportsAuto: true,
+      },
+    },
+  ],
+};

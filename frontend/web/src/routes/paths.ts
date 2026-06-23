@@ -1,0 +1,16 @@
+export const routePaths = {
+  login: '/login',
+  appRoot: '/app',
+  defaultLanding: '/app/content/video_remake',
+  defaultModule: '/app/modules/claw',
+  module: (moduleId = ':moduleId') => `/app/modules/${moduleId}`,
+  contentRoot: '/app/content',
+  contentDefault: '/app/content/virtual_portrait_assets',
+  contentModule: (moduleCode = ':moduleCode') => `/app/content/${moduleCode}`,
+  xingtuCreators: '/app/creator-ops/xingtu',
+  buyinCreators: '/app/creator-ops/buyin',
+  account: '/app/account',
+  modelSettings: '/app/settings/models',
+  billingSettings: '/app/settings/billing',
+  userManagement: '/app/settings/users',
+};

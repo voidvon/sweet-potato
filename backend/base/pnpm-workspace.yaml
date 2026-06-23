@@ -1,0 +1,4 @@
+allowBuilds:
+  better-sqlite3: true
+  esbuild: set this to true or false
+  protobufjs: set this to true or false

@@ -1,0 +1,1505 @@
+import { randomBytes } from 'node:crypto';
+import { db } from '../../db/database.js';
+import type { AiModelConfig } from '../model-configs/model-config.types.js';
+import { findLlmModelPricing } from '../model-configs/llm-model-pricing.service.js';
+import { userRepository } from '../users/user.repository.js';
+import { billingRepository } from './billing.repository.js';
+import type {
+  BillableUsageCategory,
+  BillableUsagePricingMode,
+  BillableUsageRecord,
+  BilledLlmCallInput,
+  BilledLlmStreamChunk,
+  BillingChatMessage,
+  BillingSettings,
+  CreditLedgerEntry,
+  CreditReservation,
+  LlmUsageRecord,
+  ModelBillingSettings,
+  NormalizedLlmUsage,
+} from './billing.types.js';
+
+type OpenAiUsagePayload = Record<string, unknown> | undefined;
+
+type NonStreamCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+      reasoning_content?: string;
+      reasoning?: string;
+      thinking_content?: string;
+      thinking?: string;
+    };
+  }>;
+  usage?: OpenAiUsagePayload;
+  error?: { message?: string };
+  message?: string;
+};
+
+type StreamCompletionResponse = {
+  choices?: Array<{
+    delta?: {
+      content?: string;
+      reasoning_content?: string;
+      reasoning?: string;
+      thinking_content?: string;
+      thinking?: string;
+    };
+  }>;
+  usage?: OpenAiUsagePayload;
+  error?: { message?: string };
+};
+
+type NonLlmModelBillingSettings = {
+  multiplier: number;
+  creditsPerRequest: number;
+  creditsPer1MTokens: number;
+  voiceCloneCredits: number;
+  speechCreditsPer1kChars: number;
+  priceSource: string;
+};
+
+export class InsufficientCreditsError extends Error {
+  constructor() {
+    super('积分不足或账户已欠费，请充值后继续使用');
+    this.name = 'InsufficientCreditsError';
+  }
+}
+
+export class InsufficientStepCreditsError extends Error {
+  currentCredits: number;
+  requiredCredits: number;
+  shortfallCredits: number;
+  step: string;
+  stepLabel: string;
+  comparison: 'gt' | 'gte';
+
+  constructor(input: {
+    step: string;
+    stepLabel: string;
+    currentCredits: number;
+    requiredCredits: number;
+    comparison?: 'gt' | 'gte';
+  }) {
+    const currentCredits = roundCredits(input.currentCredits);
+    const requiredCredits = roundCredits(input.requiredCredits);
+    const shortfallCredits = roundCredits(Math.max(0, requiredCredits - currentCredits));
+    const comparison = input.comparison || 'gte';
+    super(
+      comparison === 'gt'
+        ? `积分不足，无法继续${input.stepLabel}。当前剩余 ${currentCredits} 积分，需要大于 ${requiredCredits} 积分，请充值后重试。`
+        : `积分不足，无法继续${input.stepLabel}。当前剩余 ${currentCredits} 积分，需要至少 ${requiredCredits} 积分，请充值后重试。`,
+    );
+    this.name = 'InsufficientStepCreditsError';
+    this.step = input.step;
+    this.stepLabel = input.stepLabel;
+    this.currentCredits = currentCredits;
+    this.requiredCredits = requiredCredits;
+    this.shortfallCredits = shortfallCredits;
+    this.comparison = comparison;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function numberFromRecord(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return 0;
+}
+
+function stringFromRecord(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function modelNameForLedgerEntry(entry: CreditLedgerEntry) {
+  if (isRecord(entry.snapshot)) {
+    const direct = stringFromRecord(entry.snapshot, ['modelName']);
+    if (direct) {
+      return direct;
+    }
+  }
+  if (!entry.sourceId) {
+    return '';
+  }
+  const usageRecord = billingRepository.findUsageRecordBySourceId(entry.sourceId);
+  if (!usageRecord) {
+    return '';
+  }
+  return stringFromRecord(usageRecord.billingSnapshot, ['modelName']) || usageRecord.modelConfigId;
+}
+
+function normalizeNumber(value: unknown, fallback = 0) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function roundCredits(value: number) {
+  return Number(value.toFixed(6));
+}
+
+function normalizeBaseUrl(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, '');
+}
+
+function chatCompletionsUrl(baseUrl: string) {
+  const normalized = normalizeBaseUrl(baseUrl);
+  return /\/chat\/completions$/i.test(normalized) ? normalized : `${normalized}/chat/completions`;
+}
+
+function estimateTextTokens(text: string) {
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+function estimateMessageTokens(messages: BillingChatMessage[]) {
+  return messages.reduce((total, message) => {
+    if (typeof message.content === 'string') {
+      return total + estimateTextTokens(message.content);
+    }
+    return total + message.content.reduce((sum, part) => {
+      if (part.type === 'text') {
+        return sum + estimateTextTokens(part.text);
+      }
+      return sum + Math.max(256, estimateTextTokens(part.image_url.url));
+    }, 0);
+  }, 12);
+}
+
+function normalizeUsage(raw: OpenAiUsagePayload): NormalizedLlmUsage {
+  const usage = isRecord(raw) ? raw : {};
+  const promptTokens = numberFromRecord(usage, ['prompt_tokens', 'input_tokens']);
+  const completionTokens = numberFromRecord(usage, ['completion_tokens', 'output_tokens']);
+  const promptDetails = isRecord(usage.prompt_tokens_details)
+    ? usage.prompt_tokens_details
+    : isRecord(usage.input_tokens_details)
+      ? usage.input_tokens_details
+      : {};
+  const cachedPromptTokens = numberFromRecord(promptDetails, ['cached_tokens']);
+  return {
+    promptTokens,
+    completionTokens,
+    cachedPromptTokens,
+  };
+}
+
+function modelBillingSettingsOf(modelConfig: AiModelConfig): ModelBillingSettings {
+  const settings = isRecord(modelConfig.settings) ? modelConfig.settings : {};
+  const billing = isRecord(settings.billing) ? settings.billing : {};
+  const pricing = findLlmModelPricing(modelConfig.provider, modelConfig.model);
+  return {
+    multiplier: normalizeNumber(billing.multiplier, 0),
+    inputCreditsPer1M: pricing
+      ? pricing.inputPricePer1M
+      : normalizeNumber(
+        billing.inputCreditsPer1M,
+        normalizeNumber(billing.inputUsdPer1M, 0),
+      ),
+    outputCreditsPer1M: pricing
+      ? pricing.outputPricePer1M
+      : normalizeNumber(
+        billing.outputCreditsPer1M,
+        normalizeNumber(billing.outputUsdPer1M, 0),
+      ),
+    cachedInputCreditsPer1M: pricing
+      ? pricing.cachedInputPricePer1M
+      : normalizeNumber(
+        billing.cachedInputCreditsPer1M,
+        normalizeNumber(billing.cachedInputUsdPer1M, 0),
+      ),
+    maxOutputCreditsForReserve: roundCredits(Math.max(
+      0,
+      normalizeNumber(
+        billing.maxOutputCreditsForReserve,
+        normalizeNumber(billing.maxOutputTokensForReserve, 0),
+      ),
+    )),
+    priceSource: pricing?.priceSource || stringFromRecord(billing, ['priceSource']) || 'official-manual',
+  };
+}
+
+function nonLlmModelBillingSettingsOf(modelConfig: AiModelConfig): NonLlmModelBillingSettings {
+  const settings = isRecord(modelConfig.settings) ? modelConfig.settings : {};
+  const billing = isRecord(settings.billing) ? settings.billing : {};
+  return {
+    multiplier: normalizeNumber(billing.multiplier, 1),
+    creditsPerRequest: normalizeNumber(
+      billing.creditsPerRequest,
+      normalizeNumber(billing.perRequestUsd, 0),
+    ),
+    creditsPer1MTokens: normalizeNumber(
+      billing.creditsPer1MTokens,
+      normalizeNumber(billing.usdPer1MTokens, 0),
+    ),
+    voiceCloneCredits: normalizeNumber(
+      billing.voiceCloneCredits,
+      normalizeNumber(billing.voiceCloneUsd, 0),
+    ),
+    speechCreditsPer1kChars: normalizeNumber(
+      billing.speechCreditsPer1kChars,
+      normalizeNumber(billing.speechUsdPer1kChars, 0),
+    ),
+    priceSource: stringFromRecord(billing, ['priceSource']) || 'official-manual',
+  };
+}
+
+function assertSystemBillingReady() {
+  const settings = billingRepository.getSettings();
+  if (!settings) {
+    throw new Error('系统计费配置不存在');
+  }
+  return settings;
+}
+
+function assertBillingReady(modelConfig: AiModelConfig) {
+  const settings = assertSystemBillingReady();
+  const modelBilling = modelBillingSettingsOf(modelConfig);
+  if (
+    modelBilling.multiplier <= 0
+    || modelBilling.inputCreditsPer1M < 0
+    || modelBilling.outputCreditsPer1M < 0
+    || modelBilling.cachedInputCreditsPer1M < 0
+    || modelBilling.maxOutputCreditsForReserve < 0
+  ) {
+    throw new Error(`模型「${modelConfig.name}」的计费配置不完整，请联系管理员`);
+  }
+  return { settings, modelBilling };
+}
+
+function calculateCreditBaseCost(usage: NormalizedLlmUsage, modelBilling: ModelBillingSettings) {
+  const cachedPromptTokens = Math.max(0, Math.min(usage.cachedPromptTokens, usage.promptTokens));
+  const uncachedPromptTokens = Math.max(0, usage.promptTokens - cachedPromptTokens);
+  return roundCredits(
+    uncachedPromptTokens / 1_000_000 * modelBilling.inputCreditsPer1M
+    + cachedPromptTokens / 1_000_000 * modelBilling.cachedInputCreditsPer1M
+    + usage.completionTokens / 1_000_000 * modelBilling.outputCreditsPer1M,
+  );
+}
+
+function buildSnapshot(input: {
+  modelConfig: AiModelConfig;
+  billingSettings: BillingSettings;
+  modelBilling: ModelBillingSettings;
+  usage?: NormalizedLlmUsage;
+}) {
+  return {
+    modelConfigId: input.modelConfig.id,
+    modelName: input.modelConfig.name,
+    provider: input.modelConfig.provider,
+    model: input.modelConfig.model,
+    modelBilling: input.modelBilling,
+    usage: input.usage,
+  };
+}
+
+function buildBillableSnapshot(input: {
+  settings: BillingSettings;
+  category: BillableUsageCategory;
+  modelConfig?: AiModelConfig;
+  modelBilling?: NonLlmModelBillingSettings;
+  pricingMode: BillableUsagePricingMode;
+  quantitySnapshot: Record<string, unknown>;
+  requestSnapshot: Record<string, unknown>;
+  responseSnapshot: Record<string, unknown>;
+  usageRaw: Record<string, unknown>;
+}) {
+  return {
+    category: input.category,
+    pricingMode: input.pricingMode,
+    modelConfigId: input.modelConfig?.id || null,
+    modelName: input.modelConfig?.name || '',
+    provider: input.modelConfig?.provider || '',
+    model: input.modelConfig?.model || '',
+    modelBilling: input.modelBilling || null,
+    quantitySnapshot: input.quantitySnapshot,
+    requestSnapshot: input.requestSnapshot,
+    responseSnapshot: input.responseSnapshot,
+    usageRaw: input.usageRaw,
+  };
+}
+
+function persistBillableUsageCharge(input: {
+  userId: string;
+  category: BillableUsageCategory;
+  modelConfig?: AiModelConfig;
+  provider?: string;
+  model?: string;
+  sourceType: string;
+  sourceId: string;
+  taskId?: string | null;
+  sessionId?: string | null;
+  groupId?: string | null;
+  pricingMode: BillableUsagePricingMode;
+  quantitySnapshot?: Record<string, unknown>;
+  usageRaw?: Record<string, unknown>;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+  creditBaseCost: number;
+  multiplier?: number;
+  priceSource?: string;
+}) {
+  const settings = assertSystemBillingReady();
+  const creditBaseCost = roundCredits(Math.max(0, input.creditBaseCost));
+  const multiplier = Math.max(0, normalizeNumber(input.multiplier, 1));
+  const creditBilledCost = roundCredits(creditBaseCost * multiplier);
+  const creditCost = creditBilledCost;
+  const now = new Date().toISOString();
+  const quantitySnapshot = input.quantitySnapshot || {};
+  const usageRaw = input.usageRaw || {};
+  const requestSnapshot = input.requestSnapshot || {};
+  const responseSnapshot = input.responseSnapshot || {};
+  const snapshot = buildBillableSnapshot({
+    settings,
+    category: input.category,
+    modelConfig: input.modelConfig,
+    modelBilling: input.modelConfig ? {
+      ...nonLlmModelBillingSettingsOf(input.modelConfig),
+      multiplier,
+      priceSource: input.priceSource || nonLlmModelBillingSettingsOf(input.modelConfig).priceSource,
+    } : undefined,
+    pricingMode: input.pricingMode,
+    quantitySnapshot,
+    requestSnapshot,
+    responseSnapshot,
+    usageRaw,
+  });
+
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    let nextCreditBalance = user.creditBalance;
+    if (creditCost > 0) {
+      nextCreditBalance = roundCredits(nextCreditBalance - creditCost);
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'usage_debit',
+        creditDelta: -creditCost,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost,
+        creditBilledCost,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot,
+        createdAt: now,
+      });
+    }
+    const record: BillableUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: input.userId,
+      category: input.category,
+      modelConfigId: input.modelConfig?.id || null,
+      provider: input.provider || input.modelConfig?.provider || null,
+      model: input.model || input.modelConfig?.model || null,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      taskId: input.taskId || null,
+      sessionId: input.sessionId || null,
+      groupId: input.groupId || null,
+      pricingMode: input.pricingMode,
+      quantitySnapshot,
+      usageRaw,
+      requestSnapshot,
+      responseSnapshot,
+      creditBaseCost,
+      creditBilledCost,
+      creditCost,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.createBillableUsageRecord(record);
+    return record;
+  });
+
+  return transaction();
+}
+
+function charsTo1kUnits(charCount: number) {
+  return Math.max(0, charCount) / 1000;
+}
+
+function bytesToMb(byteCount: number) {
+  return Math.max(0, byteCount) / (1024 * 1024);
+}
+
+function minutesFromSeconds(durationSeconds: number) {
+  return Math.max(0, durationSeconds) / 60;
+}
+
+export function estimateVodUploadCredits(fileSizeBytes: number) {
+  const settings = assertSystemBillingReady();
+  return roundCredits(bytesToMb(fileSizeBytes) * settings.videoUploadCreditsPerMb);
+}
+
+export function estimateVodUnderstandingCredits(tokenCount: number) {
+  const settings = assertSystemBillingReady();
+  return roundCredits(Math.max(0, tokenCount) / 1_000_000 * settings.videoUnderstandingCreditsPer1MTokens);
+}
+
+export function assertSufficientStepCredits(input: {
+  userId: string;
+  requiredCredits: number;
+  step: string;
+  stepLabel: string;
+}) {
+  assertSystemBillingReady();
+  const requiredCredits = roundCredits(Math.max(0, input.requiredCredits));
+  const user = userRepository.findById(input.userId);
+  if (!user) {
+    throw new Error('用户不存在');
+  }
+  if (requiredCredits <= 0) {
+    return {
+      currentCredits: roundCredits(user.creditBalance),
+      requiredCredits,
+    };
+  }
+  const currentCredits = roundCredits(user.creditBalance);
+  if (currentCredits < requiredCredits) {
+    throw new InsufficientStepCreditsError({
+      step: input.step,
+      stepLabel: input.stepLabel,
+      currentCredits,
+      requiredCredits,
+    });
+  }
+  return {
+    currentCredits,
+    requiredCredits,
+  };
+}
+
+function assertSufficientLlmRequestCredits(input: {
+  userId: string;
+  thresholdCredits: number;
+  step: string;
+  stepLabel: string;
+}) {
+  const settings = assertSystemBillingReady();
+  const thresholdCredits = roundCredits(Math.max(0, input.thresholdCredits));
+  const user = userRepository.findById(input.userId);
+  if (!user) {
+    throw new Error('用户不存在');
+  }
+  const currentCredits = roundCredits(user.creditBalance);
+  if (currentCredits <= thresholdCredits) {
+    throw new InsufficientStepCreditsError({
+      step: input.step,
+      stepLabel: input.stepLabel,
+      currentCredits,
+      requiredCredits: thresholdCredits,
+      comparison: 'gt',
+    });
+  }
+  return {
+    currentCredits,
+    thresholdCredits,
+  };
+}
+
+function reserveCredits(input: {
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  modelConfig: AiModelConfig;
+  settings: BillingSettings;
+  modelBilling: ModelBillingSettings;
+  messages: BillingChatMessage[];
+}) {
+  const estimatedUsage: NormalizedLlmUsage = {
+    promptTokens: estimateMessageTokens(input.messages),
+    completionTokens: 0,
+    cachedPromptTokens: 0,
+  };
+  const estimatedPromptCreditBaseCost = calculateCreditBaseCost(estimatedUsage, input.modelBilling);
+  const estimatedPromptCreditBilledCost = roundCredits(estimatedPromptCreditBaseCost * input.modelBilling.multiplier);
+  const reservedCredits = roundCredits(estimatedPromptCreditBilledCost + input.modelBilling.maxOutputCreditsForReserve);
+  const now = new Date().toISOString();
+  const reservation: CreditReservation = {
+    id: randomBytes(12).toString('hex'),
+    userId: input.userId,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    reservedCredits,
+    status: 'reserved',
+    snapshot: buildSnapshot({
+      modelConfig: input.modelConfig,
+      billingSettings: input.settings,
+      modelBilling: input.modelBilling,
+      usage: estimatedUsage,
+    }),
+    createdAt: now,
+    settledAt: null,
+  };
+  const ledgerEntry: CreditLedgerEntry = {
+    id: randomBytes(12).toString('hex'),
+    userId: input.userId,
+    type: 'reserve_debit',
+    creditDelta: -reservedCredits,
+    creditBalanceAfter: 0,
+    creditBaseCost: estimatedPromptCreditBaseCost,
+    creditBilledCost: estimatedPromptCreditBilledCost,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    snapshot: {
+      ...reservation.snapshot,
+      reserve: {
+        estimatedPromptCreditCost: estimatedPromptCreditBilledCost,
+        maxOutputCreditsForReserve: input.modelBilling.maxOutputCreditsForReserve,
+        reservedCredits,
+      },
+    },
+    createdAt: now,
+  };
+
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    const nextCreditBalance = roundCredits(user.creditBalance - reservedCredits);
+    userRepository.updateCreditBalance(user.id, nextCreditBalance);
+    ledgerEntry.creditBalanceAfter = nextCreditBalance;
+    billingRepository.createReservation(reservation);
+    billingRepository.createLedgerEntry(ledgerEntry);
+    return {
+      reservation,
+      nextCreditBalance,
+      estimatedUsage,
+    };
+  });
+
+  return transaction();
+}
+
+function releaseReservation(input: {
+  reservation: CreditReservation;
+  sourceType: string;
+  sourceId: string;
+}) {
+  const now = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.reservation.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    const nextCreditBalance = roundCredits(user.creditBalance + input.reservation.reservedCredits);
+    userRepository.updateCreditBalance(user.id, nextCreditBalance);
+    billingRepository.updateReservationStatus(input.reservation.id, 'released', now);
+    billingRepository.createLedgerEntry({
+      id: randomBytes(12).toString('hex'),
+      userId: user.id,
+      type: 'reserve_refund',
+      creditDelta: input.reservation.reservedCredits,
+      creditBalanceAfter: nextCreditBalance,
+      creditBaseCost: null,
+      creditBilledCost: null,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      snapshot: input.reservation.snapshot,
+      createdAt: now,
+    });
+  });
+  transaction();
+}
+
+function settleReservation(input: {
+  reservation: CreditReservation;
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  modelConfig: AiModelConfig;
+  settings: BillingSettings;
+  modelBilling: ModelBillingSettings;
+  usage: NormalizedLlmUsage;
+}) {
+  const creditBaseCost = calculateCreditBaseCost(input.usage, input.modelBilling);
+  const creditBilledCost = roundCredits(creditBaseCost * input.modelBilling.multiplier);
+  const creditCost = creditBilledCost;
+  const refundCredits = roundCredits(input.reservation.reservedCredits - creditCost);
+  const now = new Date().toISOString();
+  const snapshot = buildSnapshot({
+    modelConfig: input.modelConfig,
+    billingSettings: input.settings,
+    modelBilling: input.modelBilling,
+    usage: input.usage,
+  });
+
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    let nextCreditBalance = user.creditBalance;
+    if (refundCredits > 0) {
+      nextCreditBalance = roundCredits(nextCreditBalance + refundCredits);
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'reserve_refund',
+        creditDelta: refundCredits,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost,
+        creditBilledCost,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot,
+        createdAt: now,
+      });
+    } else if (refundCredits < 0) {
+      const extraDebit = Math.abs(refundCredits);
+      nextCreditBalance = roundCredits(nextCreditBalance - extraDebit);
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'llm_extra_debit',
+        creditDelta: -extraDebit,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost,
+        creditBilledCost,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot,
+        createdAt: now,
+      });
+    }
+    billingRepository.updateReservationStatus(input.reservation.id, 'settled', now);
+    const usageRecord: LlmUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: input.userId,
+      modelConfigId: input.modelConfig.id,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      promptTokens: input.usage.promptTokens,
+      completionTokens: input.usage.completionTokens,
+      cachedPromptTokens: input.usage.cachedPromptTokens,
+      usageRaw: snapshot.usage && isRecord(snapshot.usage) ? snapshot.usage : {},
+      billingSnapshot: snapshot,
+      creditBaseCost,
+      creditBilledCost,
+      creditCost,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.createUsageRecord(usageRecord);
+    return {
+      nextCreditBalance,
+      creditCost,
+    };
+  });
+
+  return transaction();
+}
+
+function recordFailedUsage(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  settings: BillingSettings;
+  modelBilling: ModelBillingSettings;
+  usage?: NormalizedLlmUsage;
+}) {
+  billingRepository.createUsageRecord({
+    id: randomBytes(12).toString('hex'),
+    userId: input.userId,
+    modelConfigId: input.modelConfig.id,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    promptTokens: input.usage?.promptTokens || 0,
+    completionTokens: input.usage?.completionTokens || 0,
+    cachedPromptTokens: input.usage?.cachedPromptTokens || 0,
+    usageRaw: {},
+    billingSnapshot: buildSnapshot({
+      modelConfig: input.modelConfig,
+      billingSettings: input.settings,
+      modelBilling: input.modelBilling,
+      usage: input.usage,
+    }),
+    creditBaseCost: 0,
+    creditBilledCost: 0,
+    creditCost: 0,
+    status: 'failed',
+    createdAt: new Date().toISOString(),
+  });
+}
+
+function completionTextFromMessages(messages: BillingChatMessage[]) {
+  return messages.map((message) => {
+    if (typeof message.content === 'string') {
+      return message.content;
+    }
+    return message.content.map((part) => (part.type === 'text' ? part.text : part.image_url.url)).join('\n');
+  }).join('\n');
+}
+
+export function normalizeBillingSettings(input: Partial<BillingSettings> & Record<string, unknown>, fallback?: BillingSettings): BillingSettings {
+  const now = new Date().toISOString();
+  const fallbackRecord = (fallback || {}) as Record<string, unknown>;
+  const legacyUsdToCreditRate = normalizeNumber(input.usdToCreditRate, 0);
+  const fallbackLegacyUsdToCreditRate = normalizeNumber(fallbackRecord.usdToCreditRate, 0);
+  const hasDirectVideoUnderstandingCreditsPer1MTokens = Object.prototype.hasOwnProperty.call(
+    input,
+    'videoUnderstandingCreditsPer1MTokens',
+  );
+  const nextVideoUnderstandingCreditsPer1MTokens = normalizeNumber(input.videoUnderstandingCreditsPer1MTokens, 0);
+  const fallbackVideoUnderstandingCreditsPer1MTokens = normalizeNumber(
+    fallbackRecord.videoUnderstandingCreditsPer1MTokens,
+    0,
+  );
+
+  return {
+    id: 1,
+    videoUploadCreditsPerMb: normalizeNumber(
+      numberFromRecord(input, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']),
+      numberFromRecord(fallbackRecord, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']) || 0,
+    ),
+    videoUnderstandingCreditsPer1MTokens: hasDirectVideoUnderstandingCreditsPer1MTokens
+      ? nextVideoUnderstandingCreditsPer1MTokens
+      : normalizeNumber(
+        numberFromRecord(input, ['videoUnderstandingUsdPer1MTokens']) * legacyUsdToCreditRate,
+        fallbackVideoUnderstandingCreditsPer1MTokens
+          || normalizeNumber(
+            numberFromRecord(fallbackRecord, ['videoUnderstandingUsdPer1MTokens']) * fallbackLegacyUsdToCreditRate,
+            0,
+          ),
+      ),
+    createdAt: fallback?.createdAt || now,
+    updatedAt: now,
+  };
+}
+
+export function listCreditLedger(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listLedgerEntries(input);
+}
+
+export function listLlmUsageRecords(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listUsageRecords(input);
+}
+
+export function listBillableUsageRecords(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listBillableUsageRecords(input);
+}
+
+export function listCustomerCreditLedger(input: { userId: string; limit?: number }) {
+  return billingRepository.listLedgerEntries(input).map((entry) => ({
+    id: entry.id,
+    type: entry.type,
+    creditDelta: entry.creditDelta,
+    creditBalanceAfter: entry.creditBalanceAfter,
+    sourceType: entry.sourceType,
+    modelName: modelNameForLedgerEntry(entry) || undefined,
+    createdAt: entry.createdAt,
+  }));
+}
+
+export function listAdminCreditLedger(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listLedgerEntries(input).map((entry) => ({
+    id: entry.id,
+    userId: entry.userId,
+    type: entry.type,
+    creditDelta: entry.creditDelta,
+    creditBalanceAfter: entry.creditBalanceAfter,
+    sourceType: entry.sourceType,
+    createdAt: entry.createdAt,
+  }));
+}
+
+export function listCustomerLlmUsageRecords(input: { userId: string; limit?: number }) {
+  return billingRepository.listUsageRecords(input).map((record) => ({
+    id: record.id,
+    modelConfigId: record.modelConfigId,
+    modelName: stringFromRecord(record.billingSnapshot, ['modelName']) || record.modelConfigId,
+    sourceType: record.sourceType,
+    creditCost: record.creditCost,
+    status: record.status,
+    createdAt: record.createdAt,
+  }));
+}
+
+export function listAdminLlmUsageRecords(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listUsageRecords(input).map((record) => ({
+    id: record.id,
+    userId: record.userId,
+    modelConfigId: record.modelConfigId,
+    modelName: stringFromRecord(record.billingSnapshot, ['modelName']) || record.modelConfigId,
+    sourceType: record.sourceType,
+    promptTokens: record.promptTokens,
+    completionTokens: record.completionTokens,
+    cachedPromptTokens: record.cachedPromptTokens,
+    creditCost: record.creditCost,
+    status: record.status,
+    createdAt: record.createdAt,
+  }));
+}
+
+export function listCustomerBillableUsageRecords(input: { userId: string; limit?: number }) {
+  return billingRepository.listBillableUsageRecords(input).map((record) => ({
+    id: record.id,
+    category: record.category,
+    provider: record.provider,
+    model: record.model,
+    sourceType: record.sourceType,
+    pricingMode: record.pricingMode,
+    creditCost: record.creditCost,
+    status: record.status,
+    createdAt: record.createdAt,
+  }));
+}
+
+export function listAdminBillableUsageRecords(input: { userId?: string; limit?: number } = {}) {
+  return billingRepository.listBillableUsageRecords(input).map((record) => ({
+    id: record.id,
+    userId: record.userId,
+    category: record.category,
+    provider: record.provider,
+    model: record.model,
+    sourceType: record.sourceType,
+    pricingMode: record.pricingMode,
+    creditCost: record.creditCost,
+    status: record.status,
+    createdAt: record.createdAt,
+  }));
+}
+
+export function findBillableUsageRecordByCategoryAndSourceId(
+  category: BillableUsageCategory,
+  sourceId: string,
+) {
+  return billingRepository.findBillableUsageRecordByCategoryAndSourceId(category, sourceId);
+}
+
+export function getBillingSettings() {
+  return billingRepository.getSettings();
+}
+
+export function saveBillingSettings(settings: BillingSettings) {
+  if (settings.videoUploadCreditsPerMb < 0 || settings.videoUnderstandingCreditsPer1MTokens < 0) {
+    throw new Error('视频上传和视频理解单价不能小于 0');
+  }
+  billingRepository.saveSettings(settings);
+  return settings;
+}
+
+export function recordImageGenerationUsage(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  groupId?: string;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const billing = nonLlmModelBillingSettingsOf(input.modelConfig);
+  return persistBillableUsageCharge({
+    userId: input.userId,
+    category: 'image_generation',
+    modelConfig: input.modelConfig,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    groupId: input.groupId,
+    pricingMode: 'per_request',
+    quantitySnapshot: {
+      requests: 1,
+      priceSource: billing.priceSource,
+    },
+    requestSnapshot: input.requestSnapshot,
+    responseSnapshot: input.responseSnapshot,
+    creditBaseCost: billing.creditsPerRequest,
+    multiplier: billing.multiplier,
+    priceSource: billing.priceSource,
+  });
+}
+
+export function recordVideoGenerationUsage(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  taskId?: string;
+  durationSeconds: number;
+  usage?: {
+    completionTokens?: number;
+    totalTokens?: number;
+    toolUsage?: Record<string, unknown>;
+    raw?: Record<string, unknown>;
+  };
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+  usageRaw?: Record<string, unknown>;
+}) {
+  const billing = nonLlmModelBillingSettingsOf(input.modelConfig);
+  const completionTokens = Math.max(0, Math.floor(Number(input.usage?.completionTokens) || 0));
+  const totalTokens = Math.max(
+    completionTokens,
+    Math.floor(Number(input.usage?.totalTokens) || 0),
+  );
+  if (totalTokens <= 0) {
+    throw new Error('视频模型未返回 token 用量，系统已取消按秒兜底计费，请检查模型接入返回');
+  }
+  return persistBillableUsageCharge({
+    userId: input.userId,
+    category: 'video_generation',
+    modelConfig: input.modelConfig,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    taskId: input.taskId,
+    pricingMode: 'per_1m_tokens',
+    quantitySnapshot: {
+      completionTokens,
+      totalTokens,
+      inputTokens: 0,
+      hasToolUsage: Boolean(input.usage?.toolUsage && Object.keys(input.usage.toolUsage).length),
+      priceSource: billing.priceSource,
+    },
+    requestSnapshot: input.requestSnapshot,
+    responseSnapshot: input.responseSnapshot,
+    usageRaw: {
+      ...(input.usageRaw || {}),
+      providerUsage: input.usage?.raw || {},
+      toolUsage: input.usage?.toolUsage || {},
+    },
+    creditBaseCost: roundCredits(totalTokens / 1_000_000 * billing.creditsPer1MTokens),
+    multiplier: billing.multiplier,
+    priceSource: billing.priceSource,
+  });
+}
+
+export function recordVoiceCloneUsage(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  groupId?: string;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const billing = nonLlmModelBillingSettingsOf(input.modelConfig);
+  return persistBillableUsageCharge({
+    userId: input.userId,
+    category: 'voice_clone',
+    modelConfig: input.modelConfig,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    groupId: input.groupId,
+    pricingMode: 'per_request',
+    quantitySnapshot: {
+      requests: 1,
+      priceSource: billing.priceSource,
+    },
+    requestSnapshot: input.requestSnapshot,
+    responseSnapshot: input.responseSnapshot,
+    creditBaseCost: billing.voiceCloneCredits,
+    multiplier: billing.multiplier,
+    priceSource: billing.priceSource,
+  });
+}
+
+export function recordSpeechSynthesisUsage(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  taskId?: string;
+  groupId?: string;
+  charCount: number;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const billing = nonLlmModelBillingSettingsOf(input.modelConfig);
+  return persistBillableUsageCharge({
+    userId: input.userId,
+    category: 'speech_synthesis',
+    modelConfig: input.modelConfig,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    taskId: input.taskId,
+    groupId: input.groupId,
+    pricingMode: 'per_1k_chars',
+    quantitySnapshot: {
+      charCount: input.charCount,
+      units1kChars: charsTo1kUnits(input.charCount),
+      priceSource: billing.priceSource,
+    },
+    requestSnapshot: input.requestSnapshot,
+    responseSnapshot: input.responseSnapshot,
+    creditBaseCost: roundCredits(charsTo1kUnits(input.charCount) * billing.speechCreditsPer1kChars),
+    multiplier: billing.multiplier,
+    priceSource: billing.priceSource,
+  });
+}
+
+export function recordVodUploadUsage(input: {
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  taskId?: string;
+  sessionId?: string;
+  fileSizeBytes: number;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const settings = assertSystemBillingReady();
+  const fileSizeMb = bytesToMb(input.fileSizeBytes);
+  const creditCost = estimateVodUploadCredits(input.fileSizeBytes);
+  return persistBillableUsageCharge({
+    userId: input.userId,
+    category: 'vod_upload',
+    provider: 'volcengine-vod',
+    model: 'vod_upload',
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    taskId: input.taskId,
+    sessionId: input.sessionId,
+    pricingMode: 'per_mb',
+    quantitySnapshot: {
+      fileSizeBytes: input.fileSizeBytes,
+      sizeMb: roundCredits(fileSizeMb),
+      priceSource: 'system-billing-settings',
+      configuredCreditsPerMb: settings.videoUploadCreditsPerMb,
+    },
+    requestSnapshot: {
+      ...(input.requestSnapshot || {}),
+      fileSizeBytes: input.fileSizeBytes,
+    },
+    creditBaseCost: creditCost,
+    multiplier: 1,
+    priceSource: 'system-billing-settings',
+    usageRaw: {
+      directCreditPricing: true,
+      directCreditCost: creditCost,
+    },
+    responseSnapshot: {
+      ...(input.responseSnapshot || {}),
+      directCreditPricing: true,
+    },
+  });
+}
+
+export function recordVodUnderstandingUsage(input: {
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  taskId?: string;
+  sessionId?: string;
+  runId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+  usageRaw?: Record<string, unknown>;
+}) {
+  const settings = assertSystemBillingReady();
+  const normalizedInputTokens = Math.max(0, Math.floor(Number(input.inputTokens) || 0));
+  const normalizedOutputTokens = Math.max(0, Math.floor(Number(input.outputTokens) || 0));
+  const totalTokens = normalizedInputTokens + normalizedOutputTokens;
+  const creditBaseCost = roundCredits(totalTokens / 1_000_000 * settings.videoUnderstandingCreditsPer1MTokens);
+  const creditBilledCost = creditBaseCost;
+  const creditCost = creditBilledCost;
+  const now = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    if (creditCost > 0 && user.creditBalance < creditCost) {
+      throw new InsufficientStepCreditsError({
+        step: 'vod_understanding',
+        stepLabel: '视频理解',
+        currentCredits: user.creditBalance,
+        requiredCredits: creditCost,
+      });
+    }
+    const nextCreditBalance = creditCost > 0
+      ? roundCredits(user.creditBalance - creditCost)
+      : roundCredits(user.creditBalance);
+    if (creditCost > 0) {
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'usage_debit',
+        creditDelta: -creditCost,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost,
+        creditBilledCost,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot: {
+          category: 'vod_understanding',
+          pricingMode: 'per_1m_tokens',
+          quantitySnapshot: {
+            inputTokens: normalizedInputTokens,
+            outputTokens: normalizedOutputTokens,
+            totalTokens,
+            configuredCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
+          },
+          requestSnapshot: input.requestSnapshot || {},
+          responseSnapshot: input.responseSnapshot || {},
+          usageRaw: input.usageRaw || {},
+        },
+        createdAt: now,
+      });
+    }
+    const record: BillableUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: input.userId,
+      category: 'vod_understanding',
+      modelConfigId: null,
+      provider: 'volcengine-vod',
+      model: 'vod_understanding',
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      taskId: input.taskId || null,
+      sessionId: input.sessionId || null,
+      groupId: null,
+      pricingMode: 'per_1m_tokens',
+      quantitySnapshot: {
+        inputTokens: normalizedInputTokens,
+        outputTokens: normalizedOutputTokens,
+        totalTokens,
+        configuredCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
+      },
+      usageRaw: input.usageRaw || {},
+      requestSnapshot: input.requestSnapshot || {},
+      responseSnapshot: input.responseSnapshot || {},
+      creditBaseCost,
+      creditBilledCost,
+      creditCost,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.createBillableUsageRecord(record);
+    return record;
+  });
+  return transaction();
+}
+
+export function adjustUserCredits(input: {
+  userId: string;
+  delta: number;
+  operatorUserId?: string;
+}) {
+  const now = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    const nextCreditBalance = roundCredits(user.creditBalance + input.delta);
+    if (nextCreditBalance < 0) {
+      throw new Error('用户积分不能小于 0');
+    }
+    userRepository.updateCreditBalance(user.id, nextCreditBalance);
+    billingRepository.createLedgerEntry({
+      id: randomBytes(12).toString('hex'),
+      userId: user.id,
+      type: 'admin_adjust',
+      creditDelta: roundCredits(input.delta),
+      creditBalanceAfter: nextCreditBalance,
+      creditBaseCost: null,
+      creditBilledCost: null,
+      sourceType: 'admin_adjust',
+      sourceId: input.operatorUserId || null,
+      snapshot: {
+        operatorUserId: input.operatorUserId,
+      },
+      createdAt: now,
+    });
+    return userRepository.findById(user.id);
+  });
+  return transaction();
+}
+
+export async function callBilledLlm(input: BilledLlmCallInput) {
+  const { settings, modelBilling } = assertBillingReady(input.modelConfig);
+  assertSufficientLlmRequestCredits({
+    userId: input.userId,
+    thresholdCredits: modelBilling.maxOutputCreditsForReserve,
+    step: 'llm_request',
+    stepLabel: 'LLM 请求',
+  });
+  const controller = new AbortController();
+  const timeoutMs = Number.isFinite(Number(input.timeoutMs)) && Number(input.timeoutMs) > 0
+    ? Number(input.timeoutMs)
+    : 120_000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(chatCompletionsUrl(input.modelConfig.baseUrl), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.modelConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: input.modelConfig.model,
+        messages: input.messages,
+        temperature: input.temperature,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) as NonStreamCompletionResponse : {};
+    if (!response.ok) {
+      throw new Error(data.error?.message || data.message || `模型服务请求失败：${response.status}`);
+    }
+    const content = data.choices?.[0]?.message?.content?.trim();
+    const reasoning = (
+      data.choices?.[0]?.message?.reasoning_content
+      || data.choices?.[0]?.message?.reasoning
+      || data.choices?.[0]?.message?.thinking_content
+      || data.choices?.[0]?.message?.thinking
+      || ''
+    ).trim();
+    if (!content) {
+      throw new Error('模型服务未返回有效内容');
+    }
+    const usage = normalizeUsage(data.usage);
+    const finalUsage = usage.promptTokens || usage.completionTokens
+      ? usage
+      : {
+        promptTokens: estimateMessageTokens(input.messages),
+        completionTokens: estimateTextTokens(`${reasoning}\n${content}`),
+        cachedPromptTokens: 0,
+      };
+    recordLlmUsageCharge({
+      userId: input.userId,
+      modelConfig: input.modelConfig,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      settings,
+      modelBilling,
+      usage: finalUsage,
+    });
+    return {
+      content,
+      reasoning,
+      usage: finalUsage,
+    };
+  } catch (error) {
+    recordFailedUsage({
+      userId: input.userId,
+      modelConfig: input.modelConfig,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      settings,
+      modelBilling,
+    });
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('模型服务响应超时，请稍后重试');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function* streamBilledLlm(input: BilledLlmCallInput): AsyncGenerator<BilledLlmStreamChunk, void, void> {
+  const { settings, modelBilling } = assertBillingReady(input.modelConfig);
+  assertSufficientLlmRequestCredits({
+    userId: input.userId,
+    thresholdCredits: modelBilling.maxOutputCreditsForReserve,
+    step: 'llm_request',
+    stepLabel: 'LLM 请求',
+  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180_000);
+  let finalUsage: NormalizedLlmUsage | null = null;
+  let reasoningContent = '';
+  let answerContent = '';
+  try {
+    const response = await fetch(chatCompletionsUrl(input.modelConfig.baseUrl), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.modelConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: input.modelConfig.model,
+        messages: input.messages,
+        temperature: input.temperature,
+        stream: true,
+        stream_options: {
+          include_usage: true,
+        },
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      const data = text ? JSON.parse(text) as StreamCompletionResponse : {};
+      throw new Error(data.error?.message || `模型服务请求失败：${response.status}`);
+    }
+    if (!response.body) {
+      throw new Error('模型服务未返回流式响应');
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) {
+          continue;
+        }
+        const dataText = trimmed.replace(/^data:\s?/, '');
+        if (dataText === '[DONE]') {
+          break;
+        }
+        const data = JSON.parse(dataText) as StreamCompletionResponse;
+        if (data.error?.message) {
+          throw new Error(data.error.message);
+        }
+        const usage = normalizeUsage(data.usage);
+        if (usage.promptTokens || usage.completionTokens || usage.cachedPromptTokens) {
+          finalUsage = usage;
+        }
+        for (const choice of data.choices || []) {
+          const delta = choice.delta || {};
+          const reasoningDelta = delta.reasoning_content || delta.reasoning || delta.thinking_content || delta.thinking;
+          if (reasoningDelta) {
+            reasoningContent += reasoningDelta;
+            yield { type: 'reasoning', delta: reasoningDelta };
+          }
+          if (delta.content) {
+            answerContent += delta.content;
+            yield { type: 'answer', delta: delta.content };
+          }
+        }
+      }
+    }
+    if (!answerContent.trim()) {
+      throw new Error('模型服务未返回有效内容');
+    }
+    if (!finalUsage) {
+      finalUsage = {
+        promptTokens: estimateMessageTokens(input.messages),
+        completionTokens: estimateTextTokens(`${reasoningContent}\n${answerContent}`),
+        cachedPromptTokens: 0,
+      };
+    }
+    recordLlmUsageCharge({
+      userId: input.userId,
+      modelConfig: input.modelConfig,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      settings,
+      modelBilling,
+      usage: finalUsage,
+    });
+  } catch (error) {
+    recordFailedUsage({
+      userId: input.userId,
+      modelConfig: input.modelConfig,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      settings,
+      modelBilling,
+      usage: finalUsage || {
+        promptTokens: estimateMessageTokens(input.messages),
+        completionTokens: estimateTextTokens(`${reasoningContent}\n${answerContent}`),
+        cachedPromptTokens: 0,
+      },
+    });
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('模型服务响应超时，请稍后重试');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function recordLlmUsageCharge(input: {
+  userId: string;
+  modelConfig: AiModelConfig;
+  sourceType: string;
+  sourceId: string;
+  settings: BillingSettings;
+  modelBilling: ModelBillingSettings;
+  usage: NormalizedLlmUsage;
+}) {
+  const creditBaseCost = calculateCreditBaseCost(input.usage, input.modelBilling);
+  const creditBilledCost = roundCredits(creditBaseCost * input.modelBilling.multiplier);
+  const creditCost = creditBilledCost;
+  const now = new Date().toISOString();
+  const snapshot = buildSnapshot({
+    modelConfig: input.modelConfig,
+    billingSettings: input.settings,
+    modelBilling: input.modelBilling,
+    usage: input.usage,
+  });
+
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    let nextCreditBalance = user.creditBalance;
+    if (creditCost > 0) {
+      nextCreditBalance = roundCredits(nextCreditBalance - creditCost);
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'usage_debit',
+        creditDelta: -creditCost,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost,
+        creditBilledCost,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot,
+        createdAt: now,
+      });
+    }
+    const usageRecord: LlmUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: input.userId,
+      modelConfigId: input.modelConfig.id,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      promptTokens: input.usage.promptTokens,
+      completionTokens: input.usage.completionTokens,
+      cachedPromptTokens: input.usage.cachedPromptTokens,
+      usageRaw: snapshot.usage && isRecord(snapshot.usage) ? snapshot.usage : {},
+      billingSnapshot: snapshot,
+      creditBaseCost,
+      creditBilledCost,
+      creditCost,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.createUsageRecord(usageRecord);
+    return {
+      nextCreditBalance,
+      creditCost,
+    };
+  });
+
+  return transaction();
+}

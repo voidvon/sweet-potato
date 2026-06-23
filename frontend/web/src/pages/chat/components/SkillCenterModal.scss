@@ -1,0 +1,112 @@
+.skill-center-modal .ant-modal-content {
+  border-radius: 12px;
+}
+
+.skill-center-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.skill-center-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 130px;
+}
+
+.skill-center-toolbar .ant-input-affix-wrapper {
+  border-color: #e4e7ec;
+  border-radius: 16px;
+  font-size: 16px;
+  height: 54px;
+  padding: 0 18px;
+}
+
+.skill-center-toolbar .ant-btn {
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  height: 54px;
+}
+
+.skill-center-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 540px;
+  overflow: auto;
+  padding: 2px 8px 2px 2px;
+}
+
+.skill-center-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  border: 1px solid #e7ecf4;
+  border-radius: 18px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  display: grid;
+  gap: 12px;
+  min-height: 156px;
+  padding: 24px;
+  position: relative;
+}
+
+.skill-center-card:hover {
+  border-color: #bfc6ff;
+  box-shadow: 0 18px 42px rgba(79, 70, 229, 0.12);
+  transform: translateY(-1px);
+}
+
+.skill-center-card-title {
+  align-items: start;
+  display: flex;
+  gap: 14px;
+}
+
+.skill-center-card h3 {
+  color: #182230;
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 0 0 5px;
+}
+
+.skill-center-card-title span:last-child {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.skill-center-card .ant-typography {
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.skill-center-actions {
+  align-items: center;
+  display: flex;
+  gap: 2px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+
+.skill-center-actions .ant-btn {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.skill-center-card:has(.skill-center-actions) {
+  padding-right: 54px;
+}
+
+.skill-center-icon {
+  align-items: center;
+  background: transparent;
+  color: #6157ff;
+  display: inline-flex;
+  height: 32px;
+  font-size: 22px;
+  justify-content: center;
+  width: 32px;
+}
