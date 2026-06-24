@@ -36,11 +36,11 @@
   "author": "",
   "license": "Apache",
   "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/node": "^22.19.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "@electron/rebuild": "^3.7.1",
-    "@types/node": "^22.19.1",
     "debug": "^4.4.0",
     "ee-bin": "^4.2.0",
     "electron": "^39.2.6",
@@ -59,11 +59,12 @@
     "es-object-atoms": "^1.1.2",
     "lucide-react": "^0.468.0",
     "mime-db": "^1.54.0",
+    "playwright-core": "^1.60.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-router": "^7.18.0",
     "react-router-dom": "^7.14.2",
-    "tt-uploader": "^1.6.1",
-    "playwright-core": "^1.60.0"
+    "tt-uploader": "^1.6.1"
   },
   "postinstall": "electron-builder install-app-deps"
 }

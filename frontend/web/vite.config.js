@@ -19,6 +19,12 @@ export default defineConfig(() => {
     },
     publicDir: 'public',
     resolve: {
+      dedupe: [
+        'react',
+        'react-dom',
+        'react-router',
+        'react-router-dom',
+      ],
       alias: {
         '@': path.resolve(__dirname, 'src'),
         '@shared': path.resolve(__dirname, '../src/shared'),
