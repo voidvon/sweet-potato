@@ -59,9 +59,9 @@ select_mirror_profile() {
       APT_MIRROR="mirrors.tencentyun.com"
       AI_WORKER_APT_MIRROR="mirrors.tencentyun.com"
       PIP_INDEX_URL="https://mirrors.cloud.tencent.com/pypi/simple"
-      PYTHON_IMAGE_REGISTRY="docker.1ms.run/library"
+      PYTHON_IMAGE_REGISTRY="docker.m.daocloud.io/library"
       NODE_IMAGE_REGISTRY="docker.m.daocloud.io/library"
-      NGINX_IMAGE_REGISTRY="docker.1ms.run/library"
+      NGINX_IMAGE_REGISTRY="docker.m.daocloud.io/library"
       ;;
     2)
       MIRROR_PROFILE_NAME="Docker Hub"
@@ -245,7 +245,7 @@ services:
     build:
       context: ./web
       args:
-        NGINX_IMAGE_REGISTRY: \${NGINX_IMAGE_REGISTRY:-docker.1ms.run/library}
+        NGINX_IMAGE_REGISTRY: \${NGINX_IMAGE_REGISTRY:-docker.m.daocloud.io/library}
     image: ai-marketing-web:run
     ports:
       - "${WEB_HOST_PORT}:80"
@@ -292,7 +292,7 @@ $BASE_PUBLIC_ENV
     build:
       context: ./ai-worker
       args:
-        PYTHON_IMAGE_REGISTRY: \${PYTHON_IMAGE_REGISTRY:-docker.1ms.run/library}
+        PYTHON_IMAGE_REGISTRY: \${PYTHON_IMAGE_REGISTRY:-docker.m.daocloud.io/library}
         AI_WORKER_APT_MIRROR: \${AI_WORKER_APT_MIRROR:-mirrors.tencentyun.com}
         PIP_INDEX_URL: \${PIP_INDEX_URL:-https://mirrors.cloud.tencent.com/pypi/simple}
     image: ai-marketing-ai-worker:run
@@ -323,7 +323,7 @@ volumes:
 EOF
 
 cat > "$RUN_DIR/web/Dockerfile" <<'EOF'
-ARG NGINX_IMAGE_REGISTRY=docker.1ms.run/library
+ARG NGINX_IMAGE_REGISTRY=docker.m.daocloud.io/library
 FROM ${NGINX_IMAGE_REGISTRY}/nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -404,7 +404,7 @@ CMD ["node", "dist/index.js"]
 EOF
 
 cat > "$RUN_DIR/ai-worker/Dockerfile" <<'EOF'
-ARG PYTHON_IMAGE_REGISTRY=docker.1ms.run/library
+ARG PYTHON_IMAGE_REGISTRY=docker.m.daocloud.io/library
 FROM ${PYTHON_IMAGE_REGISTRY}/python:3.12-slim
 ARG AI_WORKER_APT_MIRROR=mirrors.tencentyun.com
 ARG PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple
