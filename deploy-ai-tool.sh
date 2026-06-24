@@ -10,6 +10,8 @@ REMOTE_DIR="${REMOTE_DIR:-/root/ai-tool}"
 SSH_TARGET="$REMOTE_USER@$REMOTE_HOST"
 
 WEB_HOST_PORT="${WEB_HOST_PORT:-}"
+WEB_PUBLIC_PATH="${WEB_PUBLIC_PATH:-/web/}"
+ADMIN_PUBLIC_PATH="${ADMIN_PUBLIC_PATH:-/admin/}"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -37,6 +39,17 @@ need_source docker-compose.yml
 
 if [ -z "$WEB_HOST_PORT" ] && [ -f "$SOURCE_DIR/.env" ]; then
   WEB_HOST_PORT="$(sed -n 's/^WEB_HOST_PORT=//p' "$SOURCE_DIR/.env" | tail -n 1)"
+fi
+
+if [ -f "$SOURCE_DIR/.env" ]; then
+  WEB_ROUTER_BASENAME_FROM_ENV="$(sed -n 's/^WEB_ROUTER_BASENAME=//p' "$SOURCE_DIR/.env" | tail -n 1)"
+  ADMIN_ROUTER_BASENAME_FROM_ENV="$(sed -n 's/^ADMIN_ROUTER_BASENAME=//p' "$SOURCE_DIR/.env" | tail -n 1)"
+  if [ -n "$WEB_ROUTER_BASENAME_FROM_ENV" ]; then
+    WEB_PUBLIC_PATH="$WEB_ROUTER_BASENAME_FROM_ENV/"
+  fi
+  if [ -n "$ADMIN_ROUTER_BASENAME_FROM_ENV" ]; then
+    ADMIN_PUBLIC_PATH="$ADMIN_ROUTER_BASENAME_FROM_ENV/"
+  fi
 fi
 
 WEB_HOST_PORT="${WEB_HOST_PORT:-5689}"
@@ -78,4 +91,6 @@ ssh "$SSH_TARGET" "
 "
 
 echo "==> 部署完成"
-echo "访问地址：http://$REMOTE_HOST:$WEB_HOST_PORT"
+echo "web 访问地址：http://$REMOTE_HOST$WEB_PUBLIC_PATH"
+echo "admin 访问地址：http://$REMOTE_HOST$ADMIN_PUBLIC_PATH"
+echo "容器直连地址：http://$REMOTE_HOST:$WEB_HOST_PORT"

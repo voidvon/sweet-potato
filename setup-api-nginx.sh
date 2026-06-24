@@ -20,6 +20,7 @@ need_cmd ssh
 
 echo "==> 配置远端 Nginx：$SSH_TARGET"
 echo "==> /web/         -> http://127.0.0.1:5689"
+echo "==> /admin/       -> http://127.0.0.1:5689/admin/"
 echo "==> /api/base/   -> $BASE_UPSTREAM"
 echo "==> /api/worker/ -> $WORKER_UPSTREAM"
 
@@ -98,6 +99,24 @@ server {
     proxy_read_timeout 300s;
     proxy_send_timeout 300s;
   }
+
+  location = /admin {
+    return 301 /admin/;
+  }
+
+  location /admin/ {
+    proxy_pass http://127.0.0.1:5689/admin/;
+    proxy_http_version 1.1;
+    proxy_set_header Host \$host;
+    proxy_set_header Real-IP \$remote_addr;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+  }
 }
 EOF
 
@@ -112,5 +131,6 @@ EOF
 
 echo "==> Nginx 配置完成"
 echo "web:    http://$REMOTE_HOST/web/"
+echo "admin:  http://$REMOTE_HOST/admin/"
 echo "base:   http://$REMOTE_HOST/api/base/"
 echo "worker: http://$REMOTE_HOST/api/worker/"

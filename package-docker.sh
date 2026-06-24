@@ -104,9 +104,9 @@ select_package_environment() {
   case "${choice:-1}" in
     1|production|prod)
       PACKAGE_ENV="production"
-      WEB_API_BASE_URL=""
-      WEB_ASSET_BASE="/"
-      WEB_ROUTER_BASENAME=""
+      VITE_API_BASE_URL="/api/base"
+      WEB_ASSET_BASE="/web/"
+      WEB_ROUTER_BASENAME="/web"
       ADMIN_ASSET_BASE="/admin/"
       ADMIN_ROUTER_BASENAME="/admin"
       BASE_WORKER_URL="http://ai-worker:7073"
@@ -115,11 +115,11 @@ select_package_environment() {
       ;;
     2|test)
       PACKAGE_ENV="test"
-      WEB_API_BASE_URL=""
+      VITE_API_BASE_URL=""
       WEB_ASSET_BASE="/"
       WEB_ROUTER_BASENAME=""
-      ADMIN_ASSET_BASE="/admin/"
-      ADMIN_ROUTER_BASENAME="/admin"
+      ADMIN_ASSET_BASE="/"
+      ADMIN_ROUTER_BASENAME=""
       BASE_WORKER_URL="http://ai-worker:7073"
       BASE_EXTRA_HOSTS=""
       CONTENT_PUBLIC_BASE_URL="${CONTENT_PUBLIC_BASE_URL:-https://ai.0122.vip}"
@@ -161,14 +161,14 @@ echo "==> Installing frontend workspace dependencies"
 echo "==> Building web"
 (
   cd "$FRONTEND_DIR"
-  VITE_API_BASE_URL="$WEB_API_BASE_URL" VITE_ASSET_BASE="$WEB_ASSET_BASE" VITE_ROUTER_BASENAME="$WEB_ROUTER_BASENAME" pnpm_cmd --dir web run build
+  VITE_API_BASE_URL="$VITE_API_BASE_URL" VITE_ASSET_BASE="$WEB_ASSET_BASE" VITE_ROUTER_BASENAME="$WEB_ROUTER_BASENAME" pnpm_cmd --dir web run build
 )
 cp -R "$WEB_DIR/dist" "$RUN_DIR/web/dist"
 
 echo "==> Building admin"
 (
   cd "$FRONTEND_DIR"
-  VITE_API_BASE_URL="$WEB_API_BASE_URL" VITE_ADMIN_ASSET_BASE="$ADMIN_ASSET_BASE" VITE_ADMIN_ROUTER_BASENAME="$ADMIN_ROUTER_BASENAME" pnpm_cmd --dir admin run build
+  VITE_API_BASE_URL="$VITE_API_BASE_URL" VITE_ADMIN_ASSET_BASE="$ADMIN_ASSET_BASE" VITE_ADMIN_ROUTER_BASENAME="$ADMIN_ROUTER_BASENAME" pnpm_cmd --dir admin run build
 )
 rm -rf "$RUN_DIR/web/dist/admin"
 mkdir -p "$RUN_DIR/web/dist/admin"
@@ -206,7 +206,7 @@ echo "==> Creating empty runtime data directories"
 echo "==> Writing docker runtime files"
 cat > "$RUN_DIR/.env" <<EOF
 PACKAGE_ENV=$PACKAGE_ENV
-WEB_API_BASE_URL=$WEB_API_BASE_URL
+VITE_API_BASE_URL=$VITE_API_BASE_URL
 WEB_ASSET_BASE=$WEB_ASSET_BASE
 WEB_ROUTER_BASENAME=$WEB_ROUTER_BASENAME
 ADMIN_ASSET_BASE=$ADMIN_ASSET_BASE
@@ -442,7 +442,7 @@ chmod +x "$RUN_DIR/run.sh"
 
 echo "==> Done"
 echo "Package environment: $PACKAGE_ENV"
-echo "Web API base URL: ${WEB_API_BASE_URL:-same-origin}"
+echo "Web API base URL: ${VITE_API_BASE_URL:-same-origin}"
 echo "Web asset base: $WEB_ASSET_BASE"
 echo "Web router basename: ${WEB_ROUTER_BASENAME:-root}"
 echo "Admin asset base: $ADMIN_ASSET_BASE"
