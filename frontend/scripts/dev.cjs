@@ -1,18 +1,7 @@
 const net = require("node:net");
 const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
 
 const preferredPort = Number(process.env.FRONTEND_PORT || 9527);
-const rootDir = path.resolve(__dirname, "..");
-
-function syncElectronSource() {
-  const sourceDir = path.join(rootDir, "electron");
-  const targetDir = path.join(rootDir, "public", "electron");
-
-  fs.rmSync(targetDir, { recursive: true, force: true });
-  fs.cpSync(sourceDir, targetDir, { recursive: true });
-}
 
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -36,8 +25,6 @@ async function findAvailablePort(startPort) {
 }
 
 async function main() {
-  syncElectronSource();
-
   const port = await findAvailablePort(preferredPort);
   if (port !== preferredPort) {
     console.log(`[dev] Port ${preferredPort} is in use, using ${port} for both Vite and Electron.`);

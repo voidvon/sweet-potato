@@ -21,3 +21,5 @@ frontend/build/extraResources/
 .plans
 .pnpm-store
 .workflow/
+.dev-logs/
+.installers/

@@ -3,7 +3,7 @@
 const { logger } = require('ee-core/log');
 const { getConfig } = require('ee-core/config');
 const { getMainWindow } = require('ee-core/electron');
-const { app, session } = require('electron');
+const { app, Menu, session } = require('electron');
 const { stopAutomationBridgeServer } = require('../service/browser-automation/bridge-server');
 const { closeCdpRuntime } = require('../service/browser-automation/cdp-runtime');
 
@@ -67,6 +67,16 @@ function registerMacWindowCloseBehavior(win) {
   });
 }
 
+function hideWindowsMenu(win) {
+  if (process.platform !== 'win32' || !win || win.isDestroyed()) {
+    return;
+  }
+
+  Menu.setApplicationMenu(null);
+  win.setMenuBarVisibility(false);
+  win.removeMenu();
+}
+
 class Lifecycle {
 
   /**
@@ -93,6 +103,7 @@ class Lifecycle {
     registerMediaPermissions();
     registerDevToolsShortcut(win);
     registerMacWindowCloseBehavior(win);
+    hideWindowsMenu(win);
 
     // Electron 模式不再启动本地后端，统一连接独立部署的服务端
     // 后端应该通过 Docker 或其他方式独立部署

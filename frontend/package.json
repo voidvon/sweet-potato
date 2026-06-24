@@ -12,7 +12,7 @@
     "build:admin": "pnpm --dir admin run build",
     "build-web": "pnpm run build:web",
     "build-electron-frontend": "pnpm --dir web run build --mode electron",
-    "build-electron": "pnpm run build-electron-frontend && ee-bin build --cmds=electron && ee-bin encrypt",
+    "build-electron": "pnpm run build-electron-frontend && ee-bin build --cmds=electron && node ./scripts/prepare-electron-assets.cjs && ee-bin encrypt",
     "typecheck:web": "pnpm --dir web run typecheck",
     "typecheck:admin": "pnpm --dir admin run typecheck",
     "start": "ee-bin start",
