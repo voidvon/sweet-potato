@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { RobotOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
+import { CreditCardOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
@@ -23,14 +23,15 @@ type AppRouteBuildParams = WorkspaceRouteHandlers & {
   onAuthed: (session: AuthSession) => void;
 };
 
-type SidebarGroupKey = 'admin';
+type SidebarGroupKey = 'users';
 type WorkspaceSurface = 'default' | 'studio' | 'immersive';
 type RouteTitle = string | ((pathname: string) => string | null);
 
 type SidebarMenuMeta = {
-  groupKey: SidebarGroupKey;
+  groupKey?: SidebarGroupKey;
   icon: ReactNode;
   label?: string;
+  level?: 'top' | 'child';
 };
 
 export type AppRouteHandle = {
@@ -55,9 +56,9 @@ type WorkspacePageDefinition = {
 };
 
 export type WorkspaceRouteState = {
-  activeOpenKeys: SidebarGroupKey[];
+  activeOpenKeys: string[];
   currentMenuTitle: string;
-  defaultOpenKeys: SidebarGroupKey[];
+  defaultOpenKeys: string[];
   isChatPage: boolean;
   isContentStudioPage: boolean;
   isContentStudioVideoCreatePage: boolean;
@@ -65,10 +66,18 @@ export type WorkspaceRouteState = {
   selectedMenuKey: string | null;
 };
 
+type SidebarNavigationItem = {
+  children?: SidebarNavigationItem[];
+  icon: ReactNode;
+  key: string;
+  label: string;
+  path?: string;
+};
+
 const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string }> = {
-  admin: {
-    icon: <SettingOutlined />,
-    label: '后台管理',
+  users: {
+    icon: <TeamOutlined />,
+    label: '用户管理',
   },
 };
 
@@ -106,45 +115,46 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
   },
   {
     key: 'settings-users',
-    path: 'settings/users',
-    fullPath: routePaths.userManagement,
+    path: 'users/accounts',
+    fullPath: routePaths.accountManagement,
     element: () => withStudioSuspense(<UserManagementPage />),
     handle: {
-      title: '用户管理',
+      title: '账号管理',
       surface: 'studio',
       sidebar: {
-        groupKey: 'admin',
-        icon: <TeamOutlined />,
+        groupKey: 'users',
+        icon: <UserOutlined />,
+        level: 'child',
       },
     },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
     key: 'settings-billing',
-    path: 'settings/billing',
+    path: 'billing',
     fullPath: routePaths.billingSettings,
     element: () => withStudioSuspense(<BillingSettingsPage />),
     handle: {
       title: '积分设置',
       surface: 'studio',
       sidebar: {
-        groupKey: 'admin',
-        icon: <SettingOutlined />,
+        icon: <CreditCardOutlined />,
+        level: 'top',
       },
     },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
     key: 'settings-models',
-    path: 'settings/models',
+    path: 'models',
     fullPath: routePaths.modelSettings,
     element: () => withStudioSuspense(<ModelSettingsPage />),
     handle: {
       title: '模型配置',
       surface: 'studio',
       sidebar: {
-        groupKey: 'admin',
         icon: <RobotOutlined />,
+        level: 'top',
       },
     },
     visible: (currentUser) => currentUser.role === 'admin',
@@ -227,17 +237,26 @@ export function createAppRouteObjects({
   ];
 }
 
-function buildSidebarNavigation(currentUser: User) {
+function buildSidebarNavigation(currentUser: User): SidebarNavigationItem[] {
   const sidebarRoutes = getVisibleWorkspacePages(currentUser)
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
 
-  return Object.entries(sidebarGroupMeta)
+  const topRoutes = sidebarRoutes
+    .filter((route) => route.handle.sidebar.level === 'top')
+    .map((route) => ({
+      key: route.fullPath,
+      icon: route.handle.sidebar.icon,
+      label: route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      path: route.fullPath,
+    }));
+
+  const groupedRoutes = Object.entries(sidebarGroupMeta)
     .map(([groupKey, group]) => ({
       key: groupKey as SidebarGroupKey,
       icon: group.icon,
       label: group.label,
       children: sidebarRoutes
-        .filter((route) => route.handle.sidebar.groupKey === groupKey)
+        .filter((route) => route.handle.sidebar.level !== 'top' && route.handle.sidebar.groupKey === groupKey)
         .map((route) => ({
           key: route.fullPath,
           icon: route.handle.sidebar.icon,
@@ -246,35 +265,43 @@ function buildSidebarNavigation(currentUser: User) {
         })),
     }))
     .filter((group) => group.children.length > 0);
+
+  return [
+    ...groupedRoutes,
+    ...topRoutes,
+  ];
 }
 
 export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
-  return buildSidebarNavigation(currentUser).map((group) => ({
-    key: group.key,
-    icon: group.icon,
-    label: group.label,
-    children: group.children.map((item) => ({
-      key: item.path,
-      icon: item.icon,
-      label: item.label,
+  return buildSidebarNavigation(currentUser).map((item) => ({
+    key: item.path || item.key,
+    icon: item.icon,
+    label: item.label,
+    children: item.children?.map((child) => ({
+      key: child.path || child.key,
+      icon: child.icon,
+      label: child.label,
     })),
   }));
 }
 
 export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[]): WorkspaceRouteState {
-  const groups = buildSidebarNavigation(currentUser);
+  const navigationItems = buildSidebarNavigation(currentUser);
   const matchedHandle = [...matches]
     .reverse()
     .map((match) => match.handle as AppRouteHandle | undefined)
     .find((handle) => handle);
-  const selectedGroup = groups.find((group) => group.children.some((item) => item.path === pathname))?.key;
-  const currentMenuTitle = resolveRouteTitle(matchedHandle?.title, pathname) || '后台管理';
-  const selectedMenuKey = groups.flatMap((group) => group.children).find((item) => item.path === pathname)?.path || null;
+  const selectedGroup = navigationItems.find((item) => item.children?.some((child) => child.path === pathname))?.key;
+  const flattenedItems = navigationItems.flatMap((item) => item.path ? [item] : item.children || []);
+  const currentMenuTitle = resolveRouteTitle(matchedHandle?.title, pathname) || '管理后台';
+  const selectedMenuKey = flattenedItems.find((item) => item.path === pathname)?.path || null;
 
   return {
     activeOpenKeys: selectedGroup ? [selectedGroup] : [],
     currentMenuTitle,
-    defaultOpenKeys: groups.map((group) => group.key),
+    defaultOpenKeys: navigationItems
+      .filter((item) => item.children && item.children.length > 0)
+      .map((item) => item.key),
     isChatPage: false,
     isContentStudioPage: matchedHandle?.surface === 'studio',
     isContentStudioVideoCreatePage: false,
