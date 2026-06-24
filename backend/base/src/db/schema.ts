@@ -3,6 +3,8 @@ import { defaultAgents } from '../modules/agents/agent.defaults.js';
 import { listAudioModelProviders } from '../modules/audio-models/audio-model.registry.js';
 import { llmModelPricingSeeds } from '../modules/model-configs/llm-model-pricing.seed.js';
 import { defaultModelConfig } from '../modules/model-configs/model-config.defaults.js';
+import { defaultAppRoleKey, defaultOnboardingRoleKey } from '../modules/roles/permission-catalog.js';
+import { defaultRoleResourceIds, seededRouteResources } from '../modules/route-resources/route-resource.seed.js';
 
 function addColumnIfMissing(table: string, column: string, definition: string) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
@@ -23,6 +25,7 @@ export function migrateDatabase() {
       username TEXT NOT NULL UNIQUE,
       display_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
+      role_id TEXT,
       is_blacklisted INTEGER NOT NULL DEFAULT 0,
       credit_balance REAL NOT NULL DEFAULT 0,
       password_hash TEXT NOT NULL,
@@ -38,6 +41,54 @@ export function migrateDatabase() {
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS roles (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      is_system INTEGER NOT NULL DEFAULT 0,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role_id TEXT NOT NULL,
+      permission_key TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (role_id, permission_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS route_resources (
+      id TEXT PRIMARY KEY,
+      parent_id TEXT,
+      name TEXT NOT NULL,
+      resource_key TEXT NOT NULL UNIQUE,
+      resource_type TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      path TEXT NOT NULL DEFAULT '',
+      permission_code TEXT NOT NULL UNIQUE,
+      status INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS role_resource_permissions (
+      role_id TEXT NOT NULL,
+      resource_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (role_id, resource_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_role_assignments (
+      user_id TEXT NOT NULL,
+      role_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, role_id)
     );
 
     CREATE TABLE IF NOT EXISTS credit_reservations (
@@ -413,6 +464,7 @@ export function migrateDatabase() {
 
   addColumnIfMissing('users', 'avatar_url', 'avatar_url TEXT');
   addColumnIfMissing('users', 'role', "role TEXT NOT NULL DEFAULT 'user'");
+  addColumnIfMissing('users', 'role_id', 'role_id TEXT');
   addColumnIfMissing('users', 'is_blacklisted', 'is_blacklisted INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'credit_balance', 'credit_balance REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'last_login_at', 'last_login_at TEXT');
@@ -465,6 +517,36 @@ export function migrateDatabase() {
   addColumnIfMissing('video_generation_tasks', 'expert_context', "expert_context TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('xingtu_search_drafts', 'automation_filters', 'automation_filters TEXT');
 
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_key
+    ON roles(key);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_single_default
+    ON roles(is_default)
+    WHERE is_default = 1;
+
+    CREATE INDEX IF NOT EXISTS idx_users_role_id
+    ON users(role_id);
+
+    CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id
+    ON role_permissions(role_id);
+
+    CREATE INDEX IF NOT EXISTS idx_route_resources_parent_id
+    ON route_resources(parent_id);
+
+    CREATE INDEX IF NOT EXISTS idx_route_resources_platform
+    ON route_resources(platform);
+
+    CREATE INDEX IF NOT EXISTS idx_role_resource_permissions_role_id
+    ON role_resource_permissions(role_id);
+
+    CREATE INDEX IF NOT EXISTS idx_user_role_assignments_user_id
+    ON user_role_assignments(user_id);
+
+    CREATE INDEX IF NOT EXISTS idx_user_role_assignments_role_id
+    ON user_role_assignments(role_id);
+  `);
+
   if (hasColumn('billing_settings', 'video_upload_credits_per_second')) {
     db.exec(`
       UPDATE billing_settings
@@ -495,6 +577,153 @@ export function migrateDatabase() {
   `).run(defaultModelConfig);
 
   const now = new Date().toISOString();
+
+  const defaultRoleId = 'role-default-full-access';
+  const onboardingRoleId = 'role-default-onboarding';
+  db.prepare(`
+    INSERT OR IGNORE INTO roles (id, key, name, description, is_system, is_default, created_at, updated_at)
+    VALUES (@id, @key, @name, @description, 1, 0, @createdAt, @updatedAt)
+  `).run({
+    id: defaultRoleId,
+    key: defaultAppRoleKey,
+    name: '默认全量权限',
+    description: '当前全部 web 权限。',
+    createdAt: now,
+    updatedAt: now,
+  });
+  db.prepare(`
+    INSERT OR IGNORE INTO roles (id, key, name, description, is_system, is_default, created_at, updated_at)
+    VALUES (@id, @key, @name, @description, 1, 0, @createdAt, @updatedAt)
+  `).run({
+    id: onboardingRoleId,
+    key: defaultOnboardingRoleKey,
+    name: '默认入门权限',
+    description: '新注册非管理员默认角色，仅保留账号访问，不授予业务功能权限。',
+    createdAt: now,
+    updatedAt: now,
+  });
+  const existingDefaultRole = db.prepare(`
+    SELECT id, key
+    FROM roles
+    WHERE is_default = 1
+    LIMIT 1
+  `).get() as { id: string; key: string } | undefined;
+  if (!existingDefaultRole) {
+    db.prepare(`
+      UPDATE roles
+      SET is_default = 1,
+          updated_at = @updatedAt
+      WHERE id = @id
+    `).run({
+      id: onboardingRoleId,
+      updatedAt: now,
+    });
+  } else if (existingDefaultRole.key === defaultAppRoleKey) {
+    db.prepare(`
+      UPDATE roles
+      SET is_default = CASE
+        WHEN id = @onboardingRoleId THEN 1
+        ELSE 0
+      END,
+      updated_at = @updatedAt
+      WHERE id IN (@defaultRoleId, @onboardingRoleId)
+    `).run({
+      defaultRoleId,
+      onboardingRoleId,
+      updatedAt: now,
+    });
+  }
+
+  const upsertRouteResource = db.prepare(`
+    INSERT INTO route_resources (
+      id, parent_id, name, resource_key, resource_type, platform, path, permission_code,
+      status, sort_order, is_system, created_at, updated_at
+    )
+    VALUES (
+      @id, @parentId, @name, @resourceKey, @resourceType, @platform, @path, @permissionCode,
+      @status, @sortOrder, @isSystem, @createdAt, @updatedAt
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      parent_id = excluded.parent_id,
+      name = excluded.name,
+      resource_key = excluded.resource_key,
+      resource_type = excluded.resource_type,
+      platform = excluded.platform,
+      path = excluded.path,
+      permission_code = excluded.permission_code,
+      status = excluded.status,
+      sort_order = excluded.sort_order,
+      is_system = excluded.is_system,
+      updated_at = excluded.updated_at
+    WHERE route_resources.is_system = 1
+  `);
+  seededRouteResources.forEach((resource) => {
+    upsertRouteResource.run({
+      id: resource.id,
+      parentId: resource.parentId || null,
+      name: resource.name,
+      resourceKey: resource.resourceKey,
+      resourceType: resource.resourceType,
+      platform: resource.platform,
+      path: resource.path || '',
+      permissionCode: resource.permissionCode,
+      status: resource.status === false ? 0 : 1,
+      sortOrder: Number(resource.sortOrder || 0),
+      isSystem: resource.isSystem ? 1 : 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+
+  const seededRouteResourceIds = seededRouteResources.map((resource) => resource.id);
+  const seededRouteResourcePlaceholders = seededRouteResourceIds.map((_, index) => `@resourceId${index}`).join(', ');
+  const seededRouteResourceParams = Object.fromEntries(seededRouteResourceIds.map((resourceId, index) => [`resourceId${index}`, resourceId]));
+  db.prepare(`
+    DELETE FROM role_resource_permissions
+    WHERE resource_id IN (
+      SELECT id
+      FROM route_resources
+      WHERE is_system = 1
+        AND id NOT IN (${seededRouteResourcePlaceholders})
+    )
+  `).run(seededRouteResourceParams);
+  db.prepare(`
+    DELETE FROM route_resources
+    WHERE is_system = 1
+      AND id NOT IN (${seededRouteResourcePlaceholders})
+  `).run(seededRouteResourceParams);
+
+  const insertRoleResourcePermission = db.prepare(`
+    INSERT OR IGNORE INTO role_resource_permissions (role_id, resource_id, created_at)
+    VALUES (@roleId, @resourceId, @createdAt)
+  `);
+  defaultRoleResourceIds.forEach((resourceId) => {
+    insertRoleResourcePermission.run({
+      roleId: defaultRoleId,
+      resourceId,
+      createdAt: now,
+    });
+  });
+
+  db.exec(`
+    INSERT OR IGNORE INTO role_resource_permissions (role_id, resource_id, created_at)
+    SELECT
+      rp.role_id,
+      rr.id,
+      rp.created_at
+    FROM role_permissions rp
+    INNER JOIN route_resources rr
+      ON rr.permission_code = rp.permission_key
+  `);
+
+  db.exec(`
+    INSERT OR IGNORE INTO user_role_assignments (user_id, role_id, created_at)
+    SELECT id, role_id, COALESCE(created_at, '${now}')
+    FROM users
+    WHERE role_id IS NOT NULL
+      AND role_id != ''
+  `);
+
   db.prepare(`
     INSERT OR IGNORE INTO billing_settings (
       id, enabled, video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens, created_at, updated_at

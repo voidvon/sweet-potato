@@ -7,9 +7,28 @@ export type User = {
   displayName: string;
   avatarUrl?: string;
   role: 'admin' | 'user';
+  roleIds?: string[];
+  assignedRoles?: UserRoleSummary[];
+  permissions?: string[];
+  permissionCodes?: string[];
+  resourceIds?: string[];
+  resourceKeys?: string[];
   creditBalance?: number;
   createdAt: string;
   lastLoginAt?: string;
+};
+
+export type UserRoleSummary = {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  isDefault?: boolean;
+  isSystem?: boolean;
+  permissions?: string[];
+  permissionCodes?: string[];
+  resourceIds?: string[];
+  resourceKeys?: string[];
 };
 
 export type ManagedUser = {
@@ -17,10 +36,80 @@ export type ManagedUser = {
   username: string;
   displayName: string;
   role: 'admin' | 'user';
+  roleIds?: string[];
+  assignedRoles?: UserRoleSummary[];
+  permissions?: string[];
+  permissionCodes?: string[];
+  resourceIds?: string[];
+  resourceKeys?: string[];
   isBlacklisted: boolean;
   creditBalance: number;
   createdAt: string;
   lastLoginAt?: string;
+};
+
+export type ManagedRole = {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  isSystem?: boolean;
+  isDefault?: boolean;
+  assignedUserCount?: number;
+  grantedResourceIds?: string[];
+  grantedResources?: RouteResourceSummary[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RoleCreatePayload = {
+  name: string;
+  description?: string;
+  resourceIds?: string[];
+  isDefault?: boolean;
+};
+
+export type RoleUpdatePayload = {
+  name: string;
+  description?: string;
+  resourceIds?: string[];
+  isDefault?: boolean;
+};
+
+export type RouteResourceType = 'directory' | 'menu';
+
+export type RouteResourcePlatform = 'web' | 'admin';
+
+export type RouteResourceSummary = {
+  id: string;
+  parentId?: string | null;
+  name: string;
+  resourceKey: string;
+  resourceType: RouteResourceType;
+  platform: RouteResourcePlatform;
+  permissionCode: string;
+  path?: string;
+  status?: boolean;
+  isSystem?: boolean;
+};
+
+export type ManagedRouteResource = RouteResourceSummary & {
+  sortOrder?: number;
+  children?: ManagedRouteResource[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type RouteResourceMutationPayload = {
+  parentId?: string | null;
+  name: string;
+  resourceKey: string;
+  resourceType: RouteResourceType;
+  platform: RouteResourcePlatform;
+  path?: string;
+  permissionCode: string;
+  status?: boolean;
+  sortOrder?: number;
 };
 
 export type BillingSettings = {

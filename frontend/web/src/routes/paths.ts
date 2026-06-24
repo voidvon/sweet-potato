@@ -11,4 +11,5 @@ export const routePaths = {
   buyinCreators: '/app/creator-ops/buyin',
   wechatOps: '/app/creator-ops/wechat',
   account: '/app/account',
+  noPermission: '/app/no-permission',
 };

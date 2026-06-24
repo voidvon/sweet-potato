@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { db } from '../../db/database.js';
 import { createAuthToken } from '../../shared/auth.js';
+import { getRegistrationRole, resolveUserPermissions } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
 import type { PublicUser, User, UserRole } from './user.types.js';
 
@@ -20,12 +21,16 @@ export function createToken(userId: string, role: UserRole) {
 }
 
 export function publicUser(user: User): PublicUser {
+  const permissions = user.permissions || resolveUserPermissions(user);
   return {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl || undefined,
     role: user.role,
+    roleIds: user.roleIds || [],
+    assignedRoles: user.assignedRoles || [],
+    permissions,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt || undefined,
     creditBalance: user.creditBalance,
@@ -40,11 +45,13 @@ export function createUser(username: string, password: string, displayName: stri
 
     const salt = randomBytes(16).toString('hex');
     const createdAt = new Date().toISOString();
+    const firstUser = userRepository.count() === 0;
+    const registrationRole = firstUser ? null : getRegistrationRole();
     const user: User = {
       id: randomBytes(12).toString('hex'),
       username: input.username,
       displayName: input.displayName,
-      role: userRepository.count() === 0 ? 'admin' : 'user',
+      role: firstUser ? 'admin' : 'user',
       isBlacklisted: false,
       creditBalance: 0,
       salt,
@@ -54,6 +61,11 @@ export function createUser(username: string, password: string, displayName: stri
     };
 
     userRepository.create(user);
+    if (registrationRole) {
+      userRepository.updateRoleAssignments(user.id, [registrationRole.id]);
+      user.roleIds = [registrationRole.id];
+      user.assignedRoles = [registrationRole];
+    }
     return user;
   });
 

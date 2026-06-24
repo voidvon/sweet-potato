@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
+import { resolveUserPermissions } from '../modules/roles/role.service.js';
 import { userRepository } from '../modules/users/user.repository.js';
+import { findResourceByPermissionCode, findResourceByResourceKey } from './resource-permission.js';
 import { sendError } from './http.js';
 import { extractBearerToken, verifyAuthToken } from './auth.js';
 
@@ -49,9 +51,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
+  const permissions = resolveUserPermissions(user);
   req.auth = {
     user,
     userId: user.id,
+    systemRole: user.role,
+    roleIds: user.roleIds || [],
+    permissions,
+    hasPermission(permissionKey: string) {
+      return user.role === 'admin' || permissions.includes(permissionKey);
+    },
+    hasResource(resourceKey: string) {
+      const resource = findResourceByResourceKey(resourceKey);
+      if (!resource) {
+        return false;
+      }
+      return user.role === 'admin' || permissions.includes(resource.permissionCode);
+    },
   };
 
   next();
@@ -64,4 +80,76 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
 
   next();
+}
+
+export function requirePermission(permissionKey: string) {
+  return function permissionGuard(req: Request, res: Response, next: NextFunction) {
+    if (!req.auth) {
+      sendError(res, 401, '请先登录');
+      return;
+    }
+
+    const resource = findResourceByPermissionCode(permissionKey);
+    if (!resource || !resource.status) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+
+    if (!req.auth.hasPermission(permissionKey)) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+
+    next();
+  };
+}
+
+export function requireAnyPermission(permissionKeys: string[]) {
+  return function anyPermissionGuard(req: Request, res: Response, next: NextFunction) {
+    if (!req.auth) {
+      sendError(res, 401, '请先登录');
+      return;
+    }
+
+    if (req.auth.systemRole === 'admin') {
+      next();
+      return;
+    }
+
+    const knownPermissionKeys = permissionKeys.filter((permissionKey) => {
+      const resource = findResourceByPermissionCode(permissionKey);
+      return Boolean(resource?.status);
+    });
+
+    if (!knownPermissionKeys.length) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+
+    if (!knownPermissionKeys.some((permissionKey) => req.auth?.hasPermission(permissionKey))) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+
+    next();
+  };
+}
+
+export function requireResource(resourceKey: string) {
+  return function resourceGuard(req: Request, res: Response, next: NextFunction) {
+    if (!req.auth) {
+      sendError(res, 401, '请先登录');
+      return;
+    }
+    const resource = findResourceByResourceKey(resourceKey);
+    if (!resource || !resource.status) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+    if (!req.auth.hasResource(resourceKey)) {
+      sendError(res, 403, '当前账号无权访问该功能');
+      return;
+    }
+    next();
+  };
 }

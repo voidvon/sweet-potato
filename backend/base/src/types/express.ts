@@ -6,6 +6,11 @@ declare global {
       auth?: {
         user: User;
         userId: string;
+        systemRole: User['role'];
+        roleIds: string[];
+        permissions: string[];
+        hasPermission: (permissionKey: string) => boolean;
+        hasResource: (resourceKey: string) => boolean;
       };
     }
   }

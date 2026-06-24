@@ -25,25 +25,72 @@ function resolveRouterBasename() {
   return '';
 }
 
+function normalizePermissions(value: User['permissions']) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.length > 0)));
+}
+
+function normalizeStringList(value: string[] | undefined) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.length > 0)));
+}
+
+function normalizeAssignedRoles(value: User['assignedRoles']) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((role) => ({
+    ...role,
+    permissions: normalizePermissions(role.permissions),
+    permissionCodes: normalizeStringList(role.permissionCodes),
+    resourceIds: normalizeStringList(role.resourceIds),
+    resourceKeys: normalizeStringList(role.resourceKeys),
+  }));
+}
+
+function normalizeUser(user: User): User {
+  const assignedRoles = normalizeAssignedRoles(user.assignedRoles);
+  const permissionCodes = normalizeStringList(user.permissionCodes);
+  const resourceIds = normalizeStringList(user.resourceIds);
+  const resourceKeys = normalizeStringList(user.resourceKeys);
+  const rolePermissionCodes = assignedRoles.flatMap((role) => role.permissionCodes || []);
+  const roleResourceIds = assignedRoles.flatMap((role) => role.resourceIds || []);
+  const roleResourceKeys = assignedRoles.flatMap((role) => role.resourceKeys || []);
+
+  return {
+    ...user,
+    role: user.role || 'user',
+    permissions: normalizePermissions(user.permissions),
+    permissionCodes: permissionCodes.length ? permissionCodes : normalizeStringList(rolePermissionCodes),
+    resourceIds: resourceIds.length ? resourceIds : normalizeStringList(roleResourceIds),
+    resourceKeys: resourceKeys.length ? resourceKeys : normalizeStringList(roleResourceKeys),
+    roleIds: normalizeStringList(user.roleIds),
+    assignedRoles,
+  };
+}
+
 export function getStoredUser(): User | null {
   const raw = localStorage.getItem(USER_KEY);
   if (!raw) {
     return null;
   }
   const user = JSON.parse(raw) as User;
-  return {
-    ...user,
-    role: user.role || 'user',
-  };
+  return normalizeUser(user);
 }
 
 export function storeSession(session: AuthSession) {
-  localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+  localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(session.user)));
   localStorage.setItem(TOKEN_KEY, session.token);
 }
 
 export function storeUser(user: User) {
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(user)));
 }
 
 export function removeStoredUser() {

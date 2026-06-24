@@ -1,8 +1,9 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { CreditCardOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, CreditCardOutlined, SafetyCertificateOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
+import type { RouteResourceDisplayInfo } from '@shared/hooks/useRouteResourceNames';
 import type { WorkspaceMenuItem } from '@shared/layouts/WorkspaceShellLayout';
 import { AccountPage } from '@shared/pages/AccountPage';
 import type { AuthSession, User } from '@shared/types';
@@ -11,6 +12,8 @@ import { AuthPage } from '../pages/auth/AuthPage';
 import { routePaths } from './paths';
 const ModelSettingsPage = lazy(() => import('../pages/settings/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })));
 const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettingsPage').then((m) => ({ default: m.BillingSettingsPage })));
+const RouteResourceManagementPage = lazy(() => import('../pages/settings/RouteResourceManagementPage').then((m) => ({ default: m.RouteResourceManagementPage })));
+const RoleManagementPage = lazy(() => import('../pages/settings/RoleManagementPage').then((m) => ({ default: m.RoleManagementPage })));
 const UserManagementPage = lazy(() => import('../pages/settings/UserManagementPage').then((m) => ({ default: m.UserManagementPage })));
 
 type WorkspaceRouteHandlers = {
@@ -52,6 +55,7 @@ type WorkspacePageDefinition = {
   fullPath: string;
   element: (currentUser: User, handlers: WorkspaceRouteHandlers) => ReactNode;
   handle?: AppRouteHandle;
+  routeResourceKey?: string;
   visible?: (currentUser: User) => boolean;
 };
 
@@ -72,6 +76,7 @@ type SidebarNavigationItem = {
   key: string;
   label: string;
   path?: string;
+  sortOrder: number;
 };
 
 const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string }> = {
@@ -114,10 +119,44 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
+    key: 'settings-route-resources',
+    path: 'system/routes',
+    fullPath: routePaths.routeResourceManagement,
+    element: () => withStudioSuspense(<RouteResourceManagementPage />),
+    routeResourceKey: 'admin.system.route_resources',
+    handle: {
+      title: '路由管理',
+      surface: 'studio',
+      sidebar: {
+        icon: <ApartmentOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-roles',
+    path: 'users/roles',
+    fullPath: routePaths.roleManagement,
+    element: () => withStudioSuspense(<RoleManagementPage />),
+    routeResourceKey: 'admin.users.roles',
+    handle: {
+      title: '角色管理',
+      surface: 'studio',
+      sidebar: {
+        groupKey: 'users',
+        icon: <SafetyCertificateOutlined />,
+        level: 'child',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
     key: 'settings-users',
     path: 'users/accounts',
     fullPath: routePaths.accountManagement,
     element: () => withStudioSuspense(<UserManagementPage />),
+    routeResourceKey: 'admin.users.accounts',
     handle: {
       title: '账号管理',
       surface: 'studio',
@@ -134,6 +173,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'billing',
     fullPath: routePaths.billingSettings,
     element: () => withStudioSuspense(<BillingSettingsPage />),
+    routeResourceKey: 'admin.system.billing',
     handle: {
       title: '积分设置',
       surface: 'studio',
@@ -149,6 +189,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'models',
     fullPath: routePaths.modelSettings,
     element: () => withStudioSuspense(<ModelSettingsPage />),
+    routeResourceKey: 'admin.system.models',
     handle: {
       title: '模型配置',
       surface: 'studio',
@@ -174,6 +215,34 @@ function isVisibleWorkspacePage(route: WorkspacePageDefinition, currentUser: Use
 
 function getVisibleWorkspacePages(currentUser: User) {
   return workspacePageDefinitions.filter((route) => isVisibleWorkspacePage(route, currentUser));
+}
+
+function resolveResourceInfo(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return route.routeResourceKey ? resourceInfoMap?.get(route.routeResourceKey) : undefined;
+}
+
+function resolveResourceName(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return resolveResourceInfo(route, resourceInfoMap)?.name;
+}
+
+function compareByResourceSort(left: WorkspacePageDefinition, right: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  const leftSortOrder = resolveResourceInfo(left, resourceInfoMap)?.sortOrder ?? 0;
+  const rightSortOrder = resolveResourceInfo(right, resourceInfoMap)?.sortOrder ?? 0;
+
+  if (leftSortOrder !== rightSortOrder) {
+    return leftSortOrder - rightSortOrder;
+  }
+
+  return workspacePageDefinitions.indexOf(left) - workspacePageDefinitions.indexOf(right);
+}
+
+function getGroupSortOrder(groupKey: SidebarGroupKey, children: SidebarNavigationItem[], resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  const groupResourceKey = groupKey === 'users' ? 'admin.root.users' : undefined;
+  const groupSortOrder = groupResourceKey ? resourceInfoMap?.get(groupResourceKey)?.sortOrder : undefined;
+  if (groupSortOrder !== undefined) {
+    return groupSortOrder;
+  }
+  return children.length > 0 ? Math.min(...children.map((item) => item.sortOrder)) : 0;
 }
 
 function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRouteHandlers): AppRouteObject[] {
@@ -237,43 +306,51 @@ export function createAppRouteObjects({
   ];
 }
 
-function buildSidebarNavigation(currentUser: User): SidebarNavigationItem[] {
+function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): SidebarNavigationItem[] {
   const sidebarRoutes = getVisibleWorkspacePages(currentUser)
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
 
   const topRoutes = sidebarRoutes
     .filter((route) => route.handle.sidebar.level === 'top')
+    .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
     .map((route) => ({
       key: route.fullPath,
       icon: route.handle.sidebar.icon,
-      label: route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
       path: route.fullPath,
+      sortOrder: resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0,
     }));
 
   const groupedRoutes = Object.entries(sidebarGroupMeta)
-    .map(([groupKey, group]) => ({
-      key: groupKey as SidebarGroupKey,
-      icon: group.icon,
-      label: group.label,
-      children: sidebarRoutes
-        .filter((route) => route.handle.sidebar.level !== 'top' && route.handle.sidebar.groupKey === groupKey)
+    .map(([groupKey, group]) => {
+      const typedGroupKey = groupKey as SidebarGroupKey;
+      const children = sidebarRoutes
+        .filter((route) => route.handle.sidebar.level !== 'top' && route.handle.sidebar.groupKey === typedGroupKey)
+        .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
         .map((route) => ({
           key: route.fullPath,
           icon: route.handle.sidebar.icon,
-          label: route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+          label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
           path: route.fullPath,
-        })),
-    }))
+          sortOrder: resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0,
+        }));
+
+      return {
+        key: typedGroupKey,
+        icon: group.icon,
+        label: resourceInfoMap?.get('admin.root.users')?.name || group.label,
+        sortOrder: getGroupSortOrder(typedGroupKey, children, resourceInfoMap),
+        children,
+      };
+    })
     .filter((group) => group.children.length > 0);
 
-  return [
-    ...groupedRoutes,
-    ...topRoutes,
-  ];
+  return [...groupedRoutes, ...topRoutes]
+    .sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
-export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
-  return buildSidebarNavigation(currentUser).map((item) => ({
+export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
+  return buildSidebarNavigation(currentUser, resourceInfoMap).map((item) => ({
     key: item.path || item.key,
     icon: item.icon,
     label: item.label,
@@ -285,15 +362,16 @@ export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
   }));
 }
 
-export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[]): WorkspaceRouteState {
-  const navigationItems = buildSidebarNavigation(currentUser);
+export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[], resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceRouteState {
+  const navigationItems = buildSidebarNavigation(currentUser, resourceInfoMap);
   const matchedHandle = [...matches]
     .reverse()
     .map((match) => match.handle as AppRouteHandle | undefined)
     .find((handle) => handle);
   const selectedGroup = navigationItems.find((item) => item.children?.some((child) => child.path === pathname))?.key;
   const flattenedItems = navigationItems.flatMap((item) => item.path ? [item] : item.children || []);
-  const currentMenuTitle = resolveRouteTitle(matchedHandle?.title, pathname) || '管理后台';
+  const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
+  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined) || resolveRouteTitle(matchedHandle?.title, pathname) || '管理后台';
   const selectedMenuKey = flattenedItems.find((item) => item.path === pathname)?.path || null;
 
   return {

@@ -27,7 +27,9 @@ import { isElectronEgg } from '../ipc';
 import { ProtectedLayout } from '../layouts/ProtectedLayout';
 import { modules } from '../modules';
 import { AuthPage } from '../pages/auth/AuthPage';
+import { NoPermissionPage } from '../pages/NoPermissionPage';
 import { routePaths } from './paths';
+import type { RouteResourceDisplayInfo } from '@shared/hooks/useRouteResourceNames';
 import type { WorkspaceMenuItem } from '@shared/layouts/WorkspaceShellLayout';
 import type { AuthSession, CreativeModuleCode, User } from '../types';
 
@@ -59,6 +61,21 @@ type SidebarMenuMeta = {
   tag?: 'HOT' | 'NEW';
 };
 
+const sidebarGroupResourceKeys: Record<SidebarGroupKey, string> = {
+  material: 'web.root.content',
+  video: 'web.root.video',
+  creatorOps: 'web.root.creator_ops',
+};
+
+type RouteResourceType = 'directory' | 'menu';
+
+type WebRouteResourceMeta = {
+  permissionCode?: string;
+  protected?: boolean;
+  resourceKey?: string;
+  resourceType?: RouteResourceType;
+};
+
 export type AppRouteHandle = {
   sidebar?: SidebarMenuMeta;
   surface?: WorkspaceSurface;
@@ -80,6 +97,7 @@ type WorkspacePageDefinition = {
   fullPath: string;
   element: (currentUser: User, handlers: WorkspaceRouteHandlers) => ReactNode;
   handle?: AppRouteHandle;
+  routeResource?: WebRouteResourceMeta;
   visible?: (currentUser: User) => boolean;
 };
 
@@ -100,6 +118,23 @@ export type WorkspaceRouteState = {
   selectedMenuKey: string | null;
 };
 
+type SortableWorkspaceMenuItem = WorkspaceMenuItem & {
+  sortOrder: number;
+};
+
+type PermissionState = {
+  canAccessAccount: boolean;
+  defaultAppPath: string;
+  hasAnyBusinessAccess: boolean;
+};
+
+type UserGrantState = {
+  permissionCodes: Set<string>;
+  permissions: Set<string>;
+  resourceIds: Set<string>;
+  resourceKeys: Set<string>;
+};
+
 const menuIconProps = {
   size: 16,
   strokeWidth: 1.8,
@@ -118,6 +153,13 @@ const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string
     icon: <Star {...menuIconProps} />,
     label: '达人运营',
   },
+};
+
+const chatRouteGrant: WebRouteResourceMeta = {
+  permissionCode: 'web.module.chat',
+  protected: true,
+  resourceKey: 'web.module.chat',
+  resourceType: 'menu',
 };
 
 function withSuspense(node: ReactNode, fallback: ReactNode = <WorkspaceRouteFallback />) {
@@ -153,6 +195,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'modules/:moduleId',
     fullPath: routePaths.module(),
     element: () => withChatSuspense(<DashboardPage />),
+    routeResource: chatRouteGrant,
     handle: {
       title: (pathname) => {
         const matchedModule = modules.find((item) => pathname === routePaths.module(item.id));
@@ -165,6 +208,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content',
     fullPath: routePaths.contentRoot,
     element: (currentUser) => withSuspense(<ContentWorkbenchPage currentUser={currentUser} />),
+    routeResource: {
+      permissionCode: 'web.directory.content',
+      protected: false,
+      resourceKey: 'web.root.content',
+      resourceType: 'directory',
+    },
     handle: {
       title: '内容创作工作台',
     },
@@ -174,6 +223,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content/virtual_portrait_assets',
     fullPath: routePaths.contentModule('virtual_portrait_assets'),
     element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="virtual_portrait_assets" />),
+    routeResource: {
+      permissionCode: 'web.module.content.virtual_portrait_assets',
+      protected: true,
+      resourceKey: 'web.module.content.virtual_portrait_assets',
+      resourceType: 'menu',
+    },
     handle: {
       title: '人物素材',
       surface: 'studio',
@@ -187,20 +242,16 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
-    key: 'content-real-person-assets',
-    path: 'content/real_person_assets',
-    fullPath: routePaths.contentModule('real_person_assets'),
-    element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="real_person_assets" />),
-    handle: {
-      title: '真人素材',
-      surface: 'studio',
-    },
-  },
-  {
     key: 'content-ai-voice',
     path: 'content/ai_voice',
     fullPath: routePaths.contentModule('ai_voice'),
     element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="ai_voice" />),
+    routeResource: {
+      permissionCode: 'web.module.content.ai_voice',
+      protected: true,
+      resourceKey: 'web.module.content.ai_voice',
+      resourceType: 'menu',
+    },
     handle: {
       title: '人声素材',
       surface: 'studio',
@@ -218,6 +269,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content/scene_library',
     fullPath: routePaths.contentModule('scene_library'),
     element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="scene_library" />),
+    routeResource: {
+      permissionCode: 'web.module.content.scene_library',
+      protected: true,
+      resourceKey: 'web.module.content.scene_library',
+      resourceType: 'menu',
+    },
     handle: {
       title: '场景素材',
       surface: 'studio',
@@ -235,6 +292,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content/product_assets',
     fullPath: routePaths.contentModule('product_assets'),
     element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="product_assets" />),
+    routeResource: {
+      permissionCode: 'web.module.content.product_assets',
+      protected: true,
+      resourceKey: 'web.module.content.product_assets',
+      resourceType: 'menu',
+    },
     handle: {
       title: '产品素材',
       surface: 'studio',
@@ -252,6 +315,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content/finished_assets',
     fullPath: routePaths.contentModule('finished_assets'),
     element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="finished_assets" />),
+    routeResource: {
+      permissionCode: 'web.module.content.finished_assets',
+      protected: true,
+      resourceKey: 'web.module.content.finished_assets',
+      resourceType: 'menu',
+    },
     handle: {
       title: '成片素材',
       surface: 'studio',
@@ -269,6 +338,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'content/video_remake',
     fullPath: routePaths.contentModule('video_remake'),
     element: (currentUser) => withImmersiveSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="video_remake" />),
+    routeResource: {
+      permissionCode: 'web.module.content.video_remake',
+      protected: true,
+      resourceKey: 'web.module.content.video_remake',
+      resourceType: 'menu',
+    },
     handle: {
       title: '爆款复刻工作流',
       surface: 'immersive',
@@ -284,30 +359,16 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
-    key: 'content-create-video',
-    path: 'content/create_video',
-    fullPath: routePaths.contentModule('create_video'),
-    element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="create_video" />),
-    handle: {
-      title: '视频制作',
-      surface: 'studio',
-    },
-  },
-  {
-    key: 'content-digital-human',
-    path: 'content/digital_human',
-    fullPath: routePaths.contentModule('digital_human'),
-    element: (currentUser) => withStudioSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="digital_human" />),
-    handle: {
-      title: '数字人素材',
-      surface: 'studio',
-    },
-  },
-  {
     key: 'creator-ops-xingtu',
     path: 'creator-ops/xingtu',
     fullPath: routePaths.xingtuCreators,
     element: () => withSuspense(<XingtuCreatorPage />),
+    routeResource: {
+      permissionCode: 'web.module.creator_ops.xingtu',
+      protected: true,
+      resourceKey: 'web.module.creator_ops.xingtu',
+      resourceType: 'menu',
+    },
     handle: {
       title: '星图达人',
       sidebar: {
@@ -322,6 +383,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'creator-ops/buyin',
     fullPath: routePaths.buyinCreators,
     element: () => withSuspense(<XingtuCreatorPage platform="buyin" />),
+    routeResource: {
+      permissionCode: 'web.module.creator_ops.buyin',
+      protected: true,
+      resourceKey: 'web.module.creator_ops.buyin',
+      resourceType: 'menu',
+    },
     handle: {
       title: '精选联盟',
       sidebar: {
@@ -336,6 +403,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     path: 'creator-ops/wechat',
     fullPath: routePaths.wechatOps,
     element: () => withSuspense(<WechatAutomationPage />),
+    routeResource: {
+      permissionCode: 'web.module.creator_ops.wechat',
+      protected: true,
+      resourceKey: 'web.module.creator_ops.wechat',
+      resourceType: 'menu',
+    },
     handle: {
       title: '微信',
       sidebar: {
@@ -371,18 +444,173 @@ function resolveRouteTitle(title: RouteTitle | undefined, pathname: string) {
 }
 
 function isVisibleWorkspacePage(route: WorkspacePageDefinition, currentUser: User) {
-  return route.visible ? route.visible(currentUser) : true;
+  return hasRouteAccess(currentUser, route) && (route.visible ? route.visible(currentUser) : true);
+}
+
+function getUserGrantState(currentUser: User): UserGrantState {
+  const assignedRoles = currentUser.assignedRoles || [];
+  return {
+    permissionCodes: new Set([
+      ...(currentUser.permissionCodes || []),
+      ...assignedRoles.flatMap((role) => role.permissionCodes || []),
+    ]),
+    permissions: new Set([
+      ...(currentUser.permissions || []),
+      ...assignedRoles.flatMap((role) => role.permissions || []),
+    ]),
+    resourceIds: new Set([
+      ...(currentUser.resourceIds || []),
+      ...assignedRoles.flatMap((role) => role.resourceIds || []),
+    ]),
+    resourceKeys: new Set([
+      ...(currentUser.resourceKeys || []),
+      ...assignedRoles.flatMap((role) => role.resourceKeys || []),
+    ]),
+  };
+}
+
+function hasRouteGrant(currentUser: User, routeResource?: WebRouteResourceMeta) {
+  if (!routeResource || currentUser.role === 'admin') {
+    return true;
+  }
+
+  if (routeResource.protected === false) {
+    return true;
+  }
+
+  const grants = getUserGrantState(currentUser);
+
+  if (routeResource.resourceKey && grants.resourceKeys.has(routeResource.resourceKey)) {
+    return true;
+  }
+
+  if (routeResource.permissionCode && grants.permissionCodes.has(routeResource.permissionCode)) {
+    return true;
+  }
+
+  if (routeResource.permissionCode && grants.permissions.has(routeResource.permissionCode)) {
+    return true;
+  }
+
+  if (routeResource.resourceKey && grants.permissions.has(routeResource.resourceKey)) {
+    return true;
+  }
+
+  if (routeResource.protected) {
+    return false;
+  }
+
+  return grants.resourceIds.size > 0 || grants.resourceKeys.size > 0 || grants.permissionCodes.size > 0 || grants.permissions.size > 0;
+}
+
+function hasRouteAccess(currentUser: User, route: WorkspacePageDefinition) {
+  if (route.key === 'content-root') {
+    return workspacePageDefinitions.some((item) => (
+      Boolean(item.handle?.contentNavigation) && hasRouteGrant(currentUser, item.routeResource)
+    ));
+  }
+
+  return hasRouteGrant(currentUser, route.routeResource);
 }
 
 function getVisibleWorkspacePages(currentUser: User) {
   return workspacePageDefinitions.filter((route) => isVisibleWorkspacePage(route, currentUser));
 }
 
+function resolveResourceInfo(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return route.routeResource?.resourceKey ? resourceInfoMap?.get(route.routeResource.resourceKey) : undefined;
+}
+
+function resolveResourceName(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return resolveResourceInfo(route, resourceInfoMap)?.name;
+}
+
+function getRouteSortOrder(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0;
+}
+
+function compareByResourceSort(left: WorkspacePageDefinition, right: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  const leftSortOrder = getRouteSortOrder(left, resourceInfoMap);
+  const rightSortOrder = getRouteSortOrder(right, resourceInfoMap);
+
+  if (leftSortOrder !== rightSortOrder) {
+    return leftSortOrder - rightSortOrder;
+  }
+
+  return workspacePageDefinitions.indexOf(left) - workspacePageDefinitions.indexOf(right);
+}
+
+function getGroupSortOrder(groupKey: SidebarGroupKey, children: Array<{ sortOrder: number }>, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  const resourceSortOrder = resourceInfoMap?.get(sidebarGroupResourceKeys[groupKey])?.sortOrder;
+  if (resourceSortOrder !== undefined) {
+    return resourceSortOrder;
+  }
+  return children.length > 0 ? Math.min(...children.map((item) => item.sortOrder)) : 0;
+}
+
+function getFirstPermittedBusinessRoute(currentUser: User) {
+  const route = workspacePageDefinitions.find((item) => (
+    item.key !== 'account'
+    && item.key !== 'content-root'
+    && isVisibleWorkspacePage(item, currentUser)
+  ));
+
+  return route?.fullPath || null;
+}
+
+function resolveDefaultAppPath(currentUser: User) {
+  return getFirstPermittedBusinessRoute(currentUser) || routePaths.account;
+}
+
+function getPermissionState(currentUser: User): PermissionState {
+  const firstPermittedBusinessPath = getFirstPermittedBusinessRoute(currentUser);
+
+  return {
+    canAccessAccount: true,
+    defaultAppPath: firstPermittedBusinessPath || routePaths.account,
+    hasAnyBusinessAccess: Boolean(firstPermittedBusinessPath),
+  };
+}
+
+function resolveUnauthorizedRedirectPath(state: PermissionState) {
+  if (state.hasAnyBusinessAccess) {
+    return state.defaultAppPath;
+  }
+
+  return routePaths.noPermission;
+}
+
+function ProtectedRouteGate({
+  children,
+  fallbackPath,
+  isAllowed,
+}: {
+  children: ReactNode;
+  fallbackPath: string;
+  isAllowed: boolean;
+}) {
+  if (!isAllowed) {
+    return <Navigate to={fallbackPath} replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRouteHandlers): AppRouteObject[] {
-  return getVisibleWorkspacePages(currentUser).map((route) => ({
+  const permissionState = getPermissionState(currentUser);
+  const unauthorizedRedirectPath = resolveUnauthorizedRedirectPath(permissionState);
+
+  return workspacePageDefinitions.map((route) => ({
     id: route.key,
     path: route.path,
-    element: route.element(currentUser, handlers),
+    element: (
+      <ProtectedRouteGate
+        fallbackPath={unauthorizedRedirectPath}
+        isAllowed={route.key === 'account' || isVisibleWorkspacePage(route, currentUser)}
+      >
+        {route.element(currentUser, handlers)}
+      </ProtectedRouteGate>
+    ),
     handle: route.handle,
   }));
 }
@@ -393,18 +621,28 @@ export function createAppRouteObjects({
   onLogout,
   onUserUpdated,
 }: AppRouteBuildParams): AppRouteObject[] {
+  const permissionState = currentUser ? getPermissionState(currentUser) : null;
+  const defaultAppPath = permissionState?.defaultAppPath || routePaths.defaultLanding;
+  const unauthorizedRedirectPath = permissionState ? resolveUnauthorizedRedirectPath(permissionState) : routePaths.login;
   const protectedChildren = currentUser
     ? [
       {
         id: 'app-index',
         index: true,
-        element: <Navigate to={routePaths.defaultLanding} replace />,
+        element: <Navigate to={defaultAppPath} replace />,
+      },
+      {
+        id: 'no-permission',
+        path: 'no-permission',
+        element: permissionState?.hasAnyBusinessAccess
+          ? <Navigate to={defaultAppPath} replace />
+          : <NoPermissionPage canAccessAccount={permissionState?.canAccessAccount ?? true} />,
       },
       ...createProtectedRouteObjects(currentUser, { onLogout, onUserUpdated }),
       {
         id: 'app-fallback',
         path: '*',
-        element: <Navigate to={routePaths.defaultLanding} replace />,
+        element: <Navigate to={unauthorizedRedirectPath} replace />,
       },
     ]
     : [];
@@ -414,7 +652,7 @@ export function createAppRouteObjects({
       id: 'login',
       path: routePaths.login,
       element: currentUser ? (
-        <Navigate to={routePaths.defaultLanding} replace />
+        <Navigate to={defaultAppPath} replace />
       ) : (
         <AuthRouteFrame>
           <AuthPage onAuthed={onAuthed} />
@@ -434,12 +672,12 @@ export function createAppRouteObjects({
     {
       id: 'root-fallback',
       path: '*',
-      element: <Navigate to={currentUser ? routePaths.defaultLanding : routePaths.login} replace />,
+      element: <Navigate to={currentUser ? unauthorizedRedirectPath : routePaths.login} replace />,
     },
   ];
 }
 
-export const contentNavigationRoutes: ContentNavigationRoute[] = workspacePageDefinitions
+const allContentNavigationRoutes: ContentNavigationRoute[] = workspacePageDefinitions
   .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { contentNavigation: { code: CreativeModuleCode } } } => Boolean(route.handle?.contentNavigation))
   .map((route) => ({
     code: route.handle.contentNavigation.code,
@@ -447,38 +685,65 @@ export const contentNavigationRoutes: ContentNavigationRoute[] = workspacePageDe
     path: route.fullPath,
   }));
 
-function buildSidebarNavigation(currentUser: User) {
+export const contentNavigationRoutes = allContentNavigationRoutes;
+
+export function getContentNavigationRoutes(currentUser: User): ContentNavigationRoute[] {
+  return workspacePageDefinitions
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { contentNavigation: { code: CreativeModuleCode } } } => (
+      Boolean(route.handle?.contentNavigation) && isVisibleWorkspacePage(route, currentUser)
+    ))
+    .map((route) => ({
+      code: route.handle.contentNavigation.code,
+      name: resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      path: route.fullPath,
+    }));
+}
+
+function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   const sidebarRoutes = getVisibleWorkspacePages(currentUser)
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
 
   return Object.entries(sidebarGroupMeta)
-    .map(([groupKey, group]) => ({
-      key: groupKey as SidebarGroupKey,
-      icon: group.icon,
-      label: group.label,
-      children: sidebarRoutes
-        .filter((route) => route.handle.sidebar.groupKey === groupKey)
+    .map(([groupKey, group]) => {
+      const typedGroupKey = groupKey as SidebarGroupKey;
+      const children = sidebarRoutes
+        .filter((route) => route.handle.sidebar.groupKey === typedGroupKey)
+        .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
         .map((route) => ({
           key: route.fullPath,
           icon: route.handle.sidebar.icon,
-          label: route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+          label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
           path: route.fullPath,
+          sortOrder: getRouteSortOrder(route, resourceInfoMap),
           tag: route.handle.sidebar.tag,
-        })),
-    }))
-    .filter((group) => group.children.length > 0);
+        }));
+
+      return {
+        key: typedGroupKey,
+        icon: group.icon,
+        label: resourceInfoMap?.get(sidebarGroupResourceKeys[typedGroupKey])?.name || group.label,
+        sortOrder: getGroupSortOrder(typedGroupKey, children, resourceInfoMap),
+        children,
+      };
+    })
+    .filter((group) => group.children.length > 0)
+    .sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
-export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
-  const groups = buildSidebarNavigation(currentUser);
+export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
+  const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
+  const sidebarItems: SortableWorkspaceMenuItem[] = [];
 
-  return [
-    {
+  if (hasRouteGrant(currentUser, chatRouteGrant)) {
+    sidebarItems.push({
       key: routePaths.defaultModule,
       icon: <Bot {...menuIconProps} />,
-      label: 'AI 对话',
-    },
-    ...groups.map((group) => ({
+      label: resourceInfoMap?.get('web.module.chat')?.name || 'AI 对话',
+      sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
+    });
+  }
+
+  sidebarItems.push(...groups.map((group) => ({
       key: group.key,
       icon: group.icon,
       label: group.label,
@@ -492,30 +757,66 @@ export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
           </span>
         ) : item.label,
       })),
-    })),
-  ];
+      sortOrder: group.sortOrder,
+    })));
+
+  return sidebarItems
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map(({ sortOrder: _sortOrder, ...item }) => item);
 }
 
-export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[]): WorkspaceRouteState {
-  const groups = buildSidebarNavigation(currentUser);
+export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[], resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceRouteState {
+  const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
+  const isChatRouteAccessible = hasRouteGrant(currentUser, chatRouteGrant);
+  const chatMenuKey = isChatRouteAccessible ? routePaths.defaultModule : null;
   const matchedHandle = [...matches]
     .reverse()
     .map((match) => match.handle as AppRouteHandle | undefined)
     .find((handle) => handle);
   const selectedGroup = groups.find((group) => group.children.some((item) => item.path === pathname))?.key;
-  const currentMenuTitle = resolveRouteTitle(matchedHandle?.title, pathname) || '工作台';
+  const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
+  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined) || resolveRouteTitle(matchedHandle?.title, pathname) || '工作台';
   const selectedMenuKey = pathname === routePaths.defaultModule
-    ? routePaths.defaultModule
+    ? chatMenuKey
     : groups.flatMap((group) => group.children).find((item) => item.path === pathname)?.path || null;
-
   return {
     activeOpenKeys: selectedGroup ? [selectedGroup] : [],
     currentMenuTitle,
     defaultOpenKeys: groups.map((group) => group.key),
-    isChatPage: pathname === routePaths.defaultModule,
+    isChatPage: pathname === routePaths.defaultModule && isChatRouteAccessible,
     isContentStudioPage: matchedHandle?.surface === 'studio',
     isContentStudioVideoCreatePage: pathname === routePaths.contentModule('create_video'),
     isImmersivePage: pathname === routePaths.defaultModule || matchedHandle?.surface === 'immersive',
     selectedMenuKey,
   };
+}
+
+export function getDefaultAppPath(currentUser: User) {
+  return resolveDefaultAppPath(currentUser);
+}
+
+export function getContentDefaultPath(currentUser: User) {
+  const firstContentRoute = workspacePageDefinitions.find((route) => (
+    route.handle?.contentNavigation && isVisibleWorkspacePage(route, currentUser)
+  ));
+
+  return firstContentRoute?.fullPath || getDefaultAppPath(currentUser);
+}
+
+export function canAccessRoutePath(currentUser: User, pathname: string) {
+  if (pathname === routePaths.account || pathname === routePaths.noPermission) {
+    return true;
+  }
+
+  const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
+  if (matchedRoute) {
+    return isVisibleWorkspacePage(matchedRoute, currentUser);
+  }
+
+  if (pathname.startsWith('/app/modules/')) {
+    const moduleId = pathname.slice('/app/modules/'.length);
+    return moduleId === 'claw' && hasRouteGrant(currentUser, chatRouteGrant);
+  }
+
+  return false;
 }

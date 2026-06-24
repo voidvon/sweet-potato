@@ -1428,7 +1428,6 @@ export function ModelSettingsPage() {
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p className="eyebrow">AI 模型配置</p>
           <p>按 LLM、视频分类管理多个模型配置，并为每个类型选择默认模型。</p>
         </section>
 

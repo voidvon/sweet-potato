@@ -5,7 +5,7 @@ import { Button, Tag } from 'antd';
 import { ContactRound, MessageSquareText, Mic2, PlayCircle, RefreshCw, Sparkles, UserRound, Video } from 'lucide-react';
 import { listContentAssetGroups, listContentAssets, listVideoTasks } from '../../api/content';
 import { API_BASE_URL } from '../../api/request';
-import { contentNavigationRoutes } from '../../routes/routeConfig';
+import { getContentNavigationRoutes } from '../../routes/routeConfig';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User, VideoGenerationTask } from '../../types';
 import { withAuthToken } from '../../utils/session';
 import './ContentWorkbenchPage.scss';
@@ -78,6 +78,7 @@ const moduleMeta: Record<string, {
 
 export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps) {
   const navigate = useNavigate();
+  const contentNavigationRoutes = useMemo(() => getContentNavigationRoutes(currentUser), [currentUser]);
   const [groups, setGroups] = useState<ContentAssetGroup[]>([]);
   const [assets, setAssets] = useState<ContentAsset[]>([]);
   const [videoTasks, setVideoTasks] = useState<VideoGenerationTask[]>([]);
@@ -147,7 +148,12 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
           <Button icon={<RefreshCw size={16} />} loading={isLoading} onClick={() => window.location.reload()}>
             刷新
           </Button>
-          <Button icon={<MessageSquareText size={16} />} onClick={() => navigate('/app/content/video_remake')} type="primary">
+          <Button
+            disabled={!contentNavigationRoutes.some((route) => route.code === 'video_remake')}
+            icon={<MessageSquareText size={16} />}
+            onClick={() => navigate('/app/content/video_remake')}
+            type="primary"
+          >
             爆款复刻
           </Button>
         </div>

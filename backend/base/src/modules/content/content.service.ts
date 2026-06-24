@@ -38,6 +38,11 @@ import {
 import {
   volcengineRealPersonClient
 } from './volcengine-real-person.client.js';
+import {
+  allowedContentResourceTypes,
+  permissionForContentModule,
+  permissionForContentResourceType,
+} from '../../shared/resource-permission.js';
 
 import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
@@ -140,6 +145,58 @@ function canAdminManageVirtualPortrait(actor: { userId: string; role: UserRole }
   return actor.role === 'admin' && resourceType === 'virtual_portrait';
 }
 
+function actorHasPermission(actor: { role: UserRole; permissions?: readonly string[] }, permissionKey: string | null) {
+  if (actor.role === 'admin') {
+    return true;
+  }
+  if (!permissionKey) {
+    return false;
+  }
+  return Boolean(actor.permissions?.includes(permissionKey));
+}
+
+function assertActorPermissionForResourceType(
+  actor: { userId: string; role: UserRole; permissions?: readonly string[] },
+  resourceType: ContentResourceType,
+) {
+  const permissionKey = permissionForContentResourceType(resourceType);
+  if (!actorHasPermission(actor, permissionKey)) {
+    throw new Error('当前账号无权访问该功能');
+  }
+}
+
+function filterContentModulesByPermissions(
+  actor: { role: UserRole; permissions?: readonly string[] },
+) {
+  if (actor.role === 'admin') {
+    return contentModules;
+  }
+
+  return contentModules.filter((moduleItem) => actorHasPermission(actor, permissionForContentModule(moduleItem.code)));
+}
+
+function filterAssetsByPermissions(
+  actor: { role: UserRole; permissions?: readonly string[] },
+  assets: ContentAsset[],
+) {
+  if (actor.role === 'admin') {
+    return assets;
+  }
+
+  return assets.filter((asset) => actorHasPermission(actor, permissionForContentResourceType(asset.resourceType)));
+}
+
+function filterGroupsByPermissions(
+  actor: { role: UserRole; permissions?: readonly string[] },
+  groups: ContentAssetGroup[],
+) {
+  if (actor.role === 'admin') {
+    return groups;
+  }
+
+  return groups.filter((group) => actorHasPermission(actor, permissionForContentResourceType(group.resourceType)));
+}
+
 function isUserUploadedVirtualPortraitAsset(asset: ContentAsset) {
   return asset.resourceType === 'virtual_portrait'
     && stringMetadataField(asset.metadata, 'syncPolicy') === 'user_uploaded_remote_mirror';
@@ -170,11 +227,14 @@ let virtualPortraitMirrorSyncTimer: ReturnType<typeof setInterval> | null = null
 let virtualPortraitMirrorSyncRunning = false;
 
 export const contentService = {
-  listModules() {
-    return contentModules;
+  listModules(actor?: { role: UserRole; permissions?: readonly string[] }) {
+    if (!actor) {
+      return contentModules;
+    }
+    return filterContentModulesByPermissions(actor);
   },
 
-  async listGroups(actor: { userId: string; role: UserRole }, resourceType?: string) {
+  async listGroups(actor: { userId: string; role: UserRole; permissions?: readonly string[] }, resourceType?: string) {
     assertUserId(actor.userId);
     let normalizedType: ContentResourceType | undefined;
     if (resourceType) {
@@ -182,14 +242,21 @@ export const contentService = {
         throw new Error('素材类型不存在');
       }
       normalizedType = resourceType;
+      assertActorPermissionForResourceType(actor, normalizedType);
     }
-    return contentRepository.listGroups({
+    const groups = contentRepository.listGroups({
       userId: normalizedType === 'virtual_portrait' && actor.role === 'admin' ? undefined : actor.userId,
       resourceType: normalizedType,
     });
+    return filterGroupsByPermissions(actor, groups);
   },
 
-  async listGroupsPage(input: { actor: { userId: string; role: UserRole }; resourceType?: string; page?: number; pageSize?: number }) {
+  async listGroupsPage(input: {
+    actor: { userId: string; role: UserRole; permissions?: readonly string[] };
+    resourceType?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
     assertUserId(input.actor.userId);
     let normalizedType: ContentResourceType | undefined;
     if (input.resourceType) {
@@ -197,15 +264,22 @@ export const contentService = {
         throw new Error('素材类型不存在');
       }
       normalizedType = input.resourceType;
+      assertActorPermissionForResourceType(input.actor, normalizedType);
     }
     const page = Math.max(1, Math.floor(Number(input.page || 1)));
     const pageSize = Math.max(1, Math.min(50, Math.floor(Number(input.pageSize || 12))));
-    return contentRepository.listGroupsPage({
+    const result = contentRepository.listGroupsPage({
       userId: normalizedType === 'virtual_portrait' && input.actor.role === 'admin' ? undefined : input.actor.userId,
       resourceType: normalizedType,
       page,
       pageSize,
     });
+    const items = filterGroupsByPermissions(input.actor, result.items);
+    return {
+      ...result,
+      items,
+      total: normalizedType ? result.total : items.length,
+    };
   },
 
   async createGroup(payload: CreateAssetGroupPayload) {
@@ -373,6 +447,7 @@ export const contentService = {
     if (!group) {
       throw new Error('分组不存在');
     }
+    assertActorPermissionForResourceType(actor, group.resourceType);
     if (!canAdminManageVirtualPortrait(actor, group.resourceType)) {
       assertOwnsGroup(group, actor.userId);
     }
@@ -868,7 +943,11 @@ export const contentService = {
     }
   },
 
-  async listAssets(input: { actor: { userId: string; role: UserRole }; groupId?: string; resourceType?: string }) {
+  async listAssets(input: {
+    actor: { userId: string; role: UserRole; permissions?: readonly string[] };
+    groupId?: string;
+    resourceType?: string;
+  }) {
     assertUserId(input.actor.userId);
     let resourceType: ContentResourceType | undefined;
     if (input.resourceType) {
@@ -876,15 +955,20 @@ export const contentService = {
         throw new Error('素材类型不存在');
       }
       resourceType = input.resourceType;
+      assertActorPermissionForResourceType(input.actor, resourceType);
     }
     const group = input.groupId ? contentRepository.findGroup(input.groupId) : null;
+    if (group) {
+      assertActorPermissionForResourceType(input.actor, group.resourceType);
+    }
     const isAdminVirtualPortraitScope = input.actor.role === 'admin'
       && (resourceType === 'virtual_portrait' || group?.resourceType === 'virtual_portrait');
-    return contentRepository.listAssets({
+    const assets = contentRepository.listAssets({
       userId: isAdminVirtualPortraitScope ? undefined : input.actor.userId,
       groupId: input.groupId,
       resourceType,
     });
+    return filterAssetsByPermissions(input.actor, assets);
   },
 
   async listVideoProductions(userId: string) {
@@ -907,11 +991,12 @@ export const contentService = {
     return refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task));
   },
 
-  async getAsset(id: string, actor: { userId: string; role: UserRole }) {
+  async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
     const asset = contentRepository.findAsset(id);
     if (!asset) {
       throw new Error('素材不存在');
     }
+    assertActorPermissionForResourceType(actor, asset.resourceType);
     assertCanReadAsset(actor, asset);
     return asset;
   },
@@ -1012,6 +1097,7 @@ export const contentService = {
     if (!current) {
       throw new Error('素材不存在');
     }
+    assertActorPermissionForResourceType(actor, current.resourceType);
     if (!canAdminManageVirtualPortrait(actor, current.resourceType)) {
       assertOwnsAsset(current, actor.userId);
     }

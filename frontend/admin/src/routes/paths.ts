@@ -5,6 +5,8 @@ export const routePaths = {
   account: '/account',
   modelSettings: '/models',
   billingSettings: '/billing',
+  routeResourceManagement: '/system/routes',
   userManagement: '/users',
+  roleManagement: '/users/roles',
   accountManagement: '/users/accounts',
 };

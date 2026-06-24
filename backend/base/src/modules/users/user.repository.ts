@@ -1,12 +1,29 @@
 import { db } from '../../db/database.js';
-import type { ManagedUser, User } from './user.types.js';
+import { roleRepository } from '../roles/role.repository.js';
+import { listAllProtectedPermissionCodes } from '../../shared/resource-permission.js';
+import type { ManagedUser, User, UserRole } from './user.types.js';
 
-type UserRow = Omit<User, 'isBlacklisted' | 'creditBalance'> & {
+type UserRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  role: UserRole;
+  passwordHash: string;
+  salt: string;
+  createdAt: string;
+  lastLoginAt?: string | null;
   isBlacklisted?: number;
   creditBalance?: number;
 };
 
-type ManagedUserRow = Omit<ManagedUser, 'isBlacklisted' | 'creditBalance'> & {
+type ManagedUserRow = {
+  id: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  createdAt: string;
+  lastLoginAt?: string | null;
   isBlacklisted?: number;
   creditBalance?: number;
 };
@@ -41,19 +58,43 @@ const managedUserSelect = `
 `;
 
 function parseUser(row: UserRow) {
+  const assignedRoles = listAssignedRoles(row.id);
+  const roleIds = assignedRoles.map((role) => role.id);
   return {
     ...row,
+    roleIds,
+    assignedRoles,
     isBlacklisted: Boolean(row.isBlacklisted),
     creditBalance: Number(row.creditBalance || 0),
   };
 }
 
 function parseManagedUser(row: ManagedUserRow) {
+  const assignedRoles = listAssignedRoles(row.id);
+  const roleIds = assignedRoles.map((role) => role.id);
   return {
     ...row,
+    roleIds,
+    assignedRoles,
+    permissions: row.role === 'admin'
+      ? listAllProtectedPermissionCodes()
+      : roleRepository.listPermissionCodesByRoleIds(roleIds),
     isBlacklisted: Boolean(row.isBlacklisted),
     creditBalance: Number(row.creditBalance || 0),
   };
+}
+
+function listAssignedRoles(userId: string) {
+  const rows = db.prepare(`
+    SELECT DISTINCT role_id
+    FROM user_role_assignments
+    WHERE user_id = @userId
+      AND role_id IS NOT NULL
+      AND role_id != ''
+  `).all({ userId }) as Array<{ role_id: string }>;
+  return rows
+    .map((row) => roleRepository.findAssignedRoleSummary(row.role_id))
+    .filter((role): role is NonNullable<ReturnType<typeof roleRepository.findAssignedRoleSummary>> => Boolean(role));
 }
 
 export const userRepository = {
@@ -89,12 +130,13 @@ export const userRepository = {
 
   create(user: User) {
     const insertUserQuery = db.prepare(`
-      INSERT INTO users (id, username, display_name, role, is_blacklisted, credit_balance, password_hash, salt, created_at, last_login_at)
-      VALUES (@id, @username, @displayName, @role, @isBlacklisted, @creditBalance, @passwordHash, @salt, @createdAt, @lastLoginAt)
+      INSERT INTO users (id, username, display_name, role, role_id, is_blacklisted, credit_balance, password_hash, salt, created_at, last_login_at)
+      VALUES (@id, @username, @displayName, @role, @roleId, @isBlacklisted, @creditBalance, @passwordHash, @salt, @createdAt, @lastLoginAt)
     `);
 
     insertUserQuery.run({
       ...user,
+      roleId: null,
       isBlacklisted: user.isBlacklisted ? 1 : 0,
     });
   },
@@ -130,6 +172,22 @@ export const userRepository = {
       id,
       isBlacklisted: isBlacklisted ? 1 : 0,
     });
+  },
+
+  updateRoleAssignments(id: string, roleIds: string[]) {
+    const uniqueRoleIds = Array.from(new Set(roleIds.filter(Boolean)));
+    const transaction = db.transaction((userId: string, nextRoleIds: string[]) => {
+      db.prepare('DELETE FROM user_role_assignments WHERE user_id = ?').run(userId);
+      const insert = db.prepare(`
+        INSERT INTO user_role_assignments (user_id, role_id, created_at)
+        VALUES (@userId, @roleId, @createdAt)
+      `);
+      const createdAt = new Date().toISOString();
+      nextRoleIds.forEach((roleId) => {
+        insert.run({ userId, roleId, createdAt });
+      });
+    });
+    transaction(id, uniqueRoleIds);
   },
 
   updateCreditBalance(id: string, creditBalance: number) {

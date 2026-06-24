@@ -3,28 +3,45 @@ import { Router } from 'express';
 import { requireAdmin } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { adjustUserCredits } from '../billing/billing.service.js';
+import { resolveUserPermissions } from '../roles/role.service.js';
+import { ensureRoleAssignable } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
 import { hashPassword, publicUser } from './user.service.js';
+import type { ManagedUser, User } from './user.types.js';
 
 function parseAmount(value: unknown) {
   const amount = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(amount) ? amount : null;
 }
 
+function serializeManagedUser(user: ManagedUser | User) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    roleIds: user.roleIds || [],
+    assignedRoles: user.assignedRoles || [],
+    permissions: user.permissions || resolveUserPermissions(user),
+    isBlacklisted: user.isBlacklisted,
+    creditBalance: user.creditBalance,
+    createdAt: user.createdAt,
+    lastLoginAt: user.lastLoginAt,
+  };
+}
+
+function normalizeRoleIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(new Set(value.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])));
+}
+
 export function createUserRouter() {
   const router = Router();
 
   router.get('/', requireAdmin, (_req, res) => {
-    res.json(userRepository.list().map((user) => ({
-      id: user.id,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role,
-      isBlacklisted: user.isBlacklisted,
-      creditBalance: user.creditBalance,
-      createdAt: user.createdAt,
-      lastLoginAt: user.lastLoginAt,
-    })));
+    res.json(userRepository.list().map(serializeManagedUser));
   });
 
   router.get('/me', (req, res) => {
@@ -103,6 +120,32 @@ export function createUserRouter() {
     res.json({ ok: true });
   });
 
+  router.put('/:id/admin-password', requireAdmin, (req, res) => {
+    const user = userRepository.findById(String(req.params.id || ''));
+    if (!user) {
+      sendError(res, 404, '用户不存在');
+      return;
+    }
+    if (user.role === 'admin') {
+      sendError(res, 400, '管理员账号不支持修改密码');
+      return;
+    }
+
+    const nextPassword = String(req.body.nextPassword || '');
+    if (nextPassword.length < 6) {
+      sendError(res, 400, '新密码至少 6 位');
+      return;
+    }
+
+    const salt = randomBytes(16).toString('hex');
+    userRepository.updatePassword({
+      id: user.id,
+      salt,
+      passwordHash: hashPassword(nextPassword, salt),
+    });
+    res.json({ ok: true });
+  });
+
   router.patch('/:id/credits', requireAdmin, (req, res) => {
     const targetUserId = String(req.params.id || '');
     const user = userRepository.findById(targetUserId);
@@ -135,6 +178,9 @@ export function createUserRouter() {
           username: updated.username,
           displayName: updated.displayName,
           role: updated.role,
+          roleIds: updated.roleIds || [],
+          assignedRoles: updated.assignedRoles || [],
+          permissions: resolveUserPermissions(updated),
           isBlacklisted: updated.isBlacklisted,
           creditBalance: updated.creditBalance,
           createdAt: updated.createdAt,
@@ -173,6 +219,9 @@ export function createUserRouter() {
           username: updated.username,
           displayName: updated.displayName,
           role: updated.role,
+          roleIds: updated.roleIds || [],
+          assignedRoles: updated.assignedRoles || [],
+          permissions: resolveUserPermissions(updated),
           isBlacklisted: updated.isBlacklisted,
           creditBalance: updated.creditBalance,
           createdAt: updated.createdAt,
@@ -180,6 +229,37 @@ export function createUserRouter() {
         }
         : null,
     });
+  });
+
+  router.patch('/:id/role-assignment', requireAdmin, (req, res) => {
+    const targetUserId = String(req.params.id || '');
+    const user = userRepository.findById(targetUserId);
+    if (!user) {
+      sendError(res, 404, '用户不存在');
+      return;
+    }
+
+    if (user.role === 'admin') {
+      sendError(res, 400, '管理员账号无需分配业务角色');
+      return;
+    }
+
+    const nextRoleIds = normalizeRoleIds(req.body.roleIds);
+
+    try {
+      nextRoleIds.forEach((roleId) => ensureRoleAssignable(roleId));
+    } catch (error) {
+      sendError(res, 400, error instanceof Error ? error.message : '角色分配失败');
+      return;
+    }
+
+    userRepository.updateRoleAssignments(user.id, nextRoleIds);
+    const updated = userRepository.findById(user.id);
+    if (!updated) {
+      sendError(res, 404, '用户不存在');
+      return;
+    }
+    res.json({ user: serializeManagedUser(updated) });
   });
 
   return router;

@@ -1,11 +1,27 @@
 export type UserRole = 'admin' | 'user';
 
+export type AssignedRole = {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  isSystem: boolean;
+  isDefault: boolean;
+  permissions?: string[];
+  permissionCodes?: string[];
+  resourceIds?: string[];
+  resourceKeys?: string[];
+};
+
 export type User = {
   id: string;
   username: string;
   displayName: string;
   avatarUrl?: string | null;
   role: UserRole;
+  roleIds?: string[];
+  assignedRoles?: AssignedRole[];
+  permissions?: string[];
   isBlacklisted: boolean;
   creditBalance: number;
   passwordHash: string;
@@ -20,6 +36,9 @@ export type PublicUser = {
   displayName: string;
   avatarUrl?: string;
   role: UserRole;
+  roleIds?: string[];
+  assignedRoles?: AssignedRole[];
+  permissions: string[];
   createdAt: string;
   lastLoginAt?: string;
   creditBalance: number;
@@ -30,6 +49,9 @@ export type ManagedUser = {
   username: string;
   displayName: string;
   role: UserRole;
+  roleIds?: string[];
+  assignedRoles?: AssignedRole[];
+  permissions: string[];
   isBlacklisted: boolean;
   creditBalance: number;
   createdAt: string;

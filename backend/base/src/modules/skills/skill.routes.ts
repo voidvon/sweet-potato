@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { skillRepository } from './skill.repository.js';
 import { createSkillFromContent, deleteSkillFile, normalizeSkillCommand } from './skill.service.js';
@@ -29,6 +30,8 @@ function getCurrentUserId(req: Request) {
 
 export function createSkillRouter() {
   const router = Router();
+
+  router.use(requirePermission('web.module.chat'));
 
   router.get('/', (req, res) => {
     const userId = getCurrentUserId(req);

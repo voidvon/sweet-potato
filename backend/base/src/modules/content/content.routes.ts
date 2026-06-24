@@ -4,13 +4,24 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
+import { requireAnyPermission, requirePermission } from '../../shared/auth.middleware.js';
+import { listRouteResources } from '../route-resources/route-resource.service.js';
+import { permissionForContentResourceType } from '../../shared/resource-permission.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerContentEventClient } from './content.events.js';
+import { contentRepository } from './content.repository.js';
 import { contentService } from './content.service.js';
 import type { ContentResourceType } from './content.types.js';
+import type { UserRole } from '../users/user.types.js';
 
 const contentFilesDir = path.join(dataDir, 'content-files');
 mkdirSync(contentFilesDir, { recursive: true });
+
+function listContentPermissionCodes() {
+  return listRouteResources({ includeDisabled: false, platform: 'web' })
+    .filter((resource) => resource.permissionCode.startsWith('web.module.content.'))
+    .map((resource) => resource.permissionCode);
+}
 
 function sanitizeFileName(fileName: string) {
   const parsed = path.parse(fileName);
@@ -62,6 +73,34 @@ function getCurrentUserId(req: Request) {
 
 function getCurrentUserRole(req: Request) {
   return req.auth?.user?.role || '';
+}
+
+function getCurrentUserPermissions(req: Request) {
+  return req.auth?.permissions || [];
+}
+
+function getCurrentActor(req: Request) {
+  const auth = req.auth;
+  const userId = auth?.userId || '';
+  const role = (auth?.systemRole || '') as UserRole;
+  return {
+    userId,
+    role,
+    permissions: getCurrentUserPermissions(req),
+  };
+}
+
+function requireContentResourcePermission(req: Request, res: Parameters<typeof sendError>[0], resourceType: ContentResourceType) {
+  const permissionKey = permissionForContentResourceType(resourceType);
+  if (!permissionKey) {
+    sendError(res, 403, '当前账号无权访问该功能');
+    return false;
+  }
+  if (req.auth?.hasPermission(permissionKey)) {
+    return true;
+  }
+  sendError(res, 403, '当前账号无权访问该功能');
+  return false;
 }
 
 function isPrivateOrLoopbackHost(host: string) {
@@ -124,11 +163,14 @@ function uploadedFilePayload(req: Request) {
 export function createContentRouter() {
   const router = Router();
 
-  router.get('/modules', (_req, res) => {
-    res.json(contentService.listModules());
+  router.get('/modules', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
+    res.json(contentService.listModules({
+      role: getCurrentUserRole(req) as 'admin' | 'user',
+      permissions: getCurrentUserPermissions(req),
+    }));
   });
 
-  router.get('/events', (req, res) => {
+  router.get('/events', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
     const userId = getCurrentUserId(req);
     if (!userId) {
       sendError(res, 400, '缺少用户 ID');
@@ -138,6 +180,9 @@ export function createContentRouter() {
   });
 
   router.post('/real-person/validation-session', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'real_person')) {
+      return;
+    }
     try {
       void contentService.createRealPersonValidationSession({
         ...req.body,
@@ -151,6 +196,9 @@ export function createContentRouter() {
   });
 
   router.post('/real-person/validation-result', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'real_person')) {
+      return;
+    }
     try {
       void contentService.getRealPersonValidationResult({
         ...req.body,
@@ -181,7 +229,7 @@ export function createContentRouter() {
         sendError(res, 401, '请先登录');
         return;
       }
-      const actor = { userId, role };
+      const actor = getCurrentActor(req);
       if (req.query.page || req.query.pageSize) {
         void contentService.listGroupsPage({
           actor,
@@ -205,6 +253,10 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups', (req, res) => {
+    const resourceType = String(req.body.resourceType || '') as ContentResourceType;
+    if (!requireContentResourcePermission(req, res, resourceType)) {
+      return;
+    }
     try {
       void contentService.createGroup({
         ...req.body,
@@ -218,8 +270,11 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups/:id/digital-human/three-view', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'digital_human')) {
+      return;
+    }
     try {
-      void contentService.generateDigitalHumanThreeView(req.params.id, {
+      void contentService.generateDigitalHumanThreeView(String(req.params.id || ''), {
         ...req.body,
         userId: getCurrentUserId(req),
       })
@@ -231,8 +286,11 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups/:id/virtual-portrait/three-view', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'virtual_portrait')) {
+      return;
+    }
     try {
-      void contentService.generateVirtualPortraitThreeView(req.params.id, {
+      void contentService.generateVirtualPortraitThreeView(String(req.params.id || ''), {
         ...req.body,
         userId: getCurrentUserId(req),
       })
@@ -244,8 +302,11 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups/:id/voice/clone', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'voice')) {
+      return;
+    }
     try {
-      void contentService.cloneVoiceGroup(req.params.id, {
+      void contentService.cloneVoiceGroup(String(req.params.id || ''), {
         ...req.body,
         userId: getCurrentUserId(req),
       })
@@ -256,7 +317,7 @@ export function createContentRouter() {
     }
   });
 
-  router.post('/virtual-portrait/remote-library/sync', (req, res) => {
+  router.post('/virtual-portrait/remote-library/sync', requirePermission('web.module.content.virtual_portrait_assets'), (req, res) => {
     try {
       const userId = getCurrentUserId(req);
       const role = getCurrentUserRole(req);
@@ -265,7 +326,7 @@ export function createContentRouter() {
         return;
       }
       void contentService.syncVirtualPortraitRemoteLibrary({
-        actor: { userId, role },
+        actor: getCurrentActor(req),
         projectName: typeof req.body?.projectName === 'string' ? req.body.projectName : undefined,
         pageSize: typeof req.body?.pageSize === 'number' ? req.body.pageSize : undefined,
         includeAssets: typeof req.body?.includeAssets === 'boolean' ? req.body.includeAssets : undefined,
@@ -278,6 +339,9 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups/:id/real-person/assets', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'real_person')) {
+      return;
+    }
     upload.single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
@@ -286,7 +350,7 @@ export function createContentRouter() {
         }
         try {
           const file = uploadedFilePayload(req);
-          const result = await contentService.createRealPersonAsset(req.params.id, {
+          const result = await contentService.createRealPersonAsset(String(req.params.id || ''), {
             userId: getCurrentUserId(req),
             name: String(req.body.name || ''),
             description: String(req.body.description || ''),
@@ -305,6 +369,9 @@ export function createContentRouter() {
   });
 
   router.post('/asset-groups/:id/virtual-portrait/assets', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'virtual_portrait')) {
+      return;
+    }
     upload.single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
@@ -313,7 +380,7 @@ export function createContentRouter() {
         }
         try {
           const file = uploadedFilePayload(req);
-          const result = await contentService.createVirtualPortraitAsset(req.params.id, {
+          const result = await contentService.createVirtualPortraitAsset(String(req.params.id || ''), {
             userId: getCurrentUserId(req),
             name: String(req.body.name || ''),
             description: String(req.body.description || ''),
@@ -332,8 +399,16 @@ export function createContentRouter() {
   });
 
   router.patch('/asset-groups/:id', (req, res) => {
+    const group = contentRepository.findGroup(String(req.params.id || ''));
+    if (!group) {
+      sendError(res, 404, '分组不存在');
+      return;
+    }
+    if (!requireContentResourcePermission(req, res, group.resourceType)) {
+      return;
+    }
     try {
-      void contentService.updateGroup(req.params.id, {
+      void contentService.updateGroup(String(req.params.id || ''), {
         ...req.body,
         userId: getCurrentUserId(req),
       })
@@ -352,9 +427,8 @@ export function createContentRouter() {
         sendError(res, 401, '请先登录');
         return;
       }
-      void contentService.deleteGroup(req.params.id, {
-        userId,
-        role,
+      void contentService.deleteGroup(String(req.params.id || ''), {
+        ...getCurrentActor(req),
       })
         .then((result) => res.json(result))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '素材分组删除失败')));
@@ -372,7 +446,7 @@ export function createContentRouter() {
         return;
       }
       void contentService.listAssets({
-        actor: { userId, role },
+        actor: getCurrentActor(req),
         groupId: req.query.groupId ? String(req.query.groupId) : undefined,
         resourceType: req.query.resourceType ? String(req.query.resourceType) : undefined,
       })
@@ -391,9 +465,8 @@ export function createContentRouter() {
         sendError(res, 401, '请先登录');
         return;
       }
-      void contentService.getAsset(req.params.id, {
-        userId,
-        role,
+      void contentService.getAsset(String(req.params.id || ''), {
+        ...getCurrentActor(req),
       })
         .then((asset) => res.json(asset))
         .catch((error) => sendError(res, 404, getErrorMessage(error, '素材获取失败')));
@@ -403,8 +476,11 @@ export function createContentRouter() {
   });
 
   router.post('/assets/:id/real-person/sync', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'real_person')) {
+      return;
+    }
     try {
-      void contentService.syncRealPersonAsset(req.params.id, {
+      void contentService.syncRealPersonAsset(String(req.params.id || ''), {
         userId: getCurrentUserId(req),
       })
         .then((result) => res.json(result))
@@ -415,8 +491,11 @@ export function createContentRouter() {
   });
 
   router.post('/assets/:id/virtual-portrait/sync', (req, res) => {
+    if (!requireContentResourcePermission(req, res, 'virtual_portrait')) {
+      return;
+    }
     try {
-      void contentService.syncVirtualPortraitAsset(req.params.id, {
+      void contentService.syncVirtualPortraitAsset(String(req.params.id || ''), {
         userId: getCurrentUserId(req),
       })
         .then((result) => res.json(result.asset))
@@ -438,6 +517,10 @@ export function createContentRouter() {
             throw new Error('请选择要上传的素材文件');
           }
           const resourceType = String(req.body.resourceType || 'other') as ContentResourceType;
+          if (!requireContentResourcePermission(req, res, resourceType)) {
+            await import('node:fs/promises').then(({ rm }) => rm(req.file!.path, { force: true }));
+            return;
+          }
           if (resourceType === 'finished_video') {
             throw new Error('成片素材只能由视频生成任务写入');
           }
@@ -468,8 +551,16 @@ export function createContentRouter() {
   });
 
   router.patch('/assets/:id', (req, res) => {
+    const currentAsset = contentRepository.findAsset(String(req.params.id || ''));
+    if (!currentAsset) {
+      sendError(res, 404, '素材不存在');
+      return;
+    }
+    if (!requireContentResourcePermission(req, res, currentAsset.resourceType)) {
+      return;
+    }
     try {
-      void contentService.updateAsset(req.params.id, {
+      void contentService.updateAsset(String(req.params.id || ''), {
         ...req.body,
         userId: getCurrentUserId(req),
       })
@@ -488,16 +579,15 @@ export function createContentRouter() {
         sendError(res, 401, '请先登录');
         return;
       }
-      res.json(await contentService.deleteAsset(req.params.id, {
-        userId,
-        role,
+      res.json(await contentService.deleteAsset(String(req.params.id || ''), {
+        ...getCurrentActor(req),
       }));
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '素材删除失败'));
     }
   });
 
-  router.get('/video-tasks', (req, res) => {
+  router.get('/video-tasks', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       res.json(contentService.listVideoTasks(getCurrentUserId(req)));
     } catch (error) {
@@ -505,9 +595,9 @@ export function createContentRouter() {
     }
   });
 
-  router.get('/video-tasks/:id', (req, res) => {
+  router.get('/video-tasks/:id', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
-      void contentService.getVideoTaskView(req.params.id, getCurrentUserId(req))
+      void contentService.getVideoTaskView(String(req.params.id || ''), getCurrentUserId(req))
         .then((task) => res.json(task))
         .catch((error) => sendError(res, 404, getErrorMessage(error, '视频任务获取失败')));
     } catch (error) {
@@ -515,9 +605,9 @@ export function createContentRouter() {
     }
   });
 
-  router.delete('/video-tasks/:id', (req, res) => {
+  router.delete('/video-tasks/:id', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
-      void contentService.deleteVideoTask(req.params.id, getCurrentUserId(req))
+      void contentService.deleteVideoTask(String(req.params.id || ''), getCurrentUserId(req))
         .then((result) => res.json(result))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '视频任务删除失败')));
     } catch (error) {
@@ -525,9 +615,9 @@ export function createContentRouter() {
     }
   });
 
-  router.patch('/video-tasks/:id/title', (req, res) => {
+  router.patch('/video-tasks/:id/title', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
-      res.json(contentService.renameVideoTask(req.params.id, {
+      res.json(contentService.renameVideoTask(String(req.params.id || ''), {
         userId: getCurrentUserId(req),
         title: String(req.body.title || ''),
       }));
@@ -536,7 +626,7 @@ export function createContentRouter() {
     }
   });
 
-  router.get('/video-productions', (req, res) => {
+  router.get('/video-productions', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       void contentService.listVideoProductions(getCurrentUserId(req))
         .then((tasks) => res.json(tasks))
@@ -546,7 +636,7 @@ export function createContentRouter() {
     }
   });
 
-  router.post('/video-productions', (req, res) => {
+  router.post('/video-productions', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       void contentService.createVideoProduction({
         ...req.body,

@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { contentUploadLimitBytes, vodUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerVideoRemakeEventClient } from './video-remake.events.js';
 import { videoRemakeService } from './video-remake.service.js';
@@ -78,6 +79,8 @@ function getCurrentUserId(req: Request) {
 
 export function createVideoRemakeRouter() {
   const router = Router();
+
+  router.use(requirePermission('web.module.content.video_remake'));
 
   router.get('/events', (req, res) => {
     const userId = getCurrentUserId(req);

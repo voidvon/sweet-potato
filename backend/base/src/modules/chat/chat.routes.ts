@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import type { Request } from 'express';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
@@ -28,6 +29,8 @@ function makeConversationPreview(content: string) {
 
 export function createChatRouter() {
   const router = Router();
+
+  router.use(requirePermission('web.module.chat'));
 
   router.get('/conversations', (req, res) => {
     const userId = getCurrentUserId(req);

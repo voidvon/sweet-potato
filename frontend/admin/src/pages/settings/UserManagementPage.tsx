@@ -1,21 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Descriptions, Input, Modal, Space, Table, Tabs, Tag, message } from 'antd';
+import { Button, Descriptions, Dropdown, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
 import type { TableProps, TabsProps } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { DownOutlined, ReloadOutlined } from '@ant-design/icons';
 import type {
   AdminBillableUsageRecord,
   AdminCreditLedgerEntry,
   AdminLlmUsageRecord,
   ManagedUser,
+  UserRoleSummary,
 } from '../../types';
 import { listBillableUsageRecords, listCreditLedger, listLlmUsageRecords } from '../../api/billing';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import { adjustUserCredits, listUsers } from '../../api/user';
+import { adjustUserCredits, assignUserRoles, listUsers, updateManagedUserPassword } from '../../api/user';
+import { listRoles } from '../../api/role';
 import { billableUsageSourceLabel, sourceTypeLabel } from '../../utils/billingLabels';
 
 type CreditAction = {
   type: 'recharge' | 'deduct';
   user: ManagedUser;
+};
+
+type RoleEditState = {
+  user: ManagedUser;
+  roleIds: string[];
+};
+
+type PasswordEditState = {
+  user: ManagedUser;
+  password: string;
 };
 
 type DetailState = {
@@ -129,18 +141,33 @@ function pricingModeLabel(mode: AdminBillableUsageRecord['pricingMode']) {
 
 export function UserManagementPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [roleOptions, setRoleOptions] = useState<UserRoleSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [assigningRoleUserId, setAssigningRoleUserId] = useState<string | null>(null);
   const [detailLoadingUserId, setDetailLoadingUserId] = useState<string | null>(null);
   const [creditAction, setCreditAction] = useState<CreditAction | null>(null);
+  const [roleEditState, setRoleEditState] = useState<RoleEditState | null>(null);
+  const [passwordEditState, setPasswordEditState] = useState<PasswordEditState | null>(null);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
   const [amountInput, setAmountInput] = useState('');
 
   async function loadUsers() {
     setLoading(true);
     try {
-      const nextUsers = await listUsers();
+      const [nextUsers, nextRoles] = await Promise.all([
+        listUsers(),
+        listRoles(),
+      ]);
       setUsers(nextUsers);
+      setRoleOptions(nextRoles.map((role) => ({
+        id: role.id,
+        key: role.key,
+        name: role.name,
+        description: role.description,
+        isDefault: role.isDefault,
+        isSystem: role.isSystem,
+      })));
     } catch (error) {
       message.error(error instanceof Error ? error.message : '用户列表加载失败');
     } finally {
@@ -202,6 +229,48 @@ export function UserManagementPage() {
     }
   }
 
+  async function handleAssignRoles() {
+    if (!roleEditState) {
+      return;
+    }
+    const { user, roleIds } = roleEditState;
+    setAssigningRoleUserId(user.id);
+    try {
+      await assignUserRoles(user.id, roleIds);
+      message.success(roleIds.length ? '角色分配已更新' : '角色分配已清空');
+      setRoleEditState(null);
+      await loadUsers();
+      if (detailState?.user.id === user.id) {
+        await openDetail(user.id);
+      }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '角色分配保存失败');
+    } finally {
+      setAssigningRoleUserId(null);
+    }
+  }
+
+  async function handleUpdatePassword() {
+    if (!passwordEditState) {
+      return;
+    }
+    const nextPassword = passwordEditState.password.trim();
+    if (nextPassword.length < 6) {
+      message.warning('新密码至少 6 位');
+      return;
+    }
+    setUpdatingUserId(passwordEditState.user.id);
+    try {
+      await updateManagedUserPassword(passwordEditState.user.id, nextPassword);
+      message.success('账号密码已修改');
+      setPasswordEditState(null);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '密码修改失败');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
   const rechargeRecords = useMemo(
     () => detailState?.ledger.filter((entry) => entry.type === 'admin_adjust' && entry.creditDelta > 0) || [],
     [detailState],
@@ -243,6 +312,36 @@ export function UserManagementPage() {
       width: 220,
     },
     {
+      title: '已分配角色',
+      width: 260,
+      render: (_value, record) => {
+        if (record.role === 'admin') {
+          return (
+            <Space direction="vertical" size={0}>
+              <Tag color="gold">管理员全量权限</Tag>
+              <span style={{ color: 'var(--text-secondary, #6b7280)', fontSize: 12 }}>
+                管理员不受可分配角色限制
+              </span>
+            </Space>
+          );
+        }
+
+        const assignedRoles = record.assignedRoles || [];
+        if (assignedRoles.length === 0) {
+          return <Tag>未分配</Tag>;
+        }
+        return (
+          <Space size={[6, 6]} wrap>
+            {assignedRoles.map((role) => (
+              <Tag key={role.id} color={role.isDefault ? 'blue' : undefined}>
+                {role.name}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
+    {
       title: '积分余额',
       dataIndex: 'creditBalance',
       width: 160,
@@ -262,37 +361,62 @@ export function UserManagementPage() {
     },
     {
       title: '操作',
-      width: 280,
-      render: (_value, record) => (
-        <Space wrap>
-          <Button
-            disabled={updatingUserId === record.id}
-            onClick={() => {
-              setCreditAction({ type: 'recharge', user: record });
-              setAmountInput('');
+      width: 120,
+      render: (_value, record) => {
+        const actionDisabled = updatingUserId === record.id;
+        return (
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                {
+                  key: 'roles',
+                  label: '编辑角色',
+                  disabled: record.role === 'admin',
+                  onClick: () => setRoleEditState({
+                    user: record,
+                    roleIds: record.roleIds || [],
+                  }),
+                },
+                record.role === 'admin' ? null : {
+                  key: 'password',
+                  label: '修改账号密码',
+                  onClick: () => setPasswordEditState({ user: record, password: '' }),
+                },
+                {
+                  key: 'recharge',
+                  label: '积分充值',
+                  disabled: actionDisabled,
+                  onClick: () => {
+                    setCreditAction({ type: 'recharge', user: record });
+                    setAmountInput('');
+                  },
+                },
+                {
+                  key: 'deduct',
+                  label: '积分扣除',
+                  danger: true,
+                  disabled: actionDisabled,
+                  onClick: () => {
+                    setCreditAction({ type: 'deduct', user: record });
+                    setAmountInput('');
+                  },
+                },
+                {
+                  key: 'detail',
+                  label: '账单明细',
+                  disabled: detailLoadingUserId === record.id,
+                  onClick: () => void openDetail(record.id),
+                },
+              ].filter((item): item is NonNullable<typeof item> => Boolean(item)),
             }}
-            type="primary"
           >
-            积分充值
-          </Button>
-          <Button
-            danger
-            disabled={updatingUserId === record.id}
-            onClick={() => {
-              setCreditAction({ type: 'deduct', user: record });
-              setAmountInput('');
-            }}
-          >
-            积分扣除
-          </Button>
-          <Button
-            loading={detailLoadingUserId === record.id}
-            onClick={() => void openDetail(record.id)}
-          >
-            账单明细
-          </Button>
-        </Space>
-      ),
+            <Button>
+              操作 <DownOutlined />
+            </Button>
+          </Dropdown>
+        );
+      },
     },
   ];
 
@@ -490,7 +614,7 @@ export function UserManagementPage() {
       <section className="settings-page">
         <section className="settings-header">
           <p>
-            管理员可以查看用户名称、用户账号、积分余额，并查看充值记录、积分流水、LLM 用量和业务消费明细。
+            管理员可以查看用户名称、用户账号、角色分配、积分余额，并查看充值记录、积分流水、LLM 用量和业务消费明细。
           </p>
         </section>
 
@@ -513,6 +637,69 @@ export function UserManagementPage() {
             }}
           />
         </section>
+
+      <Modal
+        cancelText="取消"
+        centered
+        confirmLoading={assigningRoleUserId === roleEditState?.user.id}
+        okText="保存角色"
+        onCancel={() => setRoleEditState(null)}
+        onOk={() => void handleAssignRoles()}
+        open={Boolean(roleEditState)}
+        title={roleEditState ? `编辑 ${roleEditState.user.displayName} 的角色` : '编辑角色'}
+        destroyOnClose
+      >
+        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
+          <div>
+            用户账号：<strong>{roleEditState?.user.username}</strong>
+          </div>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ width: '100%' }}
+            placeholder="请选择一个或多个角色"
+            value={roleEditState?.roleIds || []}
+            options={roleOptions.map((role) => ({
+              label: role.isDefault ? `${role.name}（默认）` : role.name,
+              value: role.id,
+            }))}
+            onChange={(roleIds) => {
+              if (!roleEditState) {
+                return;
+              }
+              setRoleEditState({ ...roleEditState, roleIds });
+            }}
+          />
+        </Space>
+      </Modal>
+
+      <Modal
+        cancelText="取消"
+        centered
+        confirmLoading={updatingUserId === passwordEditState?.user.id}
+        okText="确认修改"
+        onCancel={() => setPasswordEditState(null)}
+        onOk={() => void handleUpdatePassword()}
+        open={Boolean(passwordEditState)}
+        title={passwordEditState ? `修改 ${passwordEditState.user.displayName} 的密码` : '修改账号密码'}
+        destroyOnClose
+      >
+        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
+          <div>
+            用户账号：<strong>{passwordEditState?.user.username}</strong>
+          </div>
+          <Input.Password
+            placeholder="请输入新密码，至少 6 位"
+            value={passwordEditState?.password || ''}
+            onChange={(event) => {
+              if (!passwordEditState) {
+                return;
+              }
+              setPasswordEditState({ ...passwordEditState, password: event.target.value });
+            }}
+          />
+        </Space>
+      </Modal>
 
       <Modal
         cancelText="取消"

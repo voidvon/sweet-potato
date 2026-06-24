@@ -4,7 +4,7 @@ import {
   ContentStudioRouteFallback,
   ImmersiveRouteFallback,
 } from '../../components/RouteLoadingFallback';
-import { routePaths } from '../../routes/paths';
+import { getContentDefaultPath } from '../../routes/routeConfig';
 import type { ContentResourceType, CreativeModuleCode, User } from '../../types';
 
 const ContentResourceLibraryPage = lazy(() => import('./ContentResourceLibraryPage').then((m) => ({ default: m.ContentResourceLibraryPage })));
@@ -60,7 +60,7 @@ export function ContentStudioPage({ currentUser, moduleCode: moduleCodeProp }: C
   }
 
   if (!page) {
-    return <Navigate to={routePaths.contentDefault} replace />;
+    return <Navigate to={getContentDefaultPath(currentUser)} replace />;
   }
 
   return <Suspense fallback={routeFallbackFor(code)}>{page}</Suspense>;

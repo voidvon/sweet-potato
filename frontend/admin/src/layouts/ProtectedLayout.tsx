@@ -1,5 +1,6 @@
 import { WorkspaceShellLayout, useWorkspaceHeader } from '@shared/layouts/WorkspaceShellLayout';
 import sidebarLogo from '@shared/assets/sidebar-logo.png';
+import { useRouteResourceInfoMap } from '@shared/hooks/useRouteResourceNames';
 import { routePaths } from '../routes/paths';
 import { buildSidebarMenuItems, getWorkspaceLayoutState } from '../routes/routeConfig';
 import type { User } from '../types';
@@ -12,6 +13,8 @@ type AdminProtectedLayoutProps = {
 export { useWorkspaceHeader };
 
 export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLayoutProps) {
+  const routeResourceInfoMap = useRouteResourceInfoMap('admin');
+
   return (
     <WorkspaceShellLayout
       accountPath={routePaths.account}
@@ -20,10 +23,10 @@ export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLa
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}
       defaultPath={routePaths.defaultLanding}
-      getWorkspaceLayoutState={getWorkspaceLayoutState}
+      getWorkspaceLayoutState={(user, pathname, matches) => getWorkspaceLayoutState(user, pathname, matches, routeResourceInfoMap)}
       loginPath={routePaths.login}
       onLogout={onLogout}
-      sidebarMenuItems={buildSidebarMenuItems(currentUser)}
+      sidebarMenuItems={buildSidebarMenuItems(currentUser, routeResourceInfoMap)}
     />
   );
 }

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { xingtuSearchDraftService } from './xingtu-search-draft.service.js';
 import type { XingtuCriterion, XingtuSearchMode } from './xingtu-search-draft.types.js';
@@ -30,10 +31,12 @@ function parseCriteria(value: unknown) {
 export function createXingtuSearchDraftRouter() {
   const router = Router();
 
+  router.use(requirePermission('web.module.creator_ops.xingtu'));
+
   router.post('/', (req, res) => {
     try {
       const result = xingtuSearchDraftService.createDraft({
-        userId: String(req.body.userId || '').trim(),
+        userId: req.auth?.userId || '',
         profileId: String(req.body.profileId || '').trim(),
         keyword: String(req.body.keyword || '').trim(),
         searchMode: parseSearchMode(req.body.searchMode),
@@ -48,7 +51,7 @@ export function createXingtuSearchDraftRouter() {
 
   router.get('/:id', (req, res) => {
     try {
-      const userId = String(req.query.userId || '').trim();
+      const userId = req.auth?.userId || '';
       res.json(xingtuSearchDraftService.getDraft(userId, req.params.id));
     } catch (error) {
       sendError(res, 400, error instanceof Error ? error.message : '搜索草稿读取失败');
@@ -58,7 +61,7 @@ export function createXingtuSearchDraftRouter() {
   router.patch('/:id', (req, res) => {
     try {
       const result = xingtuSearchDraftService.updateDraft({
-        userId: String(req.body.userId || '').trim(),
+        userId: req.auth?.userId || '',
         draftId: req.params.id,
         patch: req.body.patch && typeof req.body.patch === 'object'
           ? {
@@ -78,7 +81,7 @@ export function createXingtuSearchDraftRouter() {
 
   router.post('/:id/run', async (req, res) => {
     try {
-      const userId = String(req.body.userId || '').trim();
+      const userId = req.auth?.userId || '';
       const page = Number(req.body.page || 1);
       res.json(await xingtuSearchDraftService.runDraft(userId, req.params.id, page));
     } catch (error) {

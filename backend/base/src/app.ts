@@ -8,6 +8,8 @@ import { createBillingRouter } from './modules/billing/billing.routes.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
 import { createContentRouter } from './modules/content/content.routes.js';
 import { createModelConfigRouter } from './modules/model-configs/model-config.routes.js';
+import { createRouteResourceRouter } from './modules/route-resources/route-resource.routes.js';
+import { createRoleRouter } from './modules/roles/role.routes.js';
 import { createSkillRouter } from './modules/skills/skill.routes.js';
 import { createUserRouter } from './modules/users/user.routes.js';
 import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
@@ -31,6 +33,8 @@ export function createApp() {
 
   app.use('/api/auth', createAuthRouter());
   app.use('/api/users', createUserRouter());
+  app.use('/api/roles', createRoleRouter());
+  app.use('/api/route-resources', createRouteResourceRouter());
   app.use('/api/chat', createChatRouter());
   app.use('/api/content', createContentRouter());
   app.use('/api/video-remake', createVideoRemakeRouter());
