@@ -16,6 +16,7 @@ module.exports = () => {
       height: 820,
       minWidth: 1080,
       minHeight: 720,
+      autoHideMenuBar: true,
       webPreferences: {
         contextIsolation: true,
         devTools: true,
