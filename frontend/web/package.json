@@ -10,23 +10,5 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
-  },
-  "dependencies": {
-    "@ant-design/icons": "^6.2.2",
-    "antd": "^6.3.7",
-    "lucide-react": "^0.468.0",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router-dom": "^7.14.2",
-    "tt-uploader": "^1.6.1"
-  },
-  "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "sass": "^1.99.0",
-    "typescript": "^6.0.3",
-    "vite": "^7.3.0"
   }
 }

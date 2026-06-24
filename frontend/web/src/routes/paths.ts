@@ -10,7 +10,4 @@ export const routePaths = {
   xingtuCreators: '/app/creator-ops/xingtu',
   buyinCreators: '/app/creator-ops/buyin',
   account: '/app/account',
-  modelSettings: '/app/settings/models',
-  billingSettings: '/app/settings/billing',
-  userManagement: '/app/settings/users',
 };

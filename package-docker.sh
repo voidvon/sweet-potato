@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_DIR="$ROOT_DIR/docker_run"
 
+FRONTEND_DIR="$ROOT_DIR/frontend"
 WEB_DIR="$ROOT_DIR/frontend/web"
+ADMIN_DIR="$ROOT_DIR/frontend/admin"
 BASE_DIR="$ROOT_DIR/backend/base"
 AI_WORKER_DIR="$ROOT_DIR/backend/ai-worker"
 BUILD_DIR="$ROOT_DIR/build"
@@ -105,6 +107,8 @@ select_package_environment() {
       WEB_API_BASE_URL=""
       WEB_ASSET_BASE="/"
       WEB_ROUTER_BASENAME=""
+      ADMIN_ASSET_BASE="/admin/"
+      ADMIN_ROUTER_BASENAME="/admin"
       BASE_WORKER_URL="http://ai-worker:7073"
       BASE_EXTRA_HOSTS=""
       BASE_PUBLIC_ENV=""
@@ -114,6 +118,8 @@ select_package_environment() {
       WEB_API_BASE_URL=""
       WEB_ASSET_BASE="/"
       WEB_ROUTER_BASENAME=""
+      ADMIN_ASSET_BASE="/admin/"
+      ADMIN_ROUTER_BASENAME="/admin"
       BASE_WORKER_URL="http://ai-worker:7073"
       BASE_EXTRA_HOSTS=""
       CONTENT_PUBLIC_BASE_URL="${CONTENT_PUBLIC_BASE_URL:-https://ai.0122.vip}"
@@ -146,13 +152,27 @@ echo "==> Cleaning docker_run"
 rm -rf "$RUN_DIR"
 mkdir -p "$RUN_DIR/web" "$RUN_DIR/base" "$RUN_DIR/ai-worker" "$RUN_DIR/data" "$RUN_DIR/logs" "$RUN_DIR/videodata"
 
+echo "==> Installing frontend workspace dependencies"
+(
+  cd "$FRONTEND_DIR"
+  pnpm_cmd install --frozen-lockfile
+)
+
 echo "==> Building web"
 (
-  cd "$WEB_DIR"
-  pnpm_cmd install --frozen-lockfile
-  VITE_API_BASE_URL="$WEB_API_BASE_URL" VITE_ASSET_BASE="$WEB_ASSET_BASE" VITE_ROUTER_BASENAME="$WEB_ROUTER_BASENAME" pnpm_cmd run build
+  cd "$FRONTEND_DIR"
+  VITE_API_BASE_URL="$WEB_API_BASE_URL" VITE_ASSET_BASE="$WEB_ASSET_BASE" VITE_ROUTER_BASENAME="$WEB_ROUTER_BASENAME" pnpm_cmd --dir web run build
 )
 cp -R "$WEB_DIR/dist" "$RUN_DIR/web/dist"
+
+echo "==> Building admin"
+(
+  cd "$FRONTEND_DIR"
+  VITE_API_BASE_URL="$WEB_API_BASE_URL" VITE_ADMIN_ASSET_BASE="$ADMIN_ASSET_BASE" VITE_ADMIN_ROUTER_BASENAME="$ADMIN_ROUTER_BASENAME" pnpm_cmd --dir admin run build
+)
+rm -rf "$RUN_DIR/web/dist/admin"
+mkdir -p "$RUN_DIR/web/dist/admin"
+cp -R "$ADMIN_DIR/dist/." "$RUN_DIR/web/dist/admin/"
 
 echo "==> Building base"
 (
@@ -189,6 +209,8 @@ PACKAGE_ENV=$PACKAGE_ENV
 WEB_API_BASE_URL=$WEB_API_BASE_URL
 WEB_ASSET_BASE=$WEB_ASSET_BASE
 WEB_ROUTER_BASENAME=$WEB_ROUTER_BASENAME
+ADMIN_ASSET_BASE=$ADMIN_ASSET_BASE
+ADMIN_ROUTER_BASENAME=$ADMIN_ROUTER_BASENAME
 BASE_WORKER_URL=$BASE_WORKER_URL
 CONTENT_PUBLIC_BASE_URL=${CONTENT_PUBLIC_BASE_URL:-}
 WEB_HOST_PORT=$WEB_HOST_PORT
@@ -342,6 +364,10 @@ server {
     proxy_read_timeout 300s;
   }
 
+  location /admin/ {
+    try_files $uri $uri/ /admin/index.html;
+  }
+
   location / {
     try_files $uri $uri/ /index.html;
   }
@@ -419,6 +445,8 @@ echo "Package environment: $PACKAGE_ENV"
 echo "Web API base URL: ${WEB_API_BASE_URL:-same-origin}"
 echo "Web asset base: $WEB_ASSET_BASE"
 echo "Web router basename: ${WEB_ROUTER_BASENAME:-root}"
+echo "Admin asset base: $ADMIN_ASSET_BASE"
+echo "Admin router basename: ${ADMIN_ROUTER_BASENAME:-root}"
 echo "Base worker URL: $BASE_WORKER_URL"
 echo "Host ports: web=$WEB_HOST_PORT, base=$BASE_HOST_PORT, ai-worker=$AI_WORKER_HOST_PORT"
 if [ -n "${CONTENT_PUBLIC_BASE_URL:-}" ]; then

@@ -1,0 +1,257 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e8e8e8;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 0 16px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-left: 28px;
+}
+
+.brand-logo {
+  background: #ffffff;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  height: 32px;
+  object-fit: cover;
+  width: 32px;
+}
+
+.brand strong {
+  color: #1a1a1a;
+  font-size: 16px;
+}
+
+.brand span,
+.settings-trigger div > span {
+  color: #999999;
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.module-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.module-nav .ant-menu-root.ant-menu-inline {
+  border-inline-end: none;
+  min-height: 100%;
+}
+
+.menu-item-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.route-tag {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 8px;
+}
+
+.route-tag-hot {
+  background: #fff2e8;
+  color: #d4380d;
+}
+
+.route-tag-new {
+  background: #e6f4ff;
+  color: #0958d9;
+}
+
+.settings-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #e8e8e8;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  margin-top: auto;
+  padding: 18px 8px 0;
+  text-align: left;
+  width: 100%;
+}
+
+.settings-trigger:hover {
+  color: #1a1a1a;
+}
+
+.settings-trigger:hover strong {
+  color: #1a1a1a;
+}
+
+.settings-trigger:hover div > span,
+.settings-trigger:hover .settings-icon {
+  color: #2b7fff;
+}
+
+.settings-trigger > div {
+  min-width: 0;
+}
+
+.settings-trigger strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-avatar {
+  flex: 0 0 auto;
+}
+
+.settings-icon {
+  align-items: center;
+  color: #999999;
+  display: flex;
+  font-size: 18px;
+  height: 24px;
+  justify-content: center;
+  margin-left: auto;
+  width: 24px;
+}
+
+.settings-dropdown-overlay .ant-dropdown-menu {
+  min-width: 184px;
+}
+
+.workspace {
+  background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.workspace-header {
+  align-items: center;
+  background: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 64px;
+  padding: 0 28px;
+}
+
+.workspace-header h1 {
+  color: #1f1f1f;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.workspace-header-extra {
+  align-items: center;
+  display: flex;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.workspace-content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 16px;
+}
+
+.workspace-content-immersive {
+  padding: 0;
+}
+
+.workspace-content-studio {
+  padding: 0;
+}
+
+.workspace-surface {
+  background: #ffffff;
+  border-radius: 12px;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.workspace-surface-immersive {
+  background: transparent;
+  border-radius: 0;
+}
+
+.workspace-surface-studio {
+  background: transparent;
+  border-radius: 0;
+}
+
+.workspace-surface > .route-transition-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.route-transition-frame-studio {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-workspace {
+  overflow: auto;
+}
+
+.chat-workspace .workspace-surface {
+  background: transparent;
+  border-radius: 0;
+}
+
+.chat-workspace .route-transition-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .workspace-header {
+    gap: 12px;
+  }
+
+  .workspace-header-extra {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+}

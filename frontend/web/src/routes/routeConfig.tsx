@@ -1,6 +1,4 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { RobotOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
-import type { MenuProps } from 'antd';
 import {
   Bot,
   Clapperboard,
@@ -30,6 +28,7 @@ import { ProtectedLayout } from '../layouts/ProtectedLayout';
 import { modules } from '../modules';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { routePaths } from './paths';
+import type { WorkspaceMenuItem } from '@shared/layouts/WorkspaceShellLayout';
 import type { AuthSession, CreativeModuleCode, User } from '../types';
 
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
@@ -37,9 +36,6 @@ const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenc
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
-const ModelSettingsPage = lazy(() => import('../pages/settings/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })));
-const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettingsPage').then((m) => ({ default: m.BillingSettingsPage })));
-const UserManagementPage = lazy(() => import('../pages/settings/UserManagementPage').then((m) => ({ default: m.UserManagementPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -51,7 +47,7 @@ type AppRouteBuildParams = WorkspaceRouteHandlers & {
   onAuthed: (session: AuthSession) => void;
 };
 
-type SidebarGroupKey = 'material' | 'video' | 'creatorOps' | 'admin';
+type SidebarGroupKey = 'material' | 'video' | 'creatorOps';
 type WorkspaceSurface = 'default' | 'studio' | 'immersive';
 type RouteTitle = string | ((pathname: string) => string | null);
 
@@ -120,10 +116,6 @@ const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string
   creatorOps: {
     icon: <Star {...menuIconProps} />,
     label: '达人运营',
-  },
-  admin: {
-    icon: <SettingOutlined />,
-    label: '后台管理',
   },
 };
 
@@ -354,51 +346,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
     },
   },
-  {
-    key: 'settings-users',
-    path: 'settings/users',
-    fullPath: routePaths.userManagement,
-    element: () => withStudioSuspense(<UserManagementPage />),
-    handle: {
-      title: '用户管理',
-      surface: 'studio',
-      sidebar: {
-        groupKey: 'admin',
-        icon: <TeamOutlined />,
-      },
-    },
-    visible: (currentUser) => currentUser.role === 'admin',
-  },
-  {
-    key: 'settings-billing',
-    path: 'settings/billing',
-    fullPath: routePaths.billingSettings,
-    element: () => withStudioSuspense(<BillingSettingsPage />),
-    handle: {
-      title: '积分设置',
-      surface: 'studio',
-      sidebar: {
-        groupKey: 'admin',
-        icon: <SettingOutlined />,
-      },
-    },
-    visible: (currentUser) => currentUser.role === 'admin',
-  },
-  {
-    key: 'settings-models',
-    path: 'settings/models',
-    fullPath: routePaths.modelSettings,
-    element: () => withStudioSuspense(<ModelSettingsPage />),
-    handle: {
-      title: '模型配置',
-      surface: 'studio',
-      sidebar: {
-        groupKey: 'admin',
-        icon: <RobotOutlined />,
-      },
-    },
-    visible: (currentUser) => currentUser.role === 'admin',
-  },
 ];
 
 function resolveRouteTitle(title: RouteTitle | undefined, pathname: string) {
@@ -507,7 +454,7 @@ function buildSidebarNavigation(currentUser: User) {
     .filter((group) => group.children.length > 0);
 }
 
-export function buildSidebarMenuItems(currentUser: User): NonNullable<MenuProps['items']> {
+export function buildSidebarMenuItems(currentUser: User): WorkspaceMenuItem[] {
   const groups = buildSidebarNavigation(currentUser);
 
   return [

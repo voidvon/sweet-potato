@@ -20,3 +20,4 @@ frontend/build/extraResources/
 .env
 .plans
 .pnpm-store
+.workflow/
