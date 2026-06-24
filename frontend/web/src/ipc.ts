@@ -88,6 +88,39 @@ export type AutomationProfileStopResult = {
   message?: string;
 };
 
+export type WechatProbeNode = {
+  name: string;
+  automationId: string;
+  className: string;
+  controlType: string;
+};
+
+export type WechatProbeData = {
+  windowName: string;
+  childCount: number;
+  children: WechatProbeNode[];
+};
+
+export type WechatAutomationLog = {
+  level: 'info' | 'warn' | 'error';
+  message: string;
+};
+
+export type WechatProbeResult = {
+  ok: boolean;
+  data?: WechatProbeData;
+  message?: string;
+  logs?: WechatAutomationLog[];
+  command?: string[];
+};
+
+export type WechatSendMessageResult = {
+  ok: boolean;
+  message?: string;
+  logs?: WechatAutomationLog[];
+  command?: string[];
+};
+
 export async function saveAssetFile(payload: SaveAssetFilePayload): Promise<SaveAssetFileResult> {
   if (!ipc?.invoke) {
     return { ok: false, message: '当前环境不支持 Electron 保存文件' };
@@ -139,4 +172,30 @@ export function closeAutomationWindows(profileId: string): Promise<AutomationWin
 
 export function stopAutomationProfile(profileId: string, site?: string): Promise<AutomationProfileStopResult> {
   return invokeAutomation<AutomationProfileStopResult>('stopProfile', { profileId, site });
+}
+
+async function invokeWechatAutomation<T>(method: string, payload?: unknown): Promise<T> {
+  if (!ipc?.invoke) {
+    return { ok: false, message: '当前环境不支持 Electron 微信自动化' } as T;
+  }
+  try {
+    return await ipc.invoke(`controller/wechatAutomation/${method}`, payload) as T;
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : '微信自动化调用失败',
+    } as T;
+  }
+}
+
+export function runWechatProbe(windowName?: string): Promise<WechatProbeResult> {
+  return invokeWechatAutomation<WechatProbeResult>('runProbe', { windowName });
+}
+
+export function sendWechatMessage(payload: {
+  windowName?: string;
+  contactName: string;
+  message: string;
+}): Promise<WechatSendMessageResult> {
+  return invokeWechatAutomation<WechatSendMessageResult>('sendMessage', payload);
 }
