@@ -539,6 +539,33 @@ function finalVideoHistoryWithResult(baseData: Record<string, unknown>, result: 
   ];
 }
 
+function markSegmentRegenerationDraftItems(items: unknown, segmentIndex: number) {
+  return Array.isArray(items)
+    ? items.filter(isRecord).map((segment, index) => {
+      const currentSegmentIndex = segmentIndexFor(segment, index);
+      if (currentSegmentIndex !== segmentIndex) {
+        return {
+          ...cloneJson(segment),
+          status: fieldText(segment.status) || 'completed',
+        };
+      }
+      return {
+        ...cloneJson(segment),
+        status: 'generating',
+        message: `分段 ${segmentIndex} 重新生成中，请稍候。`,
+        regeneratedAt: undefined,
+        videoUrl: undefined,
+        fileUrl: undefined,
+        url: undefined,
+        remoteVideoUrl: undefined,
+        segmentPath: undefined,
+        filePath: undefined,
+        jobId: undefined,
+      };
+    })
+    : [];
+}
+
 function finalVideoSegmentRegenerationDraft(
   sourceData: Record<string, unknown>,
   options: { segmentIndex: number; sourceCardId: string },
@@ -546,11 +573,13 @@ function finalVideoSegmentRegenerationDraft(
   const seedancePrompts = Array.isArray(sourceData.seedancePrompts)
     ? sourceData.seedancePrompts.filter(isRecord)
     : [];
+  const sourceSegments = finalVideoSegments(sourceData);
   const versionNumber = finalVideoVersionNumber(sourceData);
   const versionLabel = fieldText(sourceData.versionLabel) || (versionNumber ? `v${versionNumber}` : '');
   return {
+    ...cloneJson(sourceData),
     status: 'generating',
-    message: '视频生成中，请稍候。',
+    message: `分段 ${options.segmentIndex} 重新生成中，请稍候。`,
     regenerationMode: 'segment',
     regeneratedSegmentIndex: options.segmentIndex,
     seedancePrompts: cloneJson(seedancePrompts),
@@ -563,9 +592,9 @@ function finalVideoSegmentRegenerationDraft(
     sourceCardId: options.sourceCardId,
     sourceVersionLabel: fieldText(sourceData.versionLabel),
     sourceSnapshot: cloneJson(sourceData),
-    segments: [],
-    generatedSegments: [],
-    videos: [],
+    segments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
+    generatedSegments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
+    videos: cloneJson(finalVideoHistory(sourceData)),
     videoUrl: undefined,
     errorMessage: undefined,
   };
@@ -3902,13 +3931,16 @@ export const videoRemakeService = {
       segmentIndex,
       sourceCardId: cardId,
     });
-    const targetCardId = cardId;
+    const targetCard = addCard(session, 'final_video', {
+      status: 'pending',
+      data: pendingData,
+    });
+    const targetCardId = targetCard.cardId;
     session.workflow.pendingInterrupt = undefined;
     session.status = 'generating';
     session.currentStep = 'merge_video';
     session.workflow.currentNode = 'merge_video';
     refreshTask(session, 'generating', null);
-    updateCardById(session, targetCardId, { status: 'pending', data: pendingData });
     syncArtifact(session, 'final_video', pendingData);
     persistSession(session);
     const emit = (event: VideoRemakeNodeEvent) => pushEvent(session, { type: 'workflow.progress', step: event.node, label: event.message, percent: event.progress });

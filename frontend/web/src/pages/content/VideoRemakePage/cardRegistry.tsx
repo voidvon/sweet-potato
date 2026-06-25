@@ -2245,7 +2245,7 @@ function FinalVideoCard(props: CardRendererProps) {
           }
           return row;
         });
-        const segmentRows = isPendingSegmentRegeneration ? [] : rawSegmentRows;
+        const segmentRows = rawSegmentRows;
         const segmentStatusMeta = (segment: Record<string, unknown>, fallbackIndex?: number): { label: string; tone: 'done' | 'running' | 'failed' | 'muted' } => {
           const index = Number(segment.segmentIndex || segment.index || fallbackIndex || 0);
           const value = fieldText(segment.status);
@@ -2390,8 +2390,8 @@ function FinalVideoCard(props: CardRendererProps) {
         if (props.card.status === 'pending' || status === 'generating' || props.card.status === 'failed' || status === 'failed') {
           const showPendingSegments = canInspectSegments && segmentRows.length > 0;
           const canManualSync = typeof props.onSyncProgress === 'function';
-          const pendingHint = isSegmentRegenerationCard && regeneratedSegmentIndex > 0 && !isPendingSegmentRegeneration
-            ? `正在重生成分段 ${regeneratedSegmentIndex}，完成后会直接覆盖当前 ${versionLabel || '最终视频'}。`
+          const pendingHint = isSegmentRegenerationCard && regeneratedSegmentIndex > 0
+            ? `正在基于 ${versionLabel || '当前版本'} 创建分段 ${regeneratedSegmentIndex} 的重生成版本`
             : '';
           return (
             <>

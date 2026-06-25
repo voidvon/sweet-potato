@@ -217,8 +217,7 @@ function cardDisplayTitle(card: VideoRemakeCardMessage) {
       || (fieldText(data.versionNumber) ? `v${fieldText(data.versionNumber)}` : '');
     const regenerationMode = fieldText(data.regenerationMode);
     const regeneratedSegmentIndex = Number(data.regeneratedSegmentIndex || 0);
-    const isGenerating = card.status === 'pending' || fieldText(data.status) === 'generating';
-    if (regenerationMode === 'segment' && regeneratedSegmentIndex > 0 && !isGenerating) {
+    if (regenerationMode === 'segment' && regeneratedSegmentIndex > 0) {
       return versionLabel
         ? `最终视频 ${versionLabel} · 重生成分段 ${regeneratedSegmentIndex}`
         : `最终视频 · 重生成分段 ${regeneratedSegmentIndex}`;
