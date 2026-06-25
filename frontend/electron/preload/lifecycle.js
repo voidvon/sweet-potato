@@ -10,10 +10,11 @@ const { closeCdpRuntime } = require('../service/browser-automation/cdp-runtime')
 let isQuitting = false;
 
 function allowMicrophoneCapture() {
+  const frontendPort = Number(process.env.FRONTEND_PORT || 9527);
   const insecureOrigins = [
-    'http://192.168.11.55:9527',
-    'http://127.0.0.1:9527',
-    'http://localhost:9527',
+    `http://192.168.11.55:${frontendPort}`,
+    `http://127.0.0.1:${frontendPort}`,
+    `http://localhost:${frontendPort}`,
     'http://127.0.0.1:5173',
     'http://localhost:5173',
   ].join(',');

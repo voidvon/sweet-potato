@@ -12,6 +12,7 @@ module.exports = {
   dev: {
     frontend: {
       directory: "./web",
+      hostname: "127.0.0.1",
       cmd: "npm",
       args: ["run", "dev", "--", "--host", "--port", String(frontendPort), "--strictPort"],
       port: frontendPort,

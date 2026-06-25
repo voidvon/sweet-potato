@@ -7,13 +7,17 @@ const { preload } = require("./preload");
 const { startAutomationBridgeServer } = require("./service/browser-automation/bridge-server");
 const { prepareCdpRuntime } = require("./service/browser-automation/cdp-runtime");
 
+electronApp.disableHardwareAcceleration();
+
 const appDataName = electronApp.isPackaged
   ? "ai-marketing-desktop-prod"
   : "ai-marketing-desktop-dev";
+const userDataPath = process.env.ELECTRON_USER_DATA_DIR
+  || path.join(electronApp.getPath("appData"), appDataName);
 electronApp.setName(appDataName);
 electronApp.setPath(
   "userData",
-  path.join(electronApp.getPath("appData"), appDataName),
+  userDataPath,
 );
 
 function restoreDockMainWindow() {

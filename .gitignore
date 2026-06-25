@@ -23,3 +23,6 @@ frontend/build/extraResources/
 .workflow/
 .dev-logs/
 .installers/
+.codex-run
+.codex-dev*.log
+
