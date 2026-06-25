@@ -1,10 +1,11 @@
-import type { LlmModelPricing, ModelConfig, ModelType, VideoModelOption } from '../../types';
+import type { ImageModelOption, LlmModelPricing, ModelConfig, ModelType, VideoModelOption } from '../../types';
 import { request } from '../core/request';
 
 enum Api {
   modelConfigs = '/api/model-configs',
   llmModelPricing = '/api/model-configs/llm-model-pricing',
   audioProviders = '/api/model-configs/audio-providers',
+  imageProviders = '/api/model-configs/image-providers',
   videoProviders = '/api/model-configs/video-providers',
   modelConfigDetail = '/api/model-configs/:id',
   defaultModelConfig = '/api/model-configs/:id/default',
@@ -62,6 +63,22 @@ export type AudioModelProviderOption = {
 
 export function listAudioModelProviders() {
   return request<AudioModelProviderOption[]>(Api.audioProviders);
+}
+
+export type ImageModelProviderOption = {
+  id: string;
+  name: string;
+  description: string;
+  keyLabel: string;
+  keyPlaceholder: string;
+  keyHelp?: string;
+  defaultBaseUrl: string;
+  defaultModel: string;
+  models: ImageModelOption[];
+};
+
+export function listImageModelProviders() {
+  return request<ImageModelProviderOption[]>(Api.imageProviders);
 }
 
 export type VideoModelProviderOption = {

@@ -4,6 +4,7 @@ export {
   deleteLlmModelPricing,
   deleteModelConfig,
   listAudioModelProviders,
+  listImageModelProviders,
   listLlmModelPricing,
   listModelConfigs,
   listVideoModelProviders,
@@ -11,4 +12,4 @@ export {
   updateLlmModelPricing,
   updateModelConfig,
 } from '@shared/api/model-config';
-export type { AudioModelProviderOption, VideoModelProviderOption } from '@shared/api/model-config';
+export type { AudioModelProviderOption, ImageModelProviderOption, VideoModelProviderOption } from '@shared/api/model-config';

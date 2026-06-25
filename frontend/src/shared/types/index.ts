@@ -309,6 +309,13 @@ export type ModelConfig = {
 
 export type VideoReferenceType = 'image' | 'video' | 'audio';
 
+export type ImageModelOption = {
+  id: string;
+  name: string;
+  description: string;
+  disabled?: boolean;
+};
+
 export type VideoModelReferencePolicy = {
   imageMode: 'none' | 'first_frame_required' | 'first_last_optional' | 'reference_images';
   maxImages: number;

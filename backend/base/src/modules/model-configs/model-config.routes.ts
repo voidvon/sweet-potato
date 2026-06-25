@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import { requireAdmin } from '../../shared/auth.middleware.js';
 import { listAudioModelProviders } from '../audio-models/audio-model.registry.js';
+import { listImageModelProviders } from '../image-models/image-model.registry.js';
 import { listVideoModelProviders } from '../video-models/video-model.registry.js';
 import { defaultModelConfig } from './model-config.defaults.js';
 import { llmModelPricingRepository } from './llm-model-pricing.repository.js';
@@ -61,6 +62,10 @@ export function createModelConfigRouter() {
 
   router.get('/model-configs/audio-providers', (_req, res) => {
     res.json(listAudioModelProviders());
+  });
+
+  router.get('/model-configs/image-providers', (_req, res) => {
+    res.json(listImageModelProviders());
   });
 
   router.get('/model-configs/video-providers', (_req, res) => {
