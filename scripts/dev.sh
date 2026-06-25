@@ -7,6 +7,7 @@ PYTHON_WORKER_DIR="$ROOT_DIR/backend/ai-worker"
 NODE_BACKEND_DIR="$ROOT_DIR/backend/base"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 FRONTEND_WEB_DIR="$ROOT_DIR/frontend/web"
+FRONTEND_ADMIN_DIR="$ROOT_DIR/frontend/admin"
 
 PIDS=()
 CLEANED_UP=0
@@ -99,10 +100,12 @@ require_cmd lsof
 install_node_deps_if_needed "$NODE_BACKEND_DIR"
 install_node_deps_if_needed "$FRONTEND_DIR"
 install_node_deps_if_needed "$FRONTEND_WEB_DIR"
+install_node_deps_if_needed "$FRONTEND_ADMIN_DIR"
 
 ensure_port_free "${PYTHON_AI_WORKER_PORT:-7073}"
 ensure_port_free "${BACKEND_PORT:-7072}"
 ensure_port_free "${FRONTEND_PORT:-9527}"
+ensure_port_free "${FRONTEND_ADMIN_PORT:-9528}"
 
 export PYTHON_AI_WORKER_PORT="${PYTHON_AI_WORKER_PORT:-7073}"
 export PYTHON_AI_WORKER_URL="${PYTHON_AI_WORKER_URL:-http://127.0.0.1:${PYTHON_AI_WORKER_PORT}}"
@@ -116,6 +119,9 @@ start_service "Node backend" "$NODE_BACKEND_DIR" \
 start_service "Frontend/Electron" "$FRONTEND_DIR" \
   pnpm run dev
 
+start_service "Frontend admin" "$FRONTEND_ADMIN_DIR" \
+  pnpm run dev
+
 cat <<INFO
 
 Dev services are starting:
@@ -123,6 +129,7 @@ Dev services are starting:
   Node backend:     http://localhost:${BACKEND_PORT:-7072}
   Frontend:         http://localhost:${FRONTEND_PORT:-9527}/
   Automation entry: http://localhost:${FRONTEND_PORT:-9527}/app/automation
+  Admin:            http://localhost:${FRONTEND_ADMIN_PORT:-9528}/
 
 Press Ctrl+C to stop all services started by this script.
 INFO
