@@ -120,6 +120,8 @@ export type WechatAddFriendMenuProbeData = {
 export type WechatAutomationLog = {
   level: 'info' | 'warn' | 'error';
   message: string;
+  code?: string;
+  details?: Record<string, unknown>;
 };
 
 export type WechatProbeResult = {

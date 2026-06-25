@@ -191,14 +191,11 @@ class WechatAutomationService {
       greeting,
     ]);
 
-    if (Array.isArray(result.logs)) {
-      result.logs = result.logs.filter((log) => !String(log?.message || '').includes('已返回主微信窗口'));
-    }
-
     restoreMainWindowFocus();
     if (Array.isArray(result.logs)) {
       result.logs.push({
         level: 'info',
+        code: 'main_window_focus_restore_requested',
         message: '已尝试恢复萌猫主窗口焦点',
       });
     }
