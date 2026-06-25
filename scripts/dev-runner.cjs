@@ -31,7 +31,7 @@ function log(message) {
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
-  process.exit(1);
+  cleanupAndExit(1);
 }
 
 function pathExists(target) {
@@ -202,10 +202,13 @@ function spawnService(name, command, args, cwd, extra = {}) {
       return;
     }
     if (signal) {
-      fail(`${name} exited with signal ${signal}`);
+      process.stderr.write(`${name} exited with signal ${signal}\n`);
+      cleanupAndExit(signal === 'SIGINT' ? 130 : 143);
+      return;
     }
     if (code && code !== 0) {
-      fail(`${name} exited with code ${code}`);
+      process.stderr.write(`${name} exited with code ${code}\n`);
+      cleanupAndExit(code);
     }
   });
 
@@ -218,28 +221,42 @@ function terminateProcess(child) {
   }
 
   if (process.platform === 'win32') {
-    spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    try {
+      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+    } catch {
+      // Ignore cleanup failures during shutdown.
+    }
     return;
   }
 
-  child.kill('SIGTERM');
+  try {
+    child.kill('SIGTERM');
+  } catch {
+    // Ignore cleanup failures during shutdown.
+  }
+}
+
+function cleanupAndExit(code) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  log('\nStopping dev services...');
+  for (const child of childProcesses.slice().reverse()) {
+    terminateProcess(child);
+  }
+  process.exit(code);
 }
 
 function registerCleanup() {
-  const cleanup = () => {
-    if (shuttingDown) {
-      return;
-    }
-    shuttingDown = true;
-    log('\nStopping dev services...');
-    for (const child of childProcesses) {
+  process.once('SIGINT', () => cleanupAndExit(130));
+  process.once('SIGTERM', () => cleanupAndExit(143));
+  process.once('exit', () => {
+    for (const child of childProcesses.slice().reverse()) {
       terminateProcess(child);
     }
-  };
-
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
-  process.on('exit', cleanup);
+  });
 }
 
 function printSummary() {

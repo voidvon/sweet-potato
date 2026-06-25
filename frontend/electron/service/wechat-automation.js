@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { app } = require('electron');
+const { getMainWindow } = require('ee-core/electron');
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_RELATIVE_PATH = path.join('backend', 'ai-worker', 'scripts', 'wechat_probe.py');
@@ -51,6 +53,44 @@ function resolvePythonCommand(repoRoot) {
 
 function resolveScriptPath(repoRoot) {
   return path.join(repoRoot, SCRIPT_RELATIVE_PATH);
+}
+
+function focusMainWindow() {
+  try {
+    const mainWindow = getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.show();
+    if (process.platform === 'win32') {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    }
+    app.focus();
+    mainWindow.focus();
+    if (typeof mainWindow.moveTop === 'function') {
+      mainWindow.moveTop();
+    }
+    if (process.platform === 'win32') {
+      setTimeout(() => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.setAlwaysOnTop(false);
+        }
+      }, 120);
+    }
+  } catch (error) {
+    console.warn('[wechat-automation] restore main window focus failed:', error);
+  }
+}
+
+function restoreMainWindowFocus() {
+  for (const delay of [0, 120, 360, 800]) {
+    setTimeout(focusMainWindow, delay);
+  }
 }
 
 async function runScript(argumentsList) {
@@ -113,6 +153,73 @@ class WechatAutomationService {
     }
 
     return runScript(['probe', '--window-name', windowName]);
+  }
+
+  async openAddFriend(args = {}) {
+    const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
+    const account = String(args.account || '').trim();
+    const greeting = String(args.greeting || '');
+
+    if (process.platform !== 'win32') {
+      return {
+        ok: false,
+        message: 'Wechat automation is only supported on Windows',
+      };
+    }
+
+    if (!account) {
+      return {
+        ok: false,
+        message: 'Missing account or phone number',
+      };
+    }
+
+    if (!greeting.trim()) {
+      return {
+        ok: false,
+        message: 'Missing greeting content',
+      };
+    }
+
+    const result = await runScript([
+      'open-add-friend',
+      '--window-name',
+      windowName,
+      '--account',
+      account,
+      '--greeting',
+      greeting,
+    ]);
+
+    if (Array.isArray(result.logs)) {
+      result.logs = result.logs.filter((log) => !String(log?.message || '').includes('已返回主微信窗口'));
+    }
+
+    restoreMainWindowFocus();
+    if (Array.isArray(result.logs)) {
+      result.logs.push({
+        level: 'info',
+        message: '已尝试恢复萌猫主窗口焦点',
+      });
+    }
+    return result;
+  }
+
+  async probeAddFriendMenu(args = {}) {
+    const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
+
+    if (process.platform !== 'win32') {
+      return {
+        ok: false,
+        message: 'Wechat automation is only supported on Windows',
+      };
+    }
+
+    return runScript([
+      'probe-add-friend-menu',
+      '--window-name',
+      windowName,
+    ]);
   }
 
   async sendMessage(args = {}) {

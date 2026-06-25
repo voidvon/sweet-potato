@@ -60,6 +60,17 @@
   word-break: break-all;
 }
 
+.wechat-automation-command pre {
+  background: #f8fafc;
+  border: 1px solid #eaecf0;
+  border-radius: 12px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .wechat-automation-logs {
   display: grid;
   gap: 10px;

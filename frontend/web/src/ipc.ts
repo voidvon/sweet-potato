@@ -101,6 +101,22 @@ export type WechatProbeData = {
   children: WechatProbeNode[];
 };
 
+export type WechatMenuProbeNode = {
+  name: string;
+  automationId: string;
+  className: string;
+  controlType: string;
+  depth: number;
+  source: 'window' | 'root';
+  rect?: [number, number, number, number] | null;
+};
+
+export type WechatAddFriendMenuProbeData = {
+  windowName: string;
+  plusButton: WechatMenuProbeNode | null;
+  relatedControls: WechatMenuProbeNode[];
+};
+
 export type WechatAutomationLog = {
   level: 'info' | 'warn' | 'error';
   message: string;
@@ -114,11 +130,18 @@ export type WechatProbeResult = {
   command?: string[];
 };
 
-export type WechatSendMessageResult = {
+export type WechatAutomationActionResult = {
   ok: boolean;
   message?: string;
   logs?: WechatAutomationLog[];
   command?: string[];
+  data?: unknown;
+};
+
+export type WechatSendMessageResult = WechatAutomationActionResult;
+
+export type WechatAddFriendMenuProbeResult = WechatAutomationActionResult & {
+  data?: WechatAddFriendMenuProbeData;
 };
 
 export async function saveAssetFile(payload: SaveAssetFilePayload): Promise<SaveAssetFileResult> {
@@ -198,4 +221,18 @@ export function sendWechatMessage(payload: {
   message: string;
 }): Promise<WechatSendMessageResult> {
   return invokeWechatAutomation<WechatSendMessageResult>('sendMessage', payload);
+}
+
+export function openWechatAddFriend(payload?: {
+  windowName?: string;
+  account?: string;
+  greeting?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('openAddFriend', payload);
+}
+
+export function probeWechatAddFriendMenu(payload?: {
+  windowName?: string;
+}): Promise<WechatAddFriendMenuProbeResult> {
+  return invokeWechatAutomation<WechatAddFriendMenuProbeResult>('probeAddFriendMenu', payload);
 }

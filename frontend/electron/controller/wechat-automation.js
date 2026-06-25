@@ -7,6 +7,14 @@ class WechatAutomationController {
     return wechatAutomationService.runProbe(args);
   }
 
+  openAddFriend(args) {
+    return wechatAutomationService.openAddFriend(args);
+  }
+
+  probeAddFriendMenu(args) {
+    return wechatAutomationService.probeAddFriendMenu(args);
+  }
+
   sendMessage(args) {
     return wechatAutomationService.sendMessage(args);
   }
