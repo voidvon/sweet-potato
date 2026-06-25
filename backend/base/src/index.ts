@@ -13,8 +13,8 @@ attachChatWebSocketServer(server);
 
 server.listen(env.port, () => {
   console.log(`AI marketing desktop server listening on http://localhost:${env.port}`);
-  console.log('-----------volcengineRealPersonConfig:', volcengineRealPersonConfig);
-  console.log('-----------contentPublicBaseUrl:', contentPublicBaseUrl);
+  // console.log('-----------volcengineRealPersonConfig:', volcengineRealPersonConfig);
+  // console.log('-----------contentPublicBaseUrl:', contentPublicBaseUrl);
   logger.info('server started', { port: env.port });
   contentService.resumeRunningVideoGenerations();
   videoRemakeService.resumeIncompleteSessionsOnStartup();
