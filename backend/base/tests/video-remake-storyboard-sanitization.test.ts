@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  buildVideoRemakeSeedanceAudioBindingLines,
+  videoRemakeStoryboardSpeakerLimitSystemPrompt,
+  videoRemakeStoryboardSpeakerLimitUserPrompt,
+} from '../src/modules/video-remake/video-remake.prompts.js';
 
 test('storyboard strips product references when product is confirmed unnecessary', async () => {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'video-remake-storyboard-sanitize-'));
@@ -254,4 +259,24 @@ test('storyboard narration cleanup removes repeated rolling transcript lines', a
   assert.doesNotMatch(String(cleaned[1]?.narration || ''), /你再说一遍|养生方法/u);
   assert.doesNotMatch(String(cleaned[2]?.narration || ''), /最好的是睡觉/u);
   assert.doesNotMatch(String(cleaned[3]?.narration || ''), /最好的是走路/u);
+});
+
+test('seedance audio binding prompt includes explicit role-to-audio bindings when audio references are present', () => {
+  const guide = buildVideoRemakeSeedanceAudioBindingLines({
+    voice: '原声参考',
+    voiceStyle: '整体自然清晰',
+    items: [
+      { label: '人物1 声音', characterLabel: '人物1', voice: '原声参考', voiceStyle: '沉稳克制' },
+      { label: '人物2 声音', characterLabel: '人物2', voice: '原声参考', voiceStyle: '明亮利落' },
+    ],
+  }, ['audio-1', 'audio-2']).join('\n');
+
+  assert.match(guide, /人物1 只能绑定 参考音频1/u);
+  assert.match(guide, /人物2 只能绑定 参考音频2/u);
+  assert.match(guide, /只复用音色和节奏，不复用参考音频原始台词/u);
+});
+
+test('storyboard prompt contract includes max-three-speaker rule', () => {
+  assert.match(videoRemakeStoryboardSpeakerLimitSystemPrompt, /每个镜头台词\/旁白里最多只允许 3 个说话主体/u);
+  assert.match(videoRemakeStoryboardSpeakerLimitUserPrompt, /确保任一镜头台词\/旁白最多只有 3 个说话主体/u);
 });

@@ -49,8 +49,11 @@ import {
 import { resolveVideoMaterialContext } from '../content/internals/content-video-task-runtime.js';
 import { createTraceId, logToFile } from '../../shared/logger.js';
 import {
+  buildVideoRemakeSeedanceAudioBindingLines,
   videoRemakeDefaultNegativePrompt,
   videoRemakeDirectorNormalizeSystemPrompt,
+  videoRemakeStoryboardSpeakerLimitSystemPrompt,
+  videoRemakeStoryboardSpeakerLimitUserPrompt,
   videoRemakeStoryboardSystemPrompt,
 } from './video-remake.prompts.js';
 import type { VideoRemakeWorkflowState } from './video-remake.types.js';
@@ -1164,7 +1167,7 @@ async function generateDirectorNormalizeWithLlm(context: VideoRemakeNodeContext)
       videoRemakeDirectorNormalizeSystemPrompt,
       '输出 JSON 顶层字段固定为 basicInfo、expertAnalysis、characterSetting、sceneSetting、productSetting、pipSetting、voiceAudioSetting、scriptContent。',
       'characterSetting.items 和 sceneSetting.items 至少各输出一个有效 item；如果视频中确实没有人物，characterSetting.items 才能为空。',
-      '人物/场景优先从 description 提炼精简视觉提示词，保留可见细节，去掉时间、声线和分析话术。',
+      '人物/场景优先从 description 提炼视觉提示词，保留可见细节，去掉时间、声线和分析话术。',
       '严禁把人物字段写入 sceneSetting.items[].description；严禁把场景环境写入 characterSetting.items[].characterPrompt。',
     ].join('\n'),
     user: [
@@ -2100,7 +2103,7 @@ function materialReferencesWithExtraVideo(references: SeedanceReferenceIds, vide
 function materialContextWithExtraVideoReference(
   materialContext: ReturnType<typeof resolveVideoMaterialContext>,
   videoReference: ReturnType<typeof resolveVideoMaterialContext>['references']['videos'][number],
-) : ReturnType<typeof resolveVideoMaterialContext> {
+): ReturnType<typeof resolveVideoMaterialContext> {
   const references = materialContext.references;
   const videos = Array.isArray(references.videos) ? references.videos.filter(isRecord) : [];
   return {
@@ -2377,7 +2380,10 @@ function seedanceReferenceGuide(userId: string, workflow: VideoRemakeWorkflowSta
     if (productLine) lines.push(productLine);
     if (pipLine) lines.push(pipLine);
   }
-  if (audioLabels.length) {
+  const audioBindingLines = buildVideoRemakeSeedanceAudioBindingLines(voiceSetting(workflow), references.referenceAudioIds);
+  if (audioBindingLines.length) {
+    lines.push(...audioBindingLines);
+  } else if (audioLabels.length) {
     lines.push(`人声/音频参考以${audioLabels.map((label) => `参考${label}`).join('、')}为准；只参考音色、语速和口播节奏，不复用素材原始台词，不复刻素材里的杂音、尾音、点击声或转场声。`);
   }
   return uniqueUsefulLines(lines).join('\n');
@@ -2920,6 +2926,7 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '不要把已确认人物/场景/产品设定全文复制到镜头字段中；只允许在画面和人物/动作里用一句话引用当前镜头需要的人物、场景、产品标签和本镜头动作。',
     '如果已确认口播内容带有说话主体前缀，例如“人物1：xxx”“旁白：yyy”，台词/旁白字段必须原样保留这些主体前缀；同一镜头包含多个主体时用空格或中文分号串联，不要合并成无主体文本。',
     '请按语义完整片段切镜头，每个镜头建议 4-12 秒；不要一句话拆一个镜头。',
+    videoRemakeStoryboardSpeakerLimitSystemPrompt,
     '镜头起止时间必须按“台词/旁白”的字数和自然语速分配：中文口播按每秒约 4 个汉字估算，长台词必须给更长时长，短台词只能给较短时长；禁止把每个镜头机械切成接近相同秒数。',
     '上下文依赖的连续短句必须放在同一个镜头台词里，不能把铺垫句和结论句拆开。',
     '每个镜头的“台词/旁白”字段都必须填写与该镜头时间范围重叠的已确认口播原句；除非该时间段确实没有任何口播，否则不允许留空。',
@@ -2970,6 +2977,7 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '请先按台词语义切段，再按每秒约 4 个汉字估算每段时长，最后让所有镜头起止时间连续覆盖 0 到目标总时长。',
     '台词/旁白只能使用已确认口播原句，不新增结束语或行动号召；已确认口播里的“人物1：”“人物2：”“旁白：”等说话主体前缀必须保留到台词/旁白字段。',
     '每个镜头必须按自己的起止时间覆盖对应口播：例如镜头 8s-19s 必须填入 8s-19s 内的口播内容，不得省略为只有动作和音效。',
+    videoRemakeStoryboardSpeakerLimitUserPrompt,
     '不要写字幕、标题条、屏幕文字、水印或 Logo。',
     '人物/动作字段必须自包含写清本镜头人物姿态、动作，并保留已确认人物设定中需要持续可见的配件、道具、服饰细节或其他标识性细节。',
     '人物/动作字段不要另起“人物1：外观/动作/表情/适用时间/时间范围/口播线索/关键词”等设定明细块；只写当前镜头实际画面里的动作描述。',

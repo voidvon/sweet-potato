@@ -2256,7 +2256,10 @@ export function normalizeDirectorAudioItems(audio: Record<string, unknown>, subj
 }
 
 export function mergedDirectorSceneDescription(scene: Record<string, unknown>) {
-  const description = stringValue(scene.description).trim();
+  const description = (
+    stringValue(scene.description)
+    || firstStringValue(scene, ['场景描述', '场景说明', '环境描述'])
+  ).trim();
   const environment = stringValue(scene.environment);
   const props = stringValue(scene.props);
   const lighting = stringValue(scene.lighting);
@@ -2288,7 +2291,7 @@ export function normalizeDirectorSceneItems(scene: Record<string, unknown>): Vir
     const item = wrapped.record;
     return {
       label: wrapped.label || stringValue(item.label) || stringValue(item.name) || `场景 ${index + 1}`,
-      description: mergedDirectorSceneDescription(item) || formatEntityDescription(item, ['label', 'name', '开始秒', '结束秒', 'startSecond', 'endSecond', 'start', 'end']),
+      description: mergedDirectorSceneDescription(item) || formatEntityDescription(item, ['label', 'name', 'required', 'referenceMode', 'assetId', 'groupId', 'sceneGroupId', '场景描述', '场景说明', '环境描述', '开始秒', '结束秒', 'startSecond', 'endSecond', 'start', 'end']),
       environment: stringValue(item.environment) || stringValue(item['环境布置']),
       props: stringValue(item.props) || stringValue(item['道具']) || stringValue(item['陈设']),
       lighting: stringValue(item.lighting) || stringValue(item['光线氛围']),

@@ -35,6 +35,71 @@ export const videoRemakeStoryboardSystemPrompt = [
   '复刻建议只写拍摄执行建议，不得重复人物外观、场景环境、产品信息，也不得另起人物、场景、产品、环境、道具、灯光、构图、机位、氛围等设定明细块，除非需要特殊补充。',
 ].join('\n');
 
+export const videoRemakeStoryboardSpeakerLimitSystemPrompt = '每个镜头台词/旁白里最多只允许 3 个说话主体；如果某段口播涉及 4 个或更多主体，必须拆成多个连续镜头，让每个镜头只覆盖该时间窗内最多 3 个主体。';
+
+export const videoRemakeStoryboardSpeakerLimitUserPrompt = '如果同一时间窗里出现 4 个以上说话主体，必须拆镜头并重排时间，确保任一镜头台词/旁白最多只有 3 个说话主体。';
+
+function promptRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function promptText(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function usefulPromptText(value: unknown) {
+  const text = promptText(value);
+  if (!text || /^(无|不需要|无需|默认|none|null|undefined)$/iu.test(text)) {
+    return '';
+  }
+  return text;
+}
+
+function promptSettingItems(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.filter(promptRecord);
+  }
+  if (!promptRecord(value)) {
+    return [];
+  }
+  return Array.isArray(value.items) ? value.items.filter(promptRecord) : [];
+}
+
+export function buildVideoRemakeSeedanceAudioBindingLines(voiceSettingData: unknown, referenceAudioIds: string[]) {
+  const voiceValue = promptRecord(voiceSettingData) ? voiceSettingData : {};
+  const audioItems = promptSettingItems(voiceValue).map((item, index) => ({
+    label: promptText(item.label) || `声音 ${index + 1}`,
+    characterLabel: promptText(item.characterLabel) || promptText(item.character) || promptText(item.label) || `人物 ${index + 1}`,
+    voice: promptText(item.voice),
+    voiceStyle: usefulPromptText(item.voiceStyle),
+    assetId: promptText(item.assetId),
+    groupId: promptText(item.groupId),
+  }));
+  const referenceLabels = referenceAudioIds.map((_, index) => `参考音频${index + 1}`);
+  const fallbackVoice = usefulPromptText(voiceValue.voice) || '原声参考';
+  const fallbackVoiceStyle = usefulPromptText(voiceValue.voiceStyle) || '自然清晰，中等语速，不抢拍、不加速';
+
+  if (!audioItems.length && !referenceLabels.length) {
+    return [];
+  }
+
+  return audioItems.map((item, index) => {
+    const roleLabel = item.characterLabel || item.label || `人物 ${index + 1}`;
+    const referenceLabel = referenceLabels[index];
+    if (item.voice === '不生成') {
+      return `${roleLabel}：本主体不生成口播，保持静音或仅保留环境底噪。`;
+    }
+    const binding = referenceLabel
+      ? `${roleLabel} 只能绑定 ${referenceLabel}`
+      : `${roleLabel} 沿用已确认声音设定`;
+    const source = item.assetId || item.groupId
+      ? '参考已选声音素材的音色、声线、语速、能量和距离感'
+      : `使用${item.voice || fallbackVoice}`;
+    const style = item.voiceStyle || fallbackVoiceStyle;
+    return `${binding}；${source}；${style}；只复用音色和节奏，不复用参考音频原始台词、尾音、杂音或转场声。`;
+  });
+}
+
 export const videoRemakeSeedanceGlobalPromptTemplate = `
 # 画面文字规则（最高优先级）
 生成纯画面视频。画面必须保持干净，不添加任何可读文字、文字浮层、字幕、标识、来源标记或界面元素。

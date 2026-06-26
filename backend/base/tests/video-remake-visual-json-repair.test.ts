@@ -29,3 +29,23 @@ test('video remake json repair handles unknown embedded field labels', async () 
   assert.equal(parsed.task2['人物1']['人物描述'], '坐在窗边讲解');
   assert.equal(parsed.task2['人物1']['语音风格'], '平静自然');
 });
+
+test('director scene normalization preserves Chinese scene description without serializing control fields', async () => {
+  const { normalizeDirectorSceneItems } = await import('../src/modules/content/internals/content-viral-director.js');
+  const rawDescription = '场景1：场景描述：时间范围：0s-17s，拍摄地点为入户门周边墙面，环境布置有入户门正上方墙面插座（用于安装监控，展示摄像头安装过程）、进门墙面总控开关、入户门侧边墙面插座（用于智能锁充电，展示充电线连接智能锁）；空间层次为室内墙面区域；光线氛围为日常室内光线，展示入户门区域3处提升便捷性的装修细节';
+
+  const scenes = normalizeDirectorSceneItems({
+    items: [{
+      label: '场景1',
+      场景描述: rawDescription,
+      required: true,
+      referenceMode: 'prompt',
+    }],
+  });
+
+  assert.equal(scenes.length, 1);
+  assert.equal(scenes[0]?.description, rawDescription);
+  assert.match(scenes[0]?.description || '', /摄像头安装过程/u);
+  assert.match(scenes[0]?.description || '', /智能锁充电/u);
+  assert.doesNotMatch(scenes[0]?.description || '', /required：true|referenceMode：prompt/u);
+});
