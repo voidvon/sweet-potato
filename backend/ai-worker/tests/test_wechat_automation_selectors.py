@@ -1,11 +1,26 @@
 import unittest
 
-from ai_worker.wechat_automation.constants import ADD_FRIEND_NAME, QUICK_ACTION_NAME, REQUEST_LABEL_NAME
+from ai_worker.wechat_automation.constants import (
+    ADD_FRIEND_NAME,
+    ADD_TO_CONTACTS_NAME,
+    PANEL_CHAT_NAME,
+    PANEL_CONTACTS_NAME,
+    QUICK_ACTION_NAME,
+    REQUEST_LABEL_NAME,
+    SEND_MESSAGE_NAME,
+)
 from ai_worker.wechat_automation.selectors import (
     build_menu_probe_region,
+    click_add_to_contacts_strict,
+    click_send_message,
     find_add_friend_entry,
+    find_add_friend_result_actions,
+    find_chat_message_editor,
     find_plus_button,
     find_request_greeting_editor,
+    find_send_message_button_strict,
+    find_sidebar_panel_button,
+    identify_current_panel,
 )
 
 
@@ -26,6 +41,9 @@ class FakeControl:
         class_name: str = "",
         rect: tuple[int, int, int, int] | None = None,
         children: list["FakeControl"] | None = None,
+        selected: bool | None = None,
+        toggle_state: int | None = None,
+        legacy_state: int | None = None,
     ):
         self.Name = name
         self.ControlTypeName = control_type
@@ -33,6 +51,9 @@ class FakeControl:
         self.AutomationId = ""
         self._rect = FakeRect(*rect) if rect is not None else None
         self._children = children or []
+        self._selected = selected
+        self._toggle_state = toggle_state
+        self._legacy_state = legacy_state
         self.clicked = False
 
     @property
@@ -47,6 +68,30 @@ class FakeControl:
 
     def Click(self, simulateMove: bool = False):
         self.clicked = True
+
+    @property
+    def IsSelected(self):
+        return self._selected
+
+    def GetTogglePattern(self):
+        if self._toggle_state is None:
+            return None
+
+        class TogglePattern:
+            def __init__(self, toggle_state: int):
+                self.ToggleState = toggle_state
+
+        return TogglePattern(self._toggle_state)
+
+    def GetLegacyIAccessiblePattern(self):
+        if self._legacy_state is None:
+            return None
+
+        class LegacyPattern:
+            def __init__(self, state: int):
+                self.State = state
+
+        return LegacyPattern(self._legacy_state)
 
     def _find_first(self, control_type: str, name: str | None, search_depth: int):
         queue: list[tuple["FakeControl", int]] = [(child, 1) for child in self._children]
@@ -119,6 +164,160 @@ class FakeAuto:
 
 
 class WechatAutomationSelectorsTest(unittest.TestCase):
+    def test_find_sidebar_panel_button_prefers_named_contacts_button(self):
+        chat_button = FakeControl(
+            name="微信",
+            control_type="ButtonControl",
+            rect=(20, 160, 68, 208),
+        )
+        contacts_button = FakeControl(
+            name="通讯录",
+            control_type="ButtonControl",
+            rect=(20, 220, 68, 268),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[chat_button, contacts_button],
+        )
+
+        control, info = find_sidebar_panel_button(window, PANEL_CONTACTS_NAME)
+
+        self.assertIs(control, contacts_button)
+        self.assertEqual(info["method"], "sidebar_name")
+
+    def test_find_sidebar_panel_button_falls_back_to_sidebar_order(self):
+        first_button = FakeControl(
+            name="",
+            control_type="ButtonControl",
+            rect=(20, 160, 68, 208),
+        )
+        second_button = FakeControl(
+            name="",
+            control_type="ButtonControl",
+            rect=(20, 220, 68, 268),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[first_button, second_button],
+        )
+
+        control, info = find_sidebar_panel_button(window, PANEL_CONTACTS_NAME)
+
+        self.assertIs(control, second_button)
+        self.assertEqual(info["method"], "sidebar_order")
+        self.assertEqual(info["targetIndex"], 1)
+
+    def test_identify_current_panel_uses_quick_action_rule_for_chat_panel(self):
+        quick_action = FakeControl(
+            name=QUICK_ACTION_NAME,
+            control_type="ButtonControl",
+            rect=(374, 160, 404, 192),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[quick_action],
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertEqual(result["panel"], PANEL_CHAT_NAME)
+        self.assertEqual(result["matchedRule"], "quick_action_button")
+
+    def test_identify_current_panel_uses_contacts_manage_rule_for_contacts_panel(self):
+        manage_button = FakeControl(
+            name="通讯录管理",
+            control_type="ButtonControl",
+            rect=(720, 160, 840, 192),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[manage_button],
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertEqual(result["panel"], PANEL_CONTACTS_NAME)
+        self.assertEqual(result["matchedRule"], "contacts_manage_button")
+
+    def test_identify_current_panel_finds_contacts_manage_outside_main_content_region(self):
+        manage_button = FakeControl(
+            name="通讯录管理",
+            control_type="ButtonControl",
+            rect=(60, 160, 150, 192),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[manage_button],
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertEqual(result["panel"], PANEL_CONTACTS_NAME)
+        self.assertEqual(result["matchedRule"], "contacts_manage_button")
+
+    def test_identify_current_panel_uses_contacts_feature_count(self):
+        controls = [
+            FakeControl(name="新的朋友", control_type="TextControl", rect=(180, 160, 280, 192)),
+            FakeControl(name="公众号", control_type="TextControl", rect=(180, 210, 280, 242)),
+            FakeControl(name="企业微信联系人", control_type="TextControl", rect=(180, 260, 340, 292)),
+        ]
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=controls,
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertEqual(result["panel"], PANEL_CONTACTS_NAME)
+        self.assertEqual(result["matchedRule"], "contacts_feature_count")
+        self.assertEqual(result["contactFeatureMatchCount"], 3)
+
+    def test_identify_current_panel_requires_three_contacts_features(self):
+        controls = [
+            FakeControl(name="新的朋友", control_type="TextControl", rect=(180, 160, 280, 192)),
+            FakeControl(name="公众号", control_type="TextControl", rect=(180, 210, 280, 242)),
+        ]
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=controls,
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertIsNone(result["panel"])
+
+    def test_identify_current_panel_uses_all_favorites_rule_for_favorites_panel(self):
+        all_favorites = FakeControl(
+            name="全部收藏",
+            control_type="TextControl",
+            rect=(180, 160, 280, 192),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[all_favorites],
+        )
+
+        result = identify_current_panel(window)
+
+        self.assertEqual(result["panel"], "收藏")
+        self.assertEqual(result["matchedRule"], "all_favorites_entry")
+
     def test_find_plus_button_prefers_quick_action_button_next_to_search_box(self):
         search_box = FakeControl(
             name="搜索",
@@ -202,6 +401,139 @@ class WechatAutomationSelectorsTest(unittest.TestCase):
         result = find_request_greeting_editor(window)
 
         self.assertIs(result, greeting_edit)
+
+    def test_click_send_message_prefers_exact_button(self):
+        send_button = FakeControl(
+            name=SEND_MESSAGE_NAME,
+            control_type="ButtonControl",
+            rect=(520, 420, 640, 458),
+        )
+        hint_text = FakeControl(
+            name="发消息给对方",
+            control_type="TextControl",
+            rect=(300, 240, 420, 270),
+        )
+        profile_window = FakeControl(
+            name="添加朋友",
+            control_type="WindowControl",
+            rect=(120, 120, 760, 620),
+            children=[hint_text, send_button],
+        )
+        root = FakeControl(control_type="RootControl", children=[profile_window])
+        auto = FakeAuto(root)
+
+        result, candidates = click_send_message(auto, profile_window)
+
+        self.assertIs(result, send_button)
+        self.assertTrue(send_button.clicked)
+        self.assertGreaterEqual(len(candidates), 1)
+
+    def test_find_send_message_button_strict_does_not_click(self):
+        send_button = FakeControl(
+            name=SEND_MESSAGE_NAME,
+            control_type="ButtonControl",
+            rect=(520, 420, 640, 458),
+        )
+        profile_window = FakeControl(
+            name="添加朋友",
+            control_type="WindowControl",
+            rect=(120, 120, 760, 620),
+            children=[send_button],
+        )
+
+        result, candidates = find_send_message_button_strict(profile_window)
+
+        self.assertIs(result, send_button)
+        self.assertFalse(send_button.clicked)
+        self.assertEqual(candidates, [send_button])
+
+    def test_find_add_friend_result_actions_collects_actions_in_one_scan(self):
+        add_to_contacts_button = FakeControl(
+            name=ADD_TO_CONTACTS_NAME,
+            control_type="ButtonControl",
+            rect=(420, 420, 520, 458),
+        )
+        send_button = FakeControl(
+            name=SEND_MESSAGE_NAME,
+            control_type="ButtonControl",
+            rect=(540, 420, 640, 458),
+        )
+        profile_window = FakeControl(
+            name="添加朋友",
+            control_type="WindowControl",
+            rect=(120, 120, 760, 620),
+            children=[add_to_contacts_button, send_button],
+        )
+
+        actions = find_add_friend_result_actions(profile_window)
+
+        self.assertIs(actions["add_to_contacts"], add_to_contacts_button)
+        self.assertIs(actions["send_message"], send_button)
+        self.assertFalse(add_to_contacts_button.clicked)
+        self.assertFalse(send_button.clicked)
+
+    def test_click_add_to_contacts_does_not_fall_back_to_add_friend_label(self):
+        add_friend_label = FakeControl(
+            name=ADD_FRIEND_NAME,
+            control_type="TextControl",
+            rect=(300, 240, 420, 270),
+        )
+        profile_window = FakeControl(
+            name="添加朋友",
+            control_type="WindowControl",
+            rect=(120, 120, 760, 620),
+            children=[add_friend_label],
+        )
+        root = FakeControl(control_type="RootControl", children=[profile_window])
+        auto = FakeAuto(root)
+
+        result, _candidates = click_add_to_contacts_strict(auto, profile_window)
+
+        self.assertIsNone(result)
+        self.assertFalse(add_friend_label.clicked)
+
+    def test_click_add_to_contacts_strict_ignores_contacts_panel_button(self):
+        contacts_panel_button = FakeControl(
+            name="切换到通讯录",
+            control_type="ButtonControl",
+            class_name="ant-btn",
+            rect=(520, 420, 640, 458),
+        )
+        profile_window = FakeControl(
+            name="添加朋友",
+            control_type="WindowControl",
+            rect=(120, 120, 760, 620),
+            children=[],
+        )
+        root = FakeControl(control_type="RootControl", children=[profile_window, contacts_panel_button])
+        auto = FakeAuto(root)
+
+        result, _candidates = click_add_to_contacts_strict(auto, profile_window)
+
+        self.assertIsNone(result)
+        self.assertFalse(contacts_panel_button.clicked)
+
+    def test_find_chat_message_editor_prefers_bottom_multiline_editor(self):
+        search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(160, 170, 420, 202),
+        )
+        message_editor = FakeControl(
+            name="",
+            control_type="EditControl",
+            rect=(280, 560, 900, 660),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[search_box, message_editor],
+        )
+
+        result = find_chat_message_editor(window)
+
+        self.assertIs(result, message_editor)
 
     def test_build_menu_probe_region_is_clamped_inside_window(self):
         window_rect = (100, 100, 900, 700)

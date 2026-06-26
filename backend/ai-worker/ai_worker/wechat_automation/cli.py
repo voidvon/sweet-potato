@@ -6,7 +6,20 @@ import sys
 from typing import Any
 
 from .constants import DEFAULT_WINDOW_NAME
-from .flows import open_add_friend, probe_add_friend_menu, run_probe, send_message
+from .flows import (
+    click_add_friend_entry,
+    close_current_add_friend_windows,
+    focus_add_friend_search_box,
+    handle_current_add_friend_result,
+    identify_current_panel,
+    open_add_friend,
+    probe_add_friend_menu,
+    probe_quick_action,
+    run_probe,
+    search_add_friend_account,
+    send_message,
+    switch_panel,
+)
 from .uia import load_auto
 
 
@@ -25,6 +38,13 @@ def build_parser() -> argparse.ArgumentParser:
     probe_parser = subparsers.add_parser("probe", help="Probe top-level child controls")
     probe_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
 
+    identify_panel_parser = subparsers.add_parser("identify-current-panel", help="Identify current WeChat sidebar panel")
+    identify_panel_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+
+    switch_panel_parser = subparsers.add_parser("switch-panel", help="Switch WeChat sidebar panel")
+    switch_panel_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+    switch_panel_parser.add_argument("--panel", required=True, choices=("微信", "通讯录"), help="Target panel")
+
     add_friend_parser = subparsers.add_parser("open-add-friend", help="Open add-friend flow")
     add_friend_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
     add_friend_parser.add_argument("--account", required=True, help="Wechat id or phone number")
@@ -32,6 +52,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     probe_add_friend_parser = subparsers.add_parser("probe-add-friend-menu", help="Probe quick action menu")
     probe_add_friend_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+
+    probe_quick_action_parser = subparsers.add_parser("probe-quick-action", help="Probe quick action button without activating WeChat")
+    probe_quick_action_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+
+    click_add_friend_entry_parser = subparsers.add_parser("click-add-friend-entry", help="Click add friend entry from quick action menu")
+    click_add_friend_entry_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+
+    subparsers.add_parser("focus-add-friend-search", help="Focus add-friend search box")
+
+    search_add_friend_parser = subparsers.add_parser("search-add-friend-account", help="Input account in add-friend window and submit search")
+    search_add_friend_parser.add_argument("--account", required=True, help="Wechat id or phone number")
+
+    handle_add_friend_result_parser = subparsers.add_parser("handle-add-friend-result", help="Handle current add-friend search result")
+    handle_add_friend_result_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+    handle_add_friend_result_parser.add_argument("--greeting", required=True, help="Greeting content")
+
+    subparsers.add_parser("close-add-friend-windows", help="Close current add-friend windows")
 
     send_parser = subparsers.add_parser("send-message", help="Search contact and send a message")
     send_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
@@ -51,6 +88,24 @@ def main() -> int:
                 "ok": True,
                 "data": run_probe(auto, args.window_name),
             })
+        if args.command == "identify-current-panel":
+            logs, data = identify_current_panel(auto, args.window_name)
+            panel = data.get("panel")
+            return emit({
+                "ok": panel is not None,
+                "message": f"已识别当前微信面板: {panel}" if panel else "未能识别当前微信面板",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "switch-panel":
+            logs, data = switch_panel(auto, args.window_name, args.panel)
+            switched = bool(data.get("switched"))
+            return emit({
+                "ok": switched,
+                "message": f"已切换到{args.panel}面板" if switched else f"未能确认已切换到{args.panel}面板",
+                "logs": logs,
+                "data": data,
+            })
         if args.command == "open-add-friend":
             logs = open_add_friend(auto, args.window_name, args.account, args.greeting)
             return emit({
@@ -63,6 +118,63 @@ def main() -> int:
             return emit({
                 "ok": True,
                 "message": "已采集加号菜单控件信息",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "probe-quick-action":
+            logs, data = probe_quick_action(auto, args.window_name)
+            clicked = bool(data.get("clicked"))
+            menu_opened = bool(data.get("menuOpened"))
+            return emit({
+                "ok": clicked and menu_opened,
+                "message": (
+                    "已点击快捷操作按钮并检测到菜单展开"
+                    if clicked and menu_opened
+                    else "快捷操作按钮点击后未检测到菜单展开"
+                    if clicked
+                    else "后台未找到快捷操作按钮"
+                ),
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "click-add-friend-entry":
+            logs, data = click_add_friend_entry(auto, args.window_name)
+            window_opened = bool(data.get("addFriendWindowOpened"))
+            return emit({
+                "ok": window_opened,
+                "message": "已点击添加朋友入口并检测到添加朋友窗口" if window_opened else "已点击添加朋友入口，但未检测到添加朋友窗口",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "focus-add-friend-search":
+            logs, data = focus_add_friend_search_box(auto)
+            return emit({
+                "ok": True,
+                "message": "已聚焦添加朋友搜索框",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "search-add-friend-account":
+            logs, data = search_add_friend_account(auto, args.account)
+            return emit({
+                "ok": True,
+                "message": "已提交添加朋友账号搜索",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "handle-add-friend-result":
+            logs, data = handle_current_add_friend_result(auto, args.window_name, args.greeting)
+            return emit({
+                "ok": True,
+                "message": "已处理添加朋友搜索结果",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "close-add-friend-windows":
+            logs, data = close_current_add_friend_windows(auto)
+            return emit({
+                "ok": True,
+                "message": "已执行关闭添加朋友窗口",
                 "logs": logs,
                 "data": data,
             })

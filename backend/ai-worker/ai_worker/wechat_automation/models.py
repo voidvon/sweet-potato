@@ -20,3 +20,4 @@ class ProbeNode(TypedDict, total=False):
     depth: int
     source: str
     rect: Rect | None
+    score: int

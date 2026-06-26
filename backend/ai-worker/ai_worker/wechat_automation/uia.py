@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import time
 from typing import Any, Callable, Iterable
 
@@ -79,7 +80,32 @@ def probe_window(auto: Any, window_name: str) -> dict[str, Any]:
 
 def activate_window(window: Any) -> None:
     window.SetActive()
-    time.sleep(0.3)
+    time.sleep(0.12)
+
+
+def get_runtime_snapshot(auto: Any) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {}
+
+    position_getter = getattr(auto, "GetCursorPos", None)
+    if callable(position_getter):
+        try:
+            position = position_getter()
+            snapshot["cursorPosition"] = (
+                getattr(position, "x", getattr(position, "X", None)),
+                getattr(position, "y", getattr(position, "Y", None)),
+            )
+        except Exception as error:
+            snapshot["cursorPositionError"] = str(error)
+
+    foreground_getter = getattr(auto, "GetForegroundControl", None)
+    if callable(foreground_getter):
+        try:
+            foreground = foreground_getter()
+            snapshot["foreground"] = describe_control(foreground)
+        except Exception as error:
+            snapshot["foregroundError"] = str(error)
+
+    return snapshot
 
 
 def iter_controls(control: Any, depth: int = 0, max_depth: int = 5) -> Iterable[tuple[Any, int]]:
@@ -221,6 +247,84 @@ def replace_text(auto: Any, control: Any, value: str) -> None:
     auto.SendKeys("{Del}")
     time.sleep(0.1)
     auto.SendKeys(value)
+
+
+def click_control(auto: Any, control: Any, *, prefer_rect_center: bool = False) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "preferRectCenter": prefer_rect_center,
+        "control": describe_control(control),
+        "rect": get_rect_tuple(control),
+        "method": None,
+        "center": None,
+        "focusAttempted": False,
+        "focusSucceeded": None,
+        "errors": [],
+    }
+    diagnostics["beforeSnapshot"] = get_runtime_snapshot(auto)
+
+    set_focus = getattr(control, "SetFocus", None)
+    if callable(set_focus):
+        diagnostics["focusAttempted"] = True
+        try:
+            set_focus()
+            diagnostics["focusSucceeded"] = True
+            time.sleep(0.05)
+        except Exception as error:
+            diagnostics["focusSucceeded"] = False
+            diagnostics["errors"].append(f"SetFocus failed: {error}")
+
+    if prefer_rect_center:
+        rect = get_rect_tuple(control)
+        click_fn = getattr(auto, "Click", None)
+        if rect is not None and callable(click_fn):
+            center_x, center_y = rect_center(rect)
+            diagnostics["center"] = (center_x, center_y)
+            try:
+                click_fn(center_x, center_y)
+                diagnostics["method"] = "auto.Click(rect_center)"
+                time.sleep(0.05)
+                diagnostics["afterSnapshot"] = get_runtime_snapshot(auto)
+                return diagnostics
+            except Exception as error:
+                diagnostics["errors"].append(f"auto.Click failed: {error}")
+
+    control.Click(simulateMove=False)
+    diagnostics["method"] = "control.Click(simulateMove=False)"
+    time.sleep(0.05)
+    diagnostics["afterSnapshot"] = get_runtime_snapshot(auto)
+    return diagnostics
+
+
+def physical_click_rect_center(auto: Any, control: Any) -> dict[str, Any]:
+    rect = get_rect_tuple(control)
+    diagnostics: dict[str, Any] = {
+        "control": describe_control(control),
+        "rect": rect,
+        "method": "win32.mouse_event(left_down_up)",
+        "center": None,
+        "beforeSnapshot": get_runtime_snapshot(auto),
+        "afterSnapshot": None,
+        "errors": [],
+    }
+    if rect is None:
+        diagnostics["errors"].append("control rect is unavailable")
+        return diagnostics
+
+    center_x, center_y = rect_center(rect)
+    diagnostics["center"] = (center_x, center_y)
+    try:
+        user32 = ctypes.windll.user32
+        user32.SetCursorPos(center_x, center_y)
+        time.sleep(0.05)
+        user32.mouse_event(0x0002, 0, 0, 0, 0)
+        time.sleep(0.08)
+        user32.mouse_event(0x0004, 0, 0, 0, 0)
+        time.sleep(0.08)
+    except Exception as error:
+        diagnostics["errors"].append(f"physical click failed: {error}")
+
+    diagnostics["afterSnapshot"] = get_runtime_snapshot(auto)
+    return diagnostics
 
 
 def click_first_existing(control_factories: list[tuple[Any, dict[str, Any]]], timeout: float = 0.3) -> Any | None:

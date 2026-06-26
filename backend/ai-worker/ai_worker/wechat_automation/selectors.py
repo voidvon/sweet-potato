@@ -6,9 +6,13 @@ from typing import Any
 from .constants import (
     ADD_FRIEND_NAME,
     ADD_TO_CONTACTS_NAME,
+    PANEL_CHAT_NAME,
+    PANEL_CONTACTS_NAME,
+    PANEL_FAVORITES_NAME,
     QUICK_ACTION_NAME,
     REQUEST_FRIEND_NAME,
     REQUEST_LABEL_NAME,
+    SEND_MESSAGE_NAME,
 )
 from .models import ProbeNode, Rect
 from .uia import (
@@ -74,6 +78,397 @@ def is_top_toolbar_button(rect: Rect, window_rect: Rect) -> bool:
     if left < win_left:
         return False
     return True
+
+
+def is_sidebar_control(rect: Rect, window_rect: Rect) -> bool:
+    win_left, win_top, win_right, win_bottom = window_rect
+    width = max(win_right - win_left, 1)
+    center_x, center_y = rect_center(rect)
+    return (
+        win_left <= center_x <= win_left + max(120, int(width * 0.16))
+        and win_top <= center_y <= win_bottom
+    )
+
+
+def is_sidebar_nav_candidate(control: Any, rect: Rect, window_rect: Rect) -> bool:
+    if not is_sidebar_control(rect, window_rect):
+        return False
+
+    type_name = control_type(control)
+    if type_name not in {"ButtonControl", "ListItemControl", "PaneControl", "GroupControl", "CustomControl", "TextControl"}:
+        return False
+
+    width = rect[2] - rect[0]
+    height = rect[3] - rect[1]
+    if width > 120 or height > 96:
+        return False
+
+    win_top = window_rect[1]
+    # Keep the first navigation icon; WeChat's avatar/title area varies by version and DPI.
+    return rect[1] >= win_top + 24
+
+
+def is_main_content_control(rect: Rect, window_rect: Rect) -> bool:
+    win_left, win_top, win_right, win_bottom = window_rect
+    width = max(win_right - win_left, 1)
+    center_x, center_y = rect_center(rect)
+    return (
+        center_x >= win_left + max(120, int(width * 0.16))
+        and win_top <= center_y <= win_bottom
+    )
+
+
+def _read_bool_like(value: Any) -> bool | None:
+    if callable(value):
+        try:
+            value = value()
+        except Exception:
+            value = None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "on", "selected", "checked", "pressed"}:
+            return True
+        if normalized in {"false", "0", "off", "unselected", "unchecked", "normal"}:
+            return False
+    return None
+
+
+def _read_toggle_state(value: Any) -> bool | None:
+    if callable(value):
+        try:
+            value = value()
+        except Exception:
+            value = None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        # UIA ToggleState: 0=Off, 1=On, 2=Indeterminate.
+        if value == 1:
+            return True
+        if value == 0:
+            return False
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"on", "toggleon", "1", "true"}:
+            return True
+        if normalized in {"off", "toggleoff", "0", "false"}:
+            return False
+    return None
+
+
+def _read_legacy_state(value: Any) -> bool | None:
+    if callable(value):
+        try:
+            value = value()
+        except Exception:
+            value = None
+    if isinstance(value, int):
+        selected = bool(value & 0x2)
+        checked = bool(value & 0x10)
+        pressed = bool(value & 0x8)
+        if selected or checked or pressed:
+            return True
+    if isinstance(value, str):
+        normalized = value.lower()
+        if any(token in normalized for token in ("selected", "checked", "pressed", "选中", "已选")):
+            return True
+    return None
+
+
+def _read_direct_selected_state_details(control: Any) -> dict[str, Any]:
+    for attr_name in ("IsSelected", "Selected"):
+        selected = _read_bool_like(getattr(control, attr_name, None))
+        if selected is not None:
+            return {"selected": selected, "source": attr_name}
+
+    selection_pattern_getter = getattr(control, "GetSelectionItemPattern", None)
+    if callable(selection_pattern_getter):
+        try:
+            selection_pattern = selection_pattern_getter()
+        except Exception:
+            selection_pattern = None
+        if selection_pattern is not None:
+            selected = _read_bool_like(getattr(selection_pattern, "IsSelected", None))
+            if selected is not None:
+                return {"selected": selected, "source": "SelectionItemPattern.IsSelected"}
+
+    toggle_pattern_getter = getattr(control, "GetTogglePattern", None)
+    if callable(toggle_pattern_getter):
+        try:
+            toggle_pattern = toggle_pattern_getter()
+        except Exception:
+            toggle_pattern = None
+        if toggle_pattern is not None:
+            selected = _read_toggle_state(getattr(toggle_pattern, "ToggleState", None))
+            if selected is not None:
+                return {"selected": selected, "source": "TogglePattern.ToggleState"}
+
+    legacy_pattern_getter = getattr(control, "GetLegacyIAccessiblePattern", None)
+    if callable(legacy_pattern_getter):
+        try:
+            legacy_pattern = legacy_pattern_getter()
+        except Exception:
+            legacy_pattern = None
+        if legacy_pattern is not None:
+            for attr_name in ("State", "CurrentState"):
+                selected = _read_legacy_state(getattr(legacy_pattern, attr_name, None))
+                if selected is not None:
+                    return {"selected": selected, "source": f"LegacyIAccessiblePattern.{attr_name}"}
+
+    return {"selected": None, "source": None}
+
+
+def read_selected_state_details(control: Any) -> dict[str, Any]:
+    details: dict[str, Any] = {"selected": None, "source": None}
+
+    for attr_name in ("IsSelected", "Selected"):
+        selected = _read_bool_like(getattr(control, attr_name, None))
+        if selected is not None:
+            return {"selected": selected, "source": attr_name}
+
+    selection_pattern_getter = getattr(control, "GetSelectionItemPattern", None)
+    if callable(selection_pattern_getter):
+        try:
+            selection_pattern = selection_pattern_getter()
+        except Exception:
+            selection_pattern = None
+        if selection_pattern is not None:
+            selected = _read_bool_like(getattr(selection_pattern, "IsSelected", None))
+            if selected is not None:
+                return {"selected": selected, "source": "SelectionItemPattern.IsSelected"}
+
+    toggle_pattern_getter = getattr(control, "GetTogglePattern", None)
+    if callable(toggle_pattern_getter):
+        try:
+            toggle_pattern = toggle_pattern_getter()
+        except Exception:
+            toggle_pattern = None
+        if toggle_pattern is not None:
+            selected = _read_toggle_state(getattr(toggle_pattern, "ToggleState", None))
+            if selected is not None:
+                return {"selected": selected, "source": "TogglePattern.ToggleState"}
+
+    legacy_pattern_getter = getattr(control, "GetLegacyIAccessiblePattern", None)
+    if callable(legacy_pattern_getter):
+        try:
+            legacy_pattern = legacy_pattern_getter()
+        except Exception:
+            legacy_pattern = None
+        if legacy_pattern is not None:
+            for attr_name in ("State", "CurrentState"):
+                selected = _read_legacy_state(getattr(legacy_pattern, attr_name, None))
+                if selected is not None:
+                    return {"selected": selected, "source": f"LegacyIAccessiblePattern.{attr_name}"}
+
+    for child, _depth in iter_controls(control, max_depth=1):
+        child_details = _read_direct_selected_state_details(child)
+        if child_details.get("selected") is True:
+            child_details["source"] = f"child.{child_details.get('source')}"
+            child_details["control"] = describe_control(child)
+            return child_details
+
+    parent_getter = getattr(control, "GetParentControl", None)
+    if callable(parent_getter):
+        try:
+            parent = parent_getter()
+        except Exception:
+            parent = None
+        if parent is not None:
+            parent_details = _read_direct_selected_state_details(parent)
+            if parent_details.get("selected") is True:
+                parent_details["source"] = f"parent.{parent_details.get('source')}"
+                parent_details["control"] = describe_control(parent)
+                return parent_details
+
+    return details
+
+
+def read_selected_state(control: Any) -> bool | None:
+    details = read_selected_state_details(control)
+    selected = details.get("selected")
+    return selected if isinstance(selected, bool) else None
+
+
+def match_panel_from_text(text: str, panel_aliases: dict[str, tuple[str, ...]]) -> str | None:
+    if not text:
+        return None
+    return next(
+        (
+            panel
+            for panel, aliases in panel_aliases.items()
+            if any(alias == text or alias in text for alias in aliases)
+        ),
+        None,
+    )
+
+
+def infer_panel_from_sidebar_order(index: int) -> str | None:
+    ordered_panels = (PANEL_CHAT_NAME, PANEL_CONTACTS_NAME, PANEL_FAVORITES_NAME)
+    if 0 <= index < len(ordered_panels):
+        return ordered_panels[index]
+    return None
+
+
+def find_sidebar_panel_button(window: Any, panel: str) -> tuple[Any | None, dict[str, Any]]:
+    window_rect = get_rect_tuple(window)
+    if not window_rect:
+        raise RuntimeError("无法读取微信窗口坐标，无法定位侧边栏面板按钮")
+
+    panel_aliases = {
+        PANEL_CHAT_NAME: (PANEL_CHAT_NAME, "聊天", "会话", "消息"),
+        PANEL_CONTACTS_NAME: (PANEL_CONTACTS_NAME, "通讯录", "联系人", "朋友"),
+    }
+    aliases = panel_aliases.get(panel)
+    if not aliases:
+        raise RuntimeError(f"不支持切换到面板: {panel}")
+
+    candidates: list[tuple[int, int, Any]] = []
+    nav_controls: list[tuple[int, Any]] = []
+    for control, depth in iter_controls(window, max_depth=10):
+        rect = get_rect_tuple(control)
+        if rect is None or not is_sidebar_nav_candidate(control, rect, window_rect):
+            continue
+
+        center_y = rect_center(rect)[1]
+        if any(abs(center_y - existing_y) <= 12 for existing_y, _control in nav_controls):
+            continue
+        nav_controls.append((center_y, control))
+
+        name = control_name(control)
+        if any(alias == name or alias in name for alias in aliases):
+            score = 30
+            if control_type(control) == "ButtonControl":
+                score += 8
+            elif control_type(control) in {"PaneControl", "CustomControl", "GroupControl"}:
+                score += 4
+            candidates.append((score, depth, control))
+
+    if candidates:
+        candidates.sort(key=lambda item: (-item[0], item[1]))
+        best = candidates[0][2]
+        return best, {
+            "method": "sidebar_name",
+            "targetPanel": panel,
+            "control": serialize_probe_node(best, candidates[0][1], "window"),
+        }
+
+    nav_controls.sort(key=lambda item: item[0])
+    target_index = 0 if panel == PANEL_CHAT_NAME else 1 if panel == PANEL_CONTACTS_NAME else -1
+    if 0 <= target_index < len(nav_controls):
+        control = nav_controls[target_index][1]
+        return control, {
+            "method": "sidebar_order",
+            "targetPanel": panel,
+            "targetIndex": target_index,
+            "control": serialize_probe_node(control, target_index, "window"),
+            "navControlCount": len(nav_controls),
+        }
+
+    return None, {
+        "method": "not_found",
+        "targetPanel": panel,
+        "navControlCount": len(nav_controls),
+    }
+
+
+
+def identify_current_panel(window: Any) -> dict[str, Any]:
+    window_rect = get_rect_tuple(window)
+    if not window_rect:
+        raise RuntimeError("无法读取微信窗口坐标，无法识别当前面板")
+
+    rule_matches: list[dict[str, Any]] = []
+    window_control_names: list[str] = []
+    rules = (
+        (PANEL_CONTACTS_NAME, "通讯录管理", "contacts_manage_button"),
+        (PANEL_FAVORITES_NAME, "全部收藏", "all_favorites_entry"),
+        (PANEL_CHAT_NAME, QUICK_ACTION_NAME, "quick_action_button"),
+    )
+    contact_feature_rules = (
+        ("new_friends", "新的朋友", "contains"),
+        ("official_accounts", "公众号", "startswith"),
+        ("service_accounts", "服务号", "startswith"),
+        ("enterprise_wechat_contacts", "企业微信联系人", "startswith"),
+        ("contacts", "联系人", "startswith"),
+    )
+    contact_feature_matches: dict[str, dict[str, Any]] = {}
+
+    for control, depth in iter_controls(window, max_depth=12):
+        name = control_name(control)
+        if not name:
+            continue
+        rect = get_rect_tuple(control)
+        if rect is not None and not rect_center_within(rect, window_rect, tolerance=24):
+            continue
+        window_control_names.append(name)
+        for panel, keyword, rule in rules:
+            if keyword == name or keyword in name:
+                payload = serialize_probe_node(control, depth, "window")
+                payload["panel"] = panel
+                payload["keyword"] = keyword
+                payload["rule"] = rule
+                rule_matches.append(payload)
+        for feature, keyword, match_type in contact_feature_rules:
+            matched = keyword in name if match_type == "contains" else name.startswith(keyword)
+            if not matched or feature in contact_feature_matches:
+                continue
+            payload = serialize_probe_node(control, depth, "window")
+            payload["feature"] = feature
+            payload["keyword"] = keyword
+            payload["matchType"] = match_type
+            contact_feature_matches[feature] = payload
+
+    if len(contact_feature_matches) >= 3:
+        matches = list(contact_feature_matches.values())
+        return {
+            "panel": PANEL_CONTACTS_NAME,
+            "confidence": 0.92,
+            "method": "contacts_feature_count",
+            "matchedRule": "contacts_feature_count",
+            "matchedKeyword": " / ".join(str(item.get("keyword")) for item in matches),
+            "contactFeatureMatchCount": len(matches),
+            "contactFeatureMatches": matches,
+            "signals": [f"命中 {len(matches)} 个通讯录特征，判定为“{PANEL_CONTACTS_NAME}”面板"],
+            "mainControlNames": window_control_names[:80],
+            "windowControlNames": window_control_names[:80],
+        }
+
+    if rule_matches:
+        rule_priority = {
+            "contacts_manage_button": 0,
+            "all_favorites_entry": 1,
+            "quick_action_button": 2,
+        }
+        rule_matches.sort(key=lambda item: (rule_priority.get(str(item.get("rule")), 99), item.get("depth", 99)))
+        best_match = rule_matches[0]
+        panel = best_match.get("panel")
+        keyword = best_match.get("keyword")
+        return {
+            "panel": panel,
+            "confidence": 0.96,
+            "method": "main_content_rule",
+            "matchedRule": best_match.get("rule"),
+            "matchedKeyword": keyword,
+            "matchedControl": best_match,
+            "ruleMatches": rule_matches[:20],
+            "signals": [f"微信窗口内存在“{keyword}”，判定为“{panel}”面板"],
+            "mainControlNames": window_control_names[:80],
+            "windowControlNames": window_control_names[:80],
+        }
+
+    return {
+        "panel": None,
+        "confidence": 0.0,
+        "method": "main_content_rule",
+        "matchedRule": None,
+        "signals": ["未命中面板识别规则：快捷操作 / 通讯录管理 / 全部收藏"],
+        "mainControlNames": window_control_names[:80],
+        "windowControlNames": window_control_names[:80],
+    }
 
 
 def is_control_in_wechat_region(control: Any, window_rect: Rect, menu_region: Rect) -> bool:
@@ -228,7 +623,13 @@ def find_named_control_in_window(
     return None
 
 
-def find_exact_button_by_name(window: Any, name: str, search_depth: int = 24) -> Any | None:
+def find_exact_button_by_name(
+    window: Any,
+    name: str,
+    search_depth: int = 24,
+    *,
+    exists_timeout: float = 0.3,
+) -> Any | None:
     button_factory = getattr(window, "ButtonControl", None)
     if not callable(button_factory):
         return None
@@ -236,7 +637,7 @@ def find_exact_button_by_name(window: Any, name: str, search_depth: int = 24) ->
         control = button_factory(Name=name, searchDepth=search_depth)
     except Exception:
         return None
-    return control if control.Exists(0.3) else None
+    return control if control.Exists(exists_timeout) else None
 
 
 def find_plus_button(window: Any) -> Any:
@@ -244,7 +645,9 @@ def find_plus_button(window: Any) -> Any:
     if not window_rect:
         raise RuntimeError("无法读取微信窗口坐标，无法定位快捷操作按钮")
 
-    exact_quick_action = find_exact_button_by_name(window, QUICK_ACTION_NAME)
+    exact_quick_action = find_exact_button_by_name(window, QUICK_ACTION_NAME, search_depth=8, exists_timeout=0.05)
+    if exact_quick_action is None:
+        exact_quick_action = find_exact_button_by_name(window, QUICK_ACTION_NAME)
     if exact_quick_action is None:
         exact_quick_action = find_named_control_in_window(window, (QUICK_ACTION_NAME,))
     if exact_quick_action is not None:
@@ -280,14 +683,68 @@ def find_plus_button(window: Any) -> Any:
     return best_control
 
 
-def find_quick_action_list(window: Any, search_depth: int = 24) -> Any | None:
+def collect_quick_action_button_probe(window: Any) -> tuple[ProbeNode | None, list[ProbeNode]]:
+    window_rect = get_rect_tuple(window)
+    if not window_rect:
+        raise RuntimeError("无法读取微信窗口坐标，无法探测快捷操作按钮")
+
+    search_box = find_search_box(window, window_rect)
+    search_rect = get_rect_tuple(search_box) if search_box is not None else None
+    candidates: list[tuple[int, int, Any]] = []
+
+    exact_quick_action = find_exact_button_by_name(window, QUICK_ACTION_NAME, search_depth=8, exists_timeout=0.05)
+    if exact_quick_action is None:
+        exact_quick_action = find_exact_button_by_name(window, QUICK_ACTION_NAME)
+    if exact_quick_action is None:
+        exact_quick_action = find_named_control_in_window(window, (QUICK_ACTION_NAME,))
+    if exact_quick_action is not None:
+        rect = get_rect_tuple(exact_quick_action)
+        if rect is not None:
+            score = score_plus_candidate(exact_quick_action, window_rect, search_rect)
+            if is_top_toolbar_button(rect, window_rect):
+                score += 20
+            candidates.append((score, 0, exact_quick_action))
+
+    for control, depth in iter_controls(window, max_depth=8):
+        rect = get_rect_tuple(control)
+        if rect is None or not is_top_toolbar_button(rect, window_rect):
+            continue
+
+        score = score_plus_candidate(control, window_rect, search_rect)
+        if control_name(control) == QUICK_ACTION_NAME:
+            score += 20
+        if search_rect is not None:
+            if rect[0] >= search_rect[2] - 4 and is_same_row(rect, search_rect, tolerance=22):
+                score += 8
+            elif control_name(control) != QUICK_ACTION_NAME:
+                score -= 16
+        if score <= 0:
+            continue
+        candidates.append((score, depth, control))
+
+    seen: set[str] = set()
+    nodes: list[ProbeNode] = []
+    for score, depth, control in sorted(candidates, key=lambda item: item[0], reverse=True):
+        payload = serialize_probe_node(control, depth, "window")
+        payload["score"] = score
+        dedupe_key = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        nodes.append(payload)
+
+    best = nodes[0] if nodes else None
+    return best, nodes[:20]
+
+
+def find_quick_action_list(window: Any, search_depth: int = 24, exists_timeout: float = 0.3) -> Any | None:
     list_factory = getattr(window, "ListControl", None)
     if callable(list_factory):
         try:
             control = list_factory(Name=QUICK_ACTION_NAME, searchDepth=search_depth)
         except Exception:
             control = None
-        if control is not None and control.Exists(0.3):
+        if control is not None and control.Exists(exists_timeout):
             return control
 
     for control, _depth in iter_controls(window, max_depth=search_depth):
@@ -677,9 +1134,7 @@ def find_request_greeting_editor_from_root(auto: Any, request_window: Any) -> An
 def click_add_to_contacts(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
     factories = [
         (getattr(window, "ButtonControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
-        (getattr(window, "ButtonControl", None), {"Name": ADD_FRIEND_NAME, "searchDepth": 18}),
         (getattr(window, "ListItemControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
-        (getattr(window, "ListItemControl", None), {"Name": ADD_FRIEND_NAME, "searchDepth": 18}),
         (getattr(window, "TextControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
     ]
     control = click_first_existing(factories)
@@ -689,7 +1144,277 @@ def click_add_to_contacts(auto: Any, window: Any) -> tuple[Any | None, list[Any]
     window_rect = get_rect_tuple(window)
     best_in_window, window_candidates = find_best_action_control(
         window,
-        exact_names=(ADD_TO_CONTACTS_NAME, ADD_FRIEND_NAME),
+        exact_names=(ADD_TO_CONTACTS_NAME,),
+        partial_names=(ADD_TO_CONTACTS_NAME,),
+        max_depth=18,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_in_window is not None:
+        best_in_window.Click(simulateMove=False)
+        return best_in_window, window_candidates
+
+    root = auto.GetRootControl()
+    root_factories = [
+        (getattr(root, "ButtonControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 24}),
+    ]
+    control = click_first_existing(root_factories)
+    if control is not None:
+        return control, [control]
+
+    best_from_root, root_candidates = find_best_action_control(
+        root,
+        exact_names=(ADD_TO_CONTACTS_NAME,),
+        partial_names=(ADD_TO_CONTACTS_NAME,),
+        max_depth=24,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_from_root is not None:
+        best_from_root.Click(simulateMove=False)
+        return best_from_root, root_candidates
+
+    fallback_from_root, fallback_candidates = find_best_action_control(
+        root,
+        exact_names=(ADD_TO_CONTACTS_NAME,),
+        partial_names=(ADD_TO_CONTACTS_NAME,),
+        max_depth=24,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if fallback_from_root is not None:
+        fallback_from_root.Click(simulateMove=False)
+        return fallback_from_root, fallback_candidates
+
+    return None, window_candidates + root_candidates + fallback_candidates
+
+
+def click_send_request(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
+    factories = [
+        (getattr(window, "ButtonControl", None), {"Name": "发送", "searchDepth": 18}),
+        (getattr(window, "ButtonControl", None), {"Name": "发送申请", "searchDepth": 18}),
+        (getattr(window, "ButtonControl", None), {"Name": "确认", "searchDepth": 18}),
+        (getattr(window, "ButtonControl", None), {"Name": "确定", "searchDepth": 18}),
+        (getattr(window, "TextControl", None), {"Name": "发送", "searchDepth": 18}),
+    ]
+    control = click_first_existing(factories)
+    if control is not None:
+        return control, [control]
+
+    window_rect = get_rect_tuple(window)
+    best_in_window, window_candidates = find_best_action_control(
+        window,
+        exact_names=("发送", "发送申请", "确认", "确定"),
+        partial_names=("发送", "申请", "确认", "确定"),
+        max_depth=18,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_in_window is not None:
+        best_in_window.Click(simulateMove=False)
+        return best_in_window, window_candidates
+
+    root = auto.GetRootControl()
+    best_from_root, root_candidates = find_best_action_control(
+        root,
+        exact_names=("发送", "发送申请", "确认", "确定"),
+        partial_names=("发送", "申请", "确认", "确定"),
+        max_depth=24,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_from_root is not None:
+        best_from_root.Click(simulateMove=False)
+        return best_from_root, root_candidates
+
+    fallback_from_root, fallback_candidates = find_best_action_control(
+        root,
+        exact_names=("发送", "发送申请", "确认", "确定"),
+        partial_names=("发送", "申请", "确认", "确定"),
+        max_depth=24,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if fallback_from_root is not None:
+        fallback_from_root.Click(simulateMove=False)
+        return fallback_from_root, fallback_candidates
+
+    return None, window_candidates + root_candidates + fallback_candidates
+
+
+def click_add_to_contacts_strict(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
+    window_rect = get_rect_tuple(window)
+    factories = [
+        (getattr(window, "ButtonControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+        (getattr(window, "ListItemControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+        (getattr(window, "TextControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+    ]
+    control = click_first_existing(factories)
+    if control is not None:
+        return control, [control]
+
+    best_in_window, window_candidates = find_best_action_control(
+        window,
+        exact_names=(ADD_TO_CONTACTS_NAME,),
+        partial_names=(ADD_TO_CONTACTS_NAME,),
+        max_depth=18,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_in_window is not None:
+        best_in_window.Click(simulateMove=False)
+        return best_in_window, window_candidates
+
+    root = auto.GetRootControl()
+    root_factories = [
+        (getattr(root, "ButtonControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 24}),
+        (getattr(root, "ListItemControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 24}),
+        (getattr(root, "TextControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 24}),
+    ]
+    for factory, kwargs in root_factories:
+        if not callable(factory):
+            continue
+        try:
+            control = factory(**kwargs)
+        except Exception:
+            continue
+        if not control.Exists(0.1):
+            continue
+        rect = get_rect_tuple(control)
+        if window_rect is not None and rect is not None and rect_center_within(rect, window_rect, tolerance=24):
+            control.Click(simulateMove=False)
+            return control, [control]
+
+    best_from_root, root_candidates = find_best_action_control(
+        root,
+        exact_names=(ADD_TO_CONTACTS_NAME,),
+        partial_names=(ADD_TO_CONTACTS_NAME,),
+        max_depth=24,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_from_root is not None:
+        best_from_root.Click(simulateMove=False)
+        return best_from_root, root_candidates
+
+    return None, window_candidates + root_candidates
+
+
+def find_chat_message_editor(window: Any) -> Any | None:
+    window_rect = get_rect_tuple(window)
+    if window_rect is None:
+        return None
+
+    win_width = max(window_rect[2] - window_rect[0], 1)
+    win_height = max(window_rect[3] - window_rect[1], 1)
+    candidates: list[tuple[int, Any]] = []
+
+    for control, _depth in iter_controls(window, max_depth=16):
+        type_name = control_type(control)
+        if type_name not in {"EditControl", "DocumentControl"}:
+            continue
+
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, window_rect, tolerance=24):
+            continue
+
+        width = rect[2] - rect[0]
+        height = rect[3] - rect[1]
+        center_x, center_y = rect_center(rect)
+        score = 18 if type_name == "EditControl" else 14
+
+        if center_y >= window_rect[1] + int(win_height * 0.58):
+            score += 14
+        if center_x >= window_rect[0] + int(win_width * 0.20):
+            score += 4
+        if width >= max(220, int(win_width * 0.28)):
+            score += 8
+        if 40 <= height <= 220:
+            score += 8
+        if height >= 60:
+            score += 4
+
+        name = control_name(control)
+        if "输入" in name or "消息" in name or "chat" in name.lower() or "message" in name.lower():
+            score += 8
+
+        candidates.append((score, control))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    best_score, best_control = candidates[0]
+    return best_control if best_score >= 24 else None
+
+
+def find_chat_message_editor_from_root(auto: Any, window: Any) -> Any | None:
+    window_rect = get_rect_tuple(window)
+    if window_rect is None:
+        return None
+
+    root = auto.GetRootControl()
+    win_width = max(window_rect[2] - window_rect[0], 1)
+    win_height = max(window_rect[3] - window_rect[1], 1)
+    candidates: list[tuple[int, Any]] = []
+
+    for control, _depth in iter_controls(root, max_depth=12):
+        type_name = control_type(control)
+        if type_name not in {"EditControl", "DocumentControl"}:
+            continue
+
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, window_rect, tolerance=48):
+            continue
+
+        width = rect[2] - rect[0]
+        height = rect[3] - rect[1]
+        center_x, center_y = rect_center(rect)
+        score = 18 if type_name == "EditControl" else 14
+
+        if center_y >= window_rect[1] + int(win_height * 0.58):
+            score += 14
+        if center_x >= window_rect[0] + int(win_width * 0.20):
+            score += 4
+        if width >= max(220, int(win_width * 0.28)):
+            score += 8
+        if 40 <= height <= 220:
+            score += 8
+        if height >= 60:
+            score += 4
+
+        name = control_name(control)
+        if "输入" in name or "消息" in name or "chat" in name.lower() or "message" in name.lower():
+            score += 8
+
+        candidates.append((score, control))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    best_score, best_control = candidates[0]
+    return best_control if best_score >= 24 else None
+
+
+def click_add_to_contacts(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
+    factories = [
+        (getattr(window, "ButtonControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+        (getattr(window, "ListItemControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+        (getattr(window, "TextControl", None), {"Name": ADD_TO_CONTACTS_NAME, "searchDepth": 18}),
+    ]
+    control = click_first_existing(factories)
+    if control is not None:
+        return control, [control]
+
+    window_rect = get_rect_tuple(window)
+    best_in_window, window_candidates = find_best_action_control(
+        window,
+        exact_names=(ADD_TO_CONTACTS_NAME,),
         partial_names=(ADD_TO_CONTACTS_NAME, ADD_FRIEND_NAME, "添加"),
         max_depth=18,
         within_rect=window_rect,
@@ -735,6 +1460,120 @@ def click_add_to_contacts(auto: Any, window: Any) -> tuple[Any | None, list[Any]
         return fallback_from_root, fallback_candidates
 
     return None, window_candidates + root_candidates + fallback_candidates
+
+
+def click_send_message(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
+    factories = [
+        (getattr(window, "ButtonControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+        (getattr(window, "ListItemControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+        (getattr(window, "TextControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+    ]
+    control = click_first_existing(factories)
+    if control is not None:
+        return control, [control]
+
+    window_rect = get_rect_tuple(window)
+    best_in_window, window_candidates = find_best_action_control(
+        window,
+        exact_names=(SEND_MESSAGE_NAME,),
+        partial_names=(SEND_MESSAGE_NAME, "消息"),
+        max_depth=18,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_in_window is not None:
+        best_in_window.Click(simulateMove=False)
+        return best_in_window, window_candidates
+
+    root = auto.GetRootControl()
+    best_from_root, root_candidates = find_best_action_control(
+        root,
+        exact_names=(SEND_MESSAGE_NAME,),
+        partial_names=(SEND_MESSAGE_NAME, "消息"),
+        max_depth=24,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if best_from_root is not None:
+        best_from_root.Click(simulateMove=False)
+        return best_from_root, root_candidates
+
+    fallback_from_root, fallback_candidates = find_best_action_control(
+        root,
+        exact_names=(SEND_MESSAGE_NAME,),
+        partial_names=(SEND_MESSAGE_NAME, "消息"),
+        max_depth=24,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    if fallback_from_root is not None:
+        fallback_from_root.Click(simulateMove=False)
+        return fallback_from_root, fallback_candidates
+
+    return None, window_candidates + root_candidates + fallback_candidates
+
+
+def find_send_message_button_strict(window: Any) -> tuple[Any | None, list[Any]]:
+    factories = [
+        (getattr(window, "ButtonControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+        (getattr(window, "ListItemControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+        (getattr(window, "TextControl", None), {"Name": SEND_MESSAGE_NAME, "searchDepth": 18}),
+    ]
+    for factory, kwargs in factories:
+        if not callable(factory):
+            continue
+        try:
+            control = factory(**kwargs)
+        except Exception:
+            continue
+        if control.Exists(0.2):
+            return control, [control]
+
+    window_rect = get_rect_tuple(window)
+    best_in_window, window_candidates = find_best_action_control(
+        window,
+        exact_names=(SEND_MESSAGE_NAME,),
+        partial_names=(),
+        max_depth=18,
+        within_rect=window_rect,
+        prefer_lower_half=True,
+        prefer_right_half=True,
+    )
+    return best_in_window, window_candidates
+
+
+def find_add_friend_result_actions(window: Any) -> dict[str, Any]:
+    window_rect = get_rect_tuple(window)
+    actions: dict[str, Any] = {
+        "send_message": None,
+        "add_to_contacts": None,
+        "candidates": [],
+    }
+    if window_rect is None:
+        return actions
+
+    for control, _depth in iter_controls(window, max_depth=18):
+        type_name = control_type(control)
+        if type_name not in {"ButtonControl", "ListItemControl", "TextControl"}:
+            continue
+
+        name = control_name(control)
+        if name not in {SEND_MESSAGE_NAME, ADD_TO_CONTACTS_NAME}:
+            continue
+
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, window_rect, tolerance=24):
+            continue
+
+        actions["candidates"].append(control)
+        if name == SEND_MESSAGE_NAME and actions["send_message"] is None:
+            actions["send_message"] = control
+        elif name == ADD_TO_CONTACTS_NAME and actions["add_to_contacts"] is None:
+            actions["add_to_contacts"] = control
+
+    return actions
 
 
 def click_send_request(auto: Any, window: Any) -> tuple[Any | None, list[Any]]:
