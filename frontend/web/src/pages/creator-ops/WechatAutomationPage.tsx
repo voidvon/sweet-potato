@@ -8,8 +8,8 @@ import {
   handleWechatAddFriendResult,
   identifyWechatCurrentPanel,
   isElectronEgg,
-  openWechatAddFriend,
   searchWechatAddFriendAccount,
+  searchOpenWechatFriend,
   sendWechatCurrentChatMessage,
   switchWechatPanel,
   type WechatAutomationActionResult,
@@ -144,6 +144,18 @@ export function WechatAutomationPage() {
     }));
   }
 
+  async function handleSearchOpenFriend() {
+    if (!account.trim()) {
+      message.error('请输入好友关键词');
+      return;
+    }
+
+    await runToolAction('搜索朋友并打开', () => searchOpenWechatFriend({
+      windowName: DEFAULT_WINDOW_NAME,
+      contactName: account.trim(),
+    }));
+  }
+
   async function handleAddFriendResult() {
     if (!greeting.trim()) {
       message.error('请输入打招呼内容');
@@ -185,11 +197,75 @@ export function WechatAutomationPage() {
     }
 
     setSubmitRunning(true);
-    const result = await openWechatAddFriend({
-      windowName: DEFAULT_WINDOW_NAME,
-      account: account.trim(),
-      greeting,
-    });
+    const steps: Array<{
+      label: string;
+      run: () => Promise<WechatAutomationActionResult>;
+    }> = [
+      {
+        label: '点击快捷操作并点击添加朋友',
+        run: () => clickWechatAddFriendEntry({ windowName: DEFAULT_WINDOW_NAME }),
+      },
+      {
+        label: '搜索账号',
+        run: () => searchWechatAddFriendAccount({ account: account.trim() }),
+      },
+      {
+        label: '处理添加朋友搜索结果',
+        run: () => handleWechatAddFriendResult({ windowName: DEFAULT_WINDOW_NAME, greeting }),
+      },
+    ];
+    const mergedLogs: WechatAutomationLog[] = [];
+    let result: WechatAutomationActionResult = {
+      ok: true,
+      message: '微信添加流程已执行',
+      logs: mergedLogs,
+      data: {
+        steps: [],
+      },
+    };
+
+    for (const step of steps) {
+      mergedLogs.push({
+        level: 'info',
+        code: 'frontend_flow_step_started',
+        message: `开始执行: ${step.label}`,
+      });
+      const stepResult = await step.run();
+      mergedLogs.push(...(stepResult.logs || []));
+
+      const stepSummary = {
+        label: step.label,
+        ok: stepResult.ok,
+        message: stepResult.message,
+        data: stepResult.data,
+      };
+      (result.data as { steps: typeof stepSummary[] }).steps.push(stepSummary);
+
+      if (!stepResult.ok) {
+        result = {
+          ...stepResult,
+          ok: false,
+          message: `${step.label}失败: ${stepResult.message || '未返回错误信息'}`,
+          logs: mergedLogs,
+          data: result.data,
+          command: stepResult.command,
+        };
+        break;
+      }
+
+      mergedLogs.push({
+        level: 'info',
+        code: 'frontend_flow_step_completed',
+        message: `完成执行: ${step.label}`,
+      });
+    }
+
+    if (result.ok) {
+      result = {
+        ...result,
+        logs: mergedLogs,
+      };
+    }
     setSubmitRunning(false);
     updateExecutionResult('完成微信添加', result);
 
@@ -253,6 +329,13 @@ export function WechatAutomationPage() {
                 onClick={() => void handleSearchAddFriendAccount()}
               >
                 搜索账号
+              </Button>
+              <Button
+                disabled={(isToolBusy && toolRunning !== '搜索朋友并打开') || !account.trim()}
+                loading={toolRunning === '搜索朋友并打开'}
+                onClick={() => void handleSearchOpenFriend()}
+              >
+                搜索朋友并打开
               </Button>
               <Button
                 disabled={isToolBusy && toolRunning !== '处理添加朋友搜索结果'}

@@ -436,6 +436,33 @@ class WechatAutomationService {
     ]);
   }
 
+  async searchOpenFriend(args = {}) {
+    const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
+    const contactName = String(args.contactName || '').trim();
+
+    if (process.platform !== 'win32') {
+      return {
+        ok: false,
+        message: 'Wechat automation is only supported on Windows',
+      };
+    }
+
+    if (!contactName) {
+      return {
+        ok: false,
+        message: 'Missing contact name',
+      };
+    }
+
+    return runScript([
+      'search-open-friend',
+      '--window-name',
+      windowName,
+      '--contact-name',
+      contactName,
+    ]);
+  }
+
   async sendMessage(args = {}) {
     const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
     const contactName = String(args.contactName || '').trim();

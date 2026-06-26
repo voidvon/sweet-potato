@@ -78,12 +78,16 @@ def open_quick_action_menu(
         },
     )
 
-    click_diagnostics = click_control(auto, click_target, prefer_rect_center=True)
+    click_diagnostics = None
+    try:
+        click_diagnostics = click_control(auto, click_target, prefer_rect_center=True)
+    except Exception as error:
+        click_diagnostics = {"errors": [str(error)], "method": "auto.Click(rect_center)", "control": click_target_summary}
     data["clickDiagnostics"] = click_diagnostics
     append_log(
         logs,
-        "info",
-        "已执行快捷操作按钮中心点点击",
+        "warn" if click_diagnostics.get("errors") else "info",
+        "快捷操作按钮中心点点击返回异常，继续检测菜单" if click_diagnostics.get("errors") else "已执行快捷操作按钮中心点点击",
         code=f"{context_code_prefix}_button_clicked",
         details=click_diagnostics,
     )
@@ -94,7 +98,10 @@ def open_quick_action_menu(
     physical_click_diagnostics = None
 
     if not menu_opened:
-        fallback_click_diagnostics = click_control(auto, click_target, prefer_rect_center=False)
+        try:
+            fallback_click_diagnostics = click_control(auto, click_target, prefer_rect_center=False)
+        except Exception as error:
+            fallback_click_diagnostics = {"errors": [str(error)], "method": "control.Click(simulateMove=False)", "control": click_target_summary}
         data["fallbackClickDiagnostics"] = fallback_click_diagnostics
         append_log(
             logs,

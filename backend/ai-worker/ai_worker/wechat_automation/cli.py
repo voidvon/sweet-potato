@@ -17,11 +17,13 @@ from .flows import (
     probe_add_friend_menu,
     probe_quick_action,
     run_probe,
+    search_and_open_friend,
     search_add_friend_account,
     send_message,
     switch_panel,
 )
-from .uia import load_auto
+from .selectors import find_add_friend_window
+from .uia import describe_control, load_auto
 
 
 def emit(payload: dict[str, Any]) -> int:
@@ -30,6 +32,11 @@ def emit(payload: dict[str, Any]) -> int:
     sys.stdout.buffer.write(b"\n")
     sys.stdout.flush()
     return 0
+
+
+def is_benign_uia_event_error(error: Exception) -> bool:
+    message = str(error)
+    return "-2147220991" in message or "事件无法调用任何订户" in message
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -74,6 +81,10 @@ def build_parser() -> argparse.ArgumentParser:
     focus_fill_chat_parser = subparsers.add_parser("focus-fill-chat-message", help="Focus current chat editor and send message")
     focus_fill_chat_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
     focus_fill_chat_parser.add_argument("--message", required=True, help="Message text to fill")
+
+    search_open_friend_parser = subparsers.add_parser("search-open-friend", help="Search friend in WeChat panel and open conversation")
+    search_open_friend_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+    search_open_friend_parser.add_argument("--contact-name", required=True, help="Target contact name or keyword")
 
     send_parser = subparsers.add_parser("send-message", help="Search contact and send a message")
     send_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
@@ -143,7 +154,29 @@ def main() -> int:
                 "data": data,
             })
         if args.command == "click-add-friend-entry":
-            logs, data = click_add_friend_entry(auto, args.window_name)
+            try:
+                logs, data = click_add_friend_entry(auto, args.window_name)
+            except Exception as error:
+                if not is_benign_uia_event_error(error):
+                    raise
+
+                add_friend_window = find_add_friend_window(auto)
+                if add_friend_window is None:
+                    raise
+
+                window_summary = describe_control(add_friend_window)
+                logs = [{
+                    "level": "warn",
+                    "code": "uia_event_error_ignored_after_success",
+                    "message": f"UIA 返回事件异常，但已检测到“添加朋友”窗口，按成功处理: {error}",
+                    "details": {"control": window_summary},
+                }]
+                data = {
+                    "windowName": args.window_name,
+                    "addFriendWindowOpened": True,
+                    "recoveredFromUiaEventError": True,
+                    "addFriendWindow": window_summary,
+                }
             window_opened = bool(data.get("addFriendWindowOpened"))
             return emit({
                 "ok": window_opened,
@@ -190,6 +223,13 @@ def main() -> int:
                 "message": "已发送当前聊天消息",
                 "logs": logs,
                 "data": data,
+            })
+        if args.command == "search-open-friend":
+            logs = search_and_open_friend(auto, args.window_name, args.contact_name)
+            return emit({
+                "ok": True,
+                "message": "已搜索并尝试打开好友会话",
+                "logs": logs,
             })
         if args.command == "send-message":
             logs = send_message(auto, args.window_name, args.contact_name, args.message)

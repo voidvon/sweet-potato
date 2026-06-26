@@ -550,6 +550,87 @@ def find_search_box(window: Any, window_rect: Rect) -> Any | None:
     return best_control if best_score >= 10 else None
 
 
+def find_chat_list_search_box(window: Any, window_rect: Rect) -> Any | None:
+    quick_action = None
+    try:
+        quick_action = find_plus_button(window)
+    except Exception:
+        quick_action = None
+
+    quick_action_rect = get_rect_tuple(quick_action) if quick_action is not None else None
+    candidates: list[tuple[int, Any]] = []
+    max_depth = 12 if quick_action_rect is not None else 8
+    for control, _depth in iter_controls(window, max_depth=max_depth):
+        type_name = control_type(control)
+        if type_name not in {"EditControl", "PaneControl", "GroupControl"}:
+            continue
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, window_rect, tolerance=24):
+            continue
+
+        name = control_name(control)
+        left, top, right, bottom = rect
+        width = right - left
+        height = bottom - top
+        score = score_search_candidate(control, window_rect)
+
+        if quick_action_rect is not None:
+            if rect[2] > quick_action_rect[0] + 8:
+                continue
+            if not is_same_row(rect, quick_action_rect, tolerance=28):
+                continue
+            score += 30
+            gap = quick_action_rect[0] - rect[2]
+            if 0 <= gap <= 140:
+                score += 12
+
+        if "搜索" in name:
+            score += 12
+        if 18 <= height <= 64:
+            score += 4
+        if 80 <= width <= 420:
+            score += 4
+        if score > 0:
+            candidates.append((score, control))
+
+    if candidates:
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        best_score, best_control = candidates[0]
+        if best_score >= 10:
+            return best_control
+
+    return find_search_box(window, window_rect)
+
+
+def collect_chat_search_result_texts(window: Any, window_rect: Rect, search_box_rect: Rect | None) -> list[str]:
+    texts: list[str] = []
+    seen: set[str] = set()
+    if search_box_rect is None:
+        return texts
+
+    search_left, _search_top, search_right, search_bottom = search_box_rect
+    result_region = (
+        max(window_rect[0], search_left - 80),
+        search_bottom - 8,
+        min(window_rect[2], search_right + 420),
+        min(window_rect[3], search_bottom + 420),
+    )
+
+    for control, _depth in iter_controls(window, max_depth=14):
+        if control_type(control) not in {"TextControl", "ListItemControl", "ButtonControl", "PaneControl", "GroupControl"}:
+            continue
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, result_region, tolerance=24):
+            continue
+        name = control_name(control).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        texts.append(name)
+
+    return texts
+
+
 def score_plus_candidate(control: Any, window_rect: Rect, search_rect: Rect | None = None) -> int:
     name = control_name(control)
     type_name = control_type(control)

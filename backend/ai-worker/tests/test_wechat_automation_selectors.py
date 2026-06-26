@@ -13,11 +13,14 @@ from ai_worker.wechat_automation.selectors import (
     build_menu_probe_region,
     click_add_to_contacts_strict,
     click_send_message,
+    collect_chat_search_result_texts,
     find_add_friend_entry,
     find_add_friend_result_actions,
     find_chat_message_editor,
+    find_chat_list_search_box,
     find_plus_button,
     find_request_greeting_editor,
+    find_search_box,
     find_send_message_button_strict,
     find_sidebar_panel_button,
     identify_current_panel,
@@ -346,6 +349,85 @@ class WechatAutomationSelectorsTest(unittest.TestCase):
         result = find_plus_button(window)
 
         self.assertIs(result, quick_action)
+
+    def test_find_search_box_prefers_left_top_chat_search(self):
+        chat_search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(160, 170, 420, 202),
+        )
+        message_editor = FakeControl(
+            name="virjay",
+            control_type="EditControl",
+            rect=(520, 600, 980, 700),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 1200, 780),
+            children=[chat_search_box, message_editor],
+        )
+
+        result = find_search_box(window, (0, 120, 1200, 780))
+
+        self.assertIs(result, chat_search_box)
+
+    def test_find_chat_list_search_box_uses_quick_action_left_neighbor(self):
+        chat_search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(160, 170, 360, 202),
+        )
+        quick_action = FakeControl(
+            name=QUICK_ACTION_NAME,
+            control_type="ButtonControl",
+            class_name="mmui::XButton",
+            rect=(374, 170, 404, 202),
+        )
+        unrelated_search = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(520, 600, 980, 700),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 1200, 780),
+            children=[unrelated_search, chat_search_box, quick_action],
+        )
+
+        result = find_chat_list_search_box(window, (0, 120, 1200, 780))
+
+        self.assertIs(result, chat_search_box)
+
+    def test_collect_chat_search_result_texts_returns_result_names(self):
+        exact_wechat_id = FakeControl(
+            name="wxid_abc123",
+            control_type="TextControl",
+            rect=(170, 230, 320, 258),
+        )
+        partial_match = FakeControl(
+            name="wxid_abc1234",
+            control_type="TextControl",
+            rect=(170, 270, 340, 298),
+        )
+        outside_text = FakeControl(
+            name="wxid_outside",
+            control_type="TextControl",
+            rect=(800, 650, 940, 680),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 1200, 780),
+            children=[exact_wechat_id, partial_match, outside_text],
+        )
+
+        texts = collect_chat_search_result_texts(window, (0, 120, 1200, 780), (160, 170, 360, 202))
+
+        self.assertIn("wxid_abc123", texts)
+        self.assertIn("wxid_abc1234", texts)
+        self.assertNotIn("wxid_outside", texts)
 
     def test_find_add_friend_entry_prefers_quick_action_list_item_within_window(self):
         add_friend_item = FakeControl(

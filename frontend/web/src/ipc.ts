@@ -338,3 +338,10 @@ export function sendWechatCurrentChatMessage(payload: {
 }): Promise<WechatAutomationActionResult> {
   return invokeWechatAutomation<WechatAutomationActionResult>('focusFillChatMessage', payload);
 }
+
+export function searchOpenWechatFriend(payload: {
+  windowName?: string;
+  contactName: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('searchOpenFriend', payload);
+}

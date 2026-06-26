@@ -51,6 +51,10 @@ class WechatAutomationController {
     return wechatAutomationService.focusFillChatMessage(args);
   }
 
+  searchOpenFriend(args) {
+    return wechatAutomationService.searchOpenFriend(args);
+  }
+
   sendMessage(args) {
     return wechatAutomationService.sendMessage(args);
   }

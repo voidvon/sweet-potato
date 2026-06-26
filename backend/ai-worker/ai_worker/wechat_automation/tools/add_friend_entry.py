@@ -47,8 +47,18 @@ def click_add_friend_entry(auto: Any, window_name: str) -> tuple[list[Automation
         details={"control": add_friend_summary},
     )
 
-    click_control(auto, add_friend_entry, prefer_rect_center=True)
-    append_log(logs, "info", "已点击“添加朋友”入口", code="add_friend_entry_clicked")
+    click_error: Exception | None = None
+    try:
+        click_control(auto, add_friend_entry, prefer_rect_center=True)
+        append_log(logs, "info", "已点击“添加朋友”入口", code="add_friend_entry_clicked")
+    except Exception as error:
+        click_error = error
+        append_log(
+            logs,
+            "warn",
+            f"点击“添加朋友”入口后 UIA 返回异常，继续检测窗口是否已打开: {error}",
+            code="add_friend_entry_click_unverified",
+        )
 
     add_friend_window = wait_for_match(lambda: find_add_friend_window(auto), timeout=2.0, interval=0.12)
     window_opened = add_friend_window is not None
@@ -60,6 +70,8 @@ def click_add_friend_entry(auto: Any, window_name: str) -> tuple[list[Automation
             code="add_friend_window_found",
         )
     else:
+        if click_error is not None:
+            raise RuntimeError(f"点击“添加朋友”入口失败，且未检测到“添加朋友”窗口: {click_error}")
         append_log(logs, "warn", "已点击“添加朋友”，但未检测到“添加朋友”窗口", code="add_friend_window_not_found")
 
     return logs, {

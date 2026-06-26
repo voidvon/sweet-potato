@@ -7,10 +7,13 @@ from .models import AutomationLog
 from .constants import PANEL_CHAT_NAME
 from .selectors import (
     collect_add_friend_menu_probe,
+    collect_chat_search_result_texts,
     find_add_friend_entry,
     find_add_friend_search_box,
     find_add_friend_window,
+    find_chat_list_search_box,
     find_plus_button,
+    find_search_box,
 )
 from .uia import (
     activate_window,
@@ -331,7 +334,7 @@ def open_add_friend(auto: Any, window_name: str, account: str, greeting: str) ->
     return logs
 
 
-def send_message(auto: Any, window_name: str, contact_name: str, message_text: str) -> list[AutomationLog]:
+def search_and_open_friend(auto: Any, window_name: str, contact_name: str) -> list[AutomationLog]:
     logs: list[AutomationLog] = []
     window = find_window(auto, window_name)
     append_log(logs, "info", f"已找到微信窗口: {window_name}", code="window_found", details={"windowName": window_name})
@@ -339,27 +342,55 @@ def send_message(auto: Any, window_name: str, contact_name: str, message_text: s
     activate_window(window)
     append_log(logs, "info", "已激活微信窗口", code="window_activated", details={"windowName": window_name})
 
-    auto.SendKeys("^f")
-    time.sleep(0.3)
-    append_log(logs, "info", "已打开搜索框", code="search_box_opened")
+    window_rect = get_rect_tuple(window)
+    if not window_rect:
+        raise RuntimeError("无法读取微信窗口坐标，无法定位左侧搜索框")
 
-    auto.SendKeys("^a")
-    time.sleep(0.05)
-    auto.SendKeys("{Del}")
-    time.sleep(0.05)
-    auto.SendKeys(contact_name)
-    time.sleep(0.3)
+    search_box = find_chat_list_search_box(window, window_rect)
+    if search_box is None:
+        raise RuntimeError("未找到快捷操作左侧的会话搜索框")
+
+    search_box_summary = describe_control(search_box)
+    search_box_rect = get_rect_tuple(search_box)
+    search_box.Click(simulateMove=False)
+    time.sleep(0.12)
     append_log(
         logs,
         "info",
-        f"已输入联系人关键词: {contact_name}",
+        f"已聚焦左侧会话搜索框: {search_box_summary}",
+        code="chat_list_search_box_focused",
+        details={"control": search_box_summary, "rect": get_rect_tuple(search_box)},
+    )
+
+    auto.SendKeys(contact_name)
+    time.sleep(0.45)
+    append_log(
+        logs,
+        "info",
+        f"已输入微信号搜索关键词: {contact_name}",
         code="contact_keyword_filled",
         details={"contactName": contact_name},
     )
 
+    result_texts = collect_chat_search_result_texts(window, window_rect, search_box_rect)
+    append_log(
+        logs,
+        "info",
+        "已采集搜索结果文本",
+        code="chat_search_result_texts_collected",
+        details={"expected": contact_name, "resultTexts": result_texts[:80], "resultCount": len(result_texts)},
+    )
+    if contact_name not in result_texts:
+        raise RuntimeError(f"搜索结果中未找到完全匹配的微信号: {contact_name}")
+
     auto.SendKeys("{Enter}")
     time.sleep(0.35)
-    append_log(logs, "info", "已尝试打开联系人会话", code="contact_conversation_open_attempted")
+    append_log(logs, "info", "已找到完全匹配的微信号并尝试打开联系人会话", code="contact_conversation_open_attempted")
+    return logs
 
+
+def send_message(auto: Any, window_name: str, contact_name: str, message_text: str) -> list[AutomationLog]:
+    logs = search_and_open_friend(auto, window_name, contact_name)
+    window = find_window(auto, window_name)
     _focus_and_send_chat_message(auto, window, message_text, logs, editor_timeout=3.0)
     return logs
