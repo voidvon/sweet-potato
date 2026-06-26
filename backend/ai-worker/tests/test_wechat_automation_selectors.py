@@ -535,6 +535,45 @@ class WechatAutomationSelectorsTest(unittest.TestCase):
 
         self.assertIs(result, message_editor)
 
+    def test_find_chat_message_editor_ignores_top_search_box(self):
+        search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(260, 170, 430, 202),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[search_box],
+        )
+
+        result = find_chat_message_editor(window)
+
+        self.assertIsNone(result)
+
+    def test_find_chat_message_editor_prefers_edit_over_large_document(self):
+        chat_document = FakeControl(
+            name="萌猫",
+            control_type="DocumentControl",
+            rect=(280, 120, 960, 700),
+        )
+        message_editor = FakeControl(
+            name="virjay",
+            control_type="EditControl",
+            rect=(360, 560, 900, 650),
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[chat_document, message_editor],
+        )
+
+        result = find_chat_message_editor(window)
+
+        self.assertIs(result, message_editor)
+
     def test_build_menu_probe_region_is_clamped_inside_window(self):
         window_rect = (100, 100, 900, 700)
         plus_rect = (860, 120, 888, 148)

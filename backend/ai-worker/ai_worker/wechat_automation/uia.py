@@ -249,6 +249,87 @@ def replace_text(auto: Any, control: Any, value: str) -> None:
     auto.SendKeys(value)
 
 
+def paste_text(auto: Any, control: Any, value: str, *, clear_existing: bool = True) -> None:
+    control.Click(simulateMove=False)
+    time.sleep(0.12)
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    user32.OpenClipboard.argtypes = [ctypes.c_void_p]
+    user32.OpenClipboard.restype = ctypes.c_bool
+    user32.CloseClipboard.argtypes = []
+    user32.CloseClipboard.restype = ctypes.c_bool
+    user32.EmptyClipboard.argtypes = []
+    user32.EmptyClipboard.restype = ctypes.c_bool
+    user32.IsClipboardFormatAvailable.argtypes = [ctypes.c_uint]
+    user32.IsClipboardFormatAvailable.restype = ctypes.c_bool
+    user32.GetClipboardData.argtypes = [ctypes.c_uint]
+    user32.GetClipboardData.restype = ctypes.c_void_p
+    user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+    user32.SetClipboardData.restype = ctypes.c_void_p
+    kernel32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = ctypes.c_void_p
+    kernel32.GlobalLock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalUnlock.restype = ctypes.c_bool
+    kernel32.GlobalFree.argtypes = [ctypes.c_void_p]
+    kernel32.GlobalFree.restype = ctypes.c_void_p
+
+    previous_text: str | None = None
+    if user32.OpenClipboard(None):
+        try:
+            if user32.IsClipboardFormatAvailable(13):
+                handle = user32.GetClipboardData(13)
+                if handle:
+                    locked = kernel32.GlobalLock(handle)
+                    if locked:
+                        try:
+                            previous_text = ctypes.wstring_at(locked)
+                        finally:
+                            kernel32.GlobalUnlock(handle)
+
+            user32.EmptyClipboard()
+            data = (value + "\0").encode("utf-16le")
+            movable = 0x0002
+            handle = kernel32.GlobalAlloc(movable, len(data))
+            if not handle:
+                raise RuntimeError("申请剪贴板内存失败")
+            locked = kernel32.GlobalLock(handle)
+            if not locked:
+                kernel32.GlobalFree(handle)
+                raise RuntimeError("锁定剪贴板内存失败")
+            ctypes.memmove(locked, data, len(data))
+            kernel32.GlobalUnlock(handle)
+            user32.SetClipboardData(13, handle)
+        finally:
+            user32.CloseClipboard()
+    else:
+        raise RuntimeError("无法打开系统剪贴板")
+
+    if clear_existing:
+        auto.SendKeys("^a")
+        time.sleep(0.05)
+    auto.SendKeys("^v")
+    time.sleep(0.12)
+
+    if previous_text is not None and user32.OpenClipboard(None):
+        try:
+            user32.EmptyClipboard()
+            data = (previous_text + "\0").encode("utf-16le")
+            movable = 0x0002
+            handle = kernel32.GlobalAlloc(movable, len(data))
+            if handle:
+                locked = kernel32.GlobalLock(handle)
+                if locked:
+                    ctypes.memmove(locked, data, len(data))
+                    kernel32.GlobalUnlock(handle)
+                    user32.SetClipboardData(13, handle)
+        finally:
+            user32.CloseClipboard()
+
+
 def click_control(auto: Any, control: Any, *, prefer_rect_center: bool = False) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {
         "preferRectCenter": prefer_rect_center,

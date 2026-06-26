@@ -5,13 +5,12 @@ import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import {
   closeWechatAddFriendWindows,
   clickWechatAddFriendEntry,
-  focusWechatAddFriendSearch,
   handleWechatAddFriendResult,
   identifyWechatCurrentPanel,
   isElectronEgg,
   openWechatAddFriend,
-  probeWechatQuickAction,
   searchWechatAddFriendAccount,
+  sendWechatCurrentChatMessage,
   switchWechatPanel,
   type WechatAutomationActionResult,
   type WechatAutomationLog,
@@ -54,7 +53,6 @@ export function WechatAutomationPage() {
   const [greeting, setGreeting] = useState('');
   const [panelIdentifyRunning, setPanelIdentifyRunning] = useState(false);
   const [switchPanelRunning, setSwitchPanelRunning] = useState<'微信' | '通讯录' | null>(null);
-  const [quickActionProbeRunning, setQuickActionProbeRunning] = useState(false);
   const [addFriendEntryRunning, setAddFriendEntryRunning] = useState(false);
   const [toolRunning, setToolRunning] = useState<string | null>(null);
   const [submitRunning, setSubmitRunning] = useState(false);
@@ -72,7 +70,6 @@ export function WechatAutomationPage() {
 
   const isToolBusy = panelIdentifyRunning
     || Boolean(switchPanelRunning)
-    || quickActionProbeRunning
     || addFriendEntryRunning
     || Boolean(toolRunning)
     || submitRunning;
@@ -121,40 +118,19 @@ export function WechatAutomationPage() {
     message.success(result.message || `已切换到${panel}面板`);
   }
 
-  async function handleProbeQuickAction() {
-    setQuickActionProbeRunning(true);
-    const result = await probeWechatQuickAction({
-      windowName: DEFAULT_WINDOW_NAME,
-    });
-    setQuickActionProbeRunning(false);
-    updateExecutionResult('测试快捷操作', result);
-
-    if (!result.ok) {
-      message.error(result.message || '快捷操作按钮探测失败');
-      return;
-    }
-    message.success(result.message || '快捷操作按钮已点击');
-  }
-
   async function handleClickAddFriendEntry() {
     setAddFriendEntryRunning(true);
     const result = await clickWechatAddFriendEntry({
       windowName: DEFAULT_WINDOW_NAME,
     });
     setAddFriendEntryRunning(false);
-    updateExecutionResult('查找并点击添加朋友', result);
+    updateExecutionResult('点击快捷操作并点击添加朋友', result);
 
     if (!result.ok) {
-      message.error(result.message || '查找并点击添加朋友失败');
+      message.error(result.message || '点击快捷操作并点击添加朋友失败');
       return;
     }
     message.success(result.message || '已点击添加朋友入口');
-  }
-
-  async function handleFocusAddFriendSearch() {
-    await runToolAction('聚焦添加朋友搜索框', () => focusWechatAddFriendSearch({
-      windowName: DEFAULT_WINDOW_NAME,
-    }));
   }
 
   async function handleSearchAddFriendAccount() {
@@ -163,7 +139,7 @@ export function WechatAutomationPage() {
       return;
     }
 
-    await runToolAction('输入并搜索账号', () => searchWechatAddFriendAccount({
+    await runToolAction('搜索账号', () => searchWechatAddFriendAccount({
       account: account.trim(),
     }));
   }
@@ -183,6 +159,18 @@ export function WechatAutomationPage() {
   async function handleCloseAddFriendWindows() {
     await runToolAction('关闭添加朋友窗口', () => closeWechatAddFriendWindows({
       windowName: DEFAULT_WINDOW_NAME,
+    }));
+  }
+
+  async function handleSendCurrentChatMessage() {
+    if (!greeting.trim()) {
+      message.error('请输入打招呼内容');
+      return;
+    }
+
+    await runToolAction('发送消息', () => sendWechatCurrentChatMessage({
+      windowName: DEFAULT_WINDOW_NAME,
+      message: greeting,
     }));
   }
 
@@ -253,32 +241,18 @@ export function WechatAutomationPage() {
                 切换到通讯录
               </Button>
               <Button
-                disabled={isToolBusy && !quickActionProbeRunning}
-                loading={quickActionProbeRunning}
-                onClick={() => void handleProbeQuickAction()}
-              >
-                点击快捷操作
-              </Button>
-              <Button
                 disabled={isToolBusy && !addFriendEntryRunning}
                 loading={addFriendEntryRunning}
                 onClick={() => void handleClickAddFriendEntry()}
               >
-                查找并点击添加朋友
+                点击快捷操作并点击添加朋友
               </Button>
               <Button
-                disabled={isToolBusy && toolRunning !== '聚焦添加朋友搜索框'}
-                loading={toolRunning === '聚焦添加朋友搜索框'}
-                onClick={() => void handleFocusAddFriendSearch()}
-              >
-                聚焦添加朋友搜索框
-              </Button>
-              <Button
-                disabled={(isToolBusy && toolRunning !== '输入并搜索账号') || !account.trim()}
-                loading={toolRunning === '输入并搜索账号'}
+                disabled={(isToolBusy && toolRunning !== '搜索账号') || !account.trim()}
+                loading={toolRunning === '搜索账号'}
                 onClick={() => void handleSearchAddFriendAccount()}
               >
-                输入并搜索账号
+                搜索账号
               </Button>
               <Button
                 disabled={isToolBusy && toolRunning !== '处理添加朋友搜索结果'}
@@ -293,6 +267,13 @@ export function WechatAutomationPage() {
                 onClick={() => void handleCloseAddFriendWindows()}
               >
                 关闭添加朋友窗口
+              </Button>
+              <Button
+                disabled={isToolBusy && toolRunning !== '发送消息'}
+                loading={toolRunning === '发送消息'}
+                onClick={() => void handleSendCurrentChatMessage()}
+              >
+                发送消息
               </Button>
             </div>
           </Space>

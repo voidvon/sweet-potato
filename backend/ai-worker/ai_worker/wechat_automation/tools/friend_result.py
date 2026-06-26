@@ -23,6 +23,7 @@ from ..uia import (
     click_control,
     close_window_gracefully,
     describe_control,
+    get_rect_tuple,
     replace_text,
     summarize_controls,
     wait_for_match,
@@ -79,6 +80,53 @@ def focus_and_send_chat_message(
 
     auto.SendKeys("{Enter}")
     append_log(logs, "info", "已触发发送", code=sent_code)
+
+
+def focus_and_fill_chat_message(
+    auto: Any,
+    window: Any,
+    message_text: str,
+    logs: list[AutomationLog],
+    *,
+    focus_code: str = "message_input_focused",
+    content_code: str = "message_content_filled",
+    editor_timeout: float = 2.0,
+) -> None:
+    editor = wait_for_match(
+        lambda: find_chat_message_editor(window) or find_chat_message_editor_from_root(auto, window),
+        timeout=editor_timeout,
+        interval=0.15,
+    )
+    if editor is None:
+        fallback = window.EditControl(foundIndex=1)
+        if fallback.Exists(0.2):
+            editor = fallback
+
+    if editor is None:
+        raise RuntimeError("未找到消息输入框，请先确认当前微信主窗口已打开聊天会话")
+
+    editor_summary = describe_control(editor)
+    editor.Click(simulateMove=False)
+    time.sleep(0.1)
+    append_log(
+        logs,
+        "info",
+        f"已聚焦消息输入框: {editor_summary}",
+        code=focus_code,
+        details={"control": editor_summary, "rect": get_rect_tuple(editor)},
+    )
+
+    auto.SendKeys(message_text)
+    time.sleep(0.1)
+    append_log(
+        logs,
+        "info",
+        "已通过当前焦点写入消息内容",
+        code=content_code,
+        details={"messageLength": len(message_text)},
+    )
+    auto.SendKeys("{Enter}")
+    append_log(logs, "info", "已触发发送", code="current_chat_message_sent")
 
 
 def close_add_friend_windows(

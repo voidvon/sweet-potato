@@ -47,6 +47,10 @@ class WechatAutomationController {
     return wechatAutomationService.closeAddFriendWindows(args);
   }
 
+  focusFillChatMessage(args) {
+    return wechatAutomationService.focusFillChatMessage(args);
+  }
+
   sendMessage(args) {
     return wechatAutomationService.sendMessage(args);
   }

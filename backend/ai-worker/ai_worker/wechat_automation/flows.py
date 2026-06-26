@@ -31,6 +31,7 @@ from .tools.add_friend_window import (
     search_add_friend_account as run_search_add_friend_account_tool,
 )
 from .tools.friend_result import (
+    focus_and_fill_chat_message as run_focus_and_fill_chat_message_tool,
     focus_and_send_chat_message as run_focus_and_send_chat_message_tool,
     handle_add_friend_search_result as run_handle_add_friend_search_result_tool,
 )
@@ -163,6 +164,32 @@ def handle_current_add_friend_result(auto: Any, window_name: str, greeting: str)
 
 def close_current_add_friend_windows(auto: Any) -> tuple[list[AutomationLog], dict[str, Any]]:
     return run_close_current_add_friend_windows_tool(auto)
+
+
+def focus_and_fill_current_chat_message(auto: Any, window_name: str, message_text: str) -> tuple[list[AutomationLog], dict[str, Any]]:
+    logs: list[AutomationLog] = []
+    window = find_window(auto, window_name)
+    append_log(logs, "info", f"已找到微信窗口: {window_name}", code="window_found", details={"windowName": window_name})
+
+    activate_window(window)
+    append_log(logs, "info", "已激活微信窗口", code="window_activated", details={"windowName": window_name})
+
+    started_at = time.perf_counter()
+    run_focus_and_fill_chat_message_tool(
+        auto,
+        window,
+        message_text,
+        logs,
+        focus_code="current_chat_message_input_focused",
+        content_code="current_chat_message_content_filled",
+        editor_timeout=1.5,
+    )
+    _append_timing_log(logs, "聚焦并发送当前聊天消息耗时", "timing_focus_and_send_current_chat_message", started_at)
+    return logs, {
+        "sent": True,
+        "windowName": window_name,
+        "messageLength": len(message_text),
+    }
 
 
 def _focus_and_send_chat_message(

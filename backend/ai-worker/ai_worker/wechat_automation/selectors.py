@@ -1327,7 +1327,16 @@ def find_chat_message_editor(window: Any) -> Any | None:
         width = rect[2] - rect[0]
         height = rect[3] - rect[1]
         center_x, center_y = rect_center(rect)
-        score = 18 if type_name == "EditControl" else 14
+        name = control_name(control)
+        if name == "搜索" or "搜索" in name:
+            continue
+        if center_y < window_rect[1] + int(win_height * 0.55):
+            continue
+        if center_x < window_rect[0] + int(win_width * 0.28):
+            continue
+        if height < 40:
+            continue
+        score = 34 if type_name == "EditControl" else 8
 
         if center_y >= window_rect[1] + int(win_height * 0.58):
             score += 14
@@ -1337,10 +1346,11 @@ def find_chat_message_editor(window: Any) -> Any | None:
             score += 8
         if 40 <= height <= 220:
             score += 8
+        elif height > int(win_height * 0.45):
+            score -= 30
         if height >= 60:
             score += 4
 
-        name = control_name(control)
         if "输入" in name or "消息" in name or "chat" in name.lower() or "message" in name.lower():
             score += 8
 
@@ -1375,7 +1385,16 @@ def find_chat_message_editor_from_root(auto: Any, window: Any) -> Any | None:
         width = rect[2] - rect[0]
         height = rect[3] - rect[1]
         center_x, center_y = rect_center(rect)
-        score = 18 if type_name == "EditControl" else 14
+        name = control_name(control)
+        if name == "搜索" or "搜索" in name:
+            continue
+        if center_y < window_rect[1] + int(win_height * 0.55):
+            continue
+        if center_x < window_rect[0] + int(win_width * 0.28):
+            continue
+        if height < 40:
+            continue
+        score = 34 if type_name == "EditControl" else 8
 
         if center_y >= window_rect[1] + int(win_height * 0.58):
             score += 14
@@ -1385,10 +1404,11 @@ def find_chat_message_editor_from_root(auto: Any, window: Any) -> Any | None:
             score += 8
         if 40 <= height <= 220:
             score += 8
+        elif height > int(win_height * 0.45):
+            score -= 30
         if height >= 60:
             score += 4
 
-        name = control_name(control)
         if "输入" in name or "消息" in name or "chat" in name.lower() or "message" in name.lower():
             score += 8
 

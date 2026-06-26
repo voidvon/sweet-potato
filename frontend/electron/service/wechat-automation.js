@@ -409,6 +409,33 @@ class WechatAutomationService {
     return runScript(['close-add-friend-windows']);
   }
 
+  async focusFillChatMessage(args = {}) {
+    const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
+    const messageText = String(args.message || '');
+
+    if (process.platform !== 'win32') {
+      return {
+        ok: false,
+        message: 'Wechat automation is only supported on Windows',
+      };
+    }
+
+    if (!messageText.trim()) {
+      return {
+        ok: false,
+        message: 'Missing message content',
+      };
+    }
+
+    return runScript([
+      'focus-fill-chat-message',
+      '--window-name',
+      windowName,
+      '--message',
+      messageText,
+    ]);
+  }
+
   async sendMessage(args = {}) {
     const windowName = String(args.windowName || DEFAULT_WINDOW_NAME).trim() || DEFAULT_WINDOW_NAME;
     const contactName = String(args.contactName || '').trim();

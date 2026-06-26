@@ -9,6 +9,7 @@ from .constants import DEFAULT_WINDOW_NAME
 from .flows import (
     click_add_friend_entry,
     close_current_add_friend_windows,
+    focus_and_fill_current_chat_message,
     focus_add_friend_search_box,
     handle_current_add_friend_result,
     identify_current_panel,
@@ -69,6 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     handle_add_friend_result_parser.add_argument("--greeting", required=True, help="Greeting content")
 
     subparsers.add_parser("close-add-friend-windows", help="Close current add-friend windows")
+
+    focus_fill_chat_parser = subparsers.add_parser("focus-fill-chat-message", help="Focus current chat editor and send message")
+    focus_fill_chat_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
+    focus_fill_chat_parser.add_argument("--message", required=True, help="Message text to fill")
 
     send_parser = subparsers.add_parser("send-message", help="Search contact and send a message")
     send_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
@@ -175,6 +180,14 @@ def main() -> int:
             return emit({
                 "ok": True,
                 "message": "已执行关闭添加朋友窗口",
+                "logs": logs,
+                "data": data,
+            })
+        if args.command == "focus-fill-chat-message":
+            logs, data = focus_and_fill_current_chat_message(auto, args.window_name, args.message)
+            return emit({
+                "ok": True,
+                "message": "已发送当前聊天消息",
                 "logs": logs,
                 "data": data,
             })

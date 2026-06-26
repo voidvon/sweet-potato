@@ -324,3 +324,17 @@ export function closeWechatAddFriendWindows(payload?: {
 }): Promise<WechatAutomationActionResult> {
   return invokeWechatAutomation<WechatAutomationActionResult>('closeAddFriendWindows', payload);
 }
+
+export function focusFillWechatChatMessage(payload: {
+  windowName?: string;
+  message: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('focusFillChatMessage', payload);
+}
+
+export function sendWechatCurrentChatMessage(payload: {
+  windowName?: string;
+  message: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('focusFillChatMessage', payload);
+}
