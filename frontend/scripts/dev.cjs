@@ -11,9 +11,21 @@ const electronSourceDir = path.join(rootDir, 'electron');
 const electronPublicDir = path.join(rootDir, 'public', 'electron');
 const viteCli = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const userDataDir = path.join(rootDir, '..', '.codex-run', 'electron-user-data-dev');
-const electronExe = process.platform === 'win32'
-  ? path.join(rootDir, 'node_modules', 'electron', 'dist', 'electron.exe')
-  : path.join(rootDir, 'node_modules', 'electron', 'dist', 'electron');
+function resolveElectronExecutable() {
+  const electronDistDir = path.join(rootDir, 'node_modules', 'electron', 'dist');
+
+  if (process.platform === 'win32') {
+    return path.join(electronDistDir, 'electron.exe');
+  }
+
+  if (process.platform === 'darwin') {
+    return path.join(electronDistDir, 'Electron.app', 'Contents', 'MacOS', 'Electron');
+  }
+
+  return path.join(electronDistDir, 'electron');
+}
+
+const electronExe = resolveElectronExecutable();
 
 const childProcesses = [];
 let shuttingDown = false;
@@ -131,6 +143,10 @@ function startElectronShell(env) {
   syncElectronSourceToPublic();
   log('[dev] Starting Electron shell');
   fs.mkdirSync(userDataDir, { recursive: true });
+
+  if (!fs.existsSync(electronExe)) {
+    throw new Error(`Electron executable not found: ${electronExe}. Run pnpm install in ${rootDir}.`);
+  }
 
   const child = spawn(electronExe, [
     '.',
