@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Button, Card, Empty, Input, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Empty, Input, Space, Tag, Typography, message } from 'antd';
 import { ReloadOutlined, UserAddOutlined } from '@ant-design/icons';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import {
@@ -288,122 +288,128 @@ export function WechatAutomationPage() {
           />
         ) : null}
 
-        <Card className="wechat-automation-card" title="微信操作工具集">
-          <Space className="wechat-automation-toolbar" direction="vertical" size={16}>
-            <Typography.Text type="secondary">
-              按步骤验证微信 UIA 操作链路。每个工具独立执行，结果输出到下方日志和 JSON。
-            </Typography.Text>
+        <section className="wechat-automation-toolkit" aria-label="微信操作工具集">
+          <Typography.Title className="wechat-automation-toolkit-title" level={4}>
+            微信操作工具集
+          </Typography.Title>
+          <Typography.Paragraph className="wechat-automation-toolkit-description" type="secondary">
+            按步骤验证微信 UIA 操作链路。每个工具独立执行，结果输出到下方日志和 JSON。
+          </Typography.Paragraph>
 
-            <div className="wechat-automation-toolkit-actions">
-              <Button
-                disabled={isToolBusy && !panelIdentifyRunning}
-                loading={panelIdentifyRunning}
-                onClick={() => void handleIdentifyCurrentPanel()}
-              >
-                识别当前面板
-              </Button>
-              <Button
-                disabled={isToolBusy && switchPanelRunning !== '微信'}
-                loading={switchPanelRunning === '微信'}
-                onClick={() => void handleSwitchPanel('微信')}
-              >
-                切换到微信
-              </Button>
-              <Button
-                disabled={isToolBusy && switchPanelRunning !== '通讯录'}
-                loading={switchPanelRunning === '通讯录'}
-                onClick={() => void handleSwitchPanel('通讯录')}
-              >
-                切换到通讯录
-              </Button>
-              <Button
-                disabled={isToolBusy && !addFriendEntryRunning}
-                loading={addFriendEntryRunning}
-                onClick={() => void handleClickAddFriendEntry()}
-              >
-                点击快捷操作并点击添加朋友
-              </Button>
-              <Button
-                disabled={(isToolBusy && toolRunning !== '搜索账号') || !account.trim()}
-                loading={toolRunning === '搜索账号'}
-                onClick={() => void handleSearchAddFriendAccount()}
-              >
-                搜索账号
-              </Button>
-              <Button
-                disabled={(isToolBusy && toolRunning !== '搜索朋友并打开') || !account.trim()}
-                loading={toolRunning === '搜索朋友并打开'}
-                onClick={() => void handleSearchOpenFriend()}
-              >
-                搜索朋友并打开
-              </Button>
-              <Button
-                disabled={isToolBusy && toolRunning !== '处理添加朋友搜索结果'}
-                loading={toolRunning === '处理添加朋友搜索结果'}
-                onClick={() => void handleAddFriendResult()}
-              >
-                处理搜索结果
-              </Button>
-              <Button
-                disabled={isToolBusy && toolRunning !== '关闭添加朋友窗口'}
-                loading={toolRunning === '关闭添加朋友窗口'}
-                onClick={() => void handleCloseAddFriendWindows()}
-              >
-                关闭添加朋友窗口
-              </Button>
-              <Button
-                disabled={isToolBusy && toolRunning !== '发送消息'}
-                loading={toolRunning === '发送消息'}
-                onClick={() => void handleSendCurrentChatMessage()}
-              >
-                发送消息
-              </Button>
-            </div>
-          </Space>
-        </Card>
+          <div className="wechat-automation-toolkit-actions">
+            <Button
+              disabled={isToolBusy && !panelIdentifyRunning}
+              loading={panelIdentifyRunning}
+              onClick={() => void handleIdentifyCurrentPanel()}
+            >
+              识别当前面板
+            </Button>
+            <Button
+              disabled={isToolBusy && switchPanelRunning !== '微信'}
+              loading={switchPanelRunning === '微信'}
+              onClick={() => void handleSwitchPanel('微信')}
+            >
+              切换到微信
+            </Button>
+            <Button
+              disabled={isToolBusy && switchPanelRunning !== '通讯录'}
+              loading={switchPanelRunning === '通讯录'}
+              onClick={() => void handleSwitchPanel('通讯录')}
+            >
+              切换到通讯录
+            </Button>
+            <Button
+              disabled={isToolBusy && !addFriendEntryRunning}
+              loading={addFriendEntryRunning}
+              onClick={() => void handleClickAddFriendEntry()}
+            >
+              点击快捷操作并点击添加朋友
+            </Button>
+            <Button
+              disabled={(isToolBusy && toolRunning !== '搜索账号') || !account.trim()}
+              loading={toolRunning === '搜索账号'}
+              onClick={() => void handleSearchAddFriendAccount()}
+            >
+              搜索账号
+            </Button>
+            <Button
+              disabled={(isToolBusy && toolRunning !== '搜索朋友并打开') || !account.trim()}
+              loading={toolRunning === '搜索朋友并打开'}
+              onClick={() => void handleSearchOpenFriend()}
+            >
+              搜索朋友并打开
+            </Button>
+            <Button
+              disabled={isToolBusy && toolRunning !== '处理添加朋友搜索结果'}
+              loading={toolRunning === '处理添加朋友搜索结果'}
+              onClick={() => void handleAddFriendResult()}
+            >
+              处理搜索结果
+            </Button>
+            <Button
+              disabled={isToolBusy && toolRunning !== '关闭添加朋友窗口'}
+              loading={toolRunning === '关闭添加朋友窗口'}
+              onClick={() => void handleCloseAddFriendWindows()}
+            >
+              关闭添加朋友窗口
+            </Button>
+            <Button
+              disabled={isToolBusy && toolRunning !== '发送消息'}
+              loading={toolRunning === '发送消息'}
+              onClick={() => void handleSendCurrentChatMessage()}
+            >
+              发送消息
+            </Button>
+          </div>
+        </section>
 
-        <Card className="wechat-automation-card" title="微信添加">
-          <Space className="wechat-automation-toolbar" direction="vertical" size={16}>
-            <Typography.Text type="secondary">
-              自动执行完整链路：点击“快捷操作” - 点击“添加朋友” - 搜索微信号/手机号 - 输入打招呼内容 - 完成发送。
-            </Typography.Text>
+        <section className="wechat-automation-section" aria-label="微信添加">
+          <Typography.Title className="wechat-automation-section-title" level={4}>
+            微信添加
+          </Typography.Title>
+          <Typography.Paragraph className="wechat-automation-section-description" type="secondary">
+            自动执行完整链路：点击“快捷操作” - 点击“添加朋友” - 搜索微信号或手机号 - 输入打招呼内容 - 完成发送。
+          </Typography.Paragraph>
 
-            <div className="wechat-automation-form-grid">
-              <Input
-                onChange={(event) => setAccount(event.target.value)}
-                placeholder="输入微信号或手机号"
-                value={account}
-              />
-              <Input.TextArea
-                autoSize={{ minRows: 4, maxRows: 8 }}
-                onChange={(event) => setGreeting(event.target.value)}
-                placeholder="输入打招呼内容"
-                value={greeting}
-              />
-            </div>
+          <div className="wechat-automation-form-grid">
+            <Input
+              onChange={(event) => setAccount(event.target.value)}
+              placeholder="输入微信号或手机号"
+              value={account}
+            />
+            <Input.TextArea
+              autoSize={{ minRows: 4, maxRows: 8 }}
+              onChange={(event) => setGreeting(event.target.value)}
+              placeholder="输入打招呼内容"
+              value={greeting}
+            />
+          </div>
 
-            <div className="wechat-automation-actions">
-              <Button
-                icon={<UserAddOutlined />}
-                disabled={isToolBusy && !submitRunning}
-                loading={submitRunning}
-                onClick={() => void handleSubmitAddFriend()}
-                type="primary"
-              >
-                完成微信添加
-              </Button>
-              <Button
-                disabled={submitRunning}
-                icon={<ReloadOutlined />}
-                onClick={() => setExecutionState({ actionLabel: null, result: null })}
-              >
-                清空执行结果
-              </Button>
-            </div>
-          </Space>
-        </Card>
+          <div className="wechat-automation-actions">
+            <Button
+              icon={<UserAddOutlined />}
+              disabled={isToolBusy && !submitRunning}
+              loading={submitRunning}
+              onClick={() => void handleSubmitAddFriend()}
+              type="primary"
+            >
+              完成微信添加
+            </Button>
+            <Button
+              disabled={submitRunning}
+              icon={<ReloadOutlined />}
+              onClick={() => setExecutionState({ actionLabel: null, result: null })}
+            >
+              清空执行结果
+            </Button>
+          </div>
+        </section>
 
-        <Card className="wechat-automation-card" title={executionState.actionLabel ? `${executionState.actionLabel}日志` : '执行日志'}>
+        <section className="wechat-automation-section" aria-label="执行日志">
+          <Typography.Title className="wechat-automation-section-title" level={4}>
+            {executionState.actionLabel ? `${executionState.actionLabel}日志` : '执行日志'}
+          </Typography.Title>
+
           {executionState.result?.ok ? (
             <Space className="wechat-automation-result" direction="vertical" size={16}>
               <Alert
@@ -442,7 +448,7 @@ export function WechatAutomationPage() {
           ) : (
             <Empty description="还没有执行记录" />
           )}
-        </Card>
+        </section>
       </div>
     </ContentStudioLayout>
   );
