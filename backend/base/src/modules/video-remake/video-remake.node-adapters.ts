@@ -2112,6 +2112,74 @@ function materialContextWithExtraVideoReference(
   };
 }
 
+function ephemeralVideoReferenceAsset(input: {
+  id: string;
+  name: string;
+  fileUrl: string;
+  metadata?: Record<string, unknown>;
+}) {
+  return {
+    id: input.id,
+    groupId: '',
+    name: input.name,
+    description: '',
+    fileUrl: input.fileUrl,
+    filePath: '',
+    url: input.fileUrl,
+    mimeType: 'video/mp4',
+    resourceType: 'finished_video' as const,
+    originalFileName: `${input.id}.mp4`,
+    metadata: input.metadata || {},
+  };
+}
+
+function segmentRegenerationReferenceVideo(input: {
+  workflow: VideoRemakeWorkflowState;
+  cardData: Record<string, unknown>;
+  mergedSegments: Record<string, unknown>[];
+  segmentIndex: number;
+}) {
+  if (input.segmentIndex <= 1) {
+    const primer = isRecord(input.workflow.runtime.referencePrimer) ? input.workflow.runtime.referencePrimer : undefined;
+    const primerUrl = publicMaterialUrl(primer?.videoUrl) || publicMaterialUrl(primer?.url);
+    if (!primerUrl) {
+      return null;
+    }
+    return {
+      source: 'reference_primer' as const,
+      asset: ephemeralVideoReferenceAsset({
+        id: String(primer?.assetId || `reference-primer-${input.segmentIndex}`),
+        name: '分段参考视频',
+        fileUrl: primerUrl,
+        metadata: {
+          ...(isRecord(primer) ? primer : {}),
+          source: 'video_remake_reference_primer',
+          url: primerUrl,
+        },
+      }),
+    };
+  }
+
+  const previousSegment = input.mergedSegments[input.segmentIndex - 2] || {};
+  const previousUrl = publicMaterialUrl(previousSegment.videoUrl || previousSegment.fileUrl || previousSegment.url);
+  if (!previousUrl) {
+    return null;
+  }
+  return {
+    source: 'previous_segment' as const,
+    asset: ephemeralVideoReferenceAsset({
+      id: `segment-regeneration-reference-${input.segmentIndex - 1}`,
+      name: `分段 ${input.segmentIndex - 1} 参考视频`,
+      fileUrl: previousUrl,
+      metadata: {
+        source: 'video_remake_segment_previous_reference',
+        segmentIndex: input.segmentIndex - 1,
+        url: previousUrl,
+      },
+    }),
+  };
+}
+
 function itemHasConcreteAssetReference(item: Record<string, unknown>) {
   return Boolean(
     textFrom(item.assetId || item.materialId || item.replacementAssetId || item.voiceAssetId)
@@ -4367,12 +4435,21 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       throw new Error(`分段 ${segmentIndex} 缺少可重生成的提示词`);
     }
     const materialReferences = collectMaterialReferences(context.workflow);
-    const materialContext = resolveVideoMaterialContext({
+    let materialContext = resolveVideoMaterialContext({
       userId: context.userId,
       referenceImageIds: materialReferences.referenceImageIds,
       referenceVideoIds: materialReferences.referenceVideoIds,
       referenceAudioIds: materialReferences.referenceAudioIds,
     });
+    const regenerationReferenceVideo = segmentRegenerationReferenceVideo({
+      workflow: context.workflow,
+      cardData: input.cardData,
+      mergedSegments,
+      segmentIndex,
+    });
+    if (regenerationReferenceVideo) {
+      materialContext = materialContextWithExtraVideoReference(materialContext, regenerationReferenceVideo.asset);
+    }
     const generationContext = {
       ...generationContextForSeedance(context.workflow, traceId),
       materialContext,
@@ -4398,6 +4475,8 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       cardVersionLabel: textFrom(input.cardData.versionLabel),
       segmentIndex,
       seconds,
+      referenceVideoSource: regenerationReferenceVideo?.source || 'none',
+      referenceVideoUrl: regenerationReferenceVideo?.asset.fileUrl || '',
     });
     const submitted = await videoRemakeVideoModelRuntime.callConfiguredVideoModel({
       taskId,

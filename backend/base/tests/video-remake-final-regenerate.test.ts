@@ -189,11 +189,10 @@ test('final video segment regenerate keeps original card and creates a new segme
       const generatingSession = videoRemakeService.getSession(session.id);
       const cardsDuringRegeneration = finalCards(generatingSession);
       assert.equal(cardsDuringRegeneration.length, 2);
-      assert.equal(cardsDuringRegeneration[0]?.cardId, completedCard.cardId);
-      assert.equal(cardsDuringRegeneration[0]?.status, 'confirmed');
-      assert.equal((cardsDuringRegeneration[0]?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
-
-      const regenerationCard = cardsDuringRegeneration[1];
+      const originalCard = cardsDuringRegeneration.find((entry) => entry.cardId === completedCard.cardId);
+      const regenerationCard = cardsDuringRegeneration.find((entry) => entry.cardId !== completedCard.cardId);
+      assert.equal(originalCard?.status, 'confirmed');
+      assert.equal((originalCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
       assert.ok(regenerationCard);
       assert.notEqual(regenerationCard?.cardId, completedCard.cardId);
       assert.equal(regenerationCard?.status, 'pending');
@@ -210,11 +209,12 @@ test('final video segment regenerate keeps original card and creates a new segme
       const completedSession = await regeneratePromise;
       const cardsAfterRegeneration = finalCards(completedSession);
       assert.equal(cardsAfterRegeneration.length, 2);
-      assert.equal(cardsAfterRegeneration[0]?.cardId, completedCard.cardId);
-      assert.equal(cardsAfterRegeneration[0]?.status, 'confirmed');
-      assert.equal((cardsAfterRegeneration[0]?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
-      assert.equal(cardsAfterRegeneration[1]?.status, 'confirmed');
-      assert.equal((cardsAfterRegeneration[1]?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1-segment-2.mp4');
+      const originalCompletedCard = cardsAfterRegeneration.find((entry) => entry.cardId === completedCard.cardId);
+      const regeneratedCompletedCard = cardsAfterRegeneration.find((entry) => entry.cardId !== completedCard.cardId);
+      assert.equal(originalCompletedCard?.status, 'confirmed');
+      assert.equal((originalCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
+      assert.equal(regeneratedCompletedCard?.status, 'confirmed');
+      assert.equal((regeneratedCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1-segment-2.mp4');
     } finally {
       defaultVideoRemakeNodeAdapters.regenerateVideoSegment = originalRegenerateVideoSegment;
       releaseRegenerate?.();
