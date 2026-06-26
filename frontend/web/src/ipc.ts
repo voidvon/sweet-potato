@@ -345,3 +345,9 @@ export function searchOpenWechatFriend(payload: {
 }): Promise<WechatAutomationActionResult> {
   return invokeWechatAutomation<WechatAutomationActionResult>('searchOpenFriend', payload);
 }
+
+export function detectUnreadWechatConversation(payload?: {
+  windowName?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('detectUnreadAndOpen', payload);
+}

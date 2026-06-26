@@ -55,6 +55,10 @@ class WechatAutomationController {
     return wechatAutomationService.searchOpenFriend(args);
   }
 
+  detectUnreadAndOpen(args) {
+    return wechatAutomationService.detectUnreadAndOpen(args);
+  }
+
   sendMessage(args) {
     return wechatAutomationService.sendMessage(args);
   }

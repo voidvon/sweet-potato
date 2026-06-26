@@ -9,6 +9,7 @@ from .constants import DEFAULT_WINDOW_NAME
 from .flows import (
     click_add_friend_entry,
     close_current_add_friend_windows,
+    detect_unread_and_open,
     focus_and_fill_current_chat_message,
     focus_add_friend_search_box,
     handle_current_add_friend_result,
@@ -85,6 +86,9 @@ def build_parser() -> argparse.ArgumentParser:
     search_open_friend_parser = subparsers.add_parser("search-open-friend", help="Search friend in WeChat panel and open conversation")
     search_open_friend_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
     search_open_friend_parser.add_argument("--contact-name", required=True, help="Target contact name or keyword")
+
+    detect_unread_parser = subparsers.add_parser("detect-unread-and-open", help="Detect unread conversation from the top of chat list and open it")
+    detect_unread_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
 
     send_parser = subparsers.add_parser("send-message", help="Search contact and send a message")
     send_parser.add_argument("--window-name", default=DEFAULT_WINDOW_NAME, help="Target window title")
@@ -230,6 +234,22 @@ def main() -> int:
                 "ok": True,
                 "message": "已搜索并尝试打开好友会话",
                 "logs": logs,
+            })
+        if args.command == "detect-unread-and-open":
+            logs, data = detect_unread_and_open(auto, args.window_name)
+            has_unread = bool(data.get("hasUnread"))
+            opened = bool(data.get("opened"))
+            return emit({
+                "ok": has_unread,
+                "message": (
+                    "已探测到未读会话并打开"
+                    if opened
+                    else "已探测到未读会话，但未确认打开"
+                    if has_unread
+                    else "顶部第一条会话未命中未读格式"
+                ),
+                "logs": logs,
+                "data": data,
             })
         if args.command == "send-message":
             logs = send_message(auto, args.window_name, args.contact_name, args.message)

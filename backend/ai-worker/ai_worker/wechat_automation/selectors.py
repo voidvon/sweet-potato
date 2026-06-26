@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from .constants import (
@@ -629,6 +630,207 @@ def collect_chat_search_result_texts(window: Any, window_rect: Rect, search_box_
         texts.append(name)
 
     return texts
+
+
+UNREAD_CHAT_TITLE_PATTERN = re.compile(r"^(?P<nickname>\S+)\s+\[(?P<unreadCount>\d+)条\]$")
+
+
+def parse_unread_chat_title(text: str) -> dict[str, Any] | None:
+    normalized = text.strip()
+    if not normalized:
+        return None
+
+    match = UNREAD_CHAT_TITLE_PATTERN.fullmatch(normalized)
+    if match is None:
+        return None
+
+    return {
+        "text": normalized,
+        "nickname": match.group("nickname"),
+        "unreadCount": int(match.group("unreadCount")),
+    }
+
+
+def collect_control_texts(control: Any, max_depth: int = 2) -> list[str]:
+    texts: list[str] = []
+    seen: set[str] = set()
+
+    for candidate in [control, *(child for child, _depth in iter_controls(control, max_depth=max_depth))]:
+        name = control_name(candidate).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        texts.append(name)
+
+    return texts
+
+
+def build_chat_conversation_list_region(window_rect: Rect, search_box_rect: Rect | None) -> Rect:
+    win_left, win_top, win_right, win_bottom = window_rect
+    width = max(win_right - win_left, 1)
+
+    if search_box_rect is not None:
+        region_left = max(win_left, search_box_rect[0] - 28)
+        region_top = min(win_bottom, search_box_rect[3] + 20)
+        region_right = min(win_right, search_box_rect[2] + 80)
+    else:
+        region_left = win_left + max(56, int(width * 0.05))
+        region_top = win_top + 88
+        region_right = min(win_right, win_left + max(280, int(width * 0.34)))
+
+    return (
+        region_left,
+        region_top,
+        region_right,
+        max(region_top + 120, win_bottom - 12),
+    )
+
+
+def score_chat_conversation_item_candidate(control: Any, conversation_region: Rect) -> int:
+    rect = get_rect_tuple(control)
+    if rect is None or not rect_center_within(rect, conversation_region, tolerance=24):
+        return 0
+
+    type_name = control_type(control)
+    if type_name not in {"ListItemControl", "ButtonControl", "PaneControl", "GroupControl", "CustomControl", "TextControl"}:
+        return 0
+
+    left, top, right, bottom = rect
+    width = right - left
+    height = bottom - top
+    if height < 24 or height > 120:
+        return 0
+    if width < 80:
+        return 0
+
+    name = control_name(control)
+    if name == QUICK_ACTION_NAME or "搜索" in name:
+        return 0
+
+    score = 0
+    if type_name == "ListItemControl":
+        score += 30
+    elif type_name == "ButtonControl":
+        score += 26
+    elif type_name == "PaneControl":
+        score += 20
+    elif type_name == "GroupControl":
+        score += 14
+    elif type_name == "CustomControl":
+        score += 10
+    else:
+        score += 5
+
+    region_width = max(conversation_region[2] - conversation_region[0], 1)
+    if width >= max(140, int(region_width * 0.55)):
+        score += 12
+    if 36 <= height <= 84:
+        score += 10
+    elif 28 <= height <= 100:
+        score += 4
+    if left <= conversation_region[0] + 48:
+        score += 6
+    if top <= conversation_region[1] + 96:
+        score += 4
+
+    if any(parse_unread_chat_title(text) for text in collect_control_texts(control, max_depth=1)):
+        score += 40
+    elif name:
+        score += 3
+
+    return score
+
+
+def find_chat_conversation_list_container(window: Any, window_rect: Rect, search_box_rect: Rect | None) -> Any | None:
+    conversation_region = build_chat_conversation_list_region(window_rect, search_box_rect)
+    candidates: list[tuple[int, Any]] = []
+
+    for control, _depth in iter_controls(window, max_depth=10):
+        type_name = control_type(control)
+        if type_name not in {"ListControl", "PaneControl", "GroupControl", "CustomControl"}:
+            continue
+
+        rect = get_rect_tuple(control)
+        if rect is None or not rect_center_within(rect, conversation_region, tolerance=32):
+            continue
+        if search_box_rect is not None and rect[1] < search_box_rect[3] + 8:
+            continue
+
+        width = rect[2] - rect[0]
+        height = rect[3] - rect[1]
+        if width < 180 or height < 180:
+            continue
+
+        score = 0
+        if type_name == "ListControl":
+            score += 28
+        elif type_name == "PaneControl":
+            score += 16
+        elif type_name == "GroupControl":
+            score += 12
+        else:
+            score += 8
+
+        if rect[0] <= conversation_region[0] + 24:
+            score += 6
+        if rect[1] <= conversation_region[1] + 32:
+            score += 6
+        if width >= conversation_region[2] - conversation_region[0] - 24:
+            score += 8
+        if height >= max(220, int((conversation_region[3] - conversation_region[1]) * 0.45)):
+            score += 8
+        if control_name(control):
+            score -= 4
+
+        candidates.append((score, control))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    best_score, best_control = candidates[0]
+    return best_control if best_score >= 18 else None
+
+
+def find_first_chat_conversation_item(window: Any, window_rect: Rect, search_box_rect: Rect | None) -> Any | None:
+    conversation_region = build_chat_conversation_list_region(window_rect, search_box_rect)
+    candidates: list[dict[str, Any]] = []
+
+    for control, _depth in iter_controls(window, max_depth=14):
+        rect = get_rect_tuple(control)
+        if rect is None:
+            continue
+        if search_box_rect is not None and rect[1] < search_box_rect[3] + 8:
+            continue
+
+        score = score_chat_conversation_item_candidate(control, conversation_region)
+        if score <= 0:
+            continue
+
+        candidates.append({
+            "control": control,
+            "score": score,
+            "rect": rect,
+            "centerY": rect_center(rect)[1],
+            "width": rect[2] - rect[0],
+        })
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: (item["centerY"], item["rect"][0]))
+    rows: list[dict[str, Any]] = []
+    for candidate in candidates:
+        existing_row = next((row for row in rows if abs(row["centerY"] - candidate["centerY"]) <= 12), None)
+        if existing_row is None:
+            rows.append(candidate)
+            continue
+
+        if (candidate["score"], candidate["width"]) > (existing_row["score"], existing_row["width"]):
+            existing_row.update(candidate)
+
+    rows.sort(key=lambda item: (item["centerY"], -item["score"], item["rect"][0]))
+    return rows[0]["control"] if rows else None
 
 
 def score_plus_candidate(control: Any, window_rect: Rect, search_rect: Rect | None = None) -> int:

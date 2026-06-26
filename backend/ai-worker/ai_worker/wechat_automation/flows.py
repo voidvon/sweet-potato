@@ -1,18 +1,24 @@
 from __future__ import annotations
 
+import ctypes
 import time
 from typing import Any
 
 from .models import AutomationLog
 from .constants import PANEL_CHAT_NAME
 from .selectors import (
+    build_chat_conversation_list_region,
     collect_add_friend_menu_probe,
     collect_chat_search_result_texts,
+    collect_control_texts,
     find_add_friend_entry,
     find_add_friend_search_box,
     find_add_friend_window,
+    find_chat_conversation_list_container,
+    find_first_chat_conversation_item,
     find_chat_list_search_box,
     find_plus_button,
+    parse_unread_chat_title,
     find_search_box,
 )
 from .uia import (
@@ -239,6 +245,61 @@ def _open_quick_action_menu(
     )
 
 
+def _scroll_conversation_list_to_top(
+    auto: Any,
+    conversation_region: tuple[int, int, int, int],
+    logs: list[AutomationLog],
+) -> None:
+    center_x = (conversation_region[0] + conversation_region[2]) // 2
+    center_y = min(conversation_region[1] + 48, conversation_region[3] - 24)
+    click_fn = getattr(auto, "Click", None)
+    if callable(click_fn):
+        click_fn(center_x, center_y)
+    else:
+        user32 = ctypes.windll.user32
+        user32.SetCursorPos(center_x, center_y)
+        time.sleep(0.05)
+        user32.mouse_event(0x0002, 0, 0, 0, 0)
+        time.sleep(0.05)
+        user32.mouse_event(0x0004, 0, 0, 0, 0)
+    time.sleep(0.08)
+    append_log(
+        logs,
+        "info",
+        "已聚焦搜索框下方的会话区域，准备滚动到顶部",
+        code="conversation_list_focused",
+        details={"conversationRegion": conversation_region, "focusPoint": (center_x, center_y)},
+    )
+
+    try:
+        auto.SendKeys("{Home}")
+        time.sleep(0.12)
+        append_log(logs, "info", "已发送 Home 键尝试回到会话列表顶部", code="conversation_list_home_sent")
+    except Exception as error:
+        append_log(
+            logs,
+            "warn",
+            f"发送 Home 键失败，继续尝试滚轮回顶: {error}",
+            code="conversation_list_home_failed",
+        )
+
+    user32 = ctypes.windll.user32
+    wheel_delta = 120
+    for _ in range(6):
+        user32.SetCursorPos(center_x, center_y)
+        time.sleep(0.03)
+        user32.mouse_event(0x0800, 0, 0, wheel_delta * 6, 0)
+        time.sleep(0.06)
+
+    append_log(
+        logs,
+        "info",
+        "已通过滚轮多次上滚会话列表，尽量确保列表回到顶部",
+        code="conversation_list_scrolled_to_top",
+        details={"center": (center_x, center_y)},
+    )
+
+
 def open_add_friend(auto: Any, window_name: str, account: str, greeting: str) -> list[AutomationLog]:
     logs: list[AutomationLog] = []
     started_at = time.perf_counter()
@@ -332,6 +393,83 @@ def open_add_friend(auto: Any, window_name: str, account: str, greeting: str) ->
 
     run_handle_add_friend_search_result_tool(auto, window, add_friend_window, greeting, logs)
     return logs
+
+
+def detect_unread_and_open(auto: Any, window_name: str) -> tuple[list[AutomationLog], dict[str, Any]]:
+    logs: list[AutomationLog] = []
+    window = find_window(auto, window_name)
+    append_log(logs, "info", f"已找到微信窗口: {window_name}", code="window_found", details={"windowName": window_name})
+
+    activate_window(window)
+    append_log(logs, "info", "已激活微信窗口", code="window_activated", details={"windowName": window_name})
+
+    ensure_panel_data = _ensure_chat_panel(auto, window, window_name, logs)
+    if ensure_panel_data.get("after", {}).get("panel") != PANEL_CHAT_NAME:
+        raise RuntimeError("当前不在微信面板，且自动切换到微信面板失败")
+
+    window_rect = get_rect_tuple(window)
+    if not window_rect:
+        raise RuntimeError("无法读取微信窗口坐标，无法定位会话列表")
+
+    search_box = find_chat_list_search_box(window, window_rect)
+    search_box_rect = get_rect_tuple(search_box) if search_box is not None else None
+    conversation_region = build_chat_conversation_list_region(window_rect, search_box_rect)
+    conversation_list = find_chat_conversation_list_container(window, window_rect, search_box_rect)
+    if conversation_list is None:
+        raise RuntimeError("未找到会话列表容器，无法探测未读会话")
+
+    _scroll_conversation_list_to_top(auto, conversation_region, logs)
+
+    first_item = wait_for_match(
+        lambda: find_first_chat_conversation_item(window, window_rect, search_box_rect),
+        timeout=1.2,
+        interval=0.12,
+    )
+    if first_item is None:
+        raise RuntimeError("未找到会话列表第一条会话")
+
+    first_item_summary = describe_control(first_item)
+    first_item_texts = collect_control_texts(first_item, max_depth=2)
+    unread_match = next((parse_unread_chat_title(text) for text in first_item_texts if parse_unread_chat_title(text)), None)
+    has_unread = unread_match is not None
+
+    append_log(
+        logs,
+        "info",
+        f"已定位会话列表第一条: {first_item_summary}",
+        code="first_conversation_item_found",
+        details={"control": first_item_summary, "texts": first_item_texts[:20]},
+    )
+
+    data: dict[str, Any] = {
+        "windowName": window_name,
+        "firstConversationItem": first_item_summary,
+        "firstConversationTexts": first_item_texts,
+        "hasUnread": has_unread,
+        "unreadMatch": unread_match,
+        "opened": False,
+    }
+
+    if not has_unread:
+        append_log(
+            logs,
+            "info",
+            "第一条会话未命中未读格式，判定当前没有顶部未读消息",
+            code="first_conversation_not_unread",
+        )
+        return logs, data
+
+    click_control(auto, first_item, prefer_rect_center=True)
+    time.sleep(0.2)
+    append_log(
+        logs,
+        "info",
+        "第一条会话命中未读格式，已点击打开会话",
+        code="first_conversation_opened",
+        details={"unreadMatch": unread_match},
+    )
+    data["opened"] = True
+    return logs, data
 
 
 def search_and_open_friend(auto: Any, window_name: str, contact_name: str) -> list[AutomationLog]:

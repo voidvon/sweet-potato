@@ -14,8 +14,10 @@ from ai_worker.wechat_automation.selectors import (
     click_add_to_contacts_strict,
     click_send_message,
     collect_chat_search_result_texts,
+    collect_control_texts,
     find_add_friend_entry,
     find_add_friend_result_actions,
+    find_first_chat_conversation_item,
     find_chat_message_editor,
     find_chat_list_search_box,
     find_plus_button,
@@ -24,6 +26,7 @@ from ai_worker.wechat_automation.selectors import (
     find_send_message_button_strict,
     find_sidebar_panel_button,
     identify_current_panel,
+    parse_unread_chat_title,
 )
 
 
@@ -428,6 +431,92 @@ class WechatAutomationSelectorsTest(unittest.TestCase):
         self.assertIn("wxid_abc123", texts)
         self.assertIn("wxid_abc1234", texts)
         self.assertNotIn("wxid_outside", texts)
+
+    def test_parse_unread_chat_title_returns_match(self):
+        result = parse_unread_chat_title("张三 [12条]")
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual(result["nickname"], "张三")
+        self.assertEqual(result["unreadCount"], 12)
+
+    def test_parse_unread_chat_title_rejects_blank_nickname_and_plain_text(self):
+        self.assertIsNone(parse_unread_chat_title(" [12条]"))
+        self.assertIsNone(parse_unread_chat_title("张三"))
+
+    def test_find_first_chat_conversation_item_prefers_top_unread_item(self):
+        search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(160, 170, 360, 202),
+        )
+        unread_title = FakeControl(
+            name="张三 [3条]",
+            control_type="TextControl",
+            rect=(180, 236, 320, 264),
+        )
+        unread_item = FakeControl(
+            name="",
+            control_type="ListItemControl",
+            rect=(152, 220, 392, 292),
+            children=[unread_title],
+        )
+        second_title = FakeControl(
+            name="李四",
+            control_type="TextControl",
+            rect=(180, 316, 260, 344),
+        )
+        second_item = FakeControl(
+            name="",
+            control_type="ListItemControl",
+            rect=(152, 300, 392, 372),
+            children=[second_title],
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[search_box, unread_item, second_item],
+        )
+
+        result = find_first_chat_conversation_item(window, (0, 120, 960, 760), (160, 170, 360, 202))
+
+        self.assertIs(result, unread_item)
+        self.assertIn("张三 [3条]", collect_control_texts(result, max_depth=2))
+
+    def test_find_first_chat_conversation_item_ignores_search_box_container(self):
+        search_box = FakeControl(
+            name="搜索",
+            control_type="EditControl",
+            rect=(160, 170, 360, 202),
+        )
+        search_container = FakeControl(
+            name="",
+            control_type="PaneControl",
+            rect=(140, 150, 390, 214),
+            children=[search_box],
+        )
+        unread_title = FakeControl(
+            name="王五 [2条]",
+            control_type="TextControl",
+            rect=(180, 236, 320, 264),
+        )
+        unread_item = FakeControl(
+            name="",
+            control_type="ListItemControl",
+            rect=(152, 220, 392, 292),
+            children=[unread_title],
+        )
+        window = FakeControl(
+            name="微信",
+            control_type="WindowControl",
+            rect=(0, 120, 960, 760),
+            children=[search_container, unread_item],
+        )
+
+        result = find_first_chat_conversation_item(window, (0, 120, 960, 760), (160, 170, 360, 202))
+
+        self.assertIs(result, unread_item)
 
     def test_find_add_friend_entry_prefers_quick_action_list_item_within_window(self):
         add_friend_item = FakeControl(

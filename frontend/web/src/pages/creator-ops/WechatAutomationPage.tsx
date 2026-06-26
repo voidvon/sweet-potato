@@ -5,6 +5,7 @@ import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import {
   closeWechatAddFriendWindows,
   clickWechatAddFriendEntry,
+  detectUnreadWechatConversation,
   handleWechatAddFriendResult,
   identifyWechatCurrentPanel,
   isElectronEgg,
@@ -153,6 +154,12 @@ export function WechatAutomationPage() {
     await runToolAction('搜索朋友并打开', () => searchOpenWechatFriend({
       windowName: DEFAULT_WINDOW_NAME,
       contactName: account.trim(),
+    }));
+  }
+
+  async function handleDetectUnreadAndOpen() {
+    await runToolAction('探测未读并打开', () => detectUnreadWechatConversation({
+      windowName: DEFAULT_WINDOW_NAME,
     }));
   }
 
@@ -338,6 +345,13 @@ export function WechatAutomationPage() {
               onClick={() => void handleSearchOpenFriend()}
             >
               搜索朋友并打开
+            </Button>
+            <Button
+              disabled={isToolBusy && toolRunning !== '探测未读并打开'}
+              loading={toolRunning === '探测未读并打开'}
+              onClick={() => void handleDetectUnreadAndOpen()}
+            >
+              探测未读并打开
             </Button>
             <Button
               disabled={isToolBusy && toolRunning !== '处理添加朋友搜索结果'}
