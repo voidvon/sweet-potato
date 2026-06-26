@@ -1453,6 +1453,41 @@ export function selectedReferenceSummary(context: Record<string, unknown>) {
   };
 }
 
+function isPublicHttpUrl(value: string) {
+  if (!/^https?:\/\/\S+/i.test(value)) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.trim().toLowerCase();
+    if (!hostname) {
+      return false;
+    }
+    if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '127.0.0.1' || hostname === '::1') {
+      return false;
+    }
+    if (/^127\./.test(hostname) || /^10\./.test(hostname) || /^192\.168\./.test(hostname) || /^169\.254\./.test(hostname)) {
+      return false;
+    }
+    const private172 = hostname.match(/^172\.(\d{1,3})\./);
+    if (private172) {
+      const second = Number(private172[1]);
+      if (second >= 16 && second <= 31) {
+        return false;
+      }
+    }
+    if (hostname.startsWith('[') && hostname.endsWith(']')) {
+      const normalized = hostname.slice(1, -1);
+      if (normalized === '::1' || normalized.toLowerCase().startsWith('fe80:') || normalized.toLowerCase().startsWith('fc') || normalized.toLowerCase().startsWith('fd')) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function assertSelectedReferencesResolved(input: {
   imageUrls: string[];
   videoUrls: string[];
@@ -1464,9 +1499,6 @@ export function assertSelectedReferencesResolved(input: {
   const unresolved: string[] = [];
   if (selected.images > 0 && input.imageUrls.length === 0) {
     unresolved.push(`图片 ${selected.images} 个`);
-  }
-  if (selected.videos > 0 && input.videoUrls.length === 0) {
-    unresolved.push(`视频 ${selected.videos} 个`);
   }
   if (allowSeedanceAudioReference && selected.audios > 0 && input.audioUrls.length === 0) {
     unresolved.push(`音频 ${selected.audios} 个`);
@@ -1505,12 +1537,30 @@ export async function collectSeedanceImageUrls(context: Record<string, unknown>)
 export function collectSeedanceVideoUrls(context: Record<string, unknown>) {
   const materialContext = isRecord(context.materialContext) ? context.materialContext : undefined;
   const references = isRecord(materialContext?.references) ? materialContext.references : undefined;
+  const traceId = isRecord(context.videoGenerationFlow) ? String(context.videoGenerationFlow.traceId || '') : '';
   const urls = (Array.isArray(references?.videos) ? references.videos : [])
     .filter(isRecord)
-    .map((asset) => publicMaterialUrl(asset.fileUrl)
-      || publicMaterialUrl(asset.url)
-      || publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.url : undefined)
-      || publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.sourceUrl : undefined))
+    .map((asset) => {
+      const candidates = [
+        publicMaterialUrl(asset.fileUrl),
+        publicMaterialUrl(asset.url),
+        publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.url : undefined),
+        publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.sourceUrl : undefined),
+      ].filter(Boolean);
+      const resolved = candidates.find((candidate) => isPublicHttpUrl(candidate));
+      if (!resolved) {
+        logVideoGenerationFlow('warn', 'seedance video reference skipped because resolved url is not public', {
+          traceId,
+          assetId: String(asset.id || ''),
+          fileUrl: String(asset.fileUrl || ''),
+          url: String(asset.url || ''),
+          metadataUrl: asset.metadata && isRecord(asset.metadata) ? String(asset.metadata.url || '') : '',
+          metadataSourceUrl: asset.metadata && isRecord(asset.metadata) ? String(asset.metadata.sourceUrl || '') : '',
+          contentPublicBaseUrl,
+        });
+      }
+      return resolved || '';
+    })
     .filter(Boolean);
   return Array.from(new Set(urls));
 }
