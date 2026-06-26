@@ -2133,21 +2133,45 @@ function completeUnderstandingStage(session: VideoRemakeSession, input: {
     existingExpertKeys.add(key);
     addCard(session, 'expert_analysis', { status: 'confirmed', data: expert });
   });
-  if (!lastCardOfType(session, 'director_normalize')) {
-    addCard(session, 'director_normalize', {
-      status: 'pending',
-      data: {
-        status: 'running',
-        message: '视频导演正在整理人物、场景、画中画和口播设定。',
-      },
-    });
-  }
+  ensureDirectorNormalizePendingCard(session);
   videoRemakeRepository.updateSession(session.id, {
     status: session.status,
     currentStep: session.currentStep,
     invalidArtifacts: session.invalidArtifacts,
     artifacts: session.artifacts,
     workflow: session.workflow,
+  });
+}
+
+function ensureDirectorNormalizePendingCard(session: VideoRemakeSession, reason?: string) {
+  return ensurePendingCard(session, 'director_normalize', {
+    step: 'director_normalize',
+    status: 'running',
+    message: reason === 'expert_retry'
+      ? '专家重新解析完成，视频导演正在重新整理可确认素材表。'
+      : '视频导演正在整理人物、场景、画中画和口播设定。',
+    percent: 58,
+    ...(reason ? { reason } : {}),
+  });
+}
+
+function confirmDirectorNormalizeCard(session: VideoRemakeSession, card: VideoRemakeCardMessage | null, reason?: string) {
+  const target = card || lastCardOfType(session, 'director_normalize');
+  if (!target) {
+    return;
+  }
+  updateCardById(session, target.cardId, {
+    status: 'confirmed',
+    data: {
+      ...isRecord(target.data) ? target.data : {},
+      step: 'director_normalize',
+      status: 'completed',
+      message: reason === 'expert_retry'
+        ? '视频导演已根据重新解析结果整理完成。'
+        : '视频导演已整理完成，已生成可确认设定。',
+      percent: 100,
+      ...(reason ? { reason } : {}),
+    },
   });
 }
 
@@ -3109,19 +3133,7 @@ function finalizeAnalysis(session: VideoRemakeSession, input: {
     session.workflow.artifacts = { ...session.workflow.artifacts, [key]: value };
   });
   completeUnderstandingStage(session, { audio: input.audio, visual: input.visual, pip: input.pip });
-  const directorCard = lastCardOfType(session, 'director_normalize');
-  if (directorCard) {
-    updateCardById(session, directorCard.cardId, {
-      status: 'confirmed',
-      data: {
-        ...isRecord(directorCard.data) ? directorCard.data : {},
-        step: 'director_normalize',
-        status: 'completed',
-        message: '视频导演已整理完成，已生成可确认设定。',
-        percent: 100,
-      },
-    });
-  }
+  confirmDirectorNormalizeCard(session, lastCardOfType(session, 'director_normalize'));
   const firstCard = ensureEditingCard(session, 'basic_info', { data: dataForCard('basic_info', { workflow: session.workflow }) });
   interruptForCard(session, firstCard);
   refreshTask(session, 'waiting_edit');
@@ -4187,11 +4199,13 @@ export const videoRemakeService = {
         retriedFromCardId: cardId,
       },
     });
+    const directorCard = ensureDirectorNormalizePendingCard(session, 'expert_retry');
     const normalized = await runNode(session, 'director_normalize', () => defaultVideoRemakeNodeAdapters.directorNormalize(context()));
     Object.entries(normalized).forEach(([key, value]) => {
       session.workflow.artifacts = { ...session.workflow.artifacts, [key]: value };
     });
     syncArtifact(session, 'expert_analysis', session.workflow.artifacts.expertAnalysis || {});
+    confirmDirectorNormalizeCard(session, directorCard, 'expert_retry');
     const firstCard = ensureEditingCard(session, 'basic_info', { data: dataForCard('basic_info', { workflow: session.workflow }) });
     session.status = 'waiting_edit';
     interruptForCard(session, firstCard, 'regenerate');

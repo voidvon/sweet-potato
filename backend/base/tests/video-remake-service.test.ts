@@ -29,10 +29,11 @@ test('video remake workflow runs cards through final video independently', async
   try {
     process.env.DATA_DIR = dataDir;
 
-    const [{ migrateDatabase }, { videoRemakeService }, { defaultVideoRemakeNodeAdapters }] = await Promise.all([
+    const [{ migrateDatabase }, { videoRemakeService }, { defaultVideoRemakeNodeAdapters }, { videoRemakeRepository }] = await Promise.all([
       import('../src/db/schema.js'),
       import('../src/modules/video-remake/video-remake.service.js'),
       import('../src/modules/video-remake/video-remake.node-adapters.js'),
+      import('../src/modules/video-remake/video-remake.repository.js'),
     ]);
     migrateDatabase();
 
@@ -145,6 +146,101 @@ test('video remake workflow runs cards through final video independently', async
     assert.equal(completedFinalCard?.cardId, finalCard.cardId);
     assert.equal(completedFinalCard?.status, 'confirmed');
     assert.match(JSON.stringify(completedFinalCard?.data || {}), /generated-video-video-remake-test/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('retrying an expert emits a director normalize card before returning to editable cards', async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'video-remake-retry-expert-'));
+  const dataDir = path.join(tempRoot, 'data');
+  mkdirSync(dataDir, { recursive: true });
+
+  try {
+    process.env.DATA_DIR = dataDir;
+
+    const [{ migrateDatabase }, { videoRemakeService }, { defaultVideoRemakeNodeAdapters }, { videoRemakeRepository }] = await Promise.all([
+      import('../src/db/schema.js'),
+      import('../src/modules/video-remake/video-remake.service.js'),
+      import('../src/modules/video-remake/video-remake.node-adapters.js'),
+      import('../src/modules/video-remake/video-remake.repository.js'),
+    ]);
+    migrateDatabase();
+
+    let session = videoRemakeService.createSession({ userId: 'user-video-remake-retry-expert' });
+    session.messages.push({
+      id: 'audio-card-message',
+      type: 'card',
+      role: 'assistant',
+      cardId: 'audio-card',
+      cardType: 'expert_analysis',
+      title: '专家解析',
+      status: 'confirmed',
+      data: {
+        expertKey: 'audio',
+        roleName: '音频理解专家',
+        content: '旧音频结果',
+      },
+      createdAt: new Date().toISOString(),
+    });
+    session.workflow.runtime.analyses = {
+      audio: { roleName: '音频理解专家', content: '旧音频结果' },
+      visual: { roleName: '视频理解专家', content: '视频结果', characters: [], scenes: [] },
+      pip: { roleName: '画中画理解专家', content: '', appeared: false, items: [] },
+    };
+    session.workflow.runtime.viralUnderstanding = {
+      outputs: {
+        audio_expert: { roleName: '音频理解专家', content: '旧音频结果' },
+        video_expert: { roleName: '视频理解专家', content: '视频结果' },
+        picture_in_picture_expert: { roleName: '画中画理解专家', content: '' },
+      },
+      executions: [],
+    };
+    session.workflow.artifacts.expertAnalysis = {
+      audio: session.workflow.runtime.analyses.audio,
+      visual: session.workflow.runtime.analyses.visual,
+      pip: session.workflow.runtime.analyses.pip,
+    };
+    const audioCard = session.messages.find((message) => message.type === 'card' && message.cardId === 'audio-card');
+    assert.ok(audioCard && audioCard.type === 'card');
+    videoRemakeRepository.upsertCard(session.id, audioCard);
+    videoRemakeRepository.updateSession(session.id, {
+      status: session.status,
+      currentStep: session.currentStep,
+      invalidArtifacts: session.invalidArtifacts,
+      artifacts: session.artifacts,
+      workflow: session.workflow,
+    });
+
+    const originalAnalyzeAudio = defaultVideoRemakeNodeAdapters.analyzeAudio;
+    const originalDirectorNormalize = defaultVideoRemakeNodeAdapters.directorNormalize;
+    defaultVideoRemakeNodeAdapters.analyzeAudio = async () => ({
+      roleName: '音频理解专家',
+      content: '新音频结果',
+      spokenContent: '新口播',
+    });
+    defaultVideoRemakeNodeAdapters.directorNormalize = async () => ({
+      basicInfo: { title: '重试后标题' },
+      characterSetting: { items: [] },
+      sceneSetting: { items: [{ label: '场景 1', description: '重试后场景' }] },
+      voiceAudioSetting: { voice: '原声参考', items: [] },
+      scriptContent: { content: '新口播' },
+    });
+    try {
+      session = await videoRemakeService.retryExpert(session.id, 'audio-card', {
+        userId: 'user-video-remake-retry-expert',
+      });
+    } finally {
+      defaultVideoRemakeNodeAdapters.analyzeAudio = originalAnalyzeAudio;
+      defaultVideoRemakeNodeAdapters.directorNormalize = originalDirectorNormalize;
+    }
+
+    const directorCards = cardsOfType(session, 'director_normalize');
+    assert.equal(directorCards.length, 1);
+    assert.equal(directorCards[0]?.status, 'confirmed');
+    assert.match(JSON.stringify(directorCards[0]?.data || {}), /expert_retry/);
+    assert.equal(latestCard(session, 'basic_info')?.status, 'editing');
+    assert.equal(session.workflow.pendingInterrupt?.cardType, 'basic_info');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
