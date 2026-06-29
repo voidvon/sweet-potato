@@ -485,14 +485,14 @@ test('video remake scene-aware segmented generation records billable usage for e
         usage: { completionTokens: 3, totalTokens: 6 },
       };
       },
-      waitForVideoModelCompletion: async ({ jobId }: Parameters<typeof videoRemakeVideoModelRuntime.waitForVideoModelCompletion>[0]) => ({
+      waitForVideoModelCompletion: async ({ jobId, initialUsage }: Parameters<typeof videoRemakeVideoModelRuntime.waitForVideoModelCompletion>[0]) => ({
       provider: 'volcengine-seedance',
       model: 'doubao-seedance-2-0-260128',
       jobId,
       status: 'completed',
       videoUrl: `https://cdn.example.com/${jobId}.mp4`,
       coverUrl: '',
-      usage: { completionTokens: 3, totalTokens: 6 },
+      usage: initialUsage,
       }),
     };
     globalThis.fetch = async () => new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]).buffer, {
@@ -541,6 +541,9 @@ test('video remake scene-aware segmented generation records billable usage for e
       'usage-segment-job-2',
       'usage-segment-job-3',
     ]);
+    segmentUsageRecords.forEach((record) => {
+      assert.equal(Number((record.quantitySnapshot as Record<string, unknown>).totalTokens || 0), 6);
+    });
   } finally {
     globalThis.fetch = originalFetch;
     if (previousVideoApiKey === undefined) {

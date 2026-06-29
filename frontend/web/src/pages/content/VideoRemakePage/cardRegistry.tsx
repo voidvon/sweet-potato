@@ -2054,8 +2054,8 @@ function GenerationProgressCard(props: CardRendererProps) {
     .trim();
   const result = asRecord(data.result);
   const videoUrl = fieldText(data.videoUrl) || fieldText(result.videoUrl);
-  const completedExperts = Number(data.completedExperts ?? 0);
-  const totalExperts = Number(data.totalExperts ?? 0);
+  const rawCompletedExperts = Number(data.completedExperts ?? 0);
+  const rawTotalExperts = Number(data.totalExperts ?? 0);
   const isCompleted = props.card.status === 'confirmed' || status === 'completed';
   const isFailed = props.card.status === 'failed' || status === 'failed';
   const retriedExpertName = fieldText(data.retriedExpertName);
@@ -2063,6 +2063,11 @@ function GenerationProgressCard(props: CardRendererProps) {
     ? data.executions.map(asRecord).filter((item) => Object.keys(item).length > 0)
     : [];
   const fallbackExpertLabels = retriedExpertName ? [retriedExpertName] : ['音频理解专家', '视频理解专家', '画中画理解专家'];
+  const totalExperts = rawTotalExperts || executionItems.length || fallbackExpertLabels.length;
+  const completedFromExecutions = executionItems.filter((item) => item.completed === true).length;
+  const completedExperts = isCompleted
+    ? totalExperts
+    : Math.min(totalExperts, Math.max(rawCompletedExperts, completedFromExecutions));
   const expertItems = executionItems.length
     ? executionItems.map((item, index) => ({
       label: fieldText(item.roleName) || fallbackExpertLabels[index] || `专家 ${index + 1}`,

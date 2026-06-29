@@ -125,7 +125,7 @@ type VideoGenerationTaskSnapshot = {
   usage?: VideoGenerationUsageSnapshot;
 };
 
-type VideoGenerationUsageSnapshot = {
+export type VideoGenerationUsageSnapshot = {
   completionTokens: number;
   totalTokens: number;
   toolUsage?: Record<string, unknown>;
@@ -2408,6 +2408,7 @@ export async function waitForVideoModelCompletion(input: {
   jobId?: string;
   initialVideoUrl?: string;
   initialCoverUrl?: string;
+  initialUsage?: VideoGenerationUsageSnapshot;
   initialStatus: 'running' | 'completed' | 'failed';
   traceId: string;
   taskId: string;
@@ -2420,7 +2421,7 @@ export async function waitForVideoModelCompletion(input: {
       jobId: input.jobId,
       videoUrl: input.initialVideoUrl,
       coverUrl: input.initialCoverUrl,
-      usage: undefined,
+      usage: input.initialUsage,
       status: 'completed' as const,
     };
   }
@@ -2567,6 +2568,7 @@ async function regenerateCopyrightSafeVideoSegment(input: {
     jobId: retryResult.jobId,
     initialVideoUrl: retryResult.videoUrl,
     initialCoverUrl: retryResult.coverUrl,
+    initialUsage: retryResult.usage,
     initialStatus: retryResult.status,
     traceId: input.traceId,
     taskId: input.taskId,
@@ -2926,6 +2928,7 @@ export async function callSegmentedSeedanceVideoGeneration(input: {
         model: result.model,
         jobId: result.jobId,
         videoUrl: result.videoUrl,
+        usage: result.usage,
         status: result.status,
       };
       segmentResults[segmentIndex - 1] = createdSegment;
@@ -3001,6 +3004,7 @@ export async function callSegmentedSeedanceVideoGeneration(input: {
           jobId: typeof pendingResult.jobId === 'string' ? pendingResult.jobId : undefined,
           initialVideoUrl: typeof pendingResult.videoUrl === 'string' ? pendingResult.videoUrl : undefined,
           initialCoverUrl: undefined,
+          initialUsage: isRecord(pendingResult.usage) ? pendingResult.usage as VideoGenerationUsageSnapshot : undefined,
           initialStatus: pendingResult.videoUrl ? 'completed' : 'running',
           traceId: input.traceId,
           taskId: input.taskId,
@@ -3293,8 +3297,8 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
           model: String(existingResult.model || request.modelId),
           jobId: typeof existingResult.jobId === 'string' ? existingResult.jobId : undefined,
           videoUrl: typeof existingResult.videoUrl === 'string' ? existingResult.videoUrl : undefined,
+          usage: isRecord(existingResult.usage) ? existingResult.usage as VideoGenerationUsageSnapshot : undefined,
           coverUrl: undefined,
-          usage: undefined,
           status: existingResult.videoUrl ? 'completed' : 'running',
         };
       } else {
@@ -3344,6 +3348,7 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
         model: result.model,
         jobId: result.jobId,
         videoUrl: result.videoUrl,
+        usage: result.usage,
         status: result.status,
       };
       if (resultIndex >= 0) {
@@ -3397,6 +3402,7 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
           jobId: result.jobId,
           initialVideoUrl: result.videoUrl,
           initialCoverUrl: result.coverUrl,
+          initialUsage: result.usage,
           initialStatus: result.status,
           traceId: request.traceId,
           taskId: request.taskId,

@@ -9,6 +9,7 @@ import {
   mergeGeneratedVideoSegments,
   persistSegmentedVideoGenerationState,
   recordVideoGenerationUsageIfNeeded,
+  type VideoGenerationUsageSnapshot,
   type SegmentedVideoGenerationState,
   userFacingVideoGenerationError,
   waitForVideoModelCompletion,
@@ -205,6 +206,7 @@ async function runSceneAwareSegmentedSeedanceVideoGeneration(
         model: submitted.model,
         jobId: submitted.jobId,
         videoUrl: submitted.videoUrl,
+        usage: submitted.usage,
         status: submitted.status,
       };
       segmentResults[segment.segmentIndex - 1] = createdSegment;
@@ -270,6 +272,7 @@ async function runSceneAwareSegmentedSeedanceVideoGeneration(
         jobId: typeof existingResult.jobId === 'string' ? existingResult.jobId : undefined,
         initialVideoUrl: typeof existingResult.videoUrl === 'string' ? existingResult.videoUrl : undefined,
         initialCoverUrl: undefined,
+        initialUsage: isRecord(existingResult.usage) ? existingResult.usage as VideoGenerationUsageSnapshot : undefined,
         initialStatus: existingResult.videoUrl ? 'completed' : 'running',
         traceId: input.traceId,
         taskId: input.taskId,

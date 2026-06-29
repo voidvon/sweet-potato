@@ -18,6 +18,7 @@ const sourceTypeMap: Record<string, string> = {
   video_remake_segment_regeneration: '视频重制 · 分段重生成',
   viral_director_confirm_generate: '爆款复刻 · 最终生成',
   viral_director_segment_generation: '爆款复刻 · 分段生成',
+  video_remake_scene_aware_segment_generation: '爆款复刻 · 分段生成',
   video_remake_reference_primer: '爆款复刻 · 分段预生成',
   viral_director_segment_generation_copyright_retry: '爆款复刻 · 分段重试生成',
   viral_director_segment_regeneration: '爆款复刻 · 分段重生成',
