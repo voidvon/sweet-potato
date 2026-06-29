@@ -45,9 +45,9 @@ import './ModelSettingsPage.scss';
 
 const visibleModelTypes: Array<{ key: ModelType; label: string }> = [
   { key: 'llm', label: 'LLM 模型' },
-  { key: 'image', label: '图片模型' },
+  // { key: 'image', label: '图片模型' },
   { key: 'video', label: '视频模型' },
-  { key: 'audio', label: '音频模型' },
+  // { key: 'audio', label: '音频模型' },
 ];
 
 function saveModelConfig(values: ModelConfig) {
