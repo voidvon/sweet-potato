@@ -1,31 +1,35 @@
-const fs = require('node:fs');
-const http = require('node:http');
-const net = require('node:net');
-const path = require('node:path');
-const { spawn, execFileSync } = require('node:child_process');
+const fs = require("node:fs");
+const http = require("node:http");
+const net = require("node:net");
+const path = require("node:path");
+const { spawn, execFileSync } = require("node:child_process");
 
 const preferredPort = Number(process.env.FRONTEND_PORT || 9527);
 const rootDir = process.cwd();
-const webDir = path.join(rootDir, 'web');
-const electronSourceDir = path.join(rootDir, 'electron');
-const electronPublicDir = path.join(rootDir, 'public', 'electron');
-const viteCli = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
-const userDataDir = path.join(rootDir, '..', '.codex-run', 'electron-user-data-dev');
+const webDir = path.join(rootDir, "web");
+const electronSourceDir = path.join(rootDir, "electron");
+const electronPublicDir = path.join(rootDir, "public", "electron");
+const viteCli = path.join(rootDir, "node_modules", "vite", "bin", "vite.js");
+const userDataDir = path.join(
+  rootDir,
+  "..",
+  ".codex-run",
+  "electron-user-data-dev",
+);
+
 function resolveElectronExecutable() {
-  const electronDistDir = path.join(rootDir, 'node_modules', 'electron', 'dist');
-
-  if (process.platform === 'win32') {
-    return path.join(electronDistDir, 'electron.exe');
+  try {
+    const executable = require("electron");
+    if (!executable || !fs.existsSync(executable)) {
+      throw new Error(
+        `Resolved Electron executable does not exist: ${executable}`,
+      );
+    }
+    return executable;
+  } catch (error) {
+    throw new Error(`Unable to resolve Electron executable: ${error.message}`);
   }
-
-  if (process.platform === 'darwin') {
-    return path.join(electronDistDir, 'Electron.app', 'Contents', 'MacOS', 'Electron');
-  }
-
-  return path.join(electronDistDir, 'electron');
 }
-
-const electronExe = resolveElectronExecutable();
 
 const childProcesses = [];
 let shuttingDown = false;
@@ -42,9 +46,9 @@ function log(message) {
 function isPortAvailable(port) {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.once('error', () => resolve(false));
-    server.once('listening', () => server.close(() => resolve(true)));
-    server.listen(port, '127.0.0.1');
+    server.once("error", () => resolve(false));
+    server.once("listening", () => server.close(() => resolve(true)));
+    server.listen(port, "127.0.0.1");
   });
 }
 
@@ -55,7 +59,9 @@ async function findAvailablePort(startPort) {
     }
   }
 
-  throw new Error(`No available frontend port found from ${startPort} to ${startPort + 99}`);
+  throw new Error(
+    `No available frontend port found from ${startPort} to ${startPort + 99}`,
+  );
 }
 
 function waitForHttp(url, timeoutMs) {
@@ -68,7 +74,7 @@ function waitForHttp(url, timeoutMs) {
         resolve();
       });
 
-      request.on('error', () => {
+      request.on("error", () => {
         if (Date.now() - startedAt > timeoutMs) {
           reject(new Error(`Frontend did not become ready in time: ${url}`));
           return;
@@ -86,9 +92,12 @@ function terminateProcess(child) {
     return;
   }
 
-  if (process.platform === 'win32') {
+  if (process.platform === "win32") {
     try {
-      execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
     } catch {
       // Ignore cleanup failures during shutdown.
     }
@@ -96,13 +105,13 @@ function terminateProcess(child) {
   }
 
   try {
-    child.kill('SIGTERM');
+    child.kill("SIGTERM");
   } catch {
     // Ignore cleanup failures during shutdown.
   }
 }
 
-function isElectronWatchTarget(filePath = '') {
+function isElectronWatchTarget(filePath = "") {
   return /\.(js|json)$/i.test(filePath);
 }
 
@@ -114,13 +123,7 @@ function clearElectronRestartTimer() {
 }
 
 function syncElectronSourceToPublic() {
-  const targets = [
-    'config',
-    'controller',
-    'preload',
-    'service',
-    'main.js',
-  ];
+  const targets = ["config", "controller", "preload", "service", "main.js"];
 
   fs.mkdirSync(electronPublicDir, { recursive: true });
 
@@ -141,33 +144,48 @@ function syncElectronSourceToPublic() {
 
 function startElectronShell(env) {
   syncElectronSourceToPublic();
-  log('[dev] Starting Electron shell');
+  log("[dev] Starting Electron shell");
   fs.mkdirSync(userDataDir, { recursive: true });
+  const electronExe = resolveElectronExecutable();
 
   if (!fs.existsSync(electronExe)) {
-    throw new Error(`Electron executable not found: ${electronExe}. Run pnpm install in ${rootDir}.`);
+    throw new Error(
+      `Electron executable not found: ${electronExe}. Run pnpm install in ${rootDir}.`,
+    );
   }
 
-  const child = spawn(electronExe, [
-    '.',
-    '--env=local',
-    '--disable-gpu',
-    '--disable-gpu-compositing',
-    '--disable-software-rasterizer',
-    '--in-process-gpu',
-    '--use-angle=swiftshader',
-    `--user-data-dir=${userDataDir}`,
-  ], {
-    cwd: rootDir,
-    env,
-    stdio: 'inherit',
-    windowsHide: false,
-  });
+  const child = spawn(
+    electronExe,
+    [
+      ".",
+      "--env=local",
+      "--disable-gpu",
+      "--disable-gpu-compositing",
+      "--disable-software-rasterizer",
+      "--in-process-gpu",
+      "--use-angle=swiftshader",
+      `--user-data-dir=${userDataDir}`,
+    ],
+    {
+      cwd: rootDir,
+      env,
+      stdio: "inherit",
+      windowsHide: false,
+    },
+  );
 
   electronChild = child;
   childProcesses.push(child);
 
-  child.on('exit', (code, signal) => {
+  child.on("error", (error) => {
+    if (shuttingDown) {
+      return;
+    }
+    console.error(`[dev] failed to start Electron shell: ${error.message}`);
+    cleanupAndExit(1);
+  });
+
+  child.on("exit", (code, signal) => {
     if (shuttingDown) {
       return;
     }
@@ -180,7 +198,7 @@ function startElectronShell(env) {
     }
 
     if (signal) {
-      cleanupAndExit(signal === 'SIGINT' ? 130 : 143);
+      cleanupAndExit(signal === "SIGINT" ? 130 : 143);
       return;
     }
     if (code && code !== 0) {
@@ -221,7 +239,7 @@ function scheduleElectronRestart(reason) {
 }
 
 function watchElectronSource() {
-  if (process.platform !== 'win32') {
+  if (process.platform !== "win32") {
     return;
   }
 
@@ -229,15 +247,19 @@ function watchElectronSource() {
     return;
   }
 
-  electronWatcher = fs.watch(electronSourceDir, { recursive: true }, (_eventType, fileName) => {
-    const relativePath = typeof fileName === 'string' ? fileName : '';
-    if (!isElectronWatchTarget(relativePath)) {
-      return;
-    }
-    scheduleElectronRestart(relativePath);
-  });
+  electronWatcher = fs.watch(
+    electronSourceDir,
+    { recursive: true },
+    (_eventType, fileName) => {
+      const relativePath = typeof fileName === "string" ? fileName : "";
+      if (!isElectronWatchTarget(relativePath)) {
+        return;
+      }
+      scheduleElectronRestart(relativePath);
+    },
+  );
 
-  electronWatcher.on('error', (error) => {
+  electronWatcher.on("error", (error) => {
     if (shuttingDown) {
       return;
     }
@@ -266,9 +288,9 @@ function cleanupAndExit(code) {
 }
 
 function registerCleanup() {
-  process.once('SIGINT', () => cleanupAndExit(130));
-  process.once('SIGTERM', () => cleanupAndExit(143));
-  process.once('exit', () => {
+  process.once("SIGINT", () => cleanupAndExit(130));
+  process.once("SIGTERM", () => cleanupAndExit(143));
+  process.once("exit", () => {
     for (const child of childProcesses.slice().reverse()) {
       terminateProcess(child);
     }
@@ -279,18 +301,26 @@ function spawnTracked(name, command, args, cwd, env) {
   const child = spawn(command, args, {
     cwd,
     env,
-    stdio: 'inherit',
+    stdio: "inherit",
     windowsHide: false,
   });
 
   childProcesses.push(child);
 
-  child.on('exit', (code, signal) => {
+  child.on("error", (error) => {
+    if (shuttingDown) {
+      return;
+    }
+    console.error(`[dev] failed to start ${name}: ${error.message}`);
+    cleanupAndExit(1);
+  });
+
+  child.on("exit", (code, signal) => {
     if (shuttingDown) {
       return;
     }
     if (signal) {
-      cleanupAndExit(signal === 'SIGINT' ? 130 : 143);
+      cleanupAndExit(signal === "SIGINT" ? 130 : 143);
       return;
     }
     if (code && code !== 0) {
@@ -305,7 +335,9 @@ function spawnTracked(name, command, args, cwd, env) {
 async function main() {
   const port = await findAvailablePort(preferredPort);
   if (port !== preferredPort) {
-    log(`[dev] Port ${preferredPort} is in use, using ${port} for both Vite and Electron.`);
+    log(
+      `[dev] Port ${preferredPort} is in use, using ${port} for both Vite and Electron.`,
+    );
   }
 
   registerCleanup();
@@ -317,11 +349,19 @@ async function main() {
   };
   sharedEnv = env;
 
-  log('[dev] Starting Vite dev server');
+  log("[dev] Starting Vite dev server");
   spawnTracked(
-    'vite',
+    "vite",
     process.execPath,
-    [viteCli, '--configLoader', 'runner', '--host', '0.0.0.0', '--port', String(port)],
+    [
+      viteCli,
+      "--configLoader",
+      "runner",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      String(port),
+    ],
     webDir,
     env,
   );

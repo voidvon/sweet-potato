@@ -117,9 +117,23 @@ export type WechatAddFriendMenuProbeData = {
   relatedControls: WechatMenuProbeNode[];
 };
 
+export type WechatQuickActionProbeData = {
+  windowName: string;
+  activated: boolean;
+  clicked: boolean;
+  menuOpened: boolean;
+  menuRegion?: [number, number, number, number] | null;
+  plusButton?: WechatMenuProbeNode | null;
+  quickActionButton: (WechatMenuProbeNode & { score?: number }) | null;
+  candidates: Array<WechatMenuProbeNode & { score?: number }>;
+  relatedControls?: WechatMenuProbeNode[];
+};
+
 export type WechatAutomationLog = {
   level: 'info' | 'warn' | 'error';
   message: string;
+  code?: string;
+  details?: Record<string, unknown>;
 };
 
 export type WechatProbeResult = {
@@ -142,6 +156,30 @@ export type WechatSendMessageResult = WechatAutomationActionResult;
 
 export type WechatAddFriendMenuProbeResult = WechatAutomationActionResult & {
   data?: WechatAddFriendMenuProbeData;
+};
+
+export type WechatQuickActionProbeResult = WechatAutomationActionResult & {
+  data?: WechatQuickActionProbeData;
+};
+
+export type WechatPanelIdentifyData = {
+  windowName: string;
+  activated: boolean;
+  panel: string | null;
+  confidence: number;
+  method: string;
+  matchedRule?: string | null;
+  matchedKeyword?: string;
+  matchedControl?: WechatMenuProbeNode & { panel?: string; keyword?: string; rule?: string };
+  ruleMatches?: Array<WechatMenuProbeNode & { panel?: string; keyword?: string; rule?: string }>;
+  contactFeatureMatchCount?: number;
+  contactFeatureMatches?: Array<WechatMenuProbeNode & { feature?: string; keyword?: string; matchType?: string }>;
+  signals?: string[];
+  mainControlNames?: string[];
+};
+
+export type WechatPanelIdentifyResult = WechatAutomationActionResult & {
+  data?: WechatPanelIdentifyData;
 };
 
 export async function saveAssetFile(payload: SaveAssetFilePayload): Promise<SaveAssetFileResult> {
@@ -215,6 +253,19 @@ export function runWechatProbe(windowName?: string): Promise<WechatProbeResult> 
   return invokeWechatAutomation<WechatProbeResult>('runProbe', { windowName });
 }
 
+export function identifyWechatCurrentPanel(payload?: {
+  windowName?: string;
+}): Promise<WechatPanelIdentifyResult> {
+  return invokeWechatAutomation<WechatPanelIdentifyResult>('identifyCurrentPanel', payload);
+}
+
+export function switchWechatPanel(payload: {
+  windowName?: string;
+  panel: '微信' | '通讯录';
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('switchPanel', payload);
+}
+
 export function sendWechatMessage(payload: {
   windowName?: string;
   contactName: string;
@@ -235,4 +286,68 @@ export function probeWechatAddFriendMenu(payload?: {
   windowName?: string;
 }): Promise<WechatAddFriendMenuProbeResult> {
   return invokeWechatAutomation<WechatAddFriendMenuProbeResult>('probeAddFriendMenu', payload);
+}
+
+export function probeWechatQuickAction(payload?: {
+  windowName?: string;
+}): Promise<WechatQuickActionProbeResult> {
+  return invokeWechatAutomation<WechatQuickActionProbeResult>('probeQuickAction', payload);
+}
+
+export function clickWechatAddFriendEntry(payload?: {
+  windowName?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('clickAddFriendEntry', payload);
+}
+
+export function focusWechatAddFriendSearch(payload?: {
+  windowName?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('focusAddFriendSearch', payload);
+}
+
+export function searchWechatAddFriendAccount(payload: {
+  account: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('searchAddFriendAccount', payload);
+}
+
+export function handleWechatAddFriendResult(payload: {
+  windowName?: string;
+  greeting: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('handleAddFriendResult', payload);
+}
+
+export function closeWechatAddFriendWindows(payload?: {
+  windowName?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('closeAddFriendWindows', payload);
+}
+
+export function focusFillWechatChatMessage(payload: {
+  windowName?: string;
+  message: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('focusFillChatMessage', payload);
+}
+
+export function sendWechatCurrentChatMessage(payload: {
+  windowName?: string;
+  message: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('focusFillChatMessage', payload);
+}
+
+export function searchOpenWechatFriend(payload: {
+  windowName?: string;
+  contactName: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('searchOpenFriend', payload);
+}
+
+export function detectUnreadWechatConversation(payload?: {
+  windowName?: string;
+}): Promise<WechatAutomationActionResult> {
+  return invokeWechatAutomation<WechatAutomationActionResult>('detectUnreadAndOpen', payload);
 }
