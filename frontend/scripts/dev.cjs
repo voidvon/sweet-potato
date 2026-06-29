@@ -11,9 +11,18 @@ const electronSourceDir = path.join(rootDir, 'electron');
 const electronPublicDir = path.join(rootDir, 'public', 'electron');
 const viteCli = path.join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const userDataDir = path.join(rootDir, '..', '.codex-run', 'electron-user-data-dev');
-const electronExe = process.platform === 'win32'
-  ? path.join(rootDir, 'node_modules', 'electron', 'dist', 'electron.exe')
-  : path.join(rootDir, 'node_modules', 'electron', 'dist', 'electron');
+
+function resolveElectronExecutable() {
+  try {
+    const executable = require('electron');
+    if (!executable || !fs.existsSync(executable)) {
+      throw new Error(`Resolved Electron executable does not exist: ${executable}`);
+    }
+    return executable;
+  } catch (error) {
+    throw new Error(`Unable to resolve Electron executable: ${error.message}`);
+  }
+}
 
 const childProcesses = [];
 let shuttingDown = false;
@@ -131,6 +140,7 @@ function startElectronShell(env) {
   syncElectronSourceToPublic();
   log('[dev] Starting Electron shell');
   fs.mkdirSync(userDataDir, { recursive: true });
+  const electronExe = resolveElectronExecutable();
 
   const child = spawn(electronExe, [
     '.',
@@ -150,6 +160,14 @@ function startElectronShell(env) {
 
   electronChild = child;
   childProcesses.push(child);
+
+  child.on('error', (error) => {
+    if (shuttingDown) {
+      return;
+    }
+    console.error(`[dev] failed to start Electron shell: ${error.message}`);
+    cleanupAndExit(1);
+  });
 
   child.on('exit', (code, signal) => {
     if (shuttingDown) {
@@ -268,6 +286,14 @@ function spawnTracked(name, command, args, cwd, env) {
   });
 
   childProcesses.push(child);
+
+  child.on('error', (error) => {
+    if (shuttingDown) {
+      return;
+    }
+    console.error(`[dev] failed to start ${name}: ${error.message}`);
+    cleanupAndExit(1);
+  });
 
   child.on('exit', (code, signal) => {
     if (shuttingDown) {
