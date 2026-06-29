@@ -1,6 +1,6 @@
 import unittest
 
-from ai_worker.wechat_automation.uia import append_log, click_control, physical_click_rect_center
+from wechat_automation.uia import append_log, click_control, physical_click_rect_center
 
 
 class WechatAutomationUiaTest(unittest.TestCase):

@@ -100,7 +100,7 @@ function terminateProcess(child) {
 }
 
 function isElectronWatchTarget(filePath = '') {
-  return /\.(js|json)$/i.test(filePath);
+  return /\.(js|json|py)$/i.test(filePath);
 }
 
 function clearElectronRestartTimer() {
@@ -115,6 +115,7 @@ function syncElectronSourceToPublic() {
     'config',
     'controller',
     'preload',
+    'python',
     'service',
     'main.js',
   ];
