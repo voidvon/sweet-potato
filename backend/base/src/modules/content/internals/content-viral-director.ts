@@ -1936,7 +1936,36 @@ function visualExpertEntities(content: string) {
     return {
       label: label || firstStringValue(record, ['人物名称', 'label', 'name']) || `人物 ${index + 1}`,
       appearance,
-      characterPrompt: formatEntityDescription(record, ['人物名称', 'label', 'name', '开始秒', '结束秒', 'startSecond', 'endSecond', 'start', 'end', '动作', '人物动作', 'gesture', 'action', '表情', 'expression', '口播', '口播线索', 'spokenCue', 'cue']),
+      characterPrompt: formatEntityDescription(record, [
+        '人物名称',
+        'label',
+        'name',
+        '开始秒',
+        '结束秒',
+        'startSecond',
+        'endSecond',
+        'start',
+        'end',
+        '动作',
+        '人物动作',
+        'gesture',
+        'action',
+        '表情',
+        'expression',
+        '口播',
+        '口播线索',
+        'spokenCue',
+        'cue',
+        '人物声线',
+        '声线',
+        '声音',
+        '音色',
+        '语音风格',
+        '语速',
+        '语气',
+        'voice',
+        'voiceStyle',
+      ]),
       gesture,
       expression,
       startSecond: firstNumberValue(record, ['开始秒', '开始时间', 'startSecond', 'start']),
@@ -1964,7 +1993,9 @@ export function directorCharacterPromptValue(character: Record<string, unknown>)
   if (Object.prototype.hasOwnProperty.call(character, 'characterPrompt')) {
     return stringValue(character.characterPrompt);
   }
-  return stringValue(character.appearance);
+  return stringValue(character.description)
+    || firstStringValue(character, ['人物描述', '描述'])
+    || stringValue(character.appearance);
 }
 
 function directorCharacterKey(label?: string) {

@@ -15,6 +15,7 @@ import { isSegmentedVideoGenerationState,queryConfiguredVideoModelTask,recordVid
 import { isRecord,normalizeParseResult } from './content-viral-analysis.js';
 import { logVideoGenerationFlow } from './content-viral-director.js';
 import { absolutizeMaterialUrl } from './content-voice-clone.js';
+import { resumeSceneAwareSegmentedSeedanceVideoGeneration } from '../../video-remake/video-remake.segmented-runtime.js';
 
 export const runningVideoGenerationPollingTaskIds = new Set<string>();
 
@@ -338,6 +339,11 @@ export async function pollRunningVideoGenerationTask(taskId: string) {
     const initial = contentRepository.findVideoTask(taskId);
     const segmentedState = initial?.expertContext?.videoGenerationSegments;
     if (initial && isSegmentedVideoGenerationState(segmentedState) && segmentedState.status === 'running') {
+      const requestContext = isRecord(segmentedState.request?.context) ? segmentedState.request.context : {};
+      if (Array.isArray(requestContext.videoRemakeSegmentInputs) && requestContext.videoRemakeSegmentInputs.length > 0) {
+        await resumeSceneAwareSegmentedSeedanceVideoGeneration(initial, segmentedState);
+        return;
+      }
       await resumeSegmentedSeedanceVideoGeneration(initial, segmentedState);
       return;
     }

@@ -12,7 +12,7 @@ test('video remake visual details repair embedded Chinese field label json', asy
   assert.match(details.title, /一位女士分享情绪与健康的关联/);
   assert.equal(details.characters.length, 1);
   assert.match(details.characters[0]?.characterPrompt || '', /粉色上衣/);
-  assert.match(details.characters[0]?.characterPrompt || '', /人物声线：温柔且富有感染力/);
+  assert.doesNotMatch(details.characters[0]?.characterPrompt || '', /人物声线|温柔且富有感染力/);
   assert.equal(details.scenes.length, 1);
   assert.match(details.scenes[0]?.description || '', /棕色休闲椅/);
   assert.equal(details.product.noProduct, true);
@@ -48,4 +48,199 @@ test('director scene normalization preserves Chinese scene description without s
   assert.match(scenes[0]?.description || '', /摄像头安装过程/u);
   assert.match(scenes[0]?.description || '', /智能锁充电/u);
   assert.doesNotMatch(scenes[0]?.description || '', /required：true|referenceMode：prompt/u);
+});
+
+test('video remake director fallback keeps visual character prompt separate from voice style', async () => {
+  const { defaultVideoRemakeNodeAdapters, visualDetailsFromContent } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const raw = '{ "task1": { "视频内容": "用户称赞片段" }, "task2": { "场景1": { "场景描述": "室内近景，柔和日常光线，时间范围：47s-48s" }, "人物1": { "人物描述": "时间范围：47s-48s，外观为女性，动作是称赞用户，表情肯定、亲切，气质温暖认可；人物声线": "声线温柔、肯定，语气带有赞赏的情感" } }, "task5": {} }';
+  const visual = visualDetailsFromContent(raw);
+  const previousDisable = process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+
+  try {
+    process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = '1';
+    const normalized = await defaultVideoRemakeNodeAdapters.directorNormalize({
+      sessionId: 'director-fallback-voice-style',
+      userId: 'director-fallback-user',
+      workflow: {
+        mode: 'test',
+        currentNode: 'director_normalize',
+        artifacts: {},
+        invalidArtifacts: [],
+        source: {
+          kind: 'upload',
+          title: 'fixture.mp4',
+          sourceUrl: '',
+        },
+        runtime: {
+          analyses: {
+            audio: {
+              roleName: '音频理解专家',
+              content: '',
+              voice: '原声参考',
+              voiceStyle: '',
+              spokenContent: '',
+            },
+            visual,
+            pip: {
+              roleName: '画中画理解专家',
+              content: '',
+              appeared: false,
+              items: [],
+            },
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      emit: () => undefined,
+    });
+
+    const characterItems = (normalized.characterSetting as { items?: Array<{ characterPrompt?: string }> }).items || [];
+    const sceneItems = (normalized.sceneSetting as { items?: Array<{ description?: string }> }).items || [];
+    const voiceItems = (normalized.voiceAudioSetting as { items?: Array<{ voiceStyle?: string }> }).items || [];
+    assert.match(characterItems[0]?.characterPrompt || '', /外观为女性/u);
+    assert.match(characterItems[0]?.characterPrompt || '', /称赞用户/u);
+    assert.doesNotMatch(characterItems[0]?.characterPrompt || '', /人物声线|声线温柔|赞赏的情感/u);
+    assert.match(voiceItems[0]?.voiceStyle || '', /声线温柔、肯定/u);
+    assert.match(sceneItems[0]?.description || '', /室内近景/u);
+  } finally {
+    if (previousDisable === undefined) {
+      delete process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+    } else {
+      process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = previousDisable;
+    }
+  }
+});
+
+test('video remake director fallback does not merge fallback visual fields into existing character prompt', async () => {
+  const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const previousDisable = process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+
+  try {
+    process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = '1';
+    const normalized = await defaultVideoRemakeNodeAdapters.directorNormalize({
+      sessionId: 'director-dedupe-character-prompt',
+      userId: 'director-dedupe-user',
+      workflow: {
+        mode: 'test',
+        currentNode: 'director_normalize',
+        artifacts: {},
+        invalidArtifacts: [],
+        source: {
+          kind: 'upload',
+          title: 'fixture.mp4',
+          sourceUrl: '',
+        },
+        runtime: {
+          analyses: {
+            audio: {
+              roleName: '音频理解专家',
+              content: '',
+              voice: '原声参考',
+              voiceStyle: '',
+              spokenContent: '',
+            },
+            visual: {
+              roleName: '视频理解专家',
+              content: '',
+              characters: [{
+                label: '人物1',
+                appearance: '女性，装修设计专家形象',
+                gesture: '用伸缩杆指向墙面，专注展示装修细节、讲解装修设计建议',
+                expression: '专注专业',
+                characterPrompt: '女性，装修设计专家形象；动作：用伸缩杆指向墙面，专注展示装修细节、讲解装修设计建议；表情：专注专业；气质：专业可靠',
+                required: true,
+                referenceMode: 'prompt',
+              }],
+              scenes: [{
+                label: '场景1',
+                description: '入户门周边墙面，日常室内光线',
+                required: true,
+                referenceMode: 'prompt',
+              }],
+              product: { noProduct: true, items: [] },
+            },
+            pip: {
+              roleName: '画中画理解专家',
+              content: '',
+              appeared: false,
+              items: [],
+            },
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      emit: () => undefined,
+    });
+
+    const characterItems = (normalized.characterSetting as { items?: Array<{ characterPrompt?: string }> }).items || [];
+    const prompt = characterItems[0]?.characterPrompt || '';
+    assert.equal(prompt, '女性，装修设计专家形象；动作：用伸缩杆指向墙面，专注展示装修细节、讲解装修设计建议；表情：专注专业；气质：专业可靠');
+  } finally {
+    if (previousDisable === undefined) {
+      delete process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+    } else {
+      process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = previousDisable;
+    }
+  }
+});
+
+test('video remake director fallback fills voice style from plain text visual character voice line', async () => {
+  const { defaultVideoRemakeNodeAdapters, visualDetailsFromContent } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const raw = [
+    '人物1：人物描述：外观：女性，装修设计专家形象；动作：用伸缩杆指向墙面，专注展示装修细节、讲解装修设计建议；表情：专注专业；气质：专业可靠；时间范围：0s-48s',
+    '人物声线：清晰流畅，专业讲解风格，传递实用装修建议的语调',
+  ].join('\n');
+  const visual = visualDetailsFromContent(raw);
+  const previousDisable = process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+
+  try {
+    process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = '1';
+    const normalized = await defaultVideoRemakeNodeAdapters.directorNormalize({
+      sessionId: 'director-plain-text-character-voice',
+      userId: 'director-plain-text-user',
+      workflow: {
+        mode: 'test',
+        currentNode: 'director_normalize',
+        artifacts: {},
+        invalidArtifacts: [],
+        source: {
+          kind: 'upload',
+          title: 'fixture.mp4',
+          sourceUrl: '',
+        },
+        runtime: {
+          analyses: {
+            audio: {
+              roleName: '音频理解专家',
+              content: '',
+              voice: '原声参考',
+              voiceStyle: '',
+              spokenContent: '',
+            },
+            visual,
+            pip: {
+              roleName: '画中画理解专家',
+              content: '',
+              appeared: false,
+              items: [],
+            },
+          },
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      emit: () => undefined,
+    });
+
+    const characterItems = (normalized.characterSetting as { items?: Array<{ characterPrompt?: string }> }).items || [];
+    const voiceItems = (normalized.voiceAudioSetting as { items?: Array<{ voiceStyle?: string }> }).items || [];
+    assert.match(characterItems[0]?.characterPrompt || '', /装修设计专家形象/u);
+    assert.doesNotMatch(characterItems[0]?.characterPrompt || '', /清晰流畅|专业讲解风格/u);
+    assert.match(voiceItems[0]?.voiceStyle || '', /清晰流畅，专业讲解风格/u);
+  } finally {
+    if (previousDisable === undefined) {
+      delete process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM;
+    } else {
+      process.env.VIDEO_REMAKE_DIRECTOR_DISABLE_LLM = previousDisable;
+    }
+  }
 });

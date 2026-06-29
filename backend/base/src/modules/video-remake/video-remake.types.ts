@@ -151,6 +151,7 @@ export type VideoRemakeWorkflowState = {
     videoSegments?: Array<Record<string, unknown>>;
     mergedVideo?: Record<string, unknown>;
     referencePrimer?: Record<string, unknown>;
+    referencePrimerPlan?: Record<string, unknown>;
     langGraph?: Record<string, unknown>;
     deferredInvalidationCardTypes?: VideoRemakeCardType[];
   };

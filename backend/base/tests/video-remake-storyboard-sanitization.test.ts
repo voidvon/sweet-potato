@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   buildVideoRemakeSeedanceAudioBindingLines,
+  videoRemakeDirectorNormalizeSystemPrompt,
+  videoRemakeStoryboardSystemPrompt,
   videoRemakeStoryboardSpeakerLimitSystemPrompt,
   videoRemakeStoryboardSpeakerLimitUserPrompt,
 } from '../src/modules/video-remake/video-remake.prompts.js';
@@ -261,6 +263,109 @@ test('storyboard narration cleanup removes repeated rolling transcript lines', a
   assert.doesNotMatch(String(cleaned[3]?.narration || ''), /最好的是走路/u);
 });
 
+test('fallback storyboard and seedance prompts preserve dialogue speaker labels without time text', async () => {
+  const previousDisableLlm = process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM;
+  try {
+    process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM = '1';
+    const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+    const content = [
+      '口播：你说你要在入户门上方留一个插座，时间：0s-3s。',
+      '口播：就是为了方便后期安装监控，时间：3s-5s。',
+      '旁白：对啊',
+      '口播：你说你要在进门位置留一个总控制开关，时间：5s-8s。',
+      '口播：就是为了方便出门的时候一键断电，时间：8s-10s。',
+      '旁白：对啊，时间：10s-11s。',
+    ].join('\n');
+    const workflow = {
+      mode: 'test',
+      currentNode: 'generate_storyboard',
+      artifacts: {
+        scriptContent: { content },
+        characterSetting: { items: [{ label: '人物1', characterPrompt: '女性装修专家', required: true, referenceMode: 'prompt' }] },
+        sceneSetting: { items: [{ label: '场景1', description: '入户门区域', required: true, referenceMode: 'prompt' }] },
+        voiceAudioSetting: { voice: '原声参考' },
+        productSetting: { noProduct: true, items: [] },
+      },
+      invalidArtifacts: [],
+      source: { kind: 'upload', title: 'fixture.mp4', sourceUrl: '' },
+      runtime: {},
+      updatedAt: new Date().toISOString(),
+    };
+
+    const storyboard = await defaultVideoRemakeNodeAdapters.generateStoryboard({
+      sessionId: 'storyboard-dialogue-labels',
+      userId: 'storyboard-dialogue-user',
+      workflow,
+      emit: () => undefined,
+    });
+    workflow.artifacts.storyboardScript = storyboard;
+    const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+      sessionId: 'storyboard-dialogue-labels',
+      userId: 'storyboard-dialogue-user',
+      workflow,
+      emit: () => undefined,
+    });
+    const promptText = prompts.map((item) => String((item.prompt as Record<string, unknown>).mainPrompt || '')).join('\n');
+
+    assert.match(promptText, /口播：你说你要在入户门上方留一个插座/u);
+    assert.match(promptText, /口播：就是为了方便后期安装监控/u);
+    assert.match(promptText, /旁白：对啊/u);
+    assert.match(promptText, /口播：你说你要在进门位置留一个总控制开关/u);
+    assert.doesNotMatch(promptText, /时间：\d+s-\d+s/u);
+  } finally {
+    if (previousDisableLlm === undefined) {
+      delete process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM;
+    } else {
+      process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM = previousDisableLlm;
+    }
+  }
+});
+
+test('seedance prompt keeps repeated short replies inside the same segment', async () => {
+  const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const workflow = {
+    mode: 'test',
+    currentNode: 'generate_seedance_prompts',
+    artifacts: {
+      characterSetting: { items: [{ label: '人物1', characterPrompt: '女性装修专家', required: true, referenceMode: 'prompt' }] },
+      sceneSetting: { items: [{ label: '场景1', description: '室内装修点位', required: true, referenceMode: 'prompt' }] },
+      voiceAudioSetting: { voice: '原声参考' },
+      productSetting: { noProduct: true, items: [] },
+      storyboardScript: [{
+        shotId: 'shot_1',
+        startTime: 0,
+        endTime: 10,
+        duration: 10,
+        visualDescription: '墙面点位近景',
+        actionDescription: '女性装修专家指向墙面',
+        narration: [
+          '口播：你说你要在燃气表上方加个插座',
+          '口播：就是为了方便后期安装报警器',
+          '旁白：对啊',
+          '口播：你说你要在床头柜上方装一个四孔插座',
+          '口播：就是为了可以多设备同时供电',
+          '旁白：对啊',
+        ].join('\n'),
+        remakeSuggestion: '固定机位拍摄',
+      }],
+    },
+    invalidArtifacts: [],
+    source: { kind: 'upload', title: 'fixture.mp4', sourceUrl: '' },
+    runtime: {},
+    updatedAt: new Date().toISOString(),
+  };
+
+  const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+    sessionId: 'seedance-repeated-replies',
+    userId: 'seedance-repeated-user',
+    workflow,
+    emit: () => undefined,
+  });
+  const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
+
+  assert.equal((mainPrompt.match(/旁白：对啊/gu) || []).length, 2);
+});
+
 test('seedance audio binding prompt includes explicit role-to-audio bindings when audio references are present', () => {
   const guide = buildVideoRemakeSeedanceAudioBindingLines({
     voice: '原声参考',
@@ -279,4 +384,19 @@ test('seedance audio binding prompt includes explicit role-to-audio bindings whe
 test('storyboard prompt contract includes max-three-speaker rule', () => {
   assert.match(videoRemakeStoryboardSpeakerLimitSystemPrompt, /每个镜头台词\/旁白里最多只允许 3 个说话主体/u);
   assert.match(videoRemakeStoryboardSpeakerLimitUserPrompt, /确保任一镜头台词\/旁白最多只有 3 个说话主体/u);
+});
+
+test('storyboard prompt contract preserves dialogue order without requiring timestamps', () => {
+  assert.match(videoRemakeStoryboardSystemPrompt, /原文出现顺序向前消费/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /有时间轴时参考时间范围，没有时间轴时按前后文本顺序/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /禁止重排、提前、延后或丢弃短句旁白/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /口播：.*旁白：.*人物X：/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /去掉“时间：0s-3s”等时间标注/u);
+});
+
+test('director normalize prompt routes character voice lines to voice audio items', () => {
+  assert.match(videoRemakeDirectorNormalizeSystemPrompt, /人物声线、声线、音色、语速、语气、语音风格、声音描述/u);
+  assert.match(videoRemakeDirectorNormalizeSystemPrompt, /voiceAudioSetting\.items\[\]\.voiceStyle/u);
+  assert.match(videoRemakeDirectorNormalizeSystemPrompt, /严禁写入 characterSetting\.items\[\]\.characterPrompt/u);
+  assert.match(videoRemakeDirectorNormalizeSystemPrompt, /characterLabel 等于对应 characterSetting\.items\[\]\.label/u);
 });

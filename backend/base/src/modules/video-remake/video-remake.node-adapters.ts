@@ -34,20 +34,27 @@ import { contentRepository } from '../content/content.repository.js';
 import { contentFilesDir, execFileAsync } from '../content/internals/content-common.js';
 import { absolutizeMaterialUrl } from '../content/internals/content-voice-clone.js';
 import {
+  buildSegmentedSeedancePrompt,
   callConfiguredVideoModel,
   callSegmentedSeedanceVideoGeneration,
   downloadGeneratedVideoSegment,
   estimatedChineseSpeechSeconds,
   formatDurationLabel,
   mergeGeneratedVideoSegments,
+  noOnScreenTextNegativePromptsForExport,
+  persistSegmentedVideoGenerationState,
   publicMaterialUrl,
   recordVideoGenerationUsageIfNeeded,
   resolveDefaultVideoModel,
   seedanceGenerationDurationLimit,
+  segmentTimeRangeLabel,
+  type SegmentedVideoGenerationState,
   waitForVideoModelCompletion,
+  userFacingVideoGenerationError,
 } from '../content/internals/content-video-generation.js';
 import { resolveVideoMaterialContext } from '../content/internals/content-video-task-runtime.js';
 import { createTraceId, logToFile } from '../../shared/logger.js';
+import { callSceneAwareSegmentedSeedanceVideoGeneration } from './video-remake.segmented-runtime.js';
 import {
   buildVideoRemakeSeedanceAudioBindingLines,
   videoRemakeDefaultNegativePrompt,
@@ -101,6 +108,7 @@ export type VideoRemakeNodeAdapters = {
 export const videoRemakeVideoModelRuntime = {
   callConfiguredVideoModel,
   callSegmentedSeedanceVideoGeneration,
+  callSceneAwareSegmentedSeedanceVideoGeneration,
   waitForVideoModelCompletion,
 };
 
@@ -727,9 +735,22 @@ function sceneOnlyPromptText(value: unknown): string {
 }
 
 function visualCharacters(task2Value: unknown) {
+  if (typeof task2Value === 'string') {
+    const textEntries = textCharacterEntries(task2Value);
+    if (textEntries.length) {
+      return textEntries.map((entry, index) => ({
+        label: labelFromKey(entry.label, `人物 ${index + 1}`),
+        characterPrompt: cleanCharacterPromptText(entry.description),
+        voiceStyle: entry.voiceStyle,
+        ...entityTimingFieldsFromText(entry.description),
+        required: true,
+        referenceMode: 'prompt',
+      }));
+    }
+  }
   const promptValue = recordValue(task2Value, '人物描述提示词') || recordValue(task2Value, '人物描述') || recordValue(task2Value, 'characterPrompt');
   const promptEntries = entityEntriesFromTaskSection(task2Value, ['人物', '角色'], '人物');
-  const directPrompt = cleanReferencePromptText(promptValue);
+  const directPrompt = cleanCharacterPromptText(promptValue);
   const splitCharacters = splitMergedIndexedEntityText(directPrompt, ['人物', '角色']);
   if (!promptEntries.length && splitCharacters.length >= 2) {
     return splitCharacters.map((entry, index) => ({
@@ -748,12 +769,44 @@ function visualCharacters(task2Value: unknown) {
     const prompt = promptEntries.find((entry) => entry.label === label)?.value ?? promptEntries[index]?.value ?? promptValue;
     return {
       label: labelFromKey(label, `人物 ${index + 1}`),
-      characterPrompt: cleanReferencePromptText(prompt),
+      characterPrompt: cleanCharacterPromptText(prompt),
+      voiceStyle: characterVoiceStyle(prompt),
       ...entityTimingFields(prompt),
       required: true,
       referenceMode: 'prompt',
     };
   });
+}
+
+function textCharacterEntries(content: string) {
+  const text = content.trim();
+  if (!text) {
+    return [];
+  }
+  const pattern = /(?:^|\n)\s*(人物\s*[0-9一二三四五六七八九十]+|角色\s*[0-9一二三四五六七八九十]+)\s*[：:]\s*人物描述\s*[：:]\s*([\s\S]*?)(?=(?:\n\s*(?:人物|角色)\s*[0-9一二三四五六七八九十]+\s*[：:]\s*人物描述\s*[：:])|$)/gu;
+  return Array.from(text.matchAll(pattern)).map((match) => {
+    const body = (match[2] || '').trim();
+    const voiceMatch = body.match(/(?:^|[\n；;])\s*人物声线\s*[：:]\s*([\s\S]*?)$/u);
+    const description = body
+      .replace(/(?:^|[\n；;])\s*人物声线\s*[：:][\s\S]*$/u, '')
+      .trim();
+    return {
+      label: (match[1] || '').trim(),
+      description,
+      voiceStyle: (voiceMatch?.[1] || '').trim(),
+    };
+  }).filter((entry) => entry.description || entry.voiceStyle);
+}
+
+function entityTimingFieldsFromText(value: string) {
+  const match = value.match(/(?:时间范围|适用时间|出现时间)\s*[：:]\s*(\d+(?:\.\d+)?)\s*s?\s*[-~～至到]\s*(\d+(?:\.\d+)?)\s*s?/u);
+  if (!match) {
+    return {};
+  }
+  return {
+    startSecond: Number(match[1]),
+    endSecond: Number(match[2]),
+  };
 }
 
 function visualScenes(task2Value: unknown, task3Value: unknown, task4Value: unknown) {
@@ -845,7 +898,7 @@ export function visualDetailsFromContent(content: string) {
   const repairedContent = repairVideoRemakeJsonPayload(content);
   const parsed = parseJsonObject(repairedContent);
   const task1Value = taskContentValue(parsed, 'task1');
-  const task2Value = taskContentValue(parsed, 'task2');
+  const task2Value = taskContentValue(parsed, 'task2') ?? (Object.keys(parsed).length ? undefined : repairedContent);
   const task3Value = taskContentValue(parsed, 'task3');
   const task4Value = taskContentValue(parsed, 'task4');
   const task5Value = taskContentValue(parsed, 'task5');
@@ -877,12 +930,14 @@ function fallbackDirectorNormalizeResult(context: VideoRemakeNodeContext): Parti
   });
   const voiceItems = (characterItems.length ? characterItems : [{ label: '人物 1' }]).map((character, index) => {
     const characterLabel = textFrom(character.label) || `人物 ${index + 1}`;
+    const rawCharacter = rawCharacterItems.find((item) => settingEntityKey(textFrom(item.label) || textFrom(item.name)) === settingEntityKey(characterLabel))
+      || rawCharacterItems[index];
     return {
       label: `${characterLabel} 声音`,
       characterLabel,
       characterIndex: index,
       voice: String((audio as Record<string, unknown>).voice || '原声参考'),
-      voiceStyle: String((audio as Record<string, unknown>).voiceStyle || ''),
+      voiceStyle: characterVoiceStyle(rawCharacter) || String((audio as Record<string, unknown>).voiceStyle || ''),
     };
   });
   return {
@@ -997,15 +1052,63 @@ function characterDescriptionText(item: Record<string, unknown>) {
   return firstRecordText(item, ['人物描述', 'description', '描述']);
 }
 
+function characterVoiceStyle(item: unknown) {
+  if (!isRecord(item)) {
+    return '';
+  }
+  return firstRecordText(item, [
+    'voiceStyle',
+    'voice',
+    '人物声线',
+    '声线',
+    '声音',
+    '音色',
+    '语音风格',
+    '语速',
+    '语气',
+  ]);
+}
+
+function rawCharacterPromptText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => rawCharacterPromptText(item)).filter(Boolean).join('\n');
+  }
+  if (isRecord(value)) {
+    return Object.entries(value)
+      .map(([key, entry]) => {
+        if (isReferencePromptMetaKey(key)) {
+          return '';
+        }
+        const text = rawCharacterPromptText(entry);
+        return text ? `${key}：${text}` : '';
+      })
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const text = String(value).trim();
+  return isUnknownPlaceholderText(text) ? '' : text;
+}
+
 function cleanCharacterPromptText(value: unknown) {
-  return cleanReferencePromptText(value)
+  return rawCharacterPromptText(value)
     .split(/[\n；;]/u)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => line.replace(/^人物\s*[A-Za-z\d一二三四五六七八九十]*\s*[：:]\s*/u, '').trim())
     .map((line) => line.replace(/^人物描述\s*[：:]\s*/u, '').trim())
-    .filter((line) => !/^(?:时间范围|适用时间|出现时间|开始时间|结束时间)\s*[：:]/u.test(line))
-    .filter((line) => !/^(?:人物声线|声线|声音|音色|语速|语气|口播|台词|旁白)\s*[：:]/u.test(line))
+    .map((line) => line
+      .replace(/^(?:时间范围|适用时间|出现时间)\s*[：:]\s*[^，,；;\n]+[，,；;]?\s*/u, '')
+      .replace(/[，,；;]\s*(?:时间范围|适用时间|出现时间)\s*[：:]\s*[^，,；;\n]+/u, '')
+      .replace(/^(?:开始时间|开始秒|结束时间|结束秒)\s*[：:]\s*[^，,；;\n]+[，,；;]?\s*/u, '')
+      .trim())
+    .filter((line) => !/^(?:人物声线|声线|声音|音色|语音风格|语速|语气|口播|台词|旁白)\s*[：:]/u.test(line))
     .join('；')
     .trim();
 }
@@ -1054,7 +1157,7 @@ function mergeCharacterItemsWithFallback(
       fallback.expression ? `表情：${fallback.expression}` : '',
     ]).join('\n');
     const itemPrompt = characterPromptFromItem(item);
-    const mergedPrompt = uniqueUsefulLines([fallbackPrompt, itemPrompt]).join('\n');
+    const mergedPrompt = itemPrompt || fallbackPrompt;
     return {
       ...item,
       appearance: item.appearance || fallback.appearance,
@@ -1167,7 +1270,6 @@ async function generateDirectorNormalizeWithLlm(context: VideoRemakeNodeContext)
       videoRemakeDirectorNormalizeSystemPrompt,
       '输出 JSON 顶层字段固定为 basicInfo、expertAnalysis、characterSetting、sceneSetting、productSetting、pipSetting、voiceAudioSetting、scriptContent。',
       'characterSetting.items 和 sceneSetting.items 至少各输出一个有效 item；如果视频中确实没有人物，characterSetting.items 才能为空。',
-      '人物/场景优先从 description 提炼视觉提示词，保留可见细节，去掉时间、声线和分析话术。',
       '严禁把人物字段写入 sceneSetting.items[].description；严禁把场景环境写入 characterSetting.items[].characterPrompt。',
     ].join('\n'),
     user: [
@@ -1212,7 +1314,19 @@ async function generateDirectorNormalizeWithLlm(context: VideoRemakeNodeContext)
           },
           productSetting: { noProduct: false, referenceMode: 'prompt', items: [] },
           pipSetting: { summary: '', appeared: false, items: [] },
-          voiceAudioSetting: { voice: '原声参考', voiceStyle: '', bgm: '', soundEffects: '', items: [] },
+          voiceAudioSetting: {
+            voice: '原声参考',
+            voiceStyle: '',
+            bgm: '',
+            soundEffects: '',
+            items: [{
+              label: '人物 1 声音',
+              characterLabel: '人物 1',
+              characterIndex: 0,
+              voice: '原声参考',
+              voiceStyle: '人物声线、音色、语速、语气、语音风格等声音描述',
+            }],
+          },
           scriptContent: { content: '', source: 'director_normalize_llm' },
         },
       }, null, 2),
@@ -1598,6 +1712,15 @@ function uniqueUsefulLines(values: string[]) {
 
 function promptSectionText(title: string, content: string) {
   const lines = uniqueUsefulLines([content]);
+  return lines.length ? `# ${title}\n${lines.join('\n')}` : '';
+}
+
+function speechPromptSectionText(title: string, content: string) {
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^.+[:：]\s*无$/u.test(line) && !/^无$/u.test(line));
   return lines.length ? `# ${title}\n${lines.join('\n')}` : '';
 }
 
@@ -2066,6 +2189,38 @@ type ReferencePrimerGap = {
   label: string;
 };
 
+type ReferencePrimerSceneSpan = {
+  spanId: string;
+  segmentIndexes: number[];
+  segmentStartIndex: number;
+  segmentEndIndex: number;
+  sceneLabels: string[];
+  people: string[];
+  narration: string;
+  gapKinds: ReferencePrimerGap['kind'][];
+  primer?: ReferencePrimerRecord;
+};
+
+type ReferencePrimerRecord = {
+  assetId: string;
+  videoUrl: string;
+  url?: string;
+  jobId?: string;
+  spokenSentence: string;
+  durationSeconds: number;
+  gaps: ReferencePrimerGap[];
+  spanId?: string;
+  sceneLabels?: string[];
+  people?: string[];
+  segmentIndexes?: number[];
+};
+
+type ReferencePrimerPlan = {
+  mode: 'single' | 'scene_spans' | 'rapid_switch_fallback';
+  spans: ReferencePrimerSceneSpan[];
+  segmentPrimerMap: Record<string, string>;
+};
+
 function materialAssetIds(items: unknown) {
   return (Array.isArray(items) ? items : [])
     .filter(isRecord)
@@ -2090,13 +2245,6 @@ function seedanceReferenceIdsFromMaterialContext(materialContext: ReturnType<typ
       ...materialAssetIds(references.audios),
       ...materialAssetIds(audioGroup.assets),
     ]),
-  };
-}
-
-function materialReferencesWithExtraVideo(references: SeedanceReferenceIds, videoAssetId: string): SeedanceReferenceIds {
-  return {
-    ...references,
-    referenceVideoIds: Array.from(new Set([...references.referenceVideoIds, videoAssetId].filter(Boolean))),
   };
 }
 
@@ -2142,8 +2290,14 @@ function segmentRegenerationReferenceVideo(input: {
   mergedSegments: Record<string, unknown>[];
   segmentIndex: number;
 }) {
-  if (input.segmentIndex <= 1) {
-    const primer = isRecord(input.workflow.runtime.referencePrimer) ? input.workflow.runtime.referencePrimer : undefined;
+  const plan = primerPlanFromRuntime(input.workflow, input.cardData);
+  const mappedSpan = primerSpanForSegment(plan, input.segmentIndex);
+  if (input.segmentIndex <= 1 || isPrimerSceneBoundary(plan, input.segmentIndex)) {
+    const primer = isRecord(mappedSpan?.primer)
+      ? mappedSpan?.primer
+      : isRecord(input.workflow.runtime.referencePrimer)
+        ? input.workflow.runtime.referencePrimer
+        : undefined;
     const primerUrl = publicMaterialUrl(primer?.videoUrl) || publicMaterialUrl(primer?.url);
     if (!primerUrl) {
       return null;
@@ -2415,37 +2569,7 @@ function buildSeedanceSystemPrompt(workflow: VideoRemakeWorkflowState) {
 }
 
 function parseSpokenSegments(content: string) {
-  const segments: Array<{ narration: string; startTime: number; endTime: number }> = [];
-  const speakerPattern = '(?:口播|台词|旁白(?:\\s*\\d+)?|人物\\s*[A-Za-z\\d一二三四五六七八九十]+|角色\\s*[A-Za-z\\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)';
-  const pattern = new RegExp(`(?:^|\\n)\\s*(?:\\d+[.、]\\s*)?(${speakerPattern})\\s*[:：]\\s*([^\\n]*?)(?:[，,；;]\\s*)?时间\\s*[:：]\\s*([0-9.]+)\\s*s?\\s*[-~—–至到]\\s*([0-9.]+)\\s*s?`, 'giu');
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(content)) !== null) {
-    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
-    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
-    const narration = speaker && !/^(?:口播|台词)$/u.test(speaker)
-      ? `${speaker}：${speech}`
-      : speech;
-    const startTime = Number(match[3]);
-    const endTime = Number(match[4]);
-    if (narration && Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime) {
-      segments.push({ narration, startTime, endTime });
-    }
-  }
-  const inlinePattern = new RegExp(`(?:^|\\n)\\s*(?:\\d+[.、]\\s*)?(${speakerPattern})\\s*[:：]\\s*([^\\n]+?)\\s+([0-9.]+)\\s*s?\\s*[-~—–至到]\\s*([0-9.]+)\\s*s?\\s*(?=\\n|$)`, 'giu');
-  while ((match = inlinePattern.exec(content)) !== null) {
-    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
-    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
-    const narration = speaker && !/^(?:口播|台词)$/u.test(speaker)
-      ? `${speaker}：${speech}`
-      : speech;
-    const startTime = Number(match[3]);
-    const endTime = Number(match[4]);
-    const key = `${startTime}-${endTime}-${narration}`;
-    const exists = segments.some((segment) => `${segment.startTime}-${segment.endTime}-${segment.narration}` === key);
-    if (!exists && narration && Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime) {
-      segments.push({ narration, startTime, endTime });
-    }
-  }
+  const segments = collectSpokenSegmentUnits(content);
   if (segments.length) {
     return mergeSemanticSpokenSegments(segments.sort((left, right) => left.startTime - right.startTime));
   }
@@ -2460,6 +2584,105 @@ function parseSpokenSegments(content: string) {
     startTime: index * 4,
     endTime: (index + 1) * 4,
   })));
+}
+
+function collectSpokenSegmentUnits(content: string) {
+  const segments: Array<{ narration: string; startTime: number; endTime: number }> = [];
+  const speakerPattern = '(?:口播|台词|旁白(?:\\s*\\d+)?|人物\\s*[A-Za-z\\d一二三四五六七八九十]+|角色\\s*[A-Za-z\\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)';
+  const pattern = new RegExp(`(?:^|\\n)\\s*(?:\\d+[.、]\\s*)?(${speakerPattern})\\s*[:：]\\s*([^\\n]*?)(?:[，,；;]\\s*)?时间\\s*[:：]\\s*([0-9.]+)\\s*s?\\s*[-~—–至到]\\s*([0-9.]+)\\s*s?`, 'giu');
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
+    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
+    const narration = speaker ? `${speaker}：${speech}` : speech;
+    const startTime = Number(match[3]);
+    const endTime = Number(match[4]);
+    if (narration && Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime) {
+      segments.push({ narration, startTime, endTime });
+    }
+  }
+  const inlinePattern = new RegExp(`(?:^|\\n)\\s*(?:\\d+[.、]\\s*)?(${speakerPattern})\\s*[:：]\\s*([^\\n]+?)\\s+([0-9.]+)\\s*s?\\s*[-~—–至到]\\s*([0-9.]+)\\s*s?\\s*(?=\\n|$)`, 'giu');
+  while ((match = inlinePattern.exec(content)) !== null) {
+    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
+    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
+    const narration = speaker ? `${speaker}：${speech}` : speech;
+    const startTime = Number(match[3]);
+    const endTime = Number(match[4]);
+    const key = `${startTime}-${endTime}-${narration}`;
+    const exists = segments.some((segment) => `${segment.startTime}-${segment.endTime}-${segment.narration}` === key);
+    if (!exists && narration && Number.isFinite(startTime) && Number.isFinite(endTime) && endTime > startTime) {
+      segments.push({ narration, startTime, endTime });
+    }
+  }
+  const inferredSegments = inferUntimedSpokenSegments(content, segments);
+  if (inferredSegments.length) {
+    segments.push(...inferredSegments);
+  }
+  return segments.sort((left, right) => left.startTime - right.startTime);
+}
+
+function inferUntimedSpokenSegments(
+  content: string,
+  timedSegments: Array<{ narration: string; startTime: number; endTime: number }>,
+) {
+  if (!timedSegments.length) {
+    return [];
+  }
+  const speakerPattern = '(口播|台词|旁白(?:\\s*\\d+)?|人物\\s*[A-Za-z\\d一二三四五六七八九十]+|角色\\s*[A-Za-z\\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)';
+  const timedLinePattern = new RegExp(`^\\s*(?:\\d+[.、]\\s*)?${speakerPattern}\\s*[:：]\\s*([^\\n]*?)(?:[，,；;。]?\\s*)时间\\s*[:：]\\s*([0-9.]+)\\s*s?\\s*[-~—–至到]\\s*([0-9.]+)\\s*s?`, 'iu');
+  const untimedLinePattern = new RegExp(`^\\s*(?:\\d+[.、]\\s*)?${speakerPattern}\\s*[:：]\\s*(.+?)\\s*[。.]?\\s*$`, 'iu');
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
+  const timedByLine = lines.map((line) => {
+    const match = line.match(timedLinePattern);
+    if (!match) {
+      return null;
+    }
+    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
+    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
+    return {
+      narration: `${speaker}：${speech}`,
+      startTime: Number(match[3]),
+      endTime: Number(match[4]),
+    };
+  });
+  const inferred: Array<{ narration: string; startTime: number; endTime: number }> = [];
+  lines.forEach((line, index) => {
+    if (timedByLine[index]) {
+      return;
+    }
+    const match = line.match(untimedLinePattern);
+    if (!match || /时间\s*[:：]/u.test(line)) {
+      return;
+    }
+    const speaker = textFrom(match[1]).replace(/\s+/gu, '');
+    const speech = textFrom(match[2]).replace(/\s+/gu, ' ').trim();
+    if (!speaker || !speech) {
+      return;
+    }
+    const previous = timedByLine.slice(0, index).reverse().find(Boolean) || timedSegments[timedSegments.length - 1];
+    const next = timedByLine.slice(index + 1).find(Boolean);
+    const previousEnd = Number(previous?.endTime);
+    const nextStart = Number(next?.startTime);
+    if (!Number.isFinite(previousEnd)) {
+      return;
+    }
+    const hasGapBeforeNext = Number.isFinite(nextStart) && nextStart > previousEnd;
+    const inferredDuration = hasGapBeforeNext
+      ? Math.min(1, Math.max(0.2, nextStart - previousEnd))
+      : 0.2;
+    const startTime = hasGapBeforeNext
+      ? previousEnd
+      : Math.max(0, Number((previousEnd - inferredDuration).toFixed(2)));
+    const endTime = hasGapBeforeNext
+      ? Number((startTime + inferredDuration).toFixed(2))
+      : previousEnd;
+    inferred.push({
+      narration: `${speaker}：${speech}`,
+      startTime,
+      endTime,
+    });
+  });
+  return inferred;
 }
 
 function mergeSemanticSpokenSegments(segments: Array<{ narration: string; startTime: number; endTime: number }>) {
@@ -2684,7 +2907,7 @@ function parseStoryboardMarkdown(content: string) {
 }
 
 function hasSpeechSpeakerLabel(text: string) {
-  return /(?:^|\n|\s)(?:旁白(?:\s*\d+)?|人物\s*[A-Za-z\d一二三四五六七八九十]+|角色\s*[A-Za-z\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)\s*[：:]/u.test(text);
+  return /(?:^|\n|\s)(?:口播|台词|旁白(?:\s*\d+)?|人物\s*[A-Za-z\d一二三四五六七八九十]+|角色\s*[A-Za-z\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)\s*[：:]/u.test(text);
 }
 
 function stripNarrationSpeakerPrefix(text: string) {
@@ -2924,12 +3147,14 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '复刻建议：本镜头复刻建议，一行写完',
     '不要使用 ### 小标题、表格、项目符号、编号列表或代码块；不要重复输出任何字段；不要在任一字段值里再次写“画面：”“人物/动作：”“台词/旁白：”“音效：”“复刻建议：”。',
     '不要把已确认人物/场景/产品设定全文复制到镜头字段中；只允许在画面和人物/动作里用一句话引用当前镜头需要的人物、场景、产品标签和本镜头动作。',
-    '如果已确认口播内容带有说话主体前缀，例如“人物1：xxx”“旁白：yyy”，台词/旁白字段必须原样保留这些主体前缀；同一镜头包含多个主体时用空格或中文分号串联，不要合并成无主体文本。',
+    '如果已确认口播内容带有说话主体前缀，例如“口播：xxx”“人物1：xxx”“旁白：yyy”，台词/旁白字段必须原样保留这些主体前缀；同一镜头包含多个主体时用空格或中文分号串联，不要合并成无主体文本。',
+    '已确认口播中的每一条对话都必须出现在且只出现在一个镜头的“台词/旁白”字段；短句、应答句、无时间标注的“旁白：对啊”等也不能省略。',
+    '台词/旁白必须严格按“已确认口播内容”的原文出现顺序排列，不得提前、延后、交换顺序或跨镜头重排；如果某条口播带时间，镜头时间窗应覆盖该条原始时间范围；如果没有时间，也必须按原文顺序分配。',
     '请按语义完整片段切镜头，每个镜头建议 4-12 秒；不要一句话拆一个镜头。',
     videoRemakeStoryboardSpeakerLimitSystemPrompt,
     '镜头起止时间必须按“台词/旁白”的字数和自然语速分配：中文口播按每秒约 4 个汉字估算，长台词必须给更长时长，短台词只能给较短时长；禁止把每个镜头机械切成接近相同秒数。',
     '上下文依赖的连续短句必须放在同一个镜头台词里，不能把铺垫句和结论句拆开。',
-    '每个镜头的“台词/旁白”字段都必须填写与该镜头时间范围重叠的已确认口播原句；除非该时间段确实没有任何口播，否则不允许留空。',
+    '每个镜头的“台词/旁白”字段都必须填写与该镜头时间范围重叠的已确认口播原句；输出时去掉“时间：0s-3s”等时间标注，只保留“口播：/旁白：/人物X：”和台词正文；除非该时间段确实没有任何口播，否则不允许留空。',
   ].join('\n');
   const user = [
     `目标总时长：${targetSeconds}秒。`,
@@ -2975,7 +3200,10 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '镜头数量要少而准，优先 4-8 秒一个镜头，避免把上下半句拆开。',
     '每个镜头时长必须和本镜头台词长度匹配：长台词镜头要相应变长，短台词镜头要相应变短；如果某镜头台词明显比其他镜头少，不能给它更长时间。',
     '请先按台词语义切段，再按每秒约 4 个汉字估算每段时长，最后让所有镜头起止时间连续覆盖 0 到目标总时长。',
-    '台词/旁白只能使用已确认口播原句，不新增结束语或行动号召；已确认口播里的“人物1：”“人物2：”“旁白：”等说话主体前缀必须保留到台词/旁白字段。',
+    '镜头时间不得超过目标总时长；最后一个镜头必须以目标总时长结束，禁止额外生成没有台词的收尾镜头。',
+    '台词/旁白只能使用已确认口播原句，不新增结束语或行动号召；已确认口播里的“口播：”“人物1：”“人物2：”“旁白：”等说话主体前缀必须保留到台词/旁白字段。',
+    '逐条核对已确认口播清单：每条“口播：...”和“旁白：...”都要按原文顺序分配到镜头；有时间就参考时间范围，没有时间就按前后文本顺序放入相邻语义镜头；不要因为“旁白：对啊”很短就丢弃，也不要把口播标签删除成无主体文本。',
+    '分配台词时只能向前顺序消费已确认口播，不能把后面的旁白插入前面的口播之间，也不能把前面遗漏的口播补到后面镜头。',
     '每个镜头必须按自己的起止时间覆盖对应口播：例如镜头 8s-19s 必须填入 8s-19s 内的口播内容，不得省略为只有动作和音效。',
     videoRemakeStoryboardSpeakerLimitUserPrompt,
     '不要写字幕、标题条、屏幕文字、水印或 Logo。',
@@ -3213,7 +3441,7 @@ function buildSegmentPrompt(input: {
   return [
     promptSectionText('当前分镜', currentStoryboard),
     promptSectionText('素材参考', input.referenceGuide),
-    promptSectionText('本段口播', String(segment.narration || '')),
+    speechPromptSectionText('本段口播', String(segment.narration || '')),
   ].filter(Boolean).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
 }
 
@@ -3293,14 +3521,188 @@ function firstSegmentSpeechFromSeedancePrompts(prompts: Array<Record<string, unk
     || textFrom(prompts[0]?.narration);
 }
 
-async function maybeGenerateSeedanceReferencePrimer(input: {
+function primerPlanFromRuntime(workflow: VideoRemakeWorkflowState, cardData?: Record<string, unknown>) {
+  const plan = isRecord(cardData?.referencePrimerPlan)
+    ? cardData?.referencePrimerPlan
+    : isRecord(workflow.runtime.referencePrimerPlan)
+      ? workflow.runtime.referencePrimerPlan
+      : undefined;
+  return plan ? plan as ReferencePrimerPlan : undefined;
+}
+
+function primerSpanForSegment(plan: ReferencePrimerPlan | undefined, segmentIndex: number) {
+  if (!plan) {
+    return undefined;
+  }
+  const spanId = plan.segmentPrimerMap[String(segmentIndex)];
+  if (!spanId) {
+    return undefined;
+  }
+  return plan.spans.find((item) => item.spanId === spanId);
+}
+
+function isPrimerSceneBoundary(plan: ReferencePrimerPlan | undefined, segmentIndex: number) {
+  const span = primerSpanForSegment(plan, segmentIndex);
+  return Boolean(span && span.segmentStartIndex === segmentIndex);
+}
+
+function sceneAwarePrimerGaps(
+  allGaps: ReferencePrimerGap[],
+  span: Pick<ReferencePrimerSceneSpan, 'sceneLabels' | 'people'>,
+) {
+  const next: ReferencePrimerGap[] = [];
+  for (const gap of allGaps) {
+    if (gap.kind === 'scene' && span.sceneLabels.length) {
+      span.sceneLabels.forEach((label) => next.push({ kind: 'scene', label }));
+      continue;
+    }
+    if (gap.kind === 'character' && span.people.length) {
+      span.people.forEach((label) => next.push({ kind: 'character', label }));
+      continue;
+    }
+    next.push(gap);
+  }
+  return next;
+}
+
+function buildReferencePrimerSpanAsset(primer: ReferencePrimerRecord, span: ReferencePrimerSceneSpan) {
+  return {
+    id: primer.assetId,
+    groupId: '',
+    name: `分段参考视频-${span.spanId}`,
+    description: '用于场景分段生成参考的临时视频',
+    fileUrl: primer.videoUrl,
+    filePath: '',
+    url: primer.videoUrl,
+    mimeType: 'video/mp4',
+    resourceType: 'finished_video' as const,
+    originalFileName: `seedance-reference-primer-${span.spanId}.mp4`,
+    metadata: {
+      source: 'video_remake_reference_primer',
+      spanId: span.spanId,
+      sceneLabels: span.sceneLabels,
+      people: span.people,
+      segmentIndexes: span.segmentIndexes,
+      jobId: primer.jobId,
+      spokenSentence: primer.spokenSentence,
+      url: primer.videoUrl,
+      referencePrimerGaps: primer.gaps,
+    },
+  };
+}
+
+function sceneAwarePrimerPlan(input: {
+  workflow: VideoRemakeWorkflowState;
+  prompts: Array<Record<string, unknown>>;
+  segments: Array<Record<string, unknown>>;
+  materialContext: ReturnType<typeof resolveVideoMaterialContext>;
+}) {
+  const allGaps = referencePrimerGaps(input.workflow, input.materialContext);
+  if (!allGaps.length || !input.segments.length) {
+    return undefined;
+  }
+  const sceneEntities = sceneCoverageEntities(input.workflow);
+  const peopleEntities = characterCoverageEntities(input.workflow);
+  const storyboard = Array.isArray(input.workflow.artifacts.storyboardScript)
+    ? input.workflow.artifacts.storyboardScript.filter(isRecord)
+    : [];
+  const matches = input.segments.map((segment, index) => {
+    const segmentPrompt = input.prompts[index] || {};
+    const promptRecord = isRecord(segmentPrompt.prompt) ? segmentPrompt.prompt : isRecord(segment.prompt) ? segment.prompt : {};
+    const startTime = positiveNumber(segment.startSecond || segment.startTime);
+    const endTime = positiveNumber(segment.endSecond || segment.endTime) || (startTime + Math.max(1, positiveNumber(segment.durationSecond || segment.duration || 1)));
+    const narrationText = promptSectionContent(String(promptRecord.mainPrompt || ''), '本段口播').trim()
+      || textFrom(segmentPrompt.narration || segment.narration);
+    const overlappingShots = storyboard.filter((shot) => {
+      const shotStart = positiveNumber(shot.startSecond || shot.startTime);
+      const shotEnd = positiveNumber(shot.endSecond || shot.endTime) || shotStart + positiveNumber(shot.duration || 1);
+      return shotStart < endTime && shotEnd > startTime;
+    });
+    const combinedText = uniqueUsefulLines([
+      String(promptRecord.mainPrompt || ''),
+      ...overlappingShots.map((shot) => [
+        usefulText(shot.visualDescription || shot.visual || shot.description),
+        usefulText(shot.actionDescription || shot.action || shot.characterAction),
+        usefulText(shot.narration || shot.script),
+      ].filter(Boolean).join('\n')),
+    ]).join('\n');
+    const selectionInput = { combinedText, narrationText, startTime, endTime };
+    const selectedScenes = selectEntitiesForShot(sceneEntities, selectionInput);
+    const selectedPeople = selectEntitiesForShot(peopleEntities, selectionInput);
+    const sceneLabels = Array.from(new Set(selectedScenes.map((item) => item.label).filter(Boolean)));
+    const people = Array.from(new Set(selectedPeople.map((item) => item.label).filter(Boolean)));
+    const fallbackSceneLabels = !sceneLabels.length && sceneEntities.length ? [sceneEntities[0].label] : sceneLabels;
+    const signature = `${fallbackSceneLabels.join('|')}::${people.join('|')}`;
+    return {
+      segmentIndex: index + 1,
+      startTime,
+      endTime,
+      narrationText,
+      sceneLabels: fallbackSceneLabels,
+      people,
+      signature,
+    };
+  });
+
+  const rawSpans: ReferencePrimerSceneSpan[] = [];
+  for (const match of matches) {
+    const current = rawSpans[rawSpans.length - 1];
+    if (current && current.segmentIndexes.length > 0 && current.sceneLabels.join('|') === match.sceneLabels.join('|') && current.people.join('|') === match.people.join('|')) {
+      current.segmentIndexes.push(match.segmentIndex);
+      current.segmentEndIndex = match.segmentIndex;
+      current.narration = [current.narration, match.narrationText].filter(Boolean).join('\n');
+      current.people = Array.from(new Set([...current.people, ...match.people]));
+      current.sceneLabels = Array.from(new Set([...current.sceneLabels, ...match.sceneLabels]));
+      continue;
+    }
+    rawSpans.push({
+      spanId: `primer_span_${rawSpans.length + 1}`,
+      segmentIndexes: [match.segmentIndex],
+      segmentStartIndex: match.segmentIndex,
+      segmentEndIndex: match.segmentIndex,
+      sceneLabels: [...match.sceneLabels],
+      people: [...match.people],
+      narration: match.narrationText,
+      gapKinds: Array.from(new Set(allGaps.map((item) => item.kind))),
+    });
+  }
+
+  const allSingleSegmentSpans = rawSpans.every((item) => item.segmentIndexes.length === 1);
+  const rapidSwitch = rawSpans.length > 1 && allSingleSegmentSpans;
+  const spans = rapidSwitch
+    ? [{
+      spanId: 'primer_span_1',
+      segmentIndexes: matches.map((item) => item.segmentIndex),
+      segmentStartIndex: 1,
+      segmentEndIndex: matches.length,
+      sceneLabels: Array.from(new Set(matches.flatMap((item) => item.sceneLabels))).filter(Boolean),
+      people: Array.from(new Set(matches.flatMap((item) => item.people))).filter(Boolean),
+      narration: matches.map((item) => item.narrationText).filter(Boolean).join('\n'),
+      gapKinds: Array.from(new Set(allGaps.map((item) => item.kind))),
+    }]
+    : rawSpans;
+
+  const mode: ReferencePrimerPlan['mode'] = rapidSwitch
+    ? 'rapid_switch_fallback'
+    : spans.length > 1
+      ? 'scene_spans'
+      : 'single';
+  const segmentPrimerMap = Object.fromEntries(spans.flatMap((span) => span.segmentIndexes.map((segmentIndex) => [String(segmentIndex), span.spanId])));
+  return {
+    mode,
+    spans,
+    segmentPrimerMap,
+    allGaps,
+  };
+}
+
+async function maybeGenerateSeedanceReferencePrimers(input: {
   context: VideoRemakeNodeContext;
   taskId: string;
   traceId: string;
   prompts: Array<Record<string, unknown>>;
-  segmentCount: number;
+  segments: Array<Record<string, unknown>>;
   materialContext: ReturnType<typeof resolveVideoMaterialContext>;
-  referenceIds: SeedanceReferenceIds;
   providerId: string;
   modelId: string;
   ratio: string;
@@ -3311,22 +3713,17 @@ async function maybeGenerateSeedanceReferencePrimer(input: {
     resolution?: string;
   };
 }) {
-  if (input.segmentCount < seedanceReferencePrimerMinSegments()) {
-    return null;
+  if (input.segments.length < seedanceReferencePrimerMinSegments()) {
+    return undefined;
   }
-  const gaps = referencePrimerGaps(input.context.workflow, input.materialContext);
-  if (!gaps.length) {
-    return null;
-  }
-  const spokenSentence = firstShortSpokenSentence(firstSegmentSpeechFromSeedancePrompts(input.prompts));
-  if (!spokenSentence) {
-    logVideoRemakeGeneration('warn', 'seedance reference primer skipped because first segment has no speech', {
-      traceId: input.traceId,
-      sessionId: input.context.sessionId,
-      taskId: input.taskId,
-      segmentCount: input.segmentCount,
-    });
-    return null;
+  const planSeed = sceneAwarePrimerPlan({
+    workflow: input.context.workflow,
+    prompts: input.prompts,
+    segments: input.segments,
+    materialContext: input.materialContext,
+  });
+  if (!planSeed) {
+    return undefined;
   }
   const durationSeconds = seedanceReferencePrimerSeconds();
   const resolution = seedanceReferencePrimerResolution();
@@ -3334,157 +3731,135 @@ async function maybeGenerateSeedanceReferencePrimer(input: {
     ...input.seedanceOptions,
     resolution,
   };
-  const prompt = [
-    buildSeedanceSystemPrompt(input.context.workflow),
-    '# 参考视频生成',
-    `生成一个短参考视频，仅用于后续分段参考以下未提供素材项：${referencePrimerGapSummary(gaps)}。`,
-    '已有素材的人物、场景、声音或产品不由本参考视频覆盖；不要在参考视频中强化不在适用范围内的实体特征。',
-    `只朗读这一句口播：${spokenSentence}`,
-    '画面保持自然真实，不加字幕、标题条、水印、Logo 或任何可读文字；不要扩写口播。',
-    seedanceAudioBoundaryConstraint(),
-  ].join('\n\n');
-  const primerTaskId = `${input.taskId}-reference-primer`;
-  const primerContext = {
-    ...generationContextForSeedance(input.context.workflow, input.traceId),
-    materialContext: input.materialContext,
-    videoGenerationFlow: {
-      traceId: input.traceId,
-      source: 'video_remake_reference_primer',
-      segmentCount: input.segmentCount,
-    },
-    allowSeedanceAudioReference: false,
-  };
   input.context.emit({
     node: 'merge_video',
-    message: '正在生成分段参考视频。',
+    message: '正在生成场景参考视频。',
     progress: 94,
-    data: { segmentCount: input.segmentCount, durationSeconds },
+    data: { spanCount: planSeed.spans.length, durationSeconds },
   });
-  logVideoRemakeGeneration('info', 'seedance reference primer submitting', {
-    traceId: input.traceId,
-    sessionId: input.context.sessionId,
-    taskId: input.taskId,
-    primerTaskId,
-    segmentCount: input.segmentCount,
-    spokenSentence,
-    durationSeconds,
-    gaps,
-  });
-  const submitted = await videoRemakeVideoModelRuntime.callConfiguredVideoModel({
-    taskId: primerTaskId,
-    title: `${sourceTitle(input.context.workflow)}-分段参考视频`,
-    prompt,
-    negativePrompts: negativePromptList(videoRemakeDefaultNegativePrompt),
-    ratio: input.ratio,
-    resolution,
-    duration: formatDurationLabel(durationSeconds),
-    context: primerContext,
-    providerId: input.providerId,
-    modelId: input.modelId,
-    seedanceOptions,
-  });
-  const completed = await videoRemakeVideoModelRuntime.waitForVideoModelCompletion({
-    providerId: input.providerId,
-    modelId: input.modelId,
-    jobId: submitted.jobId,
-    initialVideoUrl: submitted.videoUrl,
-    initialCoverUrl: submitted.coverUrl,
-    initialStatus: submitted.status,
-    traceId: input.traceId,
-    taskId: primerTaskId,
-  });
-  if (!completed.videoUrl) {
-    logVideoRemakeGeneration('warn', 'seedance reference primer completed without video url', {
-      traceId: input.traceId,
-      sessionId: input.context.sessionId,
-      taskId: input.taskId,
-      primerTaskId,
-      jobId: completed.jobId,
-      status: completed.status,
-    });
-    return null;
-  }
-  recordVideoGenerationUsageIfNeeded({
-    userId: input.context.userId,
-    taskId: input.taskId,
-    sourceType: 'video_remake_reference_primer',
-    fallbackSourceId: `${input.taskId}-reference-primer`,
-    providerId: input.providerId,
-    modelId: input.modelId,
-    jobId: completed.jobId,
-    durationSeconds,
-    usage: completed.usage,
-    requestSnapshot: {
-      requestMode: 'ark_seedance_async',
+  const primerResults = await Promise.allSettled(planSeed.spans.map(async (span, index) => {
+    const spokenSentence = firstShortSpokenSentence(span.narration || firstSegmentSpeechFromSeedancePrompts(input.prompts));
+    if (!spokenSentence) {
+      return;
+    }
+    const gaps = sceneAwarePrimerGaps(planSeed.allGaps, span);
+    const prompt = [
+      buildSeedanceSystemPrompt(input.context.workflow),
+      '# 参考视频生成',
+      `当前场景参考覆盖分段 ${span.segmentStartIndex}-${span.segmentEndIndex}。`,
+      span.sceneLabels.length ? `场景：${span.sceneLabels.join('、')}。` : '',
+      span.people.length ? `该场景出现的人物：${span.people.join('、')}。参考视频必须覆盖这些人物。` : '',
+      `该参考视频仅用于后续分段参考以下未提供素材项：${referencePrimerGapSummary(gaps)}。`,
+      '已有素材的人物、场景、声音或产品不由本参考视频覆盖；不要在参考视频中强化不在适用范围内的实体特征。',
+      `只朗读这一句口播：${spokenSentence}`,
+      '画面保持自然真实，不加字幕、标题条、水印、Logo 或任何可读文字；不要扩写口播。',
+      seedanceAudioBoundaryConstraint(),
+    ].filter(Boolean).join('\n\n');
+    const primerTaskId = `${input.taskId}-reference-primer-${index + 1}`;
+    const primerContext = {
+      ...generationContextForSeedance(input.context.workflow, input.traceId),
+      materialContext: input.materialContext,
+      videoGenerationFlow: {
+        traceId: input.traceId,
+        source: 'video_remake_reference_primer',
+        segmentIndexes: span.segmentIndexes,
+        spanId: span.spanId,
+      },
+      allowSeedanceAudioReference: false,
+    };
+    const submitted = await videoRemakeVideoModelRuntime.callConfiguredVideoModel({
+      taskId: primerTaskId,
+      title: `${sourceTitle(input.context.workflow)}-场景参考视频-${index + 1}`,
+      prompt,
+      negativePrompts: negativePromptList(videoRemakeDefaultNegativePrompt),
       ratio: input.ratio,
       resolution,
       duration: formatDurationLabel(durationSeconds),
-      durationSeconds,
-      segmentCount: input.segmentCount,
-      renderMode: 'reference_primer',
-      quality: 'lowest',
-      referencePrimerGaps: gaps,
-    },
-    responseSnapshot: {
-      provider: completed.provider,
-      model: completed.model,
-      status: completed.status,
-      jobId: completed.jobId,
-      completionTokens: completed.usage?.completionTokens || 0,
-      totalTokens: completed.usage?.totalTokens || 0,
-      hasVideoUrl: Boolean(completed.videoUrl),
-      hasCoverUrl: Boolean(completed.coverUrl),
-    },
-    usageRaw: {
-      requestMode: 'ark_seedance_async',
-      source: 'video_remake_reference_primer',
-      segmentCount: input.segmentCount,
-      quality: 'lowest',
-      referencePrimerGaps: gaps,
-    },
-  });
-  const videoUrl = publicMaterialUrl(completed.videoUrl) || completed.videoUrl;
-  const assetId = `reference-primer-${completed.jobId || input.traceId}`;
-  const referenceAsset = {
-    id: assetId,
-    groupId: '',
-    name: '分段参考视频',
-    description: '用于多分段生成统一参考的临时视频',
-    fileUrl: videoUrl,
-    filePath: '',
-    url: videoUrl,
-    mimeType: 'video/mp4',
-    resourceType: 'finished_video' as const,
-    originalFileName: 'seedance-reference-primer.mp4',
-    metadata: {
-      source: 'video_remake_reference_primer',
+      context: primerContext,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      seedanceOptions,
+    });
+    const completed = await videoRemakeVideoModelRuntime.waitForVideoModelCompletion({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      jobId: submitted.jobId,
+      initialVideoUrl: submitted.videoUrl,
+      initialCoverUrl: submitted.coverUrl,
+      initialStatus: submitted.status,
+      traceId: input.traceId,
+      taskId: primerTaskId,
+    });
+    if (!completed.videoUrl) {
+      return;
+    }
+    recordVideoGenerationUsageIfNeeded({
+      userId: input.context.userId,
       taskId: input.taskId,
+      sourceType: 'video_remake_reference_primer',
+      fallbackSourceId: primerTaskId,
+      providerId: input.providerId,
+      modelId: input.modelId,
+      jobId: completed.jobId,
+      durationSeconds,
+      usage: completed.usage,
+      requestSnapshot: {
+        requestMode: 'ark_seedance_async',
+        ratio: input.ratio,
+        resolution,
+        duration: formatDurationLabel(durationSeconds),
+        durationSeconds,
+        segmentCount: span.segmentIndexes.length,
+        renderMode: 'reference_primer',
+      },
+      responseSnapshot: {
+        provider: completed.provider,
+        model: completed.model,
+        status: completed.status,
+        jobId: completed.jobId,
+        completionTokens: completed.usage?.completionTokens || 0,
+        totalTokens: completed.usage?.totalTokens || 0,
+        hasVideoUrl: Boolean(completed.videoUrl),
+        hasCoverUrl: Boolean(completed.coverUrl),
+      },
+      usageRaw: {
+        requestMode: 'ark_seedance_async',
+        source: 'video_remake_reference_primer',
+        spanId: span.spanId,
+        sceneLabels: span.sceneLabels,
+        people: span.people,
+      },
+    });
+    span.primer = {
+      assetId: `reference-primer-${span.spanId}-${completed.jobId || input.traceId}`,
+      videoUrl: publicMaterialUrl(completed.videoUrl) || completed.videoUrl,
       jobId: completed.jobId,
       spokenSentence,
-      url: videoUrl,
-      referencePrimerGaps: gaps,
-    },
-  };
-  logVideoRemakeGeneration('info', 'seedance reference primer completed', {
-    traceId: input.traceId,
-    sessionId: input.context.sessionId,
-    taskId: input.taskId,
-    primerTaskId,
-    jobId: completed.jobId,
-    videoUrl,
-    assetId,
-    resolution,
-    gaps,
+      durationSeconds,
+      gaps,
+      spanId: span.spanId,
+      sceneLabels: span.sceneLabels,
+      people: span.people,
+      segmentIndexes: span.segmentIndexes,
+    };
+  }));
+  primerResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      logVideoRemakeGeneration('warn', 'seedance reference primer generation failed', {
+        traceId: input.traceId,
+        sessionId: input.context.sessionId,
+        taskId: input.taskId,
+        spanId: planSeed.spans[index]?.spanId,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason || ''),
+      });
+    }
   });
-  return {
-    assetId,
-    videoUrl,
-    jobId: completed.jobId,
-    spokenSentence,
-    durationSeconds,
-    gaps,
-    referenceAsset,
+  const plan: ReferencePrimerPlan = {
+    mode: planSeed.mode,
+    spans: planSeed.spans,
+    segmentPrimerMap: planSeed.segmentPrimerMap,
   };
+  return plan.spans.some((span) => span.primer) ? plan : undefined;
 }
 
 function positiveNumber(value: unknown) {
@@ -4133,54 +4508,7 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       watermark: false,
       resolution,
     };
-    const primer = await maybeGenerateSeedanceReferencePrimer({
-      context,
-      taskId,
-      traceId,
-      prompts,
-      segmentCount: segments.length,
-      materialContext,
-      referenceIds,
-      providerId,
-      modelId,
-      ratio,
-      resolution,
-      seedanceOptions,
-    });
-    if (primer) {
-      materialContext = materialContextWithExtraVideoReference(materialContext, primer.referenceAsset);
-      referenceIds = materialReferencesWithExtraVideo(referenceIds, primer.assetId);
-      prompt = [
-        prompt,
-        referencePrimerPromptConstraint(primer.gaps),
-      ].filter(Boolean).join('\n\n');
-      generationContext = {
-        ...generationContext,
-        materialContext,
-        videoGenerationFlow: ({
-          traceId,
-          source: 'video_remake_generation',
-          referencePrimerJobId: primer.jobId,
-        } as { traceId: string; source: string } & Record<string, unknown>),
-      };
-      context.workflow.runtime.referencePrimer = {
-        videoUrl: primer.videoUrl,
-        jobId: primer.jobId,
-        spokenSentence: primer.spokenSentence,
-        durationSeconds: primer.durationSeconds,
-        assetId: primer.assetId,
-        gaps: primer.gaps,
-      };
-      logVideoRemakeGeneration('info', 'seedance reference primer attached to segmented generation', {
-        traceId,
-        sessionId: context.sessionId,
-        taskId,
-        segmentCount: segments.length,
-        referenceVideoIds: referenceIds.referenceVideoIds,
-        videoUrl: primer.videoUrl,
-        gaps: primer.gaps,
-      });
-    }
+    let primerPlan: ReferencePrimerPlan | undefined;
     logVideoRemakeGeneration('info', 'seedance request prepared', {
       traceId,
       sessionId: context.sessionId,
@@ -4196,12 +4524,7 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       promptLength: prompt.length,
       negativePromptCount: negativePrompts.length,
       seedanceOptions,
-      referencePrimer: primer ? {
-        videoUrl: primer.videoUrl,
-        jobId: primer.jobId,
-        spokenSentence: primer.spokenSentence,
-        gaps: primer.gaps,
-      } : undefined,
+      referencePrimerPlan: primerPlan,
     });
     const segmentedConfirmedSpeech = confirmedSpeechFromSeedancePrompts(prompts) || scriptContent(context.workflow);
     const segmentedSpeechPlan = speechPlanFromSeedancePrompts(prompts);
@@ -4214,24 +4537,85 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
           totalSeconds,
           maxSegmentSeconds: durationLimit.maxSeconds,
         });
-        const segmented = await videoRemakeVideoModelRuntime.callSegmentedSeedanceVideoGeneration({
+        primerPlan = await maybeGenerateSeedanceReferencePrimers({
+          context,
+          taskId,
+          traceId,
+          prompts,
+          segments: segments as Array<Record<string, unknown>>,
+          materialContext,
+          providerId,
+          modelId,
+          ratio,
+          resolution,
+          seedanceOptions,
+        });
+        if (primerPlan) {
+          const firstPrimer = primerPlan.spans.find((span) => span.primer)?.primer;
+          context.workflow.runtime.referencePrimerPlan = primerPlan;
+          context.workflow.runtime.referencePrimer = firstPrimer ? {
+            ...firstPrimer,
+            videoUrl: firstPrimer.videoUrl,
+          } : context.workflow.runtime.referencePrimer;
+        }
+        const segmentInputs = segments.map((segment, index) => {
+          const promptRecord = isRecord(prompts[index]?.prompt) ? prompts[index].prompt : {};
+          const finalSegmentPrompt = textFrom(segment.seedancePrompt) || buildSegmentedSeedancePrompt({
+            basePrompt: prompt,
+            totalSeconds,
+            segments: segments.map((item) => Math.max(1, positiveNumber((item as Record<string, unknown>).durationSecond || (item as Record<string, unknown>).duration || 1))),
+            segmentIndex: index + 1,
+            maxSegmentSeconds: durationLimit.maxSeconds,
+            confirmedSpeech: segmentedConfirmedSpeech,
+            speechPlan: segmentedSpeechPlan,
+          });
+          const span = primerSpanForSegment(primerPlan, index + 1);
+          const segmentMaterialContext = span?.primer
+            ? materialContextWithExtraVideoReference(materialContext, buildReferencePrimerSpanAsset(span.primer, span))
+            : materialContext;
+          const segmentPrompt = span?.primer
+            ? [
+              finalSegmentPrompt,
+              referencePrimerPromptConstraint(span.primer.gaps),
+            ].filter(Boolean).join('\n\n')
+            : finalSegmentPrompt;
+          return {
+            segmentIndex: index + 1,
+            seconds: Math.max(1, positiveNumber((segment as Record<string, unknown>).durationSecond || (segment as Record<string, unknown>).duration || 1)),
+            prompt: segmentPrompt,
+            context: {
+              ...generationContext,
+              materialContext: segmentMaterialContext,
+              videoRemakePrimerPlan: primerPlan,
+            },
+            materialContext: segmentMaterialContext,
+            referencePrimerSpanId: span?.spanId,
+          };
+        });
+        const segmented = await videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration({
           taskId,
           userId: context.userId,
           title,
-          prompt,
-          negativePrompts,
+          negativePrompts: [
+            ...negativePrompts,
+            ...noOnScreenTextNegativePromptsForExport(),
+            '分段开头重复上一段结尾',
+            '分段内容重叠',
+          ],
           ratio,
           resolution,
           totalSeconds,
-          maxSegmentSeconds: durationLimit.maxSeconds,
-          context: generationContext,
+          context: {
+            ...generationContext,
+            videoRemakeSegmentInputs: segmentInputs,
+            videoRemakePrimerPlan: primerPlan,
+          },
           materialContext,
           providerId,
           modelId,
           seedanceOptions,
-          confirmedSpeech: segmentedConfirmedSpeech,
-          speechPlan: segmentedSpeechPlan,
           traceId,
+          segmentInputs,
         });
         logVideoRemakeGeneration('info', 'segmented seedance generation completed', {
           traceId,
@@ -4374,6 +4758,8 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     return {
       ...result,
       segmentCount: segments.length || (Array.isArray(result.segments) ? result.segments.length : 0),
+      referencePrimerPlan: primerPlan,
+      referencePrimer: primerPlan?.spans.find((span) => span.primer)?.primer,
       mergedAt: new Date().toISOString(),
       traceId,
     };

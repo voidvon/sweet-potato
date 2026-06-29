@@ -1822,7 +1822,10 @@ function StoryboardCard(props: CardRendererProps) {
       {({ draft }) => {
         const data = asRecord(draft);
         const isRegenerating = fieldText(data.status) === 'regenerating';
-        const displayDraft = isRegenerating && Array.isArray(data.previousData) ? data.previousData : draft;
+        const displayDraft = draft;
+        if (props.card.status === 'pending' && isRegenerating) {
+          return <Alert message={fieldText(data.message) || '分镜脚本重新解析中，请稍候。'} showIcon type="info" />;
+        }
         if (props.card.status === 'pending' && !Array.isArray(displayDraft)) {
           return <Alert message={fieldText(data.message) || '分镜脚本分析中，请稍候。'} showIcon type="info" />;
         }
@@ -2395,10 +2398,10 @@ function FinalVideoCard(props: CardRendererProps) {
             : '';
           return (
             <>
-              <div className="remake-video-generation-card">
-                <div className="remake-final-card-head">
-                  {showPendingSegments ? <Button onClick={() => setSegmentsOpen(true)}>查看分段</Button> : null}
-                </div>
+                <div className="remake-video-generation-card">
+                  <div className="remake-final-card-head">
+                    {showPendingSegments ? <Button onClick={() => setSegmentsOpen(true)}>查看分段</Button> : null}
+                  </div>
                 {showPendingSegments ? (
                   <div className="remake-video-generation-segments">
                     <div className="remake-video-generation-summary">

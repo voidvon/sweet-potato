@@ -47,6 +47,43 @@ function createWorkflow(): VideoRemakeWorkflowState {
     },
     invalidArtifacts: [],
     runtime: {
+      referencePrimerPlan: {
+        mode: 'scene_spans',
+        segmentPrimerMap: {
+          '1': 'primer_span_1',
+          '2': 'primer_span_2',
+        },
+        spans: [
+          {
+            spanId: 'primer_span_1',
+            segmentIndexes: [1],
+            segmentStartIndex: 1,
+            segmentEndIndex: 1,
+            sceneLabels: ['场景 1'],
+            people: ['人物 1'],
+            narration: '分段1提示词',
+            gapKinds: ['character', 'scene'],
+            primer: {
+              assetId: 'reference-primer-asset',
+              videoUrl: 'https://cdn.example.com/reference-primer.mp4',
+            },
+          },
+          {
+            spanId: 'primer_span_2',
+            segmentIndexes: [2],
+            segmentStartIndex: 2,
+            segmentEndIndex: 2,
+            sceneLabels: ['场景 2'],
+            people: ['人物 1'],
+            narration: '分段2提示词',
+            gapKinds: ['character', 'scene'],
+            primer: {
+              assetId: 'reference-primer-asset-2',
+              videoUrl: 'https://cdn.example.com/reference-primer-2.mp4',
+            },
+          },
+        ],
+      },
       referencePrimer: {
         assetId: 'reference-primer-asset',
         videoUrl: 'https://cdn.example.com/reference-primer.mp4',
@@ -147,7 +184,7 @@ function createCardData() {
   };
 }
 
-test('segment regeneration attaches primer for segment 1 and previous segment video for later segments', async () => {
+test('segment regeneration attaches mapped primer for scene-start segments and previous segment video for later segments', async () => {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'video-remake-segment-reference-'));
   const dataDir = path.join(tempRoot, 'data');
   mkdirSync(dataDir, { recursive: true });
@@ -228,7 +265,7 @@ test('segment regeneration attaches primer for segment 1 and previous segment vi
       const secondReferences = ((secondContext.materialContext as Record<string, unknown>).references as Record<string, unknown>);
       const secondVideos = Array.isArray(secondReferences.videos) ? secondReferences.videos : [];
       assert.equal(secondVideos.length, 1);
-      assert.equal(String(secondVideos[0]?.fileUrl || secondVideos[0]?.url || ''), 'https://cdn.example.com/segment-1.mp4');
+      assert.equal(String(secondVideos[0]?.fileUrl || secondVideos[0]?.url || ''), 'https://cdn.example.com/reference-primer-2.mp4');
     } finally {
       videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
       videoRemakeVideoModelRuntime.waitForVideoModelCompletion = originalWait;
@@ -255,5 +292,92 @@ test('segment regeneration attaches primer for segment 1 and previous segment vi
       process.env.VIDEO_MODEL_ID = previousVideoModelId;
     }
     rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('segment regeneration falls back to legacy singular referencePrimer when no primer plan exists', async () => {
+  const previousVideoModelApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoModelBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const [
+    { defaultVideoRemakeNodeAdapters, videoRemakeVideoModelRuntime },
+  ] = await Promise.all([
+    import('../src/modules/video-remake/video-remake.node-adapters.js'),
+  ]);
+
+  const originalCallConfigured = videoRemakeVideoModelRuntime.callConfiguredVideoModel;
+  const originalWait = videoRemakeVideoModelRuntime.waitForVideoModelCompletion;
+  const configuredCalls: Array<Record<string, unknown>> = [];
+
+  videoRemakeVideoModelRuntime.callConfiguredVideoModel = async (input) => {
+    configuredCalls.push(input as unknown as Record<string, unknown>);
+    throw new Error(`CONFIG_CAPTURE_LEGACY_${configuredCalls.length}`);
+  };
+  videoRemakeVideoModelRuntime.waitForVideoModelCompletion = async () => ({
+    provider: 'volcengine-seedance',
+    model: 'doubao-seedance-2-0-260128',
+    jobId: 'segment-job-legacy',
+    status: 'completed',
+    videoUrl: 'https://cdn.example.com/regenerated-segment-legacy.mp4',
+    coverUrl: '',
+    usage: { completionTokens: 1, totalTokens: 1 },
+  });
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-model-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const workflow = createWorkflow();
+    delete (workflow.runtime as Record<string, unknown>).referencePrimerPlan;
+
+    await assert.rejects(() => defaultVideoRemakeNodeAdapters.regenerateVideoSegment({
+      sessionId: 'session-segment-reference-legacy',
+      userId: 'user-segment-reference',
+      taskId: 'task-segment-reference-legacy',
+      workflow,
+      emit: () => undefined,
+    }, {
+      cardData: {
+        versionNumber: 1,
+        versionLabel: 'v1',
+        seedancePrompts: createCardData().seedancePrompts,
+        segments: [
+          {
+            segmentIndex: 1,
+            seconds: 4,
+            prompt: { mainPrompt: '分段1提示词', systemPrompt: '# 生成规则', negativePrompt: '' },
+            seedancePrompt: '分段1提示词',
+            videoUrl: '/files/content/segment-1.mp4',
+            status: 'completed',
+          },
+        ],
+      },
+      segmentIndex: 1,
+    }), /CONFIG_CAPTURE_LEGACY_1/);
+
+    assert.equal(configuredCalls.length, 1);
+    const firstContext = configuredCalls[0]?.context as Record<string, unknown>;
+    const firstReferences = ((firstContext.materialContext as Record<string, unknown>).references as Record<string, unknown>);
+    const firstVideos = Array.isArray(firstReferences.videos) ? firstReferences.videos : [];
+    assert.equal(firstVideos.length, 1);
+    assert.equal(String(firstVideos[0]?.fileUrl || firstVideos[0]?.url || ''), 'https://cdn.example.com/reference-primer.mp4');
+  } finally {
+    videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
+    videoRemakeVideoModelRuntime.waitForVideoModelCompletion = originalWait;
+    if (previousVideoModelApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoModelApiKey;
+    }
+    if (previousVideoModelBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoModelBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
   }
 });

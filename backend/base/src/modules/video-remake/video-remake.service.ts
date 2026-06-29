@@ -477,6 +477,7 @@ function finalVideoHistory(data: unknown) {
       generatedAt: fieldText(data.generatedAt) || nowIso(),
       assetId: fieldText(data.assetId),
       jobId: fieldText(data.jobId),
+      referencePrimerPlan: isRecord(data.referencePrimerPlan) ? data.referencePrimerPlan : undefined,
       segments: Array.isArray(data.generatedSegments) ? data.generatedSegments : data.segments,
     },
   ];
@@ -502,6 +503,11 @@ function finalVideoHistoryWithResult(baseData: Record<string, unknown>, result: 
       generatedAt: fieldText(result.regeneratedAt || result.generatedAt) || nowIso(),
       renderMode: fieldText(result.renderMode),
       regeneratedSegmentIndex: result.regeneratedSegmentIndex,
+      referencePrimerPlan: isRecord(result.referencePrimerPlan)
+        ? result.referencePrimerPlan
+        : isRecord(baseData.referencePrimerPlan)
+          ? baseData.referencePrimerPlan
+          : undefined,
       segments: Array.isArray(result.generatedSegments) ? result.generatedSegments : result.segments,
     };
     const replacedHistory = baseHistory.map((item) => {
@@ -534,6 +540,11 @@ function finalVideoHistoryWithResult(baseData: Record<string, unknown>, result: 
       generatedAt: fieldText(result.regeneratedAt || result.generatedAt) || nowIso(),
       renderMode: fieldText(result.renderMode),
       regeneratedSegmentIndex: result.regeneratedSegmentIndex,
+      referencePrimerPlan: isRecord(result.referencePrimerPlan)
+        ? result.referencePrimerPlan
+        : isRecord(baseData.referencePrimerPlan)
+          ? baseData.referencePrimerPlan
+          : undefined,
       segments: Array.isArray(result.generatedSegments) ? result.generatedSegments : result.segments,
     },
   ];
@@ -592,6 +603,7 @@ function finalVideoSegmentRegenerationDraft(
     sourceCardId: options.sourceCardId,
     sourceVersionLabel: fieldText(sourceData.versionLabel),
     sourceSnapshot: cloneJson(sourceData),
+    referencePrimerPlan: isRecord(sourceData.referencePrimerPlan) ? cloneJson(sourceData.referencePrimerPlan) : undefined,
     segments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
     generatedSegments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
     videos: cloneJson(finalVideoHistory(sourceData)),
@@ -750,6 +762,7 @@ function completeSessionFromVideoGeneration(
     message: '视频生成完成。',
     videoUrl,
     generatedAt: fieldText(data.generatedAt) || nowIso(),
+    referencePrimerPlan: isRecord(data.referencePrimerPlan) ? data.referencePrimerPlan : undefined,
     generatedSegments: completedSegments,
     segments: completedSegments,
   };
@@ -2912,6 +2925,9 @@ async function confirmFinalVideoCard(
       status: 'completed',
       message: '视频生成完成。',
       generatedAt,
+      referencePrimerPlan: isRecord((merged as Record<string, unknown>).referencePrimerPlan)
+        ? (merged as Record<string, unknown>).referencePrimerPlan
+        : baseData.referencePrimerPlan,
       generatedSegments: Array.isArray((merged as Record<string, unknown>).segments)
         ? (merged as Record<string, unknown>).segments
         : baseData.generatedSegments,
@@ -3879,7 +3895,6 @@ export const videoRemakeService = {
         data: {
           status: 'regenerating',
           message: '分镜脚本重新解析中，请稍候。',
-          previousData: data,
           regeneratedAt: nowIso(),
         },
       });
@@ -3970,6 +3985,9 @@ export const videoRemakeService = {
         ...regenerated,
         status: 'completed',
         message: '分段已重新生成，并已重新合成最终视频。',
+        referencePrimerPlan: isRecord(regenerated.referencePrimerPlan)
+          ? regenerated.referencePrimerPlan
+          : pendingData.referencePrimerPlan,
         generatedSegments: Array.isArray(regenerated.generatedSegments) ? regenerated.generatedSegments : pendingData.generatedSegments,
         segments: Array.isArray(regenerated.segments) ? regenerated.segments : pendingData.segments,
         videos,
