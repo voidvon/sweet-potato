@@ -8,6 +8,7 @@ import {
   formatDurationLabel,
   mergeGeneratedVideoSegments,
   persistSegmentedVideoGenerationState,
+  recordVideoGenerationUsageIfNeeded,
   type SegmentedVideoGenerationState,
   userFacingVideoGenerationError,
   waitForVideoModelCompletion,
@@ -277,6 +278,34 @@ async function runSceneAwareSegmentedSeedanceVideoGeneration(
       if (!completed.videoUrl) {
         throw new Error(`视频分段 ${segment.segmentIndex} 未返回成片地址`);
       }
+      recordVideoGenerationUsageIfNeeded({
+        userId: input.userId,
+        taskId: input.taskId,
+        sourceType: 'video_remake_scene_aware_segment_generation',
+        fallbackSourceId: `${input.taskId}-segment-${segment.segmentIndex}`,
+        providerId: input.providerId,
+        modelId: input.modelId,
+        jobId: completed.jobId,
+        durationSeconds: segment.seconds,
+        usage: completed.usage,
+        responseSnapshot: {
+          provider: completed.provider,
+          model: completed.model,
+          status: completed.status,
+          jobId: completed.jobId,
+          completionTokens: completed.usage?.completionTokens || 0,
+          totalTokens: completed.usage?.totalTokens || 0,
+          hasVideoUrl: Boolean(completed.videoUrl),
+          hasCoverUrl: Boolean(completed.coverUrl),
+        },
+        usageRaw: {
+          requestMode: 'ark_seedance_async',
+          source: 'video_remake_scene_aware_segment_generation',
+          segmentIndex: segment.segmentIndex,
+          segmentCount: segmentInputs.length,
+          referencePrimerSpanId: segment.referencePrimerSpanId,
+        },
+      });
       const segmentPath = await downloadGeneratedVideoSegment({
         url: completed.videoUrl,
         taskId: input.taskId,

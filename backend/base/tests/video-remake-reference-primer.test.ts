@@ -13,11 +13,15 @@ process.env.DATA_DIR = dataDir;
 const [
   { migrateDatabase },
   { createUser },
+  { listBillableUsageRecords },
   { defaultVideoRemakeNodeAdapters, videoRemakeVideoModelRuntime },
+  { callSceneAwareSegmentedSeedanceVideoGeneration },
 ] = await Promise.all([
   import('../src/db/schema.js'),
   import('../src/modules/users/user.service.js'),
+  import('../src/modules/billing/billing.service.js'),
   import('../src/modules/video-remake/video-remake.node-adapters.js'),
+  import('../src/modules/video-remake/video-remake.segmented-runtime.js'),
 ]);
 
 migrateDatabase();
@@ -436,6 +440,109 @@ test('video remake scene-aware primers collapse rapid scene switching to a singl
     videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
     videoRemakeVideoModelRuntime.waitForVideoModelCompletion = originalWait;
     videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration = originalSegmented;
+    if (previousVideoApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoApiKey;
+    }
+    if (previousVideoBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
+  }
+});
+
+test('video remake scene-aware segmented generation records billable usage for each segment', async () => {
+  const previousVideoApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const originalFetch = globalThis.fetch;
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const user = createUser(`user-reference-usage-${Date.now()}`, 'password123', 'Reference Usage User');
+
+    const runtime = {
+      callConfiguredVideoModel: async (input: Parameters<typeof videoRemakeVideoModelRuntime.callConfiguredVideoModel>[0]) => {
+      const title = String(input.title || '');
+      const segmentMatch = title.match(/片段(\d+)/u);
+      const segmentIndex = Number(segmentMatch?.[1] || 0);
+      return {
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        jobId: `usage-segment-job-${segmentIndex}`,
+        status: 'completed',
+        videoUrl: `https://cdn.example.com/usage-segment-${segmentIndex}.mp4`,
+        coverUrl: '',
+        usage: { completionTokens: 3, totalTokens: 6 },
+      };
+      },
+      waitForVideoModelCompletion: async ({ jobId }: Parameters<typeof videoRemakeVideoModelRuntime.waitForVideoModelCompletion>[0]) => ({
+      provider: 'volcengine-seedance',
+      model: 'doubao-seedance-2-0-260128',
+      jobId,
+      status: 'completed',
+      videoUrl: `https://cdn.example.com/${jobId}.mp4`,
+      coverUrl: '',
+      usage: { completionTokens: 3, totalTokens: 6 },
+      }),
+    };
+    globalThis.fetch = async () => new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]).buffer, {
+      status: 200,
+      headers: { 'content-type': 'video/mp4' },
+    });
+
+    await assert.rejects(
+      () => callSceneAwareSegmentedSeedanceVideoGeneration({
+        taskId: 'task-reference-usage',
+        userId: user.id,
+        title: '计费测试视频',
+        negativePrompts: [],
+        ratio: '9:16',
+        resolution: '720p',
+        totalSeconds: 18,
+        context: {},
+        materialContext: {},
+        providerId: 'volcengine-seedance',
+        modelId: 'doubao-seedance-2-0-260128',
+        seedanceOptions: {
+          generateAudio: true,
+          watermark: false,
+          resolution: '720p',
+        },
+        traceId: 'trace-reference-usage',
+        segmentInputs: [1, 2, 3].map((index) => ({
+          segmentIndex: index,
+          seconds: 6,
+          prompt: `计费测试第 ${index} 段`,
+          context: {},
+          materialContext: {},
+        })),
+      }, runtime),
+      /ffmpeg|Invalid data|Error opening input/u,
+    );
+
+    const usageRecords = listBillableUsageRecords({ userId: user.id, limit: 20 })
+      .filter((record) => record.category === 'video_generation');
+    const segmentUsageRecords = usageRecords
+      .filter((record) => record.sourceType === 'video_remake_scene_aware_segment_generation')
+      .sort((left, right) => left.sourceId.localeCompare(right.sourceId));
+    assert.equal(segmentUsageRecords.length, 3);
+    assert.deepEqual(segmentUsageRecords.map((record) => record.sourceId), [
+      'usage-segment-job-1',
+      'usage-segment-job-2',
+      'usage-segment-job-3',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
     if (previousVideoApiKey === undefined) {
       delete process.env.VIDEO_MODEL_API_KEY;
     } else {
