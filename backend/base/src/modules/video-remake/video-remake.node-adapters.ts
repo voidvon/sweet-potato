@@ -3492,7 +3492,7 @@ function splitLongStoryboardShotsForSeedance(storyboard: Array<Record<string, un
   });
 }
 
-function compactSeedanceSequenceLines(lines: string[], label: string) {
+function compactSeedanceSequenceLines(lines: string[], intro: string) {
   const unique = uniqueUsefulLines(lines);
   if (unique.length <= 1) {
     return unique[0] || '';
@@ -3506,7 +3506,7 @@ function compactSeedanceSequenceLines(lines: string[], label: string) {
     }
     return `随后：${line}`;
   });
-  return `${label}连续变化，按时间顺序执行，不要理解为多个人物或多个同时动作：${steps.join('；')}`;
+  return `${intro}：${steps.join('；')}`;
 }
 
 function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, maxDuration: number) {
@@ -3538,10 +3538,16 @@ function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, 
     const endTime = lastTiming.endTime || startTime + shots.reduce((sum, shot) => sum + storyboardShotTiming(shot).duration, 0);
     const narration = shots.map((shot) => usefulText(shot.narration)).filter(Boolean).join('\n');
     const visualDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.visualDescription))).join('\n');
-    const actionDescription = compactSeedanceSequenceLines(shots.map((shot) => usefulText(shot.actionDescription)), '人物/动作');
+    const actionDescription = compactSeedanceSequenceLines(
+      shots.map((shot) => usefulText(shot.actionDescription)),
+      '本段动作按时间顺序变化，逐步执行，不要同时叠加；如果出现人物1/人物2等标签，必须保留各自对应关系',
+    );
     const soundEffect = uniqueUsefulLines(shots.map((shot) => usefulText(shot.soundEffect))).join('\n');
     const pipDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.pipDescription))).join('\n');
-    const remakeSuggestion = compactSeedanceSequenceLines(shots.map((shot) => usefulText(shot.remakeSuggestion)), '复刻建议');
+    const remakeSuggestion = compactSeedanceSequenceLines(
+      shots.map((shot) => usefulText(shot.remakeSuggestion)),
+      '本段拍摄建议按时间顺序变化',
+    );
     return {
       segmentId: `segment_${index + 1}`,
       index: index + 1,

@@ -472,9 +472,11 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
   });
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
-  assert.match(mainPrompt, /人物\/动作连续变化，按时间顺序执行/u);
+  assert.match(mainPrompt, /本段动作按时间顺序变化，逐步执行，不要同时叠加/u);
+  assert.match(mainPrompt, /必须保留各自对应关系/u);
   assert.match(mainPrompt, /开头：人物1坐于棕色休闲椅上/u);
   assert.match(mainPrompt, /最后：人物1坐于棕色休闲椅上/u);
+  assert.doesNotMatch(mainPrompt, /不要理解为多个人物/u);
   assert.doesNotMatch(mainPrompt, /人物\/动作：[\s\S]*开场手势\n人物1坐/u);
 });
 
