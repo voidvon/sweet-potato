@@ -263,6 +263,63 @@ test('storyboard narration cleanup removes repeated rolling transcript lines', a
   assert.doesNotMatch(String(cleaned[3]?.narration || ''), /最好的是走路/u);
 });
 
+test('storyboard card normalization splits long monologue shots and removes empty short tails', async () => {
+  const { normalizeStoryboardForCardForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const narration = '口播：最近我忽然发现 原来只要情绪好 你的身体就会好 古人说心宽一寸病退一丈 身体愉悦就是大补 比任何老母鸡都管用 情绪低落是大伤 所有的情绪都伤肝伤胃伤肺 负面情绪太多的女人最终会影响她的身体会给她带来痛苦影响健康很多人的不舒服其实是从心病开始的所以只有养好自己的情绪我们的身体愉悦了气血才通畅你要明白啊心平能御三千疾心静可通百事灵好情绪才是治愈自己的良药所以没事不要乱发脾气不要跟自己过不去当你遇到那个渣男他伤害你的时候直接跟他拜拜不要再去挽留也不要去内耗没有任何一个人配得上你的美好';
+  const storyboard = [
+    {
+      shotId: 'shot_1',
+      label: '镜头 1',
+      startTime: 0,
+      endTime: 49,
+      duration: 49,
+      visualDescription: '室内中景，人物坐在休闲椅上讲述',
+      actionDescription: '人物手持麦克风，伴随轻柔手势讲述',
+      narration,
+      soundEffect: '人物柔和清晰的讲述原声',
+      remakeSuggestion: '中景固定拍摄，人物手势幅度适中',
+    },
+    { shotId: 'shot_2', label: '镜头 2', startTime: 49, endTime: 50.7, duration: 1.7, visualDescription: '室内中景', actionDescription: '微微皱眉', narration: '', soundEffect: '人物柔和清晰的讲述原声' },
+    { shotId: 'shot_3', label: '镜头 3', startTime: 50.7, endTime: 52.4, duration: 1.7, visualDescription: '室内中景', actionDescription: '抬手强调', narration: '', soundEffect: '人物柔和清晰的讲述原声' },
+    { shotId: 'shot_4', label: '镜头 4', startTime: 52.4, endTime: 54, duration: 1.6, visualDescription: '室内中景', actionDescription: '摆手否定', narration: '', soundEffect: '人物柔和清晰的讲述原声' },
+  ];
+
+  const normalized = normalizeStoryboardForCardForTest(storyboard, 54);
+
+  assert.ok(normalized.length >= 4);
+  assert.equal(normalized[0]?.startTime, 0);
+  assert.equal(normalized[normalized.length - 1]?.endTime, 54);
+  assert.equal(normalized.some((shot) => !String(shot.narration || '').trim()), false);
+  assert.equal(normalized.some((shot) => Number(shot.duration || 0) > 15.1), false);
+  assert.equal(normalized.every((shot) => /^口播：/u.test(String(shot.narration || ''))), true);
+  assert.match(String(normalized[0]?.narration || ''), /最近我忽然发现/u);
+  assert.match(String(normalized[normalized.length - 1]?.narration || ''), /没有任何一个人配得上你的美好/u);
+});
+
+test('storyboard card normalization splits text-heavy short shots by narration length', async () => {
+  const { normalizeStoryboardForCardForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const longTail = '口播：负面情绪太多的女人最终会影响她的身体会给她带来痛苦影响健康很多人的不舒服其实是从心病开始的所以只有养好自己的情绪我们的身体愉悦了气血才通畅你要明白啊心平能御三千疾心静可通百事灵好情绪才是治愈自己的良药所以没事不要乱发脾气不要跟自己过不去当你遇到那个渣男他伤害你的时候直接跟他拜拜不要再去挽留也不要去内耗没有任何一个人配得上你的美好';
+  const normalized = normalizeStoryboardForCardForTest([
+    { shotId: 'shot_1', startTime: 0, endTime: 11.9, duration: 11.9, narration: '口播：最近我忽然发现 原来只要情绪好 你的身体就会好 古人说心宽一寸病退一丈 身体愉悦就是大补 比任何老母鸡都管用' },
+    { shotId: 'shot_2', startTime: 11.9, endTime: 23.8, duration: 11.9, narration: '口播：情绪低落是大伤' },
+    { shotId: 'shot_3', startTime: 23.8, endTime: 35.6, duration: 11.8, narration: '口播：所有的情绪都伤肝伤胃伤肺' },
+    { shotId: 'shot_4', startTime: 35.6, endTime: 47.5, duration: 11.9, narration: longTail },
+    { shotId: 'shot_5', startTime: 47.5, endTime: 49.1, duration: 1.6, narration: '' },
+    { shotId: 'shot_6', startTime: 49.1, endTime: 50.7, duration: 1.6, narration: '' },
+    { shotId: 'shot_7', startTime: 50.7, endTime: 52.3, duration: 1.6, narration: '' },
+    { shotId: 'shot_8', startTime: 52.3, endTime: 54, duration: 1.7, narration: '' },
+  ], 54);
+
+  assert.equal(normalized[0]?.startTime, 0);
+  assert.equal(normalized[normalized.length - 1]?.endTime, 54);
+  assert.equal(normalized.some((shot) => !String(shot.narration || '').trim()), false);
+  assert.equal(normalized.some((shot) => Number(shot.duration || 0) > 15.1), false);
+  assert.ok(normalized.length > 4);
+  assert.ok(Number(normalized[1]?.duration || 0) <= 3);
+  assert.ok(Number(normalized[2]?.duration || 0) <= 4);
+  assert.match(String(normalized[normalized.length - 1]?.narration || ''), /没有任何一个人配得上你的美好/u);
+});
+
 test('fallback storyboard and seedance prompts preserve dialogue speaker labels without time text', async () => {
   const previousDisableLlm = process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM;
   try {
@@ -366,6 +423,61 @@ test('seedance prompt keeps repeated short replies inside the same segment', asy
   assert.equal((mainPrompt.match(/旁白：对啊/gu) || []).length, 2);
 });
 
+test('seedance prompt compacts multiple storyboard actions into a sequential action line', async () => {
+  const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const workflow = {
+    mode: 'test',
+    currentNode: 'generate_seedance_prompts',
+    artifacts: {
+      characterSetting: { items: [{ label: '人物1', characterPrompt: '女性讲述者，粉色上衣、白色裤子', required: true, referenceMode: 'prompt' }] },
+      sceneSetting: { items: [{ label: '场景1', description: '居家室内中景，透光窗帘、装饰画背景', required: true, referenceMode: 'prompt' }] },
+      voiceAudioSetting: { voice: '原声参考' },
+      productSetting: { noProduct: true, items: [] },
+      storyboardScript: [
+        {
+          shotId: 'shot_1',
+          startTime: 0,
+          endTime: 6.5,
+          duration: 6.5,
+          visualDescription: '居家室内中景，透光窗帘、装饰画作为背景',
+          actionDescription: '人物1坐于棕色休闲椅上，手持麦克风，轻抬右手做开场手势',
+          narration: '口播：最近我忽然发现\n口播：原来只要情绪好',
+          soundEffect: '轻柔舒缓的纯音乐背景音',
+          remakeSuggestion: '人物表情温和自然',
+        },
+        {
+          shotId: 'shot_2',
+          startTime: 6.5,
+          endTime: 13,
+          duration: 6.5,
+          visualDescription: '同前中景，背景无变化',
+          actionDescription: '人物1坐于棕色休闲椅上，手持麦克风，手掌向下压做示意动作',
+          narration: '口播：你的身体就会好\n口播：情绪低落是大伤',
+          soundEffect: '轻柔舒缓的纯音乐背景音',
+          remakeSuggestion: '语速稍放缓，突出句子分量感',
+        },
+      ],
+    },
+    invalidArtifacts: [],
+    source: { kind: 'upload', title: 'fixture.mp4', sourceUrl: '' },
+    runtime: {},
+    updatedAt: new Date().toISOString(),
+  };
+
+  const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+    sessionId: 'seedance-sequential-actions',
+    userId: 'seedance-sequential-user',
+    workflow,
+    emit: () => undefined,
+  });
+  const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
+
+  assert.match(mainPrompt, /人物\/动作连续变化，按时间顺序执行/u);
+  assert.match(mainPrompt, /开头：人物1坐于棕色休闲椅上/u);
+  assert.match(mainPrompt, /最后：人物1坐于棕色休闲椅上/u);
+  assert.doesNotMatch(mainPrompt, /人物\/动作：[\s\S]*开场手势\n人物1坐/u);
+});
+
 test('seedance audio binding prompt includes explicit role-to-audio bindings when audio references are present', () => {
   const guide = buildVideoRemakeSeedanceAudioBindingLines({
     voice: '原声参考',
@@ -392,6 +504,13 @@ test('storyboard prompt contract preserves dialogue order without requiring time
   assert.match(videoRemakeStoryboardSystemPrompt, /禁止重排、提前、延后或丢弃短句旁白/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /口播：.*旁白：.*人物X：/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /去掉“时间：0s-3s”等时间标注/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /长口播不能全部塞进第一个镜头/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /不得超过 15 秒/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /没有台词\/旁白的尾镜头/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /短句、单句回应、单个观点句只能给 1-4 秒/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /不能让一句短台词占 10 秒以上/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /铺垫句和结论句拆开/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /分镜字段要浓缩/u);
 });
 
 test('director normalize prompt routes character voice lines to voice audio items', () => {

@@ -3130,6 +3130,39 @@ function rebalanceStoryboardTimingByNarration(storyboard: Array<Record<string, u
   });
 }
 
+function distributeStoryboardTimingByNarration(
+  storyboard: Array<Record<string, unknown>>,
+  targetSeconds: number,
+): Array<Record<string, unknown>> {
+  if (!storyboard.length || !Number.isFinite(targetSeconds) || targetSeconds <= 0) {
+    return storyboard;
+  }
+  const weights = storyboard.map((shot) => narrationWeightSeconds(usefulText(shot.narration)));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (totalWeight <= 0) {
+    return storyboard;
+  }
+  let cursor = 0;
+  return storyboard.map((shot, index) => {
+    const isLast = index === storyboard.length - 1;
+    const remainingShots = storyboard.length - index;
+    const remainingSeconds = Math.max(remainingShots, targetSeconds - cursor);
+    const rawDuration = isLast
+      ? Math.max(1, targetSeconds - cursor)
+      : Math.max(1, Math.min(remainingSeconds - (remainingShots - 1), targetSeconds * (weights[index] / totalWeight)));
+    const duration = Number(rawDuration.toFixed(1));
+    const startTime = Number(cursor.toFixed(1));
+    const endTime = isLast ? Number(targetSeconds.toFixed(1)) : Number((cursor + duration).toFixed(1));
+    cursor = endTime;
+    return {
+      ...shot,
+      startTime,
+      endTime,
+      duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
+    };
+  });
+}
+
 async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
   const content = scriptContent(context.workflow);
   const vod = context.workflow.runtime.vod || {};
@@ -3147,14 +3180,7 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '复刻建议：本镜头复刻建议，一行写完',
     '不要使用 ### 小标题、表格、项目符号、编号列表或代码块；不要重复输出任何字段；不要在任一字段值里再次写“画面：”“人物/动作：”“台词/旁白：”“音效：”“复刻建议：”。',
     '不要把已确认人物/场景/产品设定全文复制到镜头字段中；只允许在画面和人物/动作里用一句话引用当前镜头需要的人物、场景、产品标签和本镜头动作。',
-    '如果已确认口播内容带有说话主体前缀，例如“口播：xxx”“人物1：xxx”“旁白：yyy”，台词/旁白字段必须原样保留这些主体前缀；同一镜头包含多个主体时用空格或中文分号串联，不要合并成无主体文本。',
-    '已确认口播中的每一条对话都必须出现在且只出现在一个镜头的“台词/旁白”字段；短句、应答句、无时间标注的“旁白：对啊”等也不能省略。',
-    '台词/旁白必须严格按“已确认口播内容”的原文出现顺序排列，不得提前、延后、交换顺序或跨镜头重排；如果某条口播带时间，镜头时间窗应覆盖该条原始时间范围；如果没有时间，也必须按原文顺序分配。',
-    '请按语义完整片段切镜头，每个镜头建议 4-12 秒；不要一句话拆一个镜头。',
     videoRemakeStoryboardSpeakerLimitSystemPrompt,
-    '镜头起止时间必须按“台词/旁白”的字数和自然语速分配：中文口播按每秒约 4 个汉字估算，长台词必须给更长时长，短台词只能给较短时长；禁止把每个镜头机械切成接近相同秒数。',
-    '上下文依赖的连续短句必须放在同一个镜头台词里，不能把铺垫句和结论句拆开。',
-    '每个镜头的“台词/旁白”字段都必须填写与该镜头时间范围重叠的已确认口播原句；输出时去掉“时间：0s-3s”等时间标注，只保留“口播：/旁白：/人物X：”和台词正文；除非该时间段确实没有任何口播，否则不允许留空。',
   ].join('\n');
   const user = [
     `目标总时长：${targetSeconds}秒。`,
@@ -3197,14 +3223,10 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     audioPromptText(voiceSetting(context.workflow)) || '原声参考。',
     '',
     '# 输出要求',
-    '镜头数量要少而准，优先 4-8 秒一个镜头，避免把上下半句拆开。',
-    '每个镜头时长必须和本镜头台词长度匹配：长台词镜头要相应变长，短台词镜头要相应变短；如果某镜头台词明显比其他镜头少，不能给它更长时间。',
-    '请先按台词语义切段，再按每秒约 4 个汉字估算每段时长，最后让所有镜头起止时间连续覆盖 0 到目标总时长。',
-    '镜头时间不得超过目标总时长；最后一个镜头必须以目标总时长结束，禁止额外生成没有台词的收尾镜头。',
-    '台词/旁白只能使用已确认口播原句，不新增结束语或行动号召；已确认口播里的“口播：”“人物1：”“人物2：”“旁白：”等说话主体前缀必须保留到台词/旁白字段。',
-    '逐条核对已确认口播清单：每条“口播：...”和“旁白：...”都要按原文顺序分配到镜头；有时间就参考时间范围，没有时间就按前后文本顺序放入相邻语义镜头；不要因为“旁白：对啊”很短就丢弃，也不要把口播标签删除成无主体文本。',
-    '分配台词时只能向前顺序消费已确认口播，不能把后面的旁白插入前面的口播之间，也不能把前面遗漏的口播补到后面镜头。',
-    '每个镜头必须按自己的起止时间覆盖对应口播：例如镜头 8s-19s 必须填入 8s-19s 内的口播内容，不得省略为只有动作和音效。',
+    '按已确认口播原文顺序切镜头；时间按台词长度估算并连续覆盖 0 到目标总时长。',
+    '短句给短时长，长口播按语义继续拆分；不得生成无台词收尾镜头。',
+    '连续同场景镜头要浓缩描述，只写本镜头必要动作、情绪或画面差异。',
+    '台词/旁白只能使用已确认口播原句，保留“口播：/旁白：/人物X：”等主体前缀，不新增台词。',
     videoRemakeStoryboardSpeakerLimitUserPrompt,
     '不要写字幕、标题条、屏幕文字、水印或 Logo。',
     '人物/动作字段必须自包含写清本镜头人物姿态、动作，并保留已确认人物设定中需要持续可见的配件、道具、服饰细节或其他标识性细节。',
@@ -3241,7 +3263,7 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
   const spokenSegments = parseSpokenSegments(content);
   const labelledStoryboard = restoreNarrationSpeakerLabels(parsed, spokenSegments);
   const dedupedStoryboard = trimDuplicateStoryboardNarration(labelledStoryboard, spokenSegments);
-  const timedStoryboard = rebalanceStoryboardTimingByNarration(dedupedStoryboard, targetSeconds);
+  const timedStoryboard = normalizeStoryboardForCard(dedupedStoryboard, targetSeconds);
   const references = collectMaterialReferences(context.workflow);
   return sanitizeStoryboardForConfirmedSettings(attachPipDescriptionsToStoryboard(
     ensureStoryboardEntityCoverage(timedStoryboard, context.workflow),
@@ -3291,6 +3313,27 @@ function splitTextByLength(text: string, count: number) {
   if (!value || count <= 1) {
     return value ? [value] : [];
   }
+  const words = value.split(/\s+/u).map((word) => word.trim()).filter(Boolean);
+  if (words.length >= count * 2) {
+    const targetLength = Math.max(1, Math.ceil(words.reduce((sum, word) => sum + word.length, 0) / count));
+    const chunks: string[] = [];
+    let current = '';
+    words.forEach((word, index) => {
+      const remainingWords = words.length - index;
+      const remainingChunks = count - chunks.length;
+      const mustCloseForBalance = current && remainingWords <= remainingChunks - 1;
+      if (mustCloseForBalance || (current && chunks.length < count - 1 && current.replace(/\s+/gu, '').length + word.length > targetLength)) {
+        chunks.push(current.trim());
+        current = word;
+        return;
+      }
+      current = current ? `${current} ${word}` : word;
+    });
+    if (current.trim()) {
+      chunks.push(current.trim());
+    }
+    return chunks.filter(Boolean);
+  }
   const chunkSize = Math.max(1, Math.ceil(value.length / count));
   const chunks: string[] = [];
   for (let index = 0; index < value.length; index += chunkSize) {
@@ -3334,6 +3377,80 @@ function splitNarrationForSeedance(text: string, count: number) {
   return chunks.map((chunk) => chunk.trim()).filter(Boolean);
 }
 
+function narrationSpeakerPrefix(text: string) {
+  const match = text.trim().match(/^((?:口播|台词|旁白(?:\s*\d+)?|人物\s*[A-Za-z\d一二三四五六七八九十]+|角色\s*[A-Za-z\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)\s*[：:])\s*/u);
+  return match ? match[1].replace(/\s+/gu, '') : '';
+}
+
+function splitNarrationForStoryboard(text: string, count: number) {
+  const prefix = narrationSpeakerPrefix(text);
+  return splitNarrationForSeedance(text, count).map((chunk) => {
+    const trimmed = chunk.trim();
+    if (!trimmed || !prefix || hasSpeechSpeakerLabel(trimmed)) {
+      return trimmed;
+    }
+    return `${prefix}${trimmed}`;
+  }).filter(Boolean);
+}
+
+function storyboardDisplayMaxShotSeconds() {
+  const configured = Number(process.env.VIDEO_REMAKE_STORYBOARD_MAX_SHOT_SECONDS || 15);
+  return Number.isFinite(configured) && configured >= 4 ? configured : 15;
+}
+
+function isDiscardableEmptyStoryboardShot(shot: Record<string, unknown>) {
+  return !usefulText(shot.narration);
+}
+
+function renumberStoryboardShots(storyboard: Array<Record<string, unknown>>) {
+  return storyboard.map((shot, index) => ({
+    ...shot,
+    shotId: `shot_${index + 1}`,
+    index: index + 1,
+    label: `镜头 ${index + 1}`,
+  }));
+}
+
+function normalizeStoryboardForCard(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {
+  const maxDuration = storyboardDisplayMaxShotSeconds();
+  const hasNarratedShot = storyboard.some((shot) => Boolean(usefulText(shot.narration)));
+  const withoutEmptyTails = hasNarratedShot
+    ? storyboard.filter((shot) => !isDiscardableEmptyStoryboardShot(shot))
+    : storyboard;
+  const preTimedStoryboard = distributeStoryboardTimingByNarration(withoutEmptyTails, targetSeconds);
+  const splitStoryboard = preTimedStoryboard.flatMap((shot) => {
+    const timing = storyboardShotTiming(shot);
+    const narration = usefulText(shot.narration);
+    const narrationDuration = narrationWeightSeconds(narration);
+    const effectiveDuration = Math.max(timing.duration, narrationDuration);
+    if (!narration || effectiveDuration <= maxDuration + 0.01) {
+      return [shot];
+    }
+    const chunkCount = Math.max(2, Math.ceil(effectiveDuration / maxDuration));
+    const narrationChunks = splitNarrationForStoryboard(narration, chunkCount);
+    const chunkDuration = timing.duration / chunkCount;
+    return Array.from({ length: chunkCount }, (_, index) => {
+      const startTime = Number((timing.startTime + chunkDuration * index).toFixed(1));
+      const endTime = index === chunkCount - 1
+        ? Number(timing.endTime.toFixed(1))
+        : Number((timing.startTime + chunkDuration * (index + 1)).toFixed(1));
+      return {
+        ...shot,
+        startTime,
+        endTime,
+        duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
+        narration: narrationChunks[index] || narration,
+        pipDescription: '',
+      };
+    });
+  });
+  return renumberStoryboardShots(splitStoryboard);
+}
+
+export function normalizeStoryboardForCardForTest(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {
+  return normalizeStoryboardForCard(storyboard, targetSeconds);
+}
+
 function firstShortSpokenSentence(text: string) {
   const normalized = text.replace(/\s+/gu, ' ').trim();
   if (!normalized) {
@@ -3375,6 +3492,23 @@ function splitLongStoryboardShotsForSeedance(storyboard: Array<Record<string, un
   });
 }
 
+function compactSeedanceSequenceLines(lines: string[], label: string) {
+  const unique = uniqueUsefulLines(lines);
+  if (unique.length <= 1) {
+    return unique[0] || '';
+  }
+  const steps = unique.map((line, index) => {
+    if (index === 0) {
+      return `开头：${line}`;
+    }
+    if (index === unique.length - 1) {
+      return `最后：${line}`;
+    }
+    return `随后：${line}`;
+  });
+  return `${label}连续变化，按时间顺序执行，不要理解为多个人物或多个同时动作：${steps.join('；')}`;
+}
+
 function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, maxDuration: number) {
   const groups: Array<Record<string, unknown>[]> = [];
   let current: Record<string, unknown>[] = [];
@@ -3404,10 +3538,10 @@ function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, 
     const endTime = lastTiming.endTime || startTime + shots.reduce((sum, shot) => sum + storyboardShotTiming(shot).duration, 0);
     const narration = shots.map((shot) => usefulText(shot.narration)).filter(Boolean).join('\n');
     const visualDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.visualDescription))).join('\n');
-    const actionDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.actionDescription))).join('\n');
+    const actionDescription = compactSeedanceSequenceLines(shots.map((shot) => usefulText(shot.actionDescription)), '人物/动作');
     const soundEffect = uniqueUsefulLines(shots.map((shot) => usefulText(shot.soundEffect))).join('\n');
     const pipDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.pipDescription))).join('\n');
-    const remakeSuggestion = uniqueUsefulLines(shots.map((shot) => usefulText(shot.remakeSuggestion))).join('\n');
+    const remakeSuggestion = compactSeedanceSequenceLines(shots.map((shot) => usefulText(shot.remakeSuggestion)), '复刻建议');
     return {
       segmentId: `segment_${index + 1}`,
       index: index + 1,
@@ -4321,7 +4455,7 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     const segments = parseSpokenSegments(content);
     const fallbackContext = fallbackStoryboardContext(context.workflow);
     const references = collectMaterialReferences(context.workflow);
-    return sanitizeStoryboardForConfirmedSettings(attachPipDescriptionsToStoryboard(ensureStoryboardEntityCoverage(segments.map((segment, index) => ({
+    const fallbackStoryboard = normalizeStoryboardForCard(segments.map((segment, index) => ({
       shotId: `shot_${index + 1}`,
       index: index + 1,
       label: `镜头 ${index + 1}`,
@@ -4335,7 +4469,8 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       remakeSuggestion: fallbackRemakeSuggestion(fallbackContext),
       seedanceReady: true,
       source: 'fallback_storyboard',
-    })), context.workflow), context.workflow, { userId: context.userId, references }), context.workflow);
+    })), durationSecondsFromVod(context.workflow.runtime.vod || {}) || estimateStoryboardSeconds(content));
+    return sanitizeStoryboardForConfirmedSettings(attachPipDescriptionsToStoryboard(ensureStoryboardEntityCoverage(fallbackStoryboard, context.workflow), context.workflow, { userId: context.userId, references }), context.workflow);
   },
 
   async generateSeedancePrompts(context) {

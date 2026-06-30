@@ -356,6 +356,9 @@ function isStoryboardResolving(card: VideoRemakeCardMessage) {
   if (card.cardType !== 'storyboard_script') {
     return false;
   }
+  if (card.status === 'expired') {
+    return false;
+  }
   const data = asRecord(card.data);
   const status = fieldText(data.status);
   const message = fieldText(data.message);
