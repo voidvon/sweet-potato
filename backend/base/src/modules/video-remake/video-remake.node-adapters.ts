@@ -1200,7 +1200,7 @@ function mergeSceneItemsWithFallback(
     const itemDescription = scenePromptFromItem(item);
     return {
       ...item,
-      description: uniqueUsefulLines([fallbackDescription, itemDescription]).join('\n') || itemDescription || fallbackDescription,
+      description: itemDescription || fallbackDescription,
       environment: item.environment || fallback.environment,
       props: item.props || fallback.props,
       lighting: item.lighting || fallback.lighting,
@@ -1267,6 +1267,10 @@ function normalizeLlmDirectorResult(value: unknown, context: VideoRemakeNodeCont
       }
       : fallback.scriptContent,
   };
+}
+
+export function normalizeLlmDirectorResultForTest(value: unknown, context: VideoRemakeNodeContext) {
+  return normalizeLlmDirectorResult(value, context);
 }
 
 async function parseDirectorNormalizeStructuredOutput(result: string, context: VideoRemakeNodeContext) {

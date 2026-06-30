@@ -50,6 +50,92 @@ test('director scene normalization preserves Chinese scene description without s
   assert.doesNotMatch(scenes[0]?.description || '', /required：true|referenceMode：prompt/u);
 });
 
+test('video remake director scene merge prefers llm description over fallback duplicate', async () => {
+  const { normalizeLlmDirectorResultForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const context = {
+    sessionId: 'director-scene-merge',
+    userId: 'director-scene-user',
+    workflow: {
+      mode: 'test',
+      currentNode: 'director_normalize',
+      artifacts: {},
+      invalidArtifacts: [],
+      source: {
+        kind: 'upload',
+        title: 'fixture.mp4',
+        sourceUrl: '',
+      },
+      runtime: {
+        analyses: {
+          audio: {
+            roleName: '音频理解专家',
+            content: '',
+            voice: '原声参考',
+            voiceStyle: '',
+            spokenContent: '口播：户外步道养生知识讲解',
+          },
+          visual: {
+            roleName: '视频理解专家',
+            content: '',
+            characters: [{
+              label: '人物1',
+              characterPrompt: '户外步道中讲解养生知识的人物',
+              required: true,
+              referenceMode: 'prompt',
+            }],
+            scenes: [{
+              label: '场景1',
+              description: '拍摄地点为户外步道，环境布置有茂密绿树、灌木丛、居民楼及整洁的步行道路，空间层次清晰，光线氛围清新自然，时间范围：0s-30s；机位：中景（呈现人物及户外步道环境）；氛围：情绪基调平和实用，风格定位为科普类养生知识讲解，氛围清新自然',
+              required: true,
+              referenceMode: 'prompt',
+            }],
+            product: { noProduct: true, items: [] },
+          },
+          pip: {
+            roleName: '画中画理解专家',
+            content: '',
+            appeared: false,
+            items: [],
+          },
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    },
+    emit: () => undefined,
+  };
+
+  const normalized = normalizeLlmDirectorResultForTest({
+    basicInfo: {},
+    expertAnalysis: {},
+    characterSetting: {
+      items: [{
+        label: '人物1',
+        characterPrompt: '户外步道中讲解养生知识的人物',
+        required: true,
+        referenceMode: 'prompt',
+      }],
+    },
+    sceneSetting: {
+      items: [{
+        label: '场景1',
+        description: '拍摄地点为户外步道，环境有茂密绿树、灌木丛、居民楼及整洁步行道路，空间层次清晰，光线清新自然',
+        required: true,
+        referenceMode: 'prompt',
+      }],
+    },
+    productSetting: { noProduct: true, items: [] },
+    pipSetting: { summary: '', appeared: false, items: [] },
+    voiceAudioSetting: { voice: '原声参考', items: [] },
+    scriptContent: { content: '口播：户外步道养生知识讲解', source: 'director_normalize_llm' },
+  }, context as never);
+
+  const sceneItems = (normalized?.sceneSetting as { items?: Array<{ description?: string }> }).items || [];
+  const description = sceneItems[0]?.description || '';
+  assert.equal(description, '拍摄地点为户外步道，环境有茂密绿树、灌木丛、居民楼及整洁步行道路，空间层次清晰，光线清新自然');
+  assert.doesNotMatch(description, /时间范围|机位|风格定位/u);
+  assert.equal(description.split('\n').length, 1);
+});
+
 test('video remake director fallback keeps visual character prompt separate from voice style', async () => {
   const { defaultVideoRemakeNodeAdapters, visualDetailsFromContent } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
   const raw = '{ "task1": { "视频内容": "用户称赞片段" }, "task2": { "场景1": { "场景描述": "室内近景，柔和日常光线，时间范围：47s-48s" }, "人物1": { "人物描述": "时间范围：47s-48s，外观为女性，动作是称赞用户，表情肯定、亲切，气质温暖认可；人物声线": "声线温柔、肯定，语气带有赞赏的情感" } }, "task5": {} }';
