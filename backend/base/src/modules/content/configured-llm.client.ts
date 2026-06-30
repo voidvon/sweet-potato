@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { jsonrepair } from 'jsonrepair';
+import type { ZodTypeAny, infer as InferZodOutput } from 'zod';
 import { callBilledLlm } from '../billing/billing.service.js';
 import type { BillingContentPart } from '../billing/billing.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
@@ -55,6 +57,74 @@ export async function callConfiguredLlm(input: {
     throw new Error(result.content);
   }
   return result.content;
+}
+
+export class StructuredLlmOutputParseError extends Error {
+  readonly content: string;
+
+  constructor(message: string, content: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'StructuredLlmOutputParseError';
+    this.content = content;
+  }
+}
+
+export function createStructuredOutputParser<T extends ZodTypeAny>(schema: T) {
+  return StructuredOutputParser.fromZodSchema(schema);
+}
+
+export async function parseStructuredLlmOutput<T extends ZodTypeAny>(schema: T, content: string) {
+  const parser = createStructuredOutputParser(schema);
+  try {
+    return await parser.parse(content);
+  } catch (error) {
+    throw new StructuredLlmOutputParseError('结构化输出解析失败', content, { cause: error });
+  }
+}
+
+export async function callConfiguredStructuredLlm<T extends ZodTypeAny>(input: {
+  userId: string;
+  system: string;
+  user: string;
+  schema: T;
+  temperature?: number;
+  sourceType?: string;
+  sourceId?: string;
+  timeoutMs?: number;
+  formatInstructionsPrefix?: string;
+  formatInstructionsTarget?: 'system' | 'user';
+}) {
+  const parser = createStructuredOutputParser(input.schema);
+  const formatInstructions = [
+    input.formatInstructionsPrefix?.trim(),
+    parser.getFormatInstructions(),
+  ].filter(Boolean).join('\n\n');
+  const formatInstructionsTarget = input.formatInstructionsTarget || 'system';
+  const system = formatInstructionsTarget === 'system'
+    ? [input.system, formatInstructions].filter(Boolean).join('\n\n')
+    : input.system;
+  const user = formatInstructionsTarget === 'user'
+    ? [input.user, formatInstructions].filter(Boolean).join('\n\n')
+    : input.user;
+  const content = await callConfiguredLlm({
+    userId: input.userId,
+    system,
+    user,
+    temperature: input.temperature,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    timeoutMs: input.timeoutMs,
+  });
+  try {
+    const parsed = await parser.parse(content);
+    return {
+      content,
+      parsed: parsed as InferZodOutput<T>,
+      parser,
+    };
+  } catch (error) {
+    throw new StructuredLlmOutputParseError('结构化输出解析失败', content, { cause: error });
+  }
 }
 
 export async function callConfiguredMultimodalLlm(input: {

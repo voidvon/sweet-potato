@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import {
+  StructuredLlmOutputParseError,
+  callConfiguredLlm,
+  callConfiguredStructuredLlm,
+} from '../content/configured-llm.client.js';
 import { jsonrepair } from 'jsonrepair';
 import { logger } from '../../shared/logger.js';
 import {
@@ -23,7 +28,6 @@ import {
   type ViralUnderstandingOutput,
   type VodUnderstandingExecution,
 } from '../content/internals/content-viral-director.js';
-import { callConfiguredLlm } from '../content/configured-llm.client.js';
 import {
   assertSufficientStepCredits,
   estimateVodUploadCredits,
@@ -63,6 +67,16 @@ import {
   videoRemakeStoryboardSpeakerLimitUserPrompt,
   videoRemakeStoryboardSystemPrompt,
 } from './video-remake.prompts.js';
+import {
+  normalizeVideoRemakeStructuredStoryboardShots,
+  parseVideoRemakeDirectorStructuredOutput,
+  parseVideoRemakeStoryboardMarkdown,
+  parseVideoRemakeStoryboardOutput,
+  sanitizeStoryboardRemakeSuggestion,
+  stripStoryboardEntityDetailBlocks,
+  zDirectorNormalizeSchema,
+  zStoryboardSchema,
+} from './video-remake.structured-output.js';
 import type { VideoRemakeWorkflowState } from './video-remake.types.js';
 
 export type VideoRemakeNodeEvent = {
@@ -1255,103 +1269,131 @@ function normalizeLlmDirectorResult(value: unknown, context: VideoRemakeNodeCont
   };
 }
 
+async function parseDirectorNormalizeStructuredOutput(result: string, context: VideoRemakeNodeContext) {
+  try {
+    const parsed = await parseVideoRemakeDirectorStructuredOutput(result);
+    return normalizeLlmDirectorResult(parsed, context);
+  } catch {
+    return normalizeLlmDirectorResult(parseJsonObject(result), context);
+  }
+}
+
+async function parseStoryboardStructuredOutput(content: string) {
+  return parseVideoRemakeStoryboardOutput(content);
+}
+
 async function generateDirectorNormalizeWithLlm(context: VideoRemakeNodeContext) {
   const fallback = fallbackDirectorNormalizeResult(context);
   const visual = context.workflow.runtime.analyses?.visual || {};
   const audio = context.workflow.runtime.analyses?.audio || {};
   const pip = context.workflow.runtime.analyses?.pip || {};
   const timeoutMs = Number(process.env.VIDEO_REMAKE_DIRECTOR_LLM_TIMEOUT_MS || 180_000);
-  const result = await callConfiguredLlm({
+  const system = [
+    videoRemakeDirectorNormalizeSystemPrompt,
+    '输出 JSON 顶层字段固定为 basicInfo、expertAnalysis、characterSetting、sceneSetting、productSetting、pipSetting、voiceAudioSetting、scriptContent。',
+    'characterSetting.items 和 sceneSetting.items 至少各输出一个有效 item；如果视频中确实没有人物，characterSetting.items 才能为空。',
+    '严禁把人物字段写入 sceneSetting.items[].description；严禁把场景环境写入 characterSetting.items[].characterPrompt。',
+  ].join('\n');
+  const user = [
+    '请先语义整理以下专家结果，输出严格 JSON：',
+    JSON.stringify({
+      expectedShape: {
+        basicInfo: { title: '', resolution: '', aspectRatio: '', sourceUrl: '' },
+        expertAnalysis: { audio: {}, visual: {}, pip: {} },
+        characterSetting: {
+          items: [{
+            label: '人物 1',
+            description: '',
+            appearance: '',
+            characterPrompt: '',
+            gesture: '',
+            expression: '',
+            startSecond: 0,
+            endSecond: 0,
+            spokenCue: '',
+            keywords: [],
+            required: true,
+            referenceMode: 'prompt',
+          }],
+        },
+        sceneSetting: {
+          items: [{
+            label: '场景 1',
+            description: '',
+            environment: '',
+            props: '',
+            lighting: '',
+            composition: '',
+            camera: '',
+            atmosphere: '',
+            startSecond: 0,
+            endSecond: 0,
+            spokenCue: '',
+            keywords: [],
+            required: true,
+            referenceMode: 'prompt',
+          }],
+        },
+        productSetting: { noProduct: false, referenceMode: 'prompt', items: [] },
+        pipSetting: { summary: '', appeared: false, items: [] },
+        voiceAudioSetting: {
+          voice: '原声参考',
+          voiceStyle: '',
+          bgm: '',
+          soundEffects: '',
+          items: [{
+            label: '人物 1 声音',
+            characterLabel: '人物 1',
+            characterIndex: 0,
+            voice: '原声参考',
+            voiceStyle: '人物声线、音色、语速、语气、语音风格等声音描述',
+          }],
+        },
+        scriptContent: { content: '', source: 'director_normalize_llm' },
+      },
+    }, null, 2),
+    '',
+    '# 代码兜底初稿（可参考，但不要照抄其中的字段混淆）',
+    JSON.stringify(fallback, null, 2),
+    '',
+    '# 音频理解专家结果',
+    JSON.stringify(audio, null, 2),
+    '',
+    '# 视频理解专家结果',
+    JSON.stringify(visual, null, 2),
+    '',
+    '# 画中画理解专家结果',
+    JSON.stringify(pip, null, 2),
+  ].join('\n');
+  const response = await callConfiguredStructuredLlm({
     userId: context.userId,
     temperature: 0.1,
     sourceType: 'video_remake_director_normalize',
     sourceId: context.sessionId,
-    system: [
-      videoRemakeDirectorNormalizeSystemPrompt,
-      '输出 JSON 顶层字段固定为 basicInfo、expertAnalysis、characterSetting、sceneSetting、productSetting、pipSetting、voiceAudioSetting、scriptContent。',
-      'characterSetting.items 和 sceneSetting.items 至少各输出一个有效 item；如果视频中确实没有人物，characterSetting.items 才能为空。',
-      '严禁把人物字段写入 sceneSetting.items[].description；严禁把场景环境写入 characterSetting.items[].characterPrompt。',
-    ].join('\n'),
-    user: [
-      '请先语义整理以下专家结果，输出严格 JSON：',
-      JSON.stringify({
-        expectedShape: {
-          basicInfo: { title: '', resolution: '', aspectRatio: '', sourceUrl: '' },
-          expertAnalysis: { audio: {}, visual: {}, pip: {} },
-          characterSetting: {
-            items: [{
-              label: '人物 1',
-              description: '',
-              appearance: '',
-              characterPrompt: '',
-              gesture: '',
-              expression: '',
-              startSecond: 0,
-              endSecond: 0,
-              spokenCue: '',
-              keywords: [],
-              required: true,
-              referenceMode: 'prompt',
-            }],
-          },
-          sceneSetting: {
-            items: [{
-              label: '场景 1',
-              description: '',
-              environment: '',
-              props: '',
-              lighting: '',
-              composition: '',
-              camera: '',
-              atmosphere: '',
-              startSecond: 0,
-              endSecond: 0,
-              spokenCue: '',
-              keywords: [],
-              required: true,
-              referenceMode: 'prompt',
-            }],
-          },
-          productSetting: { noProduct: false, referenceMode: 'prompt', items: [] },
-          pipSetting: { summary: '', appeared: false, items: [] },
-          voiceAudioSetting: {
-            voice: '原声参考',
-            voiceStyle: '',
-            bgm: '',
-            soundEffects: '',
-            items: [{
-              label: '人物 1 声音',
-              characterLabel: '人物 1',
-              characterIndex: 0,
-              voice: '原声参考',
-              voiceStyle: '人物声线、音色、语速、语气、语音风格等声音描述',
-            }],
-          },
-          scriptContent: { content: '', source: 'director_normalize_llm' },
-        },
-      }, null, 2),
-      '',
-      '# 代码兜底初稿（可参考，但不要照抄其中的字段混淆）',
-      JSON.stringify(fallback, null, 2),
-      '',
-      '# 音频理解专家结果',
-      JSON.stringify(audio, null, 2),
-      '',
-      '# 视频理解专家结果',
-      JSON.stringify(visual, null, 2),
-      '',
-      '# 画中画理解专家结果',
-      JSON.stringify(pip, null, 2),
-    ].join('\n'),
+    system,
+    user,
+    schema: zDirectorNormalizeSchema,
+    formatInstructionsPrefix: '仅返回符合 schema 的 JSON Markdown code block，不要输出额外解释。',
     timeoutMs,
+  }).catch(async (error) => {
+    if (!(error instanceof StructuredLlmOutputParseError)) {
+      throw error;
+    }
+    return {
+      content: error.content,
+      parsed: undefined,
+      parser: undefined,
+    };
   });
-  const normalized = normalizeLlmDirectorResult(parseJsonObject(result), context);
+  const normalized = response.parsed
+    ? normalizeLlmDirectorResult(response.parsed, context)
+    : await parseDirectorNormalizeStructuredOutput(response.content, context);
   if (!normalized) {
     logVideoRemakeGeneration('warn', 'director normalize llm returned invalid structure, fallback to code', {
       sessionId: context.sessionId,
       taskId: context.taskId,
-      responseLength: result.length,
-      responsePreview: result.slice(0, 800),
+      responseLength: response.content.length,
+      responsePreview: response.content.slice(0, 800),
     });
   }
   return normalized;
@@ -2796,116 +2838,6 @@ function fallbackRemakeSuggestion(context: ReturnType<typeof fallbackStoryboardC
   ].filter(Boolean).join('\n');
 }
 
-function fieldFromStoryboardBlock(block: string, label: string) {
-  const fieldLabels = '时间段|画面|人物/动作|人物动作|动作|台词/旁白|台词|旁白|口播|人声|音效|复刻建议';
-  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  const pattern = new RegExp(`(?:^|\\n)\\s*(?:(?:[-*]\\s*)?${escapedLabel}\\s*[:：]|#{1,6}\\s*${escapedLabel}\\s*)\\s*\\n?([\\s\\S]*?)(?=\\n\\s*(?:(?:[-*]\\s*)?(?:${fieldLabels})\\s*[:：]|#{1,6}\\s*(?:${fieldLabels})\\s*(?:\\n|$))|$)`, 'u');
-  return block.match(pattern)?.[1]?.trim() || '';
-}
-
-function stripNestedStoryboardFields(value: string, options?: { keepSpeechLabels?: boolean }) {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => {
-      if (options?.keepSpeechLabels && /^(?:[-*]\s*)?(?:旁白(?:\s*\d+)?|人物\s*[A-Za-z\d一二三四五六七八九十]+|角色\s*[A-Za-z\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)\s*[：:]/u.test(line)) {
-        return true;
-      }
-      return !/^(?:[-*]\s*)?(?:画面|人物\/动作|人物动作|动作|台词\/旁白|台词|旁白|口播|人声|音效|复刻建议)\s*[：:]/u.test(line);
-    })
-    .join('\n')
-    .trim();
-}
-
-function stripStoryboardEntityDetailBlocks(value: string) {
-  const lines = value.split('\n');
-  const result: string[] = [];
-  let skippingEntityBlock = false;
-  const isEntityHeading = (line: string) => /^(?:人物|角色|场景|产品|画中画)\s*[A-Za-z\d一二三四五六七八九十]*\s*[：:]/u.test(line.trim());
-  const isEntityDetailLine = (line: string) => /^(?:人物描述|场景描述|产品描述|外观|动作|表情|气质|声线|环境|环境布置|拍摄地点|空间层次|光线氛围|灯光|构图|机位|氛围|道具|适用时间|时间范围|口播线索|对应口播|语境线索|关键词)\s*[：:]/u.test(line.trim());
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (isEntityDetailLine(trimmed)) {
-      continue;
-    }
-    if (isEntityHeading(trimmed)) {
-      skippingEntityBlock = true;
-      continue;
-    }
-    if (skippingEntityBlock) {
-      if (isEntityDetailLine(trimmed)) {
-        continue;
-      }
-      skippingEntityBlock = false;
-    }
-    result.push(line);
-  }
-  return result.join('\n').trim();
-}
-
-function sanitizeStoryboardRemakeSuggestion(value: string) {
-  return stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(value))
-    .split(/\n|[。；;]/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !/^(?:人物|角色|场景|产品|画中画|环境|环境布置|拍摄地点|空间层次|光线氛围|灯光|构图|机位|氛围|道具|外观|动作|表情|气质|声线|人物描述|场景描述|产品描述)\s*[A-Za-z\d一二三四五六七八九十]*\s*[：:]/u.test(line))
-    .filter((line) => !/(?:适用时间|时间范围|口播线索|对应口播|语境线索|关键词)\s*[：:]/u.test(line))
-    .filter((line) => !/上一(?:镜头|段|个镜头)|上一个镜头|前一(?:镜头|段)/u.test(line))
-    .filter((line) => !/保持(?:机位|光线参数|拍摄参数|参数|镜头参数|画面参数)(?:统一|一致|不变)?/u.test(line))
-    .filter((line) => !/不要切换景别|不(?:要|需)切换景别|避免人物?出现大幅度?位移|人物不要出现大幅度?位移/u.test(line))
-    .join('\n');
-}
-
-function parseStoryboardMarkdown(content: string) {
-  const normalized = content.replace(/[－—–~～至到]/gu, '-').trim();
-  if (!normalized) {
-    return [];
-  }
-  const headingPattern = /(?:^|\n)\s*#{1,4}\s*镜头\s*(\d+)[^\n]*?(\d+(?:\.\d+)?)\s*(?:秒|s)?\s*[-|｜]\s*(\d+(?:\.\d+)?)\s*(?:秒|s)?[^\n]*/giu;
-  const matches = Array.from(normalized.matchAll(headingPattern));
-  if (!matches.length) {
-    return [];
-  }
-
-  return matches.map((match, index) => {
-    const startOffset = match.index || 0;
-    const endOffset = matches[index + 1]?.index ?? normalized.length;
-    const block = normalized.slice(startOffset, endOffset).trim();
-    const startTime = Number(match[2]);
-    const endTime = Number(match[3]);
-    const shotIndex = Number(match[1]) || index + 1;
-    const visualDescription = stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '画面')));
-    const actionDescription = stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '人物/动作')
-      || fieldFromStoryboardBlock(block, '人物动作')
-      || fieldFromStoryboardBlock(block, '动作')));
-    const narration = stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '台词/旁白')
-      || fieldFromStoryboardBlock(block, '台词')
-      || fieldFromStoryboardBlock(block, '旁白'), { keepSpeechLabels: true });
-    const soundEffect = stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '音效'));
-    const remakeSuggestion = sanitizeStoryboardRemakeSuggestion(fieldFromStoryboardBlock(block, '复刻建议'));
-    return {
-      shotId: `shot_${shotIndex}`,
-      index: shotIndex,
-      label: `镜头 ${shotIndex}`,
-      startTime,
-      endTime,
-      duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
-      visualDescription,
-      actionDescription,
-      narration,
-      soundEffect,
-      remakeSuggestion,
-      seedanceReady: true,
-      source: 'llm_storyboard',
-    };
-  }).filter((shot) => (
-    Number.isFinite(shot.startTime)
-    && Number.isFinite(shot.endTime)
-    && shot.endTime > shot.startTime
-    && (shot.visualDescription || shot.narration || shot.remakeSuggestion)
-  ));
-}
-
 function hasSpeechSpeakerLabel(text: string) {
   return /(?:^|\n|\s)(?:口播|台词|旁白(?:\s*\d+)?|人物\s*[A-Za-z\d一二三四五六七八九十]+|角色\s*[A-Za-z\d一二三四五六七八九十]+|男声|女声|主持人|采访者|被访者)\s*[：:]/u.test(text);
 }
@@ -3170,16 +3102,12 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
   const noProductRequired = storyboardDisallowsProducts(context.workflow);
   const system = [
     videoRemakeStoryboardSystemPrompt,
-    '必须输出 Markdown，不要输出 JSON。',
-    '必须严格按固定模板输出，每个镜头只允许 6 行：',
-    '## 镜头 N｜起始-结束秒',
-    '画面：本镜头画面，一行写完',
-    '人物/动作：本镜头人物和动作，一行写完',
-    '台词/旁白：本镜头台词，一行写完',
-    '音效：本镜头音效，一行写完',
-    '复刻建议：本镜头复刻建议，一行写完',
-    '不要使用 ### 小标题、表格、项目符号、编号列表或代码块；不要重复输出任何字段；不要在任一字段值里再次写“画面：”“人物/动作：”“台词/旁白：”“音效：”“复刻建议：”。',
-    '不要把已确认人物/场景/产品设定全文复制到镜头字段中；只允许在画面和人物/动作里用一句话引用当前镜头需要的人物、场景、产品标签和本镜头动作。',
+    '输出 JSON，顶层字段固定为 shots。',
+    'shots 数组中的每个镜头对象只允许包含 index、label、startTime、endTime、visualDescription、actionDescription、narration、soundEffect、remakeSuggestion、seedancePromptHints。',
+    'seedancePromptHints 是隐藏字段，不展示在分镜卡片，只给后续 Seedance 分段提示词使用；必须包含 characterBaseState、keyActionChanges、shootingTips，可选 visualSummary。',
+    'seedancePromptHints.characterBaseState 写本镜头人物基准状态和人物标签；keyActionChanges 最多 2 条，只写关键动作变化；shootingTips 最多 2 条，只写关键拍摄/表演建议；不要写“保持坐姿、语气自然、光线稳定”等弱信息。',
+    '不要输出 Markdown、表格、项目符号、编号列表或代码块外的解释。',
+    '不要把已确认人物/场景/产品设定全文复制到镜头字段中；只允许在 visualDescription 和 actionDescription 里用一句话引用当前镜头需要的人物、场景、产品标签和本镜头动作。',
     videoRemakeStoryboardSpeakerLimitSystemPrompt,
   ].join('\n');
   const user = [
@@ -3240,24 +3168,37 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     '复刻建议必须写本镜头可直接执行的具体要求，不要写“保持机位、光线参数和上一镜头一致”“保持拍摄参数统一”“人物不要出现大幅度位移”“不要切换景别”等依赖上一镜头或空泛的句子。',
   ].join('\n');
   const timeoutMs = Number(process.env.VIDEO_REMAKE_STORYBOARD_LLM_TIMEOUT_MS || 300_000);
-  const markdown = await callConfiguredLlm({
+  const response = await callConfiguredStructuredLlm({
     userId: context.userId,
     temperature: 0.28,
     sourceType: 'video_remake_storyboard',
     sourceId: context.sessionId,
     system,
     user,
+    schema: zStoryboardSchema,
+    formatInstructionsPrefix: '仅返回符合 schema 的 JSON Markdown code block，不要输出任何补充说明。',
     timeoutMs,
+  }).catch(async (error) => {
+    if (!(error instanceof StructuredLlmOutputParseError)) {
+      throw error;
+    }
+    return {
+      content: error.content,
+      parsed: undefined,
+      parser: undefined,
+    };
   });
-  const parsed = parseStoryboardMarkdown(markdown);
+  const parsed = response.parsed
+    ? normalizeVideoRemakeStructuredStoryboardShots(response.parsed.shots || response.parsed.items || response.parsed.storyboard || [])
+    : await parseStoryboardStructuredOutput(response.content);
   if (!parsed.length) {
     logVideoRemakeGeneration('warn', 'storyboard llm response could not be parsed', {
       sessionId: context.sessionId,
       taskId: context.taskId,
-      responseLength: markdown.length,
-      responsePreview: markdown.slice(0, 800),
-      hasShotHeading: /镜头\s*\d+/u.test(markdown),
-      hasTimeRange: /\d+(?:\.\d+)?\s*(?:秒|s)?\s*[-|｜]\s*\d+(?:\.\d+)?/u.test(markdown),
+      responseLength: response.content.length,
+      responsePreview: response.content.slice(0, 800),
+      hasShotHeading: /镜头\s*\d+/u.test(response.content),
+      hasTimeRange: /\d+(?:\.\d+)?\s*(?:秒|s)?\s*[-|｜]\s*\d+(?:\.\d+)?/u.test(response.content),
     });
   }
   const spokenSegments = parseSpokenSegments(content);
@@ -3492,21 +3433,140 @@ function splitLongStoryboardShotsForSeedance(storyboard: Array<Record<string, un
   });
 }
 
-function compactSeedanceSequenceLines(lines: string[], intro: string) {
+function commonPrefixByChars(values: string[]) {
+  if (values.length < 2) {
+    return '';
+  }
+  let prefix = values[0] || '';
+  values.slice(1).forEach((value) => {
+    let index = 0;
+    while (index < prefix.length && index < value.length && prefix[index] === value[index]) {
+      index += 1;
+    }
+    prefix = prefix.slice(0, index);
+  });
+  const boundary = Math.max(
+    prefix.lastIndexOf('，'),
+    prefix.lastIndexOf('；'),
+    prefix.lastIndexOf(','),
+    prefix.lastIndexOf(';'),
+  );
+  return boundary >= 6 ? prefix.slice(0, boundary + 1).trim() : '';
+}
+
+function removeWeakSeedanceSequencePhrase(value: string) {
+  return value
+    .replace(/(?:^|[，,；;]\s*)保持坐姿/gu, '')
+    .replace(/(?:^|[，,；;]\s*)保持画面稳定/gu, '')
+    .replace(/(?:^|[，,；;]\s*)人物面部光线充足/gu, '')
+    .replace(/(?:^|[，,；;]\s*)表情(?:温和|平和|自然)/gu, '')
+    .replace(/(?:^|[，,；;]\s*)语气(?:肯定|轻松|清晰有力)/gu, '')
+    .replace(/(?:^|[，,；;]\s*)动作自然(?:轻微)?/gu, '')
+    .replace(/(?:^|[，,；;]\s*)不要(?:过于|太)?(?:夸张|刻意)/gu, '')
+    .replace(/^[，,；;\s]+|[，,；;\s]+$/gu, '')
+    .trim();
+}
+
+function isWeakSeedanceSequenceLine(value: string) {
+  return !value
+    || /^(?:保持坐姿|表情(?:温和|平和|自然)|语气(?:肯定|轻松|清晰有力)|保持画面稳定|人物面部光线充足|不要(?:过于|太)?(?:夸张|刻意))$/u.test(value);
+}
+
+function selectSeedanceSequenceSteps(lines: string[], limit: number) {
+  if (lines.length <= limit) {
+    return lines;
+  }
+  const indexed = lines.map((line, index) => ({ line, index }));
+  const meaningful = indexed.filter((item) => !isWeakSeedanceSequenceLine(item.line));
+  const selected = new Map<number, string>();
+  const candidates = meaningful.length ? meaningful : indexed;
+  [candidates[0], candidates[Math.floor(candidates.length / 2)], candidates[candidates.length - 1]]
+    .filter(Boolean)
+    .forEach((item) => selected.set(item.index, item.line));
+  for (const item of candidates) {
+    if (selected.size >= limit) {
+      break;
+    }
+    selected.set(item.index, item.line);
+  }
+  return Array.from(selected.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([, line]) => line)
+    .slice(0, limit);
+}
+
+function compactSeedanceSequenceLines(lines: string[], options?: { baseLabel?: string; sequenceLabel?: string; stripCommonPrefix?: boolean; maxSteps?: number }) {
   const unique = uniqueUsefulLines(lines);
   if (unique.length <= 1) {
     return unique[0] || '';
   }
-  const steps = unique.map((line, index) => {
+  const commonPrefix = options?.stripCommonPrefix ? commonPrefixByChars(unique) : '';
+  const cleaned = unique
+    .map((line) => {
+      const withoutPrefix = commonPrefix && line.startsWith(commonPrefix)
+        ? line.slice(commonPrefix.length).replace(/^[，,；;\s]+/u, '').trim() || line
+        : line;
+      return removeWeakSeedanceSequencePhrase(withoutPrefix);
+    })
+    .filter((line) => !isWeakSeedanceSequenceLine(line));
+  const compacted = selectSeedanceSequenceSteps(cleaned.length ? uniqueUsefulLines(cleaned) : unique, options?.maxSteps || 3);
+  const steps = compacted.map((content, index) => {
     if (index === 0) {
-      return `开头：${line}`;
+      return `开头：${content}`;
     }
-    if (index === unique.length - 1) {
-      return `最后：${line}`;
+    if (index === compacted.length - 1) {
+      return `最后：${content}`;
     }
-    return `随后：${line}`;
+    return `随后：${content}`;
   });
-  return `${intro}：${steps.join('；')}`;
+  return [
+    commonPrefix && options?.baseLabel ? `${options.baseLabel}：${commonPrefix.replace(/[，,；;]$/u, '')}` : '',
+    `${options?.sequenceLabel || '变化'}：${steps.join('；')}`,
+  ].filter(Boolean).join('；');
+}
+
+function seedanceHintsFromShot(shot: Record<string, unknown>) {
+  const raw = isRecord(shot.seedancePromptHints) ? shot.seedancePromptHints : {};
+  const keyActionChanges = Array.isArray(raw.keyActionChanges)
+    ? raw.keyActionChanges.map((item) => usefulText(item)).filter(Boolean)
+    : [];
+  const shootingTips = Array.isArray(raw.shootingTips)
+    ? raw.shootingTips.map((item) => usefulText(item)).filter(Boolean)
+    : [];
+  return {
+    characterBaseState: usefulText(raw.characterBaseState),
+    visualSummary: usefulText(raw.visualSummary),
+    keyActionChanges: [
+      usefulText(raw.keyActionChange),
+      ...keyActionChanges,
+    ].filter(Boolean),
+    shootingTips: [
+      usefulText(raw.shootingTip),
+      ...shootingTips,
+    ].filter(Boolean),
+  };
+}
+
+function compactSeedanceHintsForSegment(shots: Record<string, unknown>[]) {
+  const hints = shots.map(seedanceHintsFromShot);
+  const hasHints = hints.some((item) => (
+    item.characterBaseState || item.visualSummary || item.keyActionChanges.length || item.shootingTips.length
+  ));
+  if (!hasHints) {
+    return {};
+  }
+  const characterBaseState = uniqueUsefulLines(hints.map((item) => item.characterBaseState))[0] || '';
+  const visualSummary = uniqueUsefulLines(hints.map((item) => item.visualSummary))[0] || '';
+  const keyActionChanges = selectSeedanceSequenceSteps(uniqueUsefulLines(hints.flatMap((item) => item.keyActionChanges)), 3);
+  const shootingTips = selectSeedanceSequenceSteps(uniqueUsefulLines(hints.flatMap((item) => item.shootingTips)), 2);
+  return {
+    visualDescription: visualSummary,
+    actionDescription: [
+      characterBaseState ? `人物基准状态：${characterBaseState}` : '',
+      keyActionChanges.length ? `关键动作变化：${keyActionChanges.join('；')}` : '',
+    ].filter(Boolean).join('；'),
+    remakeSuggestion: shootingTips.length ? `关键拍摄建议：${shootingTips.join('；')}` : '',
+  };
 }
 
 function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, maxDuration: number) {
@@ -3537,16 +3597,17 @@ function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, 
     const startTime = firstTiming.startTime;
     const endTime = lastTiming.endTime || startTime + shots.reduce((sum, shot) => sum + storyboardShotTiming(shot).duration, 0);
     const narration = shots.map((shot) => usefulText(shot.narration)).filter(Boolean).join('\n');
-    const visualDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.visualDescription))).join('\n');
-    const actionDescription = compactSeedanceSequenceLines(
+    const seedanceHints = compactSeedanceHintsForSegment(shots);
+    const visualDescription = seedanceHints.visualDescription || uniqueUsefulLines(shots.map((shot) => usefulText(shot.visualDescription))).join('\n');
+    const actionDescription = seedanceHints.actionDescription || compactSeedanceSequenceLines(
       shots.map((shot) => usefulText(shot.actionDescription)),
-      '本段动作按时间顺序变化，逐步执行，不要同时叠加；如果出现人物1/人物2等标签，必须保留各自对应关系',
+      { baseLabel: '人物基准状态', sequenceLabel: '动作变化', stripCommonPrefix: true, maxSteps: 3 },
     );
     const soundEffect = uniqueUsefulLines(shots.map((shot) => usefulText(shot.soundEffect))).join('\n');
     const pipDescription = uniqueUsefulLines(shots.map((shot) => usefulText(shot.pipDescription))).join('\n');
-    const remakeSuggestion = compactSeedanceSequenceLines(
+    const remakeSuggestion = seedanceHints.remakeSuggestion || compactSeedanceSequenceLines(
       shots.map((shot) => usefulText(shot.remakeSuggestion)),
-      '本段拍摄建议按时间顺序变化',
+      { sequenceLabel: '拍摄建议变化', maxSteps: 2 },
     );
     return {
       segmentId: `segment_${index + 1}`,

@@ -472,12 +472,144 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
   });
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
-  assert.match(mainPrompt, /本段动作按时间顺序变化，逐步执行，不要同时叠加/u);
-  assert.match(mainPrompt, /必须保留各自对应关系/u);
-  assert.match(mainPrompt, /开头：人物1坐于棕色休闲椅上/u);
-  assert.match(mainPrompt, /最后：人物1坐于棕色休闲椅上/u);
+  assert.match(mainPrompt, /人物基准状态：人物1坐于棕色休闲椅上，手持麦克风/u);
+  assert.match(mainPrompt, /动作变化：开头：轻抬右手做开场手势/u);
+  assert.match(mainPrompt, /最后：手掌向下压做示意动作/u);
+  assert.match(mainPrompt, /拍摄建议变化：开头：人物表情温和自然；最后：语速稍放缓/u);
+  assert.doesNotMatch(mainPrompt, /不要同时叠加/u);
+  assert.doesNotMatch(mainPrompt, /必须保留各自对应关系/u);
   assert.doesNotMatch(mainPrompt, /不要理解为多个人物/u);
   assert.doesNotMatch(mainPrompt, /人物\/动作：[\s\S]*开场手势\n人物1坐/u);
+});
+
+test('seedance prompt limits repetitive merged action and suggestion steps', async () => {
+  const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const actions = [
+    '人物1身着粉色上衣、白色裤子，手持麦克风，表情温和，开口说话，头部微微前倾',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，抬手轻抬强调观点',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，语气肯定',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，表情平和',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，微微点头',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，双手轻轻合十',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，语气轻松',
+    '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，表情稍显严肃',
+  ];
+  const suggestions = [
+    '保持画面稳定，人物面部光线充足',
+    '手势动作自然，不要过于夸张',
+    '口播语气清晰有力',
+    '语速放缓，贴合古语语境',
+    '点头动作自然轻微',
+    '合十动作幅度小，贴合温和气质',
+    '语气带轻微笑意，增强亲和力',
+    '表情转变自然，不要过于刻意',
+  ];
+  const storyboardScript = actions.map((actionDescription, index) => ({
+    shotId: `shot_${index + 1}`,
+    startTime: index,
+    endTime: index + 1,
+    duration: 1,
+    visualDescription: index === 0 ? '室内固定中景' : '同前序中景固定画面',
+    actionDescription,
+    narration: `口播：测试台词${index + 1}`,
+    remakeSuggestion: suggestions[index],
+  }));
+  const workflow = {
+    mode: 'test',
+    currentNode: 'generate_seedance_prompts',
+    artifacts: {
+      characterSetting: { items: [{ label: '人物1', characterPrompt: '女性讲述者，粉色上衣、白色裤子', required: true, referenceMode: 'prompt' }] },
+      sceneSetting: { items: [{ label: '场景1', description: '室内固定中景', required: true, referenceMode: 'prompt' }] },
+      voiceAudioSetting: { voice: '原声参考' },
+      productSetting: { noProduct: true, items: [] },
+      storyboardScript,
+    },
+    invalidArtifacts: [],
+    source: { kind: 'upload', title: 'fixture.mp4', sourceUrl: '' },
+    runtime: {},
+    updatedAt: new Date().toISOString(),
+  };
+
+  const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+    sessionId: 'seedance-compact-repetitive-actions',
+    userId: 'seedance-compact-user',
+    workflow,
+    emit: () => undefined,
+  });
+  const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
+
+  assert.equal((mainPrompt.match(/(?:开头|随后|最后)：/gu) || []).length <= 5, true);
+  assert.doesNotMatch(mainPrompt, /保持坐姿/u);
+  assert.doesNotMatch(mainPrompt, /人物面部光线充足/u);
+  assert.match(mainPrompt, /人物基准状态：人物1身着粉色上衣、白色裤子，手持麦克风/u);
+  assert.match(mainPrompt, /动作变化：/u);
+  assert.match(mainPrompt, /拍摄建议变化：/u);
+});
+
+test('seedance prompt uses hidden storyboard seedance hints when available', async () => {
+  const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const workflow = {
+    mode: 'test',
+    currentNode: 'generate_seedance_prompts',
+    artifacts: {
+      characterSetting: { items: [{ label: '人物1', characterPrompt: '女性讲述者，粉色上衣、白色裤子', required: true, referenceMode: 'prompt' }] },
+      sceneSetting: { items: [{ label: '场景1', description: '室内固定中景', required: true, referenceMode: 'prompt' }] },
+      voiceAudioSetting: { voice: '原声参考' },
+      productSetting: { noProduct: true, items: [] },
+      storyboardScript: [
+        {
+          shotId: 'shot_1',
+          startTime: 0,
+          endTime: 4,
+          duration: 4,
+          visualDescription: '室内固定中景，人物坐棕色休闲椅，背景为带窗帘的窗户与装饰画',
+          actionDescription: '人物1身着粉色上衣、白色裤子，手持麦克风，表情温和，开口说话，头部微微前倾',
+          narration: '口播：最近我忽然发现',
+          remakeSuggestion: '保持画面稳定，人物面部光线充足',
+          seedancePromptHints: {
+            characterBaseState: '人物1身着粉色上衣、白色裤子，坐在棕色休闲椅上手持麦克风',
+            visualSummary: '室内固定中景，温馨居家背景',
+            keyActionChanges: ['头部微微前倾开口讲述'],
+            shootingTips: ['中景固定，语速平缓'],
+          },
+        },
+        {
+          shotId: 'shot_2',
+          startTime: 4,
+          endTime: 8,
+          duration: 4,
+          visualDescription: '同前序中景固定画面',
+          actionDescription: '人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，双手轻轻合十',
+          narration: '口播：原来只要情绪好',
+          remakeSuggestion: '合十动作幅度小，贴合温和气质',
+          seedancePromptHints: {
+            characterBaseState: '人物1身着粉色上衣、白色裤子，坐在棕色休闲椅上手持麦克风',
+            keyActionChanges: ['双手轻轻合十表达赞许'],
+            shootingTips: ['合十动作幅度小'],
+          },
+        },
+      ],
+    },
+    invalidArtifacts: [],
+    source: { kind: 'upload', title: 'fixture.mp4', sourceUrl: '' },
+    runtime: {},
+    updatedAt: new Date().toISOString(),
+  };
+
+  const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+    sessionId: 'seedance-hidden-hints',
+    userId: 'seedance-hidden-user',
+    workflow,
+    emit: () => undefined,
+  });
+  const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
+
+  assert.match(mainPrompt, /画面：室内固定中景，温馨居家背景/u);
+  assert.match(mainPrompt, /人物基准状态：人物1身着粉色上衣、白色裤子，坐在棕色休闲椅上手持麦克风/u);
+  assert.match(mainPrompt, /关键动作变化：头部微微前倾开口讲述；双手轻轻合十表达赞许/u);
+  assert.match(mainPrompt, /关键拍摄建议：中景固定，语速平缓；合十动作幅度小/u);
+  assert.doesNotMatch(mainPrompt, /保持坐姿/u);
+  assert.doesNotMatch(mainPrompt, /人物面部光线充足/u);
 });
 
 test('seedance audio binding prompt includes explicit role-to-audio bindings when audio references are present', () => {
