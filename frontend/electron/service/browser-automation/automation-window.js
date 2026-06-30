@@ -1,9 +1,81 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { BrowserWindow, app, session } = require('electron');
+
+const SAFE_NAVIGATION_PROTOCOLS = new Set(['http:', 'https:', 'data:', 'about:', 'blob:']);
+const usedAutomationProfiles = new Set();
 
 function safeProfileId(profileId) {
   return String(profileId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_') || 'default';
+}
+
+function getAutomationProfilePartition(profileId) {
+  return `persist:automation:${safeProfileId(profileId)}`;
+}
+
+function getAutomationProfileSession(profileId) {
+  return session.fromPartition(getAutomationProfilePartition(profileId));
+}
+
+function getAutomationProfileBackupDir() {
+  const dir = path.join(app.getPath('userData'), 'automation-profile-backups');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function getAutomationProfileBackupPath(profileId) {
+  return path.join(getAutomationProfileBackupDir(), `${safeProfileId(profileId)}.json`);
+}
+
+function getCookieUrl(cookie) {
+  const rawDomain = String(cookie?.domain || '').trim().replace(/^\./, '');
+  if (!rawDomain) {
+    return null;
+  }
+  const protocol = cookie?.secure ? 'https' : 'http';
+  const pathname = String(cookie?.path || '/').startsWith('/')
+    ? String(cookie?.path || '/')
+    : `/${String(cookie?.path || '/')}`;
+  return `${protocol}://${rawDomain}${pathname}`;
+}
+
+function serializeCookie(cookie) {
+  return {
+    name: cookie.name,
+    value: cookie.value,
+    domain: cookie.domain,
+    path: cookie.path,
+    secure: Boolean(cookie.secure),
+    httpOnly: Boolean(cookie.httpOnly),
+    session: Boolean(cookie.session),
+    sameSite: cookie.sameSite,
+    expirationDate: typeof cookie.expirationDate === 'number' ? cookie.expirationDate : null,
+  };
+}
+
+function isSafeNavigationUrl(targetUrl) {
+  if (!targetUrl) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(String(targetUrl));
+    return SAFE_NAVIGATION_PROTOCOLS.has(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function blockUnsafeNavigation(event, targetUrl, source) {
+  if (isSafeNavigationUrl(targetUrl)) {
+    return false;
+  }
+
+  event.preventDefault();
+  console.warn(`[browser-automation] blocked external protocol navigation from ${source}: ${targetUrl}`);
+  return true;
 }
 
 function createPlaceholderUrl(marker) {
@@ -57,6 +129,27 @@ function restoreMainWindowFocus() {
   for (const delay of [0, 120, 360, 800]) {
     setTimeout(focusMainWindow, delay);
   }
+}
+
+function registerDevToolsShortcut(win) {
+  if (!win || win.isDestroyed() || !win.webContents || win.webContents.isDestroyed()) {
+    return;
+  }
+
+  win.webContents.on('before-input-event', (event, input) => {
+    const isF12 = input.key === 'F12';
+    const isInspectShortcut = input.key?.toLowerCase() === 'i' && input.shift && (input.control || input.meta);
+    if (!isF12 && !isInspectShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    if (win.webContents.isDevToolsOpened()) {
+      win.webContents.closeDevTools();
+      return;
+    }
+    win.webContents.openDevTools({ mode: 'detach' });
+  });
 }
 
 function isWindowUsable(win) {
@@ -116,7 +209,8 @@ function presentAutomationWindow(win, options = {}) {
 
 function createAutomationWindow(options = {}) {
   const profileId = safeProfileId(options.profileId);
-  const partition = `persist:automation:${profileId}`;
+  const partition = getAutomationProfilePartition(profileId);
+  usedAutomationProfiles.add(profileId);
   const showInactive = Boolean(options.showInactive);
   const win = new BrowserWindow({
     title: options.title || '自动化浏览器',
@@ -137,6 +231,26 @@ function createAutomationWindow(options = {}) {
   win.__automationProfileId = profileId;
   win.__automationPartition = partition;
 
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (!isSafeNavigationUrl(url)) {
+      console.warn(`[browser-automation] blocked external protocol window open: ${url}`);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
+  win.webContents.on('will-navigate', (event, targetUrl) => {
+    blockUnsafeNavigation(event, targetUrl, 'will-navigate');
+  });
+
+  win.webContents.on('will-frame-navigate', (event, targetUrl) => {
+    blockUnsafeNavigation(event, targetUrl, 'will-frame-navigate');
+  });
+
+  win.webContents.on('will-redirect', (event, targetUrl) => {
+    blockUnsafeNavigation(event, targetUrl, 'will-redirect');
+  });
+
   if (showInactive) {
     win.once('ready-to-show', () => {
       if (!win.isDestroyed()) {
@@ -150,14 +264,16 @@ function createAutomationWindow(options = {}) {
     restoreMainWindowFocus();
   }
 
+  registerDevToolsShortcut(win);
+
   return win;
 }
 
 function findAutomationWindow(options = {}) {
   const profileId = safeProfileId(options.profileId);
-  const partition = `persist:automation:${profileId}`;
+  const partition = getAutomationProfilePartition(profileId);
   const urlMatcher = typeof options.urlMatcher === 'function' ? options.urlMatcher : null;
-  const profileSession = session.fromPartition(partition);
+  const profileSession = getAutomationProfileSession(profileId);
   const windows = BrowserWindow.getAllWindows().slice().reverse();
 
   for (const win of windows) {
@@ -179,9 +295,9 @@ function findAutomationWindow(options = {}) {
 
 function closeAutomationWindows(options = {}) {
   const profileId = safeProfileId(options.profileId);
-  const partition = `persist:automation:${profileId}`;
+  const partition = getAutomationProfilePartition(profileId);
   const urlMatcher = typeof options.urlMatcher === 'function' ? options.urlMatcher : null;
-  const profileSession = session.fromPartition(partition);
+  const profileSession = getAutomationProfileSession(profileId);
   const windows = BrowserWindow.getAllWindows().slice().reverse();
   let closedCount = 0;
 
@@ -213,8 +329,8 @@ function closeAutomationWindows(options = {}) {
 
 function countAutomationWindows(options = {}) {
   const profileId = safeProfileId(options.profileId);
-  const partition = `persist:automation:${profileId}`;
-  const profileSession = session.fromPartition(partition);
+  const partition = getAutomationProfilePartition(profileId);
+  const profileSession = getAutomationProfileSession(profileId);
   const windows = BrowserWindow.getAllWindows();
   let count = 0;
 
@@ -240,9 +356,100 @@ function countAutomationWindows(options = {}) {
 
 async function clearAutomationProfile(profileId) {
   const safeId = safeProfileId(profileId);
-  const profileSession = session.fromPartition(`persist:automation:${safeId}`);
+  const profileSession = getAutomationProfileSession(safeId);
   await profileSession.clearStorageData();
   await profileSession.clearCache();
+}
+
+async function backupAutomationProfileCookies(profileId) {
+  const safeId = safeProfileId(profileId);
+  const profileSession = getAutomationProfileSession(safeId);
+  const cookies = await profileSession.cookies.get({});
+  const payload = {
+    profileId: safeId,
+    savedAt: new Date().toISOString(),
+    cookies: cookies.map(serializeCookie),
+  };
+  fs.writeFileSync(getAutomationProfileBackupPath(safeId), JSON.stringify(payload, null, 2), 'utf8');
+  return payload.cookies.length;
+}
+
+async function restoreAutomationProfileCookies(profileId) {
+  const safeId = safeProfileId(profileId);
+  const backupPath = getAutomationProfileBackupPath(safeId);
+  if (!fs.existsSync(backupPath)) {
+    return { restoredCount: 0, backupFound: false };
+  }
+
+  let payload = null;
+  try {
+    payload = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+  } catch {
+    return { restoredCount: 0, backupFound: true };
+  }
+
+  const cookies = Array.isArray(payload?.cookies) ? payload.cookies : [];
+  if (!cookies.length) {
+    return { restoredCount: 0, backupFound: true };
+  }
+
+  const profileSession = getAutomationProfileSession(safeId);
+  let restoredCount = 0;
+  for (const cookie of cookies) {
+    const url = getCookieUrl(cookie);
+    if (!url || !cookie?.name) {
+      continue;
+    }
+    const details = {
+      url,
+      name: String(cookie.name),
+      value: String(cookie.value || ''),
+      domain: cookie.domain,
+      path: cookie.path,
+      secure: Boolean(cookie.secure),
+      httpOnly: Boolean(cookie.httpOnly),
+      sameSite: cookie.sameSite,
+    };
+    if (!cookie.session && typeof cookie.expirationDate === 'number' && Number.isFinite(cookie.expirationDate)) {
+      details.expirationDate = cookie.expirationDate;
+    }
+    try {
+      await profileSession.cookies.set(details);
+      restoredCount += 1;
+    } catch {
+      continue;
+    }
+  }
+
+  await profileSession.cookies.flushStore().catch(() => {});
+  return { restoredCount, backupFound: true };
+}
+
+async function flushAutomationProfile(profileId) {
+  const safeId = safeProfileId(profileId);
+  const profileSession = getAutomationProfileSession(safeId);
+  await profileSession.flushStorageData();
+  await profileSession.cookies.flushStore();
+  await backupAutomationProfileCookies(safeId);
+}
+
+async function flushAllAutomationProfiles() {
+  const profileIds = Array.from(usedAutomationProfiles);
+  for (const profileId of profileIds) {
+    await flushAutomationProfile(profileId);
+  }
+}
+
+async function readAutomationProfileStorage(profileId, origin) {
+  const safeId = safeProfileId(profileId);
+  const targetOrigin = String(origin || '').trim();
+  if (!targetOrigin) {
+    throw new Error('Missing origin');
+  }
+  return {
+    partition: getAutomationProfilePartition(safeId),
+    origin: targetOrigin,
+  };
 }
 
 async function sleep(ms) {
@@ -304,7 +511,12 @@ async function getPageForWindow(browser, win, options = {}) {
 }
 
 module.exports = {
+  backupAutomationProfileCookies,
   clearAutomationProfile,
+  flushAutomationProfile,
+  flushAllAutomationProfiles,
+  readAutomationProfileStorage,
+  restoreAutomationProfileCookies,
   createPlaceholderUrl,
   createAutomationWindow,
   findAutomationWindow,

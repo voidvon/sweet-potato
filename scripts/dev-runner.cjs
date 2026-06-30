@@ -14,16 +14,21 @@ const paths = {
   backendDir: path.join(rootDir, 'backend', 'base'),
   frontendDir: path.join(rootDir, 'frontend'),
   frontendWebDir: path.join(rootDir, 'frontend', 'web'),
+  frontendAdminDir: path.join(rootDir, 'frontend', 'admin'),
 };
 
 const ports = {
   worker: Number(process.env.PYTHON_AI_WORKER_PORT || 7073),
   backend: Number(process.env.BACKEND_PORT || 7072),
   frontend: Number(process.env.FRONTEND_PORT || 9527),
+  frontendAdmin: Number(process.env.FRONTEND_ADMIN_PORT || process.env.ADMIN_FRONTEND_PORT || 9528),
 };
 
 const childProcesses = [];
 let shuttingDown = false;
+const pendingGracefulStops = new WeakMap();
+let frontendElectronProcess = null;
+let pythonWorkerProcess = null;
 
 function log(message) {
   process.stdout.write(`${message}\n`);
@@ -179,6 +184,8 @@ function createEnv() {
   return {
     ...process.env,
     FRONTEND_PORT: String(ports.frontend),
+    FRONTEND_ADMIN_PORT: String(ports.frontendAdmin),
+    ADMIN_FRONTEND_PORT: String(ports.frontendAdmin),
     BACKEND_PORT: String(ports.backend),
     PYTHON_AI_WORKER_PORT: String(ports.worker),
     PYTHON_AI_WORKER_URL: process.env.PYTHON_AI_WORKER_URL || `http://127.0.0.1:${ports.worker}`,
@@ -188,14 +195,21 @@ function createEnv() {
 function spawnService(name, command, args, cwd, extra = {}) {
   log(`Starting ${name}...`);
 
+  const stdio = extra.ipc ? ['inherit', 'inherit', 'inherit', 'ipc'] : 'inherit';
   const child = spawn(command, args, {
     cwd,
     env: extra.env || process.env,
-    stdio: 'inherit',
+    stdio,
     windowsHide: false,
   });
 
   childProcesses.push(child);
+  if (name === 'Python AI worker') {
+    pythonWorkerProcess = child;
+  }
+  if (name === 'Frontend/Electron') {
+    frontendElectronProcess = child;
+  }
 
   child.on('exit', (code, signal) => {
     if (shuttingDown) {
@@ -215,7 +229,59 @@ function spawnService(name, command, args, cwd, extra = {}) {
   return child;
 }
 
-function terminateProcess(child) {
+function waitForChildExit(child, timeoutMs) {
+  if (!child || child.exitCode !== null) {
+    return Promise.resolve();
+  }
+
+  const existing = pendingGracefulStops.get(child);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      pendingGracefulStops.delete(child);
+      child.removeListener('exit', onExit);
+      resolve();
+    };
+    const onExit = () => finish();
+    const timer = setTimeout(finish, timeoutMs);
+    child.once('exit', onExit);
+  });
+
+  pendingGracefulStops.set(child, promise);
+  return promise;
+}
+
+function requestGracefulStop(child) {
+  if (!child || child.killed || child.exitCode !== null) {
+    return false;
+  }
+
+  try {
+    if (child === frontendElectronProcess && typeof child.send === 'function') {
+      child.send({ type: 'graceful-exit' });
+      return true;
+    }
+    if (process.platform === 'win32') {
+      child.kill();
+    } else {
+      child.kill('SIGTERM');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function forceTerminateProcess(child) {
   if (!child || child.killed || child.exitCode !== null) {
     return;
   }
@@ -230,31 +296,73 @@ function terminateProcess(child) {
   }
 
   try {
-    child.kill('SIGTERM');
+    child.kill('SIGKILL');
   } catch {
     // Ignore cleanup failures during shutdown.
   }
 }
 
-function cleanupAndExit(code) {
+async function terminateProcess(child, options = {}) {
+  if (!child || child.killed || child.exitCode !== null) {
+    return;
+  }
+
+  const gracefulTimeoutMs = Number(options.gracefulTimeoutMs || 0);
+  const requested = requestGracefulStop(child);
+  if (requested && gracefulTimeoutMs > 0) {
+    await waitForChildExit(child, gracefulTimeoutMs);
+  }
+
+  if (child.exitCode === null) {
+    forceTerminateProcess(child);
+  }
+}
+
+async function cleanupAndExit(code, options = {}) {
   if (shuttingDown) {
     return;
   }
 
   shuttingDown = true;
   log('\nStopping dev services...');
+  if (options.passiveWindowsWait && process.platform === 'win32') {
+    for (const child of childProcesses.slice().reverse()) {
+      await waitForChildExit(child, child === pythonWorkerProcess ? 5000 : 3000);
+    }
+    for (const child of childProcesses.slice().reverse()) {
+      if (child && child.exitCode === null) {
+        forceTerminateProcess(child);
+      }
+    }
+    process.exit(code);
+    return;
+  }
+
   for (const child of childProcesses.slice().reverse()) {
-    terminateProcess(child);
+    const gracefulTimeoutMs = child === pythonWorkerProcess ? 5000 : 3000;
+    await terminateProcess(child, { gracefulTimeoutMs });
   }
   process.exit(code);
 }
 
+if (typeof process.on === 'function') {
+  process.on('message', (message) => {
+    if (!message || typeof message !== 'object') {
+      return;
+    }
+    if (message.type !== 'graceful-exit') {
+      return;
+    }
+    void cleanupAndExit(0);
+  });
+}
+
 function registerCleanup() {
-  process.once('SIGINT', () => cleanupAndExit(130));
-  process.once('SIGTERM', () => cleanupAndExit(143));
+  process.once('SIGINT', () => { void cleanupAndExit(130, { passiveWindowsWait: true }); });
+  process.once('SIGTERM', () => { void cleanupAndExit(143, { passiveWindowsWait: true }); });
   process.once('exit', () => {
     for (const child of childProcesses.slice().reverse()) {
-      terminateProcess(child);
+      forceTerminateProcess(child);
     }
   });
 }
@@ -266,6 +374,9 @@ function printSummary() {
   log(`  Node backend:     http://localhost:${ports.backend}`);
   log(`  Frontend:         http://localhost:${ports.frontend}/`);
   log(`  Automation entry: http://localhost:${ports.frontend}/app/automation`);
+  if (mode === 'electron') {
+    log(`  Admin:            http://localhost:${ports.frontendAdmin}/`);
+  }
   log('');
   log('Press Ctrl+C to stop all services started by this script.');
 }
@@ -284,6 +395,9 @@ async function main() {
   await ensurePortFree(ports.worker, 'Python AI worker');
   await ensurePortFree(ports.backend, 'Node backend');
   await ensurePortFree(ports.frontend, 'Frontend');
+  if (mode === 'electron') {
+    await ensurePortFree(ports.frontendAdmin, 'Frontend admin');
+  }
 
   registerCleanup();
 
@@ -309,6 +423,22 @@ async function main() {
       nodeExe,
       [path.join('scripts', 'dev.cjs')],
       paths.frontendDir,
+      { env, ipc: true },
+    );
+
+    spawnService(
+      'Frontend admin',
+      nodeExe,
+      [
+        path.join('..', 'node_modules', 'vite', 'bin', 'vite.js'),
+        '--configLoader',
+        'runner',
+        '--host',
+        '0.0.0.0',
+        '--port',
+        String(ports.frontendAdmin),
+      ],
+      paths.frontendAdminDir,
       { env },
     );
   } else {

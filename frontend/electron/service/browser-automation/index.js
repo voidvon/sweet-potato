@@ -3,7 +3,10 @@
 const { listAdapters } = require('./adapters');
 const { listTasks } = require('./task-store');
 const { startTask, cancelTask, resumeTask, getTaskStatus } = require('./task-runner');
-const { closeAutomationWindows, countAutomationWindows } = require('./automation-window');
+const {
+  closeAutomationWindows,
+  countAutomationWindows,
+} = require('./automation-window');
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,7 +40,7 @@ class BrowserAutomationService {
   closeWindows(args = {}) {
     const profileId = String(args.profileId || '').trim();
     if (!profileId) {
-      return { ok: false, message: '缺少 profileId' };
+      return { ok: false, message: '缂哄皯 profileId' };
     }
     return {
       ok: true,
@@ -49,7 +52,7 @@ class BrowserAutomationService {
     const profileId = String(args.profileId || '').trim();
     const site = String(args.site || '').trim();
     if (!profileId) {
-      return { ok: false, message: '缺少 profileId' };
+      return { ok: false, message: '缂哄皯 profileId' };
     }
 
     const activeTasks = listTasks().filter((task) => {
@@ -97,7 +100,7 @@ class BrowserAutomationService {
       ok: true,
       canceledTaskIds,
       closedCount,
-      message: '旧账号任务或窗口仍在关闭中',
+      message: 'Some automation tasks or windows are still closing.',
     };
   }
 }

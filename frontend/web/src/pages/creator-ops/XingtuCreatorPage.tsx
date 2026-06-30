@@ -1551,7 +1551,12 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
               {platformConfig.supportsSearchModes && lastExecutedSearch ? `${SEARCH_MODE_LABELS[lastExecutedSearch.searchMode]}：${lastSearchKeyword}` : lastSearchKeyword}
             </Typography.Text>
           </div>
-          <CreatorResultsTable loading={isSearching} platform={platformConfig.key} results={searchResults} />
+          <CreatorResultsTable
+            loading={isSearching}
+            platform={platformConfig.key}
+            results={searchResults}
+            resultsMode={{ type: 'pagination' }}
+          />
           {searchPagination ? (
             <div className="xingtu-search-results-footer">
               <div className="xingtu-search-results-footer-meta">

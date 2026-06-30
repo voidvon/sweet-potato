@@ -37,6 +37,7 @@ const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage'
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
+const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
 const WechatAutomationPage = lazy(() => import('../pages/creator-ops/WechatAutomationPage').then((m) => ({ default: m.WechatAutomationPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
 
@@ -391,6 +392,26 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       title: '精选联盟',
+      sidebar: {
+        groupKey: 'creatorOps',
+        icon: <Star {...menuIconProps} />,
+      },
+    },
+    visible: () => isElectronEgg,
+  },
+  {
+    key: 'creator-ops-douyin',
+    path: 'creator-ops/douyin',
+    fullPath: routePaths.douyinCreators,
+    element: () => withSuspense(<DouyinCreatorSearchPage />),
+    routeResource: {
+      permissionCode: 'web.module.creator_ops.douyin',
+      protected: true,
+      resourceKey: 'web.module.creator_ops.douyin',
+      resourceType: 'menu',
+    },
+    handle: {
+      title: '抖音达人',
       sidebar: {
         groupKey: 'creatorOps',
         icon: <Star {...menuIconProps} />,

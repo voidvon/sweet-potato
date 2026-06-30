@@ -3,14 +3,17 @@
 const { randomUUID } = require('crypto');
 const { getConnectedBrowser } = require('./cdp-runtime');
 const {
+  backupAutomationProfileCookies,
   createAutomationWindow,
   createPlaceholderUrl,
   findAutomationWindow,
+  flushAutomationProfile,
   getPageForWindow,
   getWindowUrl,
   isWindowUsable,
   markWindowClosing,
   presentAutomationWindow,
+  restoreAutomationProfileCookies,
   restoreMainWindowFocus,
 } = require('./automation-window');
 const { getAdapter } = require('./adapters');
@@ -109,6 +112,20 @@ function closeTaskWindow(task) {
   }
 }
 
+async function flushTaskProfile(task, log) {
+  if (!task || !task.profileId) {
+    return;
+  }
+
+  try {
+    await flushAutomationProfile(task.profileId);
+    await backupAutomationProfileCookies(task.profileId);
+    log?.info(`Profile 存储已刷盘: ${task.profileId}`);
+  } catch (error) {
+    log?.warn(`Profile 存储刷盘失败: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 async function startTask(payload = {}) {
   const adapterName = String(payload.adapter || '');
   const adapter = getAdapter(adapterName);
@@ -155,6 +172,13 @@ async function runTask(task, adapter) {
     }
     task.profileLock = lock;
     log.info(`Profile 锁定: ${lock.key}`);
+
+    const restoredCookieResult = await restoreAutomationProfileCookies(task.profileId);
+    if (restoredCookieResult.backupFound) {
+      log.info(`Profile Cookie 已恢复: ${restoredCookieResult.restoredCount}`);
+    } else {
+      log.info('Profile Cookie 备份不存在');
+    }
 
     const windowMarker = `automation-${task.id}`;
     let reusedWindow = false;
@@ -250,11 +274,13 @@ async function runTask(task, adapter) {
     markTask(task, 'done');
     log.info('任务完成');
     if (task.closeWindowOnDone) {
+      await flushTaskProfile(task, log);
       closeTaskWindow(task);
     }
   } catch (error) {
     if (task.status === 'canceled' || task.abortController.signal.aborted) {
       if (task.closeWindowOnCancel) {
+        await flushTaskProfile(task, log);
         closeTaskWindow(task);
       }
       return;
@@ -263,6 +289,7 @@ async function runTask(task, adapter) {
     markTask(task, 'failed');
     log.error(task.error);
     if (task.closeWindowOnFailure) {
+      await flushTaskProfile(task, log);
       closeTaskWindow(task);
     }
   } finally {
