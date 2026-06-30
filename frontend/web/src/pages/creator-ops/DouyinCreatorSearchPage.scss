@@ -1,6 +1,5 @@
 .douyin-creator-page {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 20px;
   height: 100%;
   max-width: none;
@@ -221,6 +220,14 @@
   margin-bottom: 18px;
 }
 
+.douyin-results-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .douyin-results-panel-header .ant-typography {
   margin-bottom: 4px;
 }
@@ -409,10 +416,6 @@
 @media (max-width: 900px) {
   .douyin-spotlight-bar {
     width: 100%;
-  }
-
-  .douyin-results-panel {
-    padding: 16px 16px 0;
   }
 }
 

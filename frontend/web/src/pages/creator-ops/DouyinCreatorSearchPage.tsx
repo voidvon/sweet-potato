@@ -11,6 +11,7 @@ import {
 } from '../../ipc';
 import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import { CreatorResultsTable, type CreatorSearchResult } from './CreatorResultsTable';
+import { useRemainingTableHeight } from './useRemainingTableHeight';
 import './DouyinCreatorSearchPage.scss';
 
 const DOUYIN_LOGIN_ADAPTER = 'douyin-login';
@@ -492,7 +493,6 @@ export function DouyinCreatorSearchPage() {
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false);
   const [openingProfileIds, setOpeningProfileIds] = useState<string[]>([]);
   const [logPopoverOpen, setLogPopoverOpen] = useState(false);
-  const [resultsTableScrollY, setResultsTableScrollY] = useState(360);
   const isPageActiveRef = useRef(true);
   const selectedProfileIdRef = useRef(selectedProfileId);
   const profileSwitchPromiseRef = useRef<Promise<void>>(Promise.resolve());
@@ -502,6 +502,12 @@ export function DouyinCreatorSearchPage() {
   const resultsPanelRef = useRef<HTMLElement | null>(null);
   const resultsHeaderRef = useRef<HTMLDivElement | null>(null);
   const isLoginRunning = Boolean(loginTaskId);
+  const resultsTableScrollY = useRemainingTableHeight(
+    resultsPanelRef,
+    resultsHeaderRef,
+    [searchResults.length],
+    { gap: 22, minHeight: 240 },
+  );
 
   const selectedAccount = accounts.find((account) => account.profileId === selectedProfileId) || null;
   const displayedAccount = selectedAccount || accounts[0] || null;
@@ -521,33 +527,6 @@ export function DouyinCreatorSearchPage() {
   useEffect(() => {
     isLoadingMoreRef.current = isLoadingMore;
   }, [isLoadingMore]);
-
-  useEffect(() => {
-    const panelElement = resultsPanelRef.current;
-    const headerElement = resultsHeaderRef.current;
-    if (!panelElement || !headerElement || typeof ResizeObserver === 'undefined') {
-      return undefined;
-    }
-
-    const measure = () => {
-      const panelHeight = panelElement.clientHeight;
-      const headerHeight = headerElement.offsetHeight;
-      const nextHeight = Math.max(240, panelHeight - headerHeight - 8);
-      setResultsTableScrollY(nextHeight);
-    };
-
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(panelElement);
-    observer.observe(headerElement);
-    window.addEventListener('resize', measure);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
 
   useEffect(() => {
     writeAccounts(DOUYIN_STORAGE_KEY, accounts);
@@ -1182,6 +1161,7 @@ export function DouyinCreatorSearchPage() {
           </div>
         </div>
 
+        <div className="douyin-results-panel-body">
         {searchResults.length ? (
           <CreatorResultsTable
             className="douyin-search-results-table"
@@ -1209,6 +1189,7 @@ export function DouyinCreatorSearchPage() {
         ) : (
           <Empty description={running ? '正在搜索抖音达人' : '暂无达人搜索结果'} image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}
+        </div>
       </section>
     </div>
   );
