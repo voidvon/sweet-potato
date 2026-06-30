@@ -5,6 +5,9 @@ const { ensureDouyinLoggedIn, isDouyinUrl } = require('./douyin/auth');
 const DOUYIN_WEB_ORIGIN = 'https://www.douyin.com';
 const DEFAULT_RESULT_LIMIT = 20;
 const LOAD_MORE_SCROLL_STEP = 960;
+const CAPTCHA_SELECTOR = '#captcha_container';
+const CAPTCHA_POLL_INTERVAL_MS = 1000;
+const CAPTCHA_SETTLE_DELAY_MS = 500;
 
 function normalizeKeyword(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -36,6 +39,49 @@ async function waitForDouyinCreatorResults(page) {
   ).catch(() => {});
 
   await page.waitForTimeout(600).catch(() => {});
+}
+
+async function hasDouyinCaptcha(page) {
+  return page.evaluate((selector) => {
+    const element = document.querySelector(selector);
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+
+    const style = window.getComputedStyle?.(element);
+    const rect = element.getBoundingClientRect();
+    return style?.display !== 'none'
+      && style?.visibility !== 'hidden'
+      && rect.width > 0
+      && rect.height > 0;
+  }, CAPTCHA_SELECTOR).catch(() => false);
+}
+
+async function waitForCaptchaSolved(ctx) {
+  if (!(await hasDouyinCaptcha(ctx.page))) {
+    return false;
+  }
+
+  ctx.log.warn('Detected Douyin captcha, waiting for manual verification');
+  ctx.window?.activate?.();
+  await ctx.task.waitForUser({
+    reason: '检测到抖音图片验证码，请在自动化窗口手动完成验证',
+    until: async () => !(await hasDouyinCaptcha(ctx.page)),
+    onPoll: () => {
+      ctx.window?.activate?.();
+    },
+    pollIntervalMs: CAPTCHA_POLL_INTERVAL_MS,
+  });
+  await ctx.page.waitForTimeout(CAPTCHA_SETTLE_DELAY_MS).catch(() => {});
+  ctx.log.info('Douyin captcha cleared, resuming automation');
+  ctx.window?.restoreMain?.();
+  return true;
+}
+
+async function ensureNoDouyinCaptcha(ctx) {
+  while (await hasDouyinCaptcha(ctx.page)) {
+    await waitForCaptchaSolved(ctx);
+  }
 }
 
 function normalizePositiveInt(value, fallback) {
@@ -333,10 +379,13 @@ async function scrollDouyinResultsDown(page, step) {
 
 async function loadMoreDouyinCreatorResults(ctx, options = {}) {
   const previousCount = normalizePositiveInt(options.previousCount, 0);
+  await ensureNoDouyinCaptcha(ctx);
   const beforeResults = await collectDouyinCreatorResults(ctx.page, { collectAll: true });
   await scrollDouyinResultsDown(ctx.page, LOAD_MORE_SCROLL_STEP);
   await ctx.page.waitForTimeout(1200).catch(() => {});
+  await ensureNoDouyinCaptcha(ctx);
   await waitForDouyinCreatorResults(ctx.page);
+  await ensureNoDouyinCaptcha(ctx);
   const bestResults = await collectDouyinCreatorResults(ctx.page, { collectAll: true });
   const reachedEnd = bestResults.length <= Math.max(previousCount, beforeResults.length);
 
@@ -372,6 +421,7 @@ const adapter = {
     }
 
     await ensureDouyinLoggedIn(ctx);
+    await ensureNoDouyinCaptcha(ctx);
 
     await ctx.page.addInitScript(
       ({ source }) => {
@@ -394,10 +444,12 @@ const adapter = {
       { source: extractStructuredResults.toString() },
     ).catch(() => {});
 
+    await ensureNoDouyinCaptcha(ctx);
     await waitForDouyinCreatorResults(ctx.page);
+    await ensureNoDouyinCaptcha(ctx);
     if (loadMore) {
       const nextBatch = await loadMoreDouyinCreatorResults(ctx, { previousCount, limit });
-      ctx.log.info(`鎶栭煶杈句汉杩藉姞缁撴灉鏁? ${nextBatch.appendedResults.length}`);
+      ctx.log.info(`Douyin appended results: ${nextBatch.appendedResults.length}`);
 
       return {
         keyword,
@@ -411,6 +463,7 @@ const adapter = {
       };
     }
 
+    await ensureNoDouyinCaptcha(ctx);
     const results = await collectDouyinCreatorResults(ctx.page, { limit });
     ctx.log.info(`\u6296\u97f3\u8fbe\u4eba\u641c\u7d22\u7ed3\u679c\u6570: ${results.length}`);
 

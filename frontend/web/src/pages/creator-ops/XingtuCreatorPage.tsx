@@ -496,6 +496,7 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
   const [searchPagination, setSearchPagination] = useState<XingtuCreatorSearchPagination | null>(null);
   const [lastSearchKeyword, setLastSearchKeyword] = useState('');
   const [lastExecutedSearch, setLastExecutedSearch] = useState<ExecutedCreatorSearch | null>(null);
+  const [resultsTableScrollY, setResultsTableScrollY] = useState(360);
   const [collaborationObject, setCollaborationObject] = useState<CollaborationObjectOption>('不限');
   const [activeCreatorType, setActiveCreatorType] = useState<CreatorTypeOption | ''>('短视频达人');
   const [shortDramaSelections, setShortDramaSelections] = useState<string[]>([]);
@@ -540,6 +541,9 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
   const profileSwitchPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const selectedProfileIdRef = useRef(selectedProfileId);
   const completedLoginTaskIdsRef = useRef<Set<string>>(new Set());
+  const resultsPanelRef = useRef<HTMLElement | null>(null);
+  const resultsHeaderRef = useRef<HTMLDivElement | null>(null);
+  const resultsFooterRef = useRef<HTMLDivElement | null>(null);
   function selectCreatorTypeGroup(option: CreatorTypeOption, selected: boolean) {
     setActiveCreatorType(selected ? option : '');
     setShortDramaSelections([]);
@@ -704,6 +708,37 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
   useEffect(() => {
     selectedProfileIdRef.current = selectedProfileId;
   }, [selectedProfileId]);
+
+  useEffect(() => {
+    const panelElement = resultsPanelRef.current;
+    const headerElement = resultsHeaderRef.current;
+    if (!panelElement || !headerElement || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const measure = () => {
+      const footerHeight = resultsFooterRef.current?.offsetHeight || 0;
+      const panelHeight = panelElement.clientHeight;
+      const headerHeight = headerElement.offsetHeight;
+      const nextHeight = Math.max(240, panelHeight - headerHeight - footerHeight - 8);
+      setResultsTableScrollY(nextHeight);
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(panelElement);
+    observer.observe(headerElement);
+    if (resultsFooterRef.current) {
+      observer.observe(resultsFooterRef.current);
+    }
+    window.addEventListener('resize', measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [lastSearchKeyword, searchPagination, searchResults.length]);
 
   useEffect(() => {
     if (!accounts.length) {
@@ -1544,21 +1579,24 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
       ) : null}
 
       {lastSearchKeyword ? (
-        <section className="xingtu-search-results">
-          <div className="xingtu-search-results-header">
+        <section className="xingtu-search-results" ref={resultsPanelRef}>
+          <div className="xingtu-search-results-header" ref={resultsHeaderRef}>
             <Typography.Title level={5}>搜索结果</Typography.Title>
             <Typography.Text type="secondary">
               {platformConfig.supportsSearchModes && lastExecutedSearch ? `${SEARCH_MODE_LABELS[lastExecutedSearch.searchMode]}：${lastSearchKeyword}` : lastSearchKeyword}
             </Typography.Text>
           </div>
-          <CreatorResultsTable
-            loading={isSearching}
-            platform={platformConfig.key}
-            results={searchResults}
-            resultsMode={{ type: 'pagination' }}
-          />
+          <div className="xingtu-search-results-table-shell">
+            <CreatorResultsTable
+              loading={isSearching}
+              platform={platformConfig.key}
+              results={searchResults}
+              resultsMode={{ type: 'pagination' }}
+              scroll={{ x: 910, y: resultsTableScrollY }}
+            />
+          </div>
           {searchPagination ? (
-            <div className="xingtu-search-results-footer">
+            <div className="xingtu-search-results-footer" ref={resultsFooterRef}>
               <div className="xingtu-search-results-footer-meta">
                 <Typography.Text type="secondary">
                   第 {searchPagination.currentPage} / {searchPagination.totalPages} 页

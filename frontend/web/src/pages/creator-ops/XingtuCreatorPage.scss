@@ -1,7 +1,10 @@
 .xingtu-creator-page {
   display: grid;
   gap: 20px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
   max-width: none;
+  min-height: 0;
   padding: 22px;
   width: 100%;
 }
@@ -288,7 +291,11 @@
 }
 
 .xingtu-search-results {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   margin: 0 auto;
+  min-height: 0;
   width: 100%;
 }
 
@@ -568,8 +575,15 @@
   overflow: hidden;
 }
 
+.xingtu-search-results-table-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .xingtu-search-results-footer {
   align-items: center;
+  flex: 0 0 auto;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -623,6 +637,25 @@
 
 .xingtu-search-results-table .ant-table-container {
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
+}
+
+.xingtu-search-results-table {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.xingtu-search-results-table .ant-table-content {
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.xingtu-search-results-table .ant-table {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .xingtu-cell-creator {

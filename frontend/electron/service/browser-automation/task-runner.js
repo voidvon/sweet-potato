@@ -13,6 +13,7 @@ const {
   isWindowUsable,
   markWindowClosing,
   presentAutomationWindow,
+  activateAutomationWindow,
   restoreAutomationProfileCookies,
   restoreMainWindowFocus,
 } = require('./automation-window');
@@ -242,22 +243,45 @@ async function runTask(task, adapter) {
         adapter: task.adapter,
         profileId: task.profileId,
         signal: task.abortController.signal,
-        waitForUser: async ({ reason } = {}) => {
+        waitForUser: async ({ reason, until, pollIntervalMs, onPoll } = {}) => {
           markTask(task, 'waiting_user');
           log.info(reason || '等待用户接管');
-          await new Promise((resolve, reject) => {
-            const check = setInterval(() => {
-              if (task.status === 'running') {
-                clearInterval(check);
-                resolve();
+
+          const nextPollInterval = Math.max(200, Number(pollIntervalMs || 300));
+          while (true) {
+            if (task.status === 'running') {
+              return;
+            }
+
+            if (task.status === 'canceled' || task.abortController.signal.aborted) {
+              throw new Error('任务已取消');
+            }
+
+            if (typeof until === 'function') {
+              const ready = await Promise.resolve()
+                .then(() => until())
+                .catch(() => false);
+              if (ready) {
+                markTask(task, 'running');
+                log.info('等待条件已满足，继续执行');
+                return;
               }
-              if (task.status === 'canceled' || task.abortController.signal.aborted) {
-                clearInterval(check);
-                reject(new Error('任务已取消'));
-              }
-            }, 300);
-          });
+            }
+
+            if (typeof onPoll === 'function') {
+              await Promise.resolve()
+                .then(() => onPoll())
+                .catch(() => {});
+            }
+
+            await sleep(nextPollInterval);
+          }
         },
+      },
+      window: {
+        present: () => presentAutomationWindow(task.win, task.windowOptions),
+        activate: () => activateAutomationWindow(task.win, task.windowOptions),
+        restoreMain: () => restoreMainWindowFocus(),
       },
       log,
     };

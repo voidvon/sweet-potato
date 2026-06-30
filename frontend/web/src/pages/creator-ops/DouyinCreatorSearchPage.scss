@@ -1,7 +1,10 @@
 .douyin-creator-page {
   display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 20px;
+  height: 100%;
   max-width: none;
+  min-height: 0;
   padding: 22px;
   width: 100%;
 }
@@ -203,11 +206,11 @@
 }
 
 .douyin-results-panel {
-  background: #fff;
-  border: 1px solid #ebeef2;
-  border-radius: 8px;
-  margin: 0 auto;
-  padding: 16px 18px 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   width: 100%;
 }
 
@@ -225,7 +228,12 @@
 .douyin-search-results-table {
   background: #fff;
   border-radius: 8px;
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  width: 100%;
 }
 
 .douyin-search-results-table .ant-table-cell {
@@ -253,14 +261,26 @@
 
 .douyin-search-results-table .ant-table-container {
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
+}
+
+.douyin-search-results-table .ant-table-content {
+  max-width: 100%;
+  overflow-x: auto !important;
 }
 
 .douyin-search-results-table .ant-table-body {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-y: auto !important;
 }
 
 .douyin-search-results-table .ant-table {
   background: transparent;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .douyin-cell-creator {

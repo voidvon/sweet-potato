@@ -492,12 +492,15 @@ export function DouyinCreatorSearchPage() {
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false);
   const [openingProfileIds, setOpeningProfileIds] = useState<string[]>([]);
   const [logPopoverOpen, setLogPopoverOpen] = useState(false);
+  const [resultsTableScrollY, setResultsTableScrollY] = useState(360);
   const isPageActiveRef = useRef(true);
   const selectedProfileIdRef = useRef(selectedProfileId);
   const profileSwitchPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const completedLoginTaskIdsRef = useRef(new Set<string>());
   const isLoadingMoreRef = useRef(false);
   const lastSearchKeywordRef = useRef('');
+  const resultsPanelRef = useRef<HTMLElement | null>(null);
+  const resultsHeaderRef = useRef<HTMLDivElement | null>(null);
   const isLoginRunning = Boolean(loginTaskId);
 
   const selectedAccount = accounts.find((account) => account.profileId === selectedProfileId) || null;
@@ -518,6 +521,33 @@ export function DouyinCreatorSearchPage() {
   useEffect(() => {
     isLoadingMoreRef.current = isLoadingMore;
   }, [isLoadingMore]);
+
+  useEffect(() => {
+    const panelElement = resultsPanelRef.current;
+    const headerElement = resultsHeaderRef.current;
+    if (!panelElement || !headerElement || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const measure = () => {
+      const panelHeight = panelElement.clientHeight;
+      const headerHeight = headerElement.offsetHeight;
+      const nextHeight = Math.max(240, panelHeight - headerHeight - 8);
+      setResultsTableScrollY(nextHeight);
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(panelElement);
+    observer.observe(headerElement);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
 
   useEffect(() => {
     writeAccounts(DOUYIN_STORAGE_KEY, accounts);
@@ -1140,8 +1170,8 @@ export function DouyinCreatorSearchPage() {
         </div>
       </section>
 
-      <section className="douyin-results-panel">
-        <div className="douyin-results-panel-header">
+      <section className="douyin-results-panel" ref={resultsPanelRef}>
+        <div className="douyin-results-panel-header" ref={resultsHeaderRef}>
           <div>
             <Typography.Title level={4}>达人搜索结果</Typography.Title>
             <Typography.Paragraph type="secondary">
@@ -1172,7 +1202,7 @@ export function DouyinCreatorSearchPage() {
               },
             }}
             rowKey={(record, index) => `${record.name}-${record.href || 'douyin'}-${index || 0}`}
-            scroll={{ x: 1180, y: 'calc(100vh - 360px)' }}
+            scroll={{ x: 1180, y: resultsTableScrollY }}
             size="middle"
             tableLayout="auto"
           />

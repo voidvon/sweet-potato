@@ -207,6 +207,23 @@ function presentAutomationWindow(win, options = {}) {
   return true;
 }
 
+function activateAutomationWindow(win, options = {}) {
+  if (!presentAutomationWindow(win, options)) {
+    return false;
+  }
+
+  try {
+    if (process.platform === 'darwin') {
+      app.focus({ steal: true });
+    }
+    win.focus();
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
 function createAutomationWindow(options = {}) {
   const profileId = safeProfileId(options.profileId);
   const partition = getAutomationProfilePartition(profileId);
@@ -526,6 +543,7 @@ module.exports = {
   isWindowUsable,
   markWindowClosing,
   presentAutomationWindow,
+  activateAutomationWindow,
   restoreMainWindowFocus,
   getPageForWindow,
 };

@@ -350,6 +350,7 @@ export function CreatorResultsTable({
   const resolvedEmptyText = emptyText || locale?.emptyText || (loading ? '正在搜索达人' : '暂无搜索结果');
   const infiniteScrollLockRef = useRef(false);
   const infiniteScroll = resultsMode?.type === 'infinite' ? resultsMode.infiniteScroll : undefined;
+  const resolvedScroll = scroll || { x: platform === 'douyin' ? 1180 : 910 };
 
   const handleScroll = useCallback((event: UIEvent<HTMLElement>) => {
     if (!infiniteScroll) {
@@ -375,18 +376,26 @@ export function CreatorResultsTable({
   }, [infiniteScroll]);
 
   return (
-    <Table
-      className={className || (platform === 'douyin' ? 'douyin-search-results-table' : 'xingtu-search-results-table')}
-      columns={columns || createCreatorResultColumns(platform, onOpenProfile)}
-      dataSource={resolvedResults}
-      loading={loading}
-      locale={{ emptyText: resolvedEmptyText }}
-      onScroll={handleScroll}
-      pagination={pagination === undefined ? false : pagination}
-      rowKey={rowKey || ((record, index) => `${record.name}-${index || 0}`)}
-      scroll={scroll || { x: platform === 'douyin' ? 1180 : 910 }}
-      tableLayout={tableLayout || 'auto'}
-      size={size || 'middle'}
-    />
+    <div
+      style={{
+        maxWidth: '100%',
+        minWidth: 0,
+        width: '100%',
+      }}
+    >
+      <Table
+        className={className || (platform === 'douyin' ? 'douyin-search-results-table' : 'xingtu-search-results-table')}
+        columns={columns || createCreatorResultColumns(platform, onOpenProfile)}
+        dataSource={resolvedResults}
+        loading={loading}
+        locale={{ emptyText: resolvedEmptyText }}
+        onScroll={handleScroll}
+        pagination={pagination === undefined ? false : pagination}
+        rowKey={rowKey || ((record, index) => `${record.name}-${index || 0}`)}
+        scroll={resolvedScroll}
+        tableLayout={tableLayout || 'auto'}
+        size={size || 'middle'}
+      />
+    </div>
   );
 }
