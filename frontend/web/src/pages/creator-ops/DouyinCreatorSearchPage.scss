@@ -385,6 +385,21 @@
   min-width: 72px;
 }
 
+.douyin-favorite-button.ant-btn {
+  color: #9ca3af;
+  min-width: 0;
+}
+
+.douyin-favorite-button.ant-btn:hover,
+.douyin-favorite-button.ant-btn:focus,
+.douyin-favorite-button.ant-btn:focus-visible {
+  color: #f59e0b;
+}
+
+.douyin-favorite-button.ant-btn.is-active {
+  color: #f59e0b;
+}
+
 .douyin-task-log-popover {
   display: grid;
   gap: 6px;

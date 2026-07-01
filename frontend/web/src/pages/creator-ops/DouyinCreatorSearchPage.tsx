@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Empty, Input, Popover, Tag, Tooltip, Typography, message } from 'antd';
 import type { TableProps } from 'antd';
-import { ArrowRightOutlined, CaretDownOutlined, CheckOutlined, InfoCircleOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, CaretDownOutlined, CheckOutlined, InfoCircleOutlined, PlusOutlined, SearchOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import {
   getAutomationTask,
   isElectronEgg,
@@ -19,6 +19,7 @@ const DOUYIN_SEARCH_ADAPTER = 'douyin-open-search';
 const DOUYIN_OPEN_PROFILE_ADAPTER = 'douyin-open-profile';
 const DOUYIN_STORAGE_KEY = 'douyin_creator_accounts';
 const DOUYIN_SELECTED_PROFILE_KEY = 'douyin_creator_selected_profile_id';
+const DOUYIN_FAVORITE_CREATORS_STORAGE_KEY = 'douyin_creator_favorite_keys';
 const DOUYIN_PROFILE_PREFIX = 'douyin';
 const TASK_POLL_INTERVAL_MS = 400;
 const DOUYIN_LOAD_MORE_LIMIT = 20;
@@ -53,6 +54,20 @@ type OpenDouyinProfileOptions = {
   href?: string;
   creatorName?: string;
 };
+
+function getDouyinFavoriteKey(record: DouyinSearchRecord) {
+  const href = String(record.href || '').trim();
+  const douyinId = String(record.douyinId || '').trim();
+  const name = String(record.name || '').trim();
+
+  if (href) {
+    return `href:${href}`;
+  }
+  if (douyinId) {
+    return `douyin:${douyinId}`;
+  }
+  return `name:${name}`;
+}
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -191,6 +206,29 @@ function writeSelectedProfileId(selectedProfileKey: string, profileId: string) {
   }
 
   window.localStorage.setItem(selectedProfileKey, profileId);
+}
+
+function readFavoriteCreatorKeys(storageKey: string) {
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function writeFavoriteCreatorKeys(storageKey: string, keys: string[]) {
+  const normalizedKeys = Array.from(new Set(keys.filter((item) => typeof item === 'string' && item.trim())));
+  window.localStorage.setItem(storageKey, JSON.stringify(normalizedKeys));
 }
 
 function createAutomationTaskError(task: AutomationTask): Error {
@@ -493,6 +531,7 @@ export function DouyinCreatorSearchPage() {
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false);
   const [openingProfileIds, setOpeningProfileIds] = useState<string[]>([]);
   const [logPopoverOpen, setLogPopoverOpen] = useState(false);
+  const [favoriteCreatorKeys, setFavoriteCreatorKeys] = useState<string[]>(() => readFavoriteCreatorKeys(DOUYIN_FAVORITE_CREATORS_STORAGE_KEY));
   const isPageActiveRef = useRef(true);
   const selectedProfileIdRef = useRef(selectedProfileId);
   const profileSwitchPromiseRef = useRef<Promise<void>>(Promise.resolve());
@@ -511,6 +550,7 @@ export function DouyinCreatorSearchPage() {
 
   const selectedAccount = accounts.find((account) => account.profileId === selectedProfileId) || null;
   const displayedAccount = selectedAccount || accounts[0] || null;
+  const favoriteCreatorKeySet = useMemo(() => new Set(favoriteCreatorKeys), [favoriteCreatorKeys]);
   const displayedAccountAvatar = displayedAccount?.name?.trim().slice(0, 1) || '抖';
 
   useEffect(() => {
@@ -531,6 +571,10 @@ export function DouyinCreatorSearchPage() {
   useEffect(() => {
     writeAccounts(DOUYIN_STORAGE_KEY, accounts);
   }, [accounts]);
+
+  useEffect(() => {
+    writeFavoriteCreatorKeys(DOUYIN_FAVORITE_CREATORS_STORAGE_KEY, favoriteCreatorKeys);
+  }, [favoriteCreatorKeys]);
 
   useEffect(() => {
     if (!accounts.length) {
@@ -817,6 +861,23 @@ export function DouyinCreatorSearchPage() {
     }
   }, [displayedAccount?.profileId, openingProfileIds, waitForPendingProfileSwitch]);
 
+  const handleToggleFavoriteCreator = useCallback((record: DouyinSearchRecord) => {
+    const favoriteKey = getDouyinFavoriteKey(record);
+    let nextFavorite = false;
+
+    setFavoriteCreatorKeys((current) => {
+      if (current.includes(favoriteKey)) {
+        nextFavorite = false;
+        return current.filter((item) => item !== favoriteKey);
+      }
+
+      nextFavorite = true;
+      return [...current, favoriteKey];
+    });
+
+    message.success(nextFavorite ? '已收藏' : '已取消收藏');
+  }, []);
+
   const runSearch = useCallback(async (nextKeyword: string) => {
     const normalizedKeyword = nextKeyword.trim();
     const profileId = selectedProfileIdRef.current.trim() || displayedAccount?.profileId || '';
@@ -1090,7 +1151,38 @@ export function DouyinCreatorSearchPage() {
     };
   }, [headerActions, setHeaderExtra]);
 
-  const columns = useMemo(() => createDouyinStructuredColumns(handleOpenCreatorProfile), [handleOpenCreatorProfile]);
+  const columns = useMemo(() => {
+    const baseColumns = createDouyinStructuredColumns(handleOpenCreatorProfile) || [];
+    return baseColumns.map((column) => {
+      if (column.key !== 'action') {
+        return column;
+      }
+
+      return {
+        ...column,
+        width: 88,
+        render: (_value: string | undefined, record: DouyinSearchRecord) => {
+          const favorite = favoriteCreatorKeySet.has(getDouyinFavoriteKey(record));
+          return (
+            <div className="douyin-cell-operation">
+              <Tooltip title={favorite ? '取消收藏' : '收藏'}>
+                <Button
+                  aria-label={favorite ? '取消收藏' : '收藏'}
+                  className={`douyin-favorite-button${favorite ? ' is-active' : ''}`}
+                  icon={favorite ? <StarFilled /> : <StarOutlined />}
+                  onClick={() => {
+                    handleToggleFavoriteCreator(record);
+                  }}
+                  shape="circle"
+                  type="text"
+                />
+              </Tooltip>
+            </div>
+          );
+        },
+      };
+    });
+  }, [favoriteCreatorKeySet, handleOpenCreatorProfile, handleToggleFavoriteCreator]);
 
   return (
     <div className="douyin-creator-page">
