@@ -11,6 +11,15 @@ import {
 } from '../../ipc';
 import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import { CreatorResultsTable, type CreatorSearchResult } from './CreatorResultsTable';
+import {
+  DOUYIN_FAVORITE_CREATORS_STORAGE_KEY,
+  getDouyinFavoriteKey,
+  readFavoriteCreatorKeys,
+  readFavoriteCreatorRecords,
+  upsertFavoriteCreatorRecord,
+  writeFavoriteCreatorKeys,
+  writeFavoriteCreatorRecords,
+} from './douyinFavoriteCreatorsStorage';
 import { useRemainingTableHeight } from './useRemainingTableHeight';
 import './DouyinCreatorSearchPage.scss';
 
@@ -19,7 +28,6 @@ const DOUYIN_SEARCH_ADAPTER = 'douyin-open-search';
 const DOUYIN_OPEN_PROFILE_ADAPTER = 'douyin-open-profile';
 const DOUYIN_STORAGE_KEY = 'douyin_creator_accounts';
 const DOUYIN_SELECTED_PROFILE_KEY = 'douyin_creator_selected_profile_id';
-const DOUYIN_FAVORITE_CREATORS_STORAGE_KEY = 'douyin_creator_favorite_keys';
 const DOUYIN_PROFILE_PREFIX = 'douyin';
 const TASK_POLL_INTERVAL_MS = 400;
 const DOUYIN_LOAD_MORE_LIMIT = 20;
@@ -62,20 +70,6 @@ function getDouyinResultRowKey(record: DouyinSearchRecord) {
       formatDouyinId(record.douyinId),
       String(record.profileName || '').trim(),
     ].join('|');
-}
-
-function getDouyinFavoriteKey(record: DouyinSearchRecord) {
-  const href = String(record.href || '').trim();
-  const douyinId = String(record.douyinId || '').trim();
-  const name = String(record.name || '').trim();
-
-  if (href) {
-    return `href:${href}`;
-  }
-  if (douyinId) {
-    return `douyin:${douyinId}`;
-  }
-  return `name:${name}`;
 }
 
 function wait(ms: number) {
@@ -215,29 +209,6 @@ function writeSelectedProfileId(selectedProfileKey: string, profileId: string) {
   }
 
   window.localStorage.setItem(selectedProfileKey, profileId);
-}
-
-function readFavoriteCreatorKeys(storageKey: string) {
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-  } catch {
-    return [];
-  }
-}
-
-function writeFavoriteCreatorKeys(storageKey: string, keys: string[]) {
-  const normalizedKeys = Array.from(new Set(keys.filter((item) => typeof item === 'string' && item.trim())));
-  window.localStorage.setItem(storageKey, JSON.stringify(normalizedKeys));
 }
 
 function createAutomationTaskError(task: AutomationTask): Error {
@@ -584,7 +555,7 @@ export function DouyinCreatorSearchPage() {
   }, [accounts]);
 
   useEffect(() => {
-    writeFavoriteCreatorKeys(DOUYIN_FAVORITE_CREATORS_STORAGE_KEY, favoriteCreatorKeys);
+    writeFavoriteCreatorKeys(favoriteCreatorKeys);
   }, [favoriteCreatorKeys]);
 
   useEffect(() => {
@@ -885,6 +856,13 @@ export function DouyinCreatorSearchPage() {
       nextFavorite = true;
       return [...current, favoriteKey];
     });
+
+    const currentRecords = readFavoriteCreatorRecords();
+    if (nextFavorite) {
+      writeFavoriteCreatorRecords(upsertFavoriteCreatorRecord(currentRecords, record));
+    } else {
+      writeFavoriteCreatorRecords(currentRecords.filter((item) => item.favoriteKey !== favoriteKey));
+    }
 
     message.success(nextFavorite ? '已收藏' : '已取消收藏');
   }, []);
