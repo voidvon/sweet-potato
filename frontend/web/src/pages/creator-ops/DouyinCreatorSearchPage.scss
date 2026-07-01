@@ -1,4 +1,5 @@
 .douyin-creator-page {
+  align-content: start;
   display: grid;
   gap: 20px;
   height: 100%;
@@ -72,6 +73,7 @@
 }
 
 .douyin-spotlight-panel {
+  align-items: center;
   display: flex;
   justify-content: center;
   width: 100%;
@@ -85,7 +87,7 @@
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 50px;
+  height: 50px;
   padding: 6px 7px;
   width: 640px;
 }
@@ -224,12 +226,29 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  gap: 12px;
   min-height: 0;
   overflow: hidden;
 }
 
 .douyin-results-panel-header .ant-typography {
   margin-bottom: 4px;
+}
+
+.douyin-results-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.douyin-results-toolbar-meta {
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.douyin-results-toolbar-action.ant-btn {
+  min-width: 88px;
 }
 
 .douyin-search-results-table {
@@ -260,6 +279,10 @@
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.douyin-search-results-table .ant-table-selection-column {
+  background: #fff;
 }
 
 .douyin-search-results-table .ant-table-tbody > tr > td {
@@ -422,6 +445,11 @@
 @media (max-width: 640px) {
   .douyin-creator-page {
     padding: 16px;
+  }
+
+  .douyin-results-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .douyin-spotlight-bar {

@@ -51,6 +51,7 @@ type CreatorResultsTableProps = {
     };
   };
   results?: CreatorSearchResult[];
+  rowSelection?: TableProps<CreatorSearchResult>['rowSelection'];
   rowKey?: TableProps<CreatorSearchResult>['rowKey'];
   scroll?: TableProps<CreatorSearchResult>['scroll'];
   size?: TableProps<CreatorSearchResult>['size'];
@@ -341,6 +342,7 @@ export function CreatorResultsTable({
   platform = 'douyin',
   resultsMode,
   results,
+  rowSelection,
   rowKey,
   scroll,
   size,
@@ -396,6 +398,7 @@ export function CreatorResultsTable({
         locale={{ emptyText: resolvedEmptyText }}
         onScroll={handleScroll}
         pagination={pagination === undefined ? false : pagination}
+        rowSelection={rowSelection}
         rowKey={rowKey || ((record, index) => `${record.name}-${index || 0}`)}
         scroll={resolvedScroll}
         tableLayout={tableLayout || 'auto'}

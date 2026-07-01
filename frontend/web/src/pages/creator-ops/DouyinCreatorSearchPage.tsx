@@ -54,6 +54,15 @@ type OpenDouyinProfileOptions = {
   creatorName?: string;
 };
 
+function getDouyinResultRowKey(record: DouyinSearchRecord) {
+  return String(record.href || '').trim()
+    || [
+      String(record.name || '').trim(),
+      formatDouyinId(record.douyinId),
+      String(record.profileName || '').trim(),
+    ].join('|');
+}
+
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -487,6 +496,7 @@ export function DouyinCreatorSearchPage() {
   const [loginTask, setLoginTask] = useState<AutomationTask | null>(null);
   const [searchTask, setSearchTask] = useState<AutomationTask | null>(null);
   const [searchResults, setSearchResults] = useState<DouyinSearchRecord[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreResults, setHasMoreResults] = useState(true);
   const [isStartingLogin, setIsStartingLogin] = useState(false);
@@ -512,6 +522,7 @@ export function DouyinCreatorSearchPage() {
   const selectedAccount = accounts.find((account) => account.profileId === selectedProfileId) || null;
   const displayedAccount = selectedAccount || accounts[0] || null;
   const displayedAccountAvatar = displayedAccount?.name?.trim().slice(0, 1) || '抖';
+  const selectedCount = selectedRowKeys.length;
 
   useEffect(() => {
     isPageActiveRef.current = true;
@@ -835,6 +846,7 @@ export function DouyinCreatorSearchPage() {
     await waitForPendingProfileSwitch();
     setRunning(true);
     setHasMoreResults(true);
+    setSelectedRowKeys([]);
     try {
       const started = await startAutomationTask({
         adapter: DOUYIN_SEARCH_ADAPTER,
@@ -1040,6 +1052,27 @@ export function DouyinCreatorSearchPage() {
     openingProfileIds,
   ]);
 
+  const handleSelectionChange = useCallback((nextSelectedRowKeys: React.Key[]) => {
+    setSelectedRowKeys(nextSelectedRowKeys);
+  }, []);
+
+  const handleConnectSelected = useCallback(() => {
+    if (!selectedCount) {
+      message.warning('请先选择要建联的达人');
+      return;
+    }
+
+    message.info(`建联功能开发中，当前已选择 ${selectedCount} 位达人`);
+  }, [selectedCount]);
+
+  const rowSelection = useMemo<TableProps<DouyinSearchRecord>['rowSelection']>(() => ({
+    columnWidth: 52,
+    fixed: true,
+    preserveSelectedRowKeys: true,
+    selectedRowKeys,
+    onChange: handleSelectionChange,
+  }), [handleSelectionChange, selectedRowKeys]);
+
   const headerActions = useMemo(() => (
     <div className="douyin-creator-header-actions">
       <Popover
@@ -1163,6 +1196,21 @@ export function DouyinCreatorSearchPage() {
 
         <div className="douyin-results-panel-body">
         {searchResults.length ? (
+          <div className="douyin-results-toolbar">
+            <div className="douyin-results-toolbar-meta">
+              已选择 {selectedCount} 位达人
+            </div>
+            <Button
+              className="douyin-results-toolbar-action"
+              disabled={!selectedCount}
+              onClick={handleConnectSelected}
+              type="primary"
+            >
+              建联
+            </Button>
+          </div>
+        ) : null}
+        {searchResults.length ? (
           <CreatorResultsTable
             className="douyin-search-results-table"
             columns={columns}
@@ -1171,6 +1219,8 @@ export function DouyinCreatorSearchPage() {
             locale={{ emptyText: running ? '正在搜索抖音达人' : '暂无达人搜索结果' }}
             pagination={false}
             platform="douyin"
+            rowKey={getDouyinResultRowKey}
+            rowSelection={rowSelection}
             resultsMode={{
               type: 'infinite',
               infiniteScroll: {
@@ -1181,7 +1231,6 @@ export function DouyinCreatorSearchPage() {
                 },
               },
             }}
-            rowKey={(record, index) => `${record.name}-${record.href || 'douyin'}-${index || 0}`}
             scroll={{ x: 1180, y: resultsTableScrollY }}
             size="middle"
             tableLayout="auto"
