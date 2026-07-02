@@ -1,0 +1,64 @@
+.automation-task-log-trigger.ant-btn {
+  align-items: center;
+  background: #f5f7fb;
+  border: 1px solid transparent;
+  color: #6b7280;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  width: 40px;
+}
+
+.automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
+.automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
+  background: #edf2f8;
+  border-color: transparent;
+  box-shadow: none;
+  color: #1677ff;
+  outline: none;
+}
+
+.automation-task-log-trigger.ant-btn.is-running,
+.automation-task-log-trigger.ant-btn.is-waiting_user {
+  color: #1677ff;
+}
+
+.automation-task-log-trigger.ant-btn.is-done {
+  color: #389e0d;
+}
+
+.automation-task-log-trigger.ant-btn.is-canceled {
+  color: #d48806;
+}
+
+.automation-task-log-trigger.ant-btn.is-failed {
+  color: #cf1322;
+}
+
+.automation-task-log-popover {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+}
+
+.automation-task-log-popover-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.automation-task-log-lines {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.automation-task-log-popover-empty {
+  color: #6b7280;
+}

@@ -56,7 +56,7 @@ async function confirmDouyinSession(ctx) {
     isLoginUrl,
     readAccount: readSessionAccount,
     inspectLoginState: inspectAccountNameDom,
-    checkCurrentPageFirst: false,
+    checkCurrentPageFirst: true,
     loginMessage: '当前抖音账号未登录，请先在抖音主页完成登录',
     waitAfterGotoMs: 1800,
     timeoutMs: 20000,

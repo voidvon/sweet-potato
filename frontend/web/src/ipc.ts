@@ -81,6 +81,11 @@ export type AutomationWindowsResult = {
   message?: string;
 };
 
+export type AutomationFocusWindowResult = {
+  ok: boolean;
+  message?: string;
+};
+
 export type AutomationProfileStopResult = {
   ok: boolean;
   canceledTaskIds?: string[];
@@ -229,6 +234,10 @@ export function getAutomationTask(taskId: string): Promise<AutomationTaskResult>
 
 export function closeAutomationWindows(profileId: string): Promise<AutomationWindowsResult> {
   return invokeAutomation<AutomationWindowsResult>('closeWindows', { profileId });
+}
+
+export function focusAutomationProfileWindow(profileId: string): Promise<AutomationFocusWindowResult> {
+  return invokeAutomation<AutomationFocusWindowResult>('focusProfileWindow', { profileId });
 }
 
 export function stopAutomationProfile(profileId: string, site?: string): Promise<AutomationProfileStopResult> {

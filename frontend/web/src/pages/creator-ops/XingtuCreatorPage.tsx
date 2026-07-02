@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Empty, Input, Pagination, Popover, Radio, Table, Tag, Tooltip, Typography, message } from 'antd';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Button, Empty, Input, Pagination, Popover, Radio, Table, Tooltip, Typography, message } from 'antd';
 import type { InputRef } from 'antd';
-import { ArrowRightOutlined, CaretDownOutlined, CheckOutlined, InfoCircleOutlined, PlusOutlined, SearchOutlined, XFilled } from '@ant-design/icons';
+import { ArrowRightOutlined, CaretDownOutlined, CheckOutlined, PlusOutlined, SearchOutlined, XFilled } from '@ant-design/icons';
 import {
   cancelAutomationTask,
   closeAutomationWindows,
@@ -44,7 +44,12 @@ import {
   type MatchInlineFilterItem,
 } from './xingtuCreatorFilterData';
 import { CREATOR_OPS_PLATFORM_CONFIG, type CreatorOpsPlatform } from './creatorOpsPlatforms';
+import { AutomationTaskLogTrigger } from './AutomationTaskLogTrigger';
 import { CreatorResultsTable, type CreatorSearchResult } from './CreatorResultsTable';
+import {
+  clearCreatorPendingOpenRequest,
+  readCreatorPendingOpenRequest,
+} from './creatorPendingOpenStorage';
 import { useRemainingTableHeight } from './useRemainingTableHeight';
 import './XingtuCreatorPage.scss';
 
@@ -424,51 +429,6 @@ function writeSelectedProfileId(selectedAccountKey: string, profileId: string) {
     return;
   }
   window.localStorage.setItem(selectedAccountKey, profileId);
-}
-
-function describeAutomationTaskStatus(task: AutomationTask | null) {
-  if (!task) {
-    return '';
-  }
-  switch (task.status) {
-    case 'created':
-      return '已创建';
-    case 'running':
-      return '执行中';
-    case 'waiting_user':
-      return '等待用户操作';
-    case 'done':
-      return '已完成';
-    case 'failed':
-      return '失败';
-    case 'canceled':
-      return '已取消';
-    default:
-      return task.status;
-  }
-}
-
-function getAutomationTaskStatusTagColor(task: AutomationTask | null) {
-  switch (task?.status) {
-    case 'done':
-      return 'success';
-    case 'failed':
-      return 'error';
-    case 'canceled':
-      return 'warning';
-    case 'running':
-    case 'waiting_user':
-      return 'processing';
-    default:
-      return 'default';
-  }
-}
-
-function getAutomationTaskLogTriggerClassName(task: AutomationTask | null) {
-  if (!task) {
-    return 'xingtu-task-log-trigger';
-  }
-  return `xingtu-task-log-trigger is-${task.status}`;
 }
 
 type XingtuCreatorPageProps = {
@@ -936,6 +896,58 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
     }
   }, [openingProfileIds]);
 
+  const handleOpenCreatorProfile = useCallback(async (record: CreatorSearchResult) => {
+    const href = String(record.href || '').trim();
+    const profileId = selectedProfileIdRef.current.trim() || displayedAccount?.profileId || '';
+
+    if (!href) {
+      return;
+    }
+
+    await waitForPendingProfileSwitch();
+    if (!isElectronEgg) {
+      message.warning('只能在 Electron 应用内打开达人主页');
+      return;
+    }
+    if (!profileId) {
+      message.warning(`请先选择${platformConfig.platformName}账号`);
+      return;
+    }
+    if (openingProfileIds.includes(profileId)) {
+      return;
+    }
+
+    setOpeningProfileIds((value) => [...value, profileId]);
+    try {
+      const result = await startAutomationTask({
+        adapter: platformConfig.openProfileAdapter,
+        profileId,
+        input: { url: href },
+      });
+
+      if (!result.ok || !result.taskId) {
+        message.error(result.message || `打开${platformConfig.platformName}达人主页失败`);
+        return;
+      }
+
+      await waitForTaskDone(result.taskId);
+      if (!isPageActiveRef.current) {
+        return;
+      }
+
+      message.success(`已打开 ${record.name || '达人主页'}`);
+    } catch (error) {
+      if (!isPageActiveRef.current) {
+        return;
+      }
+      message.error(error instanceof Error ? error.message : `打开${platformConfig.platformName}达人主页失败`);
+    } finally {
+      if (isPageActiveRef.current) {
+        setOpeningProfileIds((value) => value.filter((item) => item !== profileId));
+      }
+    }
+  }, [displayedAccount?.profileId, openingProfileIds, platformConfig.openProfileAdapter, platformConfig.platformName]);
+
   function setActiveSearchTask(taskId: string, profileId: string) {
     activeSearchTaskIdRef.current = taskId.trim();
     activeSearchProfileIdRef.current = profileId.trim();
@@ -952,6 +964,24 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
   async function waitForPendingProfileSwitch() {
     await profileSwitchPromiseRef.current.catch(() => {});
   }
+
+  useEffect(() => {
+    const pendingRequest = readCreatorPendingOpenRequest(platform);
+    if (!pendingRequest) {
+      return;
+    }
+
+    if (pendingRequest.profileId !== selectedProfileIdRef.current.trim()) {
+      return;
+    }
+
+    clearCreatorPendingOpenRequest(platform);
+    void handleOpenCreatorProfile({
+      name: pendingRequest.creatorName || '',
+      summary: '',
+      href: pendingRequest.href,
+    });
+  }, [handleOpenCreatorProfile, platform, selectedProfileId]);
 
   function waitForTaskDone(taskId: string, onUpdate?: (task: AutomationTask) => void) {
     return new Promise<AutomationTask>((resolve, reject) => {
@@ -1247,39 +1277,6 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
   const commandInputPlaceholder = platformConfig.supportsSearchModes
     ? XINGTU_SEARCH_MODE_PLACEHOLDERS[searchMode]
     : BUYIN_SEARCH_PLACEHOLDER;
-  const searchTaskLogContent = useMemo(() => {
-    const searchTaskLogs = searchTask?.logs.slice(-6) || [];
-  const commandInputPlaceholder = platformConfig.supportsSearchModes
-    ? XINGTU_SEARCH_MODE_PLACEHOLDERS[searchMode]
-    : BUYIN_SEARCH_PLACEHOLDER;
-
-    return searchTask ? (
-      <div className="xingtu-task-log-popover">
-        <div className="xingtu-task-log-popover-header">
-          <span>最近一次达人搜索</span>
-          <Tag color={getAutomationTaskStatusTagColor(searchTask)}>
-            {describeAutomationTaskStatus(searchTask)}
-          </Tag>
-        </div>
-        <div>Task ID: {searchTask.id}</div>
-        <div>Profile: {searchTask.profileId}</div>
-        {searchTask.error ? <div>错误: {searchTask.error}</div> : null}
-        {searchTaskLogs.length ? (
-          <div className="xingtu-task-log-lines">
-            {searchTaskLogs.map((log) => (
-              <div key={`${log.time}-${log.message}`}>
-                [{log.level}] {log.message}
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    ) : (
-      <div className="xingtu-task-log-popover xingtu-task-log-popover-empty">
-        暂无达人搜索任务日志
-      </div>
-    );
-  }, [searchTask]);
 
   const accountPickerContent = useMemo(() => (
     <div className="xingtu-account-popover">
@@ -1356,20 +1353,11 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
 
   const headerActions = useMemo(() => (
     <div className="xingtu-creator-header-actions">
-      <Popover
-        arrow={false}
-        content={searchTaskLogContent}
-        placement="bottomRight"
-        trigger={['hover', 'click']}
-      >
-        <Button
-          aria-label="查看达人搜索日志"
-          className={getAutomationTaskLogTriggerClassName(searchTask)}
-          icon={<InfoCircleOutlined />}
-          shape="circle"
-          type="text"
-        />
-      </Popover>
+      <AutomationTaskLogTrigger
+        emptyText="暂无达人搜索任务日志"
+        label="最近一次达人搜索"
+        task={searchTask}
+      />
 
       <Popover
         arrow={false}
@@ -1402,7 +1390,6 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
     displayedAccount?.name,
     displayedAccountAvatar,
     searchTask,
-    searchTaskLogContent,
   ]);
 
   useEffect(() => {
@@ -1564,6 +1551,7 @@ export function XingtuCreatorPage({ platform = 'xingtu' }: XingtuCreatorPageProp
           <div className="xingtu-search-results-table-shell">
             <CreatorResultsTable
               loading={isSearching}
+              onOpenProfile={handleOpenCreatorProfile}
               platform={platformConfig.key}
               results={searchResults}
               resultsMode={{ type: 'pagination' }}

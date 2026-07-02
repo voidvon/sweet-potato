@@ -1,13 +1,11 @@
 'use strict';
 
 const { ensureDouyinLoggedIn, isDouyinUrl } = require('./douyin/auth');
+const { ensureNoDouyinCaptcha: ensureNoDouyinCaptchaShared } = require('./douyin/captcha');
 
 const DOUYIN_WEB_ORIGIN = 'https://www.douyin.com';
 const DEFAULT_RESULT_LIMIT = 20;
 const LOAD_MORE_SCROLL_STEP = 960;
-const CAPTCHA_SELECTOR = '#captcha_container';
-const CAPTCHA_POLL_INTERVAL_MS = 1000;
-const CAPTCHA_SETTLE_DELAY_MS = 500;
 
 function normalizeKeyword(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -41,47 +39,8 @@ async function waitForDouyinCreatorResults(page) {
   await page.waitForTimeout(600).catch(() => {});
 }
 
-async function hasDouyinCaptcha(page) {
-  return page.evaluate((selector) => {
-    const element = document.querySelector(selector);
-    if (!(element instanceof HTMLElement)) {
-      return false;
-    }
-
-    const style = window.getComputedStyle?.(element);
-    const rect = element.getBoundingClientRect();
-    return style?.display !== 'none'
-      && style?.visibility !== 'hidden'
-      && rect.width > 0
-      && rect.height > 0;
-  }, CAPTCHA_SELECTOR).catch(() => false);
-}
-
-async function waitForCaptchaSolved(ctx) {
-  if (!(await hasDouyinCaptcha(ctx.page))) {
-    return false;
-  }
-
-  ctx.log.warn('Detected Douyin captcha, waiting for manual verification');
-  ctx.window?.activate?.();
-  await ctx.task.waitForUser({
-    reason: '检测到抖音图片验证码，请在自动化窗口手动完成验证',
-    until: async () => !(await hasDouyinCaptcha(ctx.page)),
-    onPoll: () => {
-      ctx.window?.activate?.();
-    },
-    pollIntervalMs: CAPTCHA_POLL_INTERVAL_MS,
-  });
-  await ctx.page.waitForTimeout(CAPTCHA_SETTLE_DELAY_MS).catch(() => {});
-  ctx.log.info('Douyin captcha cleared, resuming automation');
-  ctx.window?.restoreMain?.();
-  return true;
-}
-
 async function ensureNoDouyinCaptcha(ctx) {
-  while (await hasDouyinCaptcha(ctx.page)) {
-    await waitForCaptchaSolved(ctx);
-  }
+  return ensureNoDouyinCaptchaShared(ctx);
 }
 
 function normalizePositiveInt(value, fallback) {
@@ -101,10 +60,10 @@ function extractStructuredResults(root, options = {}) {
   const limitValue = Number.parseInt(String(options.limit || ''), 10);
   const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : fallbackLimit;
 
-  const DOUYIN_ID_LABEL = '\u6296\u97f3\u53f7';
-  const LIKE_LABEL = '\u83b7\u8d5e';
-  const FOLLOWER_LABEL = '\u7c89\u4e1d';
-  const PROFILE_LABEL = '\u67e5\u770b\u4e3b\u9875';
+  const DOUYIN_ID_LABEL = '抖音号';
+  const LIKE_LABEL = '获赞';
+  const FOLLOWER_LABEL = '粉丝';
+  const PROFILE_LABEL = '查看主页';
 
   function normalizeLocalText(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
@@ -417,7 +376,7 @@ const adapter = {
     const previousCount = normalizePositiveInt(input.previousCount, 0);
     const limit = normalizePositiveInt(input.limit, DEFAULT_RESULT_LIMIT);
     if (!keyword) {
-      throw new Error('\u7f3a\u5c11\u641c\u7d22\u5173\u952e\u8bcd');
+      throw new Error('缺少搜索关键词');
     }
 
     await ensureDouyinLoggedIn(ctx);
@@ -465,7 +424,7 @@ const adapter = {
 
     await ensureNoDouyinCaptcha(ctx);
     const results = await collectDouyinCreatorResults(ctx.page, { limit });
-    ctx.log.info(`\u6296\u97f3\u8fbe\u4eba\u641c\u7d22\u7ed3\u679c\u6570: ${results.length}`);
+    ctx.log.info(`抖音达人搜索结果数: ${results.length}`);
 
     if (!results.length) {
       await ctx.diagnostics.saveSnapshot('douyin-search-empty', { screenshot: true }).catch(() => {});

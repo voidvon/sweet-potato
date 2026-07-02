@@ -13,6 +13,7 @@ test('registers buyin automation adapters', () => {
   assert.ok(adapterNames.includes('douyin-login'));
   assert.ok(adapterNames.includes('douyin-open-profile'));
   assert.ok(adapterNames.includes('douyin-open-search'));
+  assert.ok(adapterNames.includes('douyin-connect-creators'));
 
   const openProfileAdapter = getAdapter('buyin-open-profile');
   assert.ok(openProfileAdapter);
@@ -29,4 +30,8 @@ test('registers buyin automation adapters', () => {
   const douyinAdapter = getAdapter('douyin-open-search');
   assert.ok(douyinAdapter);
   assert.equal(douyinAdapter.name, 'douyin-open-search');
+
+  const douyinConnectAdapter = getAdapter('douyin-connect-creators');
+  assert.ok(douyinConnectAdapter);
+  assert.equal(douyinConnectAdapter.name, 'douyin-connect-creators');
 });

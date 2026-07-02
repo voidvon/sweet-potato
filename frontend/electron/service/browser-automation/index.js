@@ -6,11 +6,10 @@ const { startTask, cancelTask, resumeTask, getTaskStatus } = require('./task-run
 const {
   closeAutomationWindows,
   countAutomationWindows,
+  findAutomationWindow,
+  activateAutomationWindow,
 } = require('./automation-window');
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const { pollUntil, sleep } = require('./core/polling');
 
 class BrowserAutomationService {
   listAdapters() {
@@ -48,6 +47,22 @@ class BrowserAutomationService {
     };
   }
 
+  focusProfileWindow(args = {}) {
+    const profileId = String(args.profileId || '').trim();
+    if (!profileId) {
+      return { ok: false, message: 'Missing profileId' };
+    }
+
+    const win = findAutomationWindow({ profileId });
+    if (!win) {
+      return { ok: false, message: 'No automation window found for profile' };
+    }
+
+    return {
+      ok: activateAutomationWindow(win, {}),
+    };
+  }
+
   async stopProfile(args = {}) {
     const profileId = String(args.profileId || '').trim();
     const site = String(args.site || '').trim();
@@ -74,8 +89,7 @@ class BrowserAutomationService {
     }
 
     const closedCount = closeAutomationWindows({ profileId });
-    const deadline = Date.now() + Number(args.timeoutMs || 4000);
-    while (Date.now() < deadline) {
+    const settled = await pollUntil(() => {
       const remainingTasks = listTasks().filter((task) => {
         if (task.profileId !== profileId) {
           return false;
@@ -87,13 +101,20 @@ class BrowserAutomationService {
       }).length;
       const remainingWindows = countAutomationWindows({ profileId });
       if (remainingTasks === 0 && remainingWindows === 0) {
-        return {
-          ok: true,
-          canceledTaskIds,
-          closedCount,
-        };
+        return true;
       }
-      await sleep(80);
+      return false;
+    }, {
+      timeoutMs: Number(args.timeoutMs || 4000),
+      intervalMs: 80,
+    });
+
+    if (settled) {
+      return {
+        ok: true,
+        canceledTaskIds,
+        closedCount,
+      };
     }
 
     return {

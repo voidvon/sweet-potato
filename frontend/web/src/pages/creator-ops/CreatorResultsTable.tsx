@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import type { ReactNode, UIEvent } from 'react';
 import { Button, Table, Tag } from 'antd';
 import type { TableProps } from 'antd';
+import { CreatorInfoCell } from './CreatorInfoCell';
 import type { CreatorOpsPlatform } from './creatorOpsPlatforms';
 
 export type CreatorSearchResult = {
@@ -64,58 +65,8 @@ function formatDouyinId(value: string | undefined) {
     return '-';
   }
 
-  const match = normalized.match(/抖音号[：:]\s*(\S+)/);
+  const match = normalized.match(/抖音号[\uFF1A:]\s*(\S+)/);
   return match ? match[1] : normalized;
-}
-
-function renderCreatorName(record: CreatorSearchResult, onOpenProfile?: (record: CreatorSearchResult) => void) {
-  if (record.href && onOpenProfile) {
-    return (
-      <button
-        className="douyin-cell-link-button"
-        onClick={() => {
-          onOpenProfile(record);
-        }}
-        type="button"
-      >
-        {record.name}
-      </button>
-    );
-  }
-
-  if (record.href) {
-    return <a href={record.href} rel="noreferrer" target="_blank">{record.name}</a>;
-  }
-
-  return <span>{record.name}</span>;
-}
-
-function renderAvatar(record: CreatorSearchResult, onOpenProfile?: (record: CreatorSearchResult) => void) {
-  const avatarContent = record.avatarUrl ? (
-    <img
-      alt={record.name}
-      referrerPolicy="no-referrer"
-      src={record.avatarUrl}
-    />
-  ) : (
-    <span>{record.name.slice(0, 1)}</span>
-  );
-
-  if (record.href && onOpenProfile) {
-    return (
-      <button
-        className="douyin-cell-avatar-button"
-        onClick={() => {
-          onOpenProfile(record);
-        }}
-        type="button"
-      >
-        {avatarContent}
-      </button>
-    );
-  }
-
-  return avatarContent;
 }
 
 function createGeneralCreatorColumns(
@@ -129,33 +80,7 @@ function createGeneralCreatorColumns(
       title: '达人信息',
       minWidth: 280,
       render: (_value: string | undefined, record) => (
-        <div className="xingtu-cell-creator">
-          <div className="xingtu-cell-avatar">
-            {renderAvatar(record, onOpenProfile)}
-          </div>
-          <div className="xingtu-cell-creator-main">
-            <div className="xingtu-cell-creator-title">
-              {renderCreatorName(record, onOpenProfile)}
-            </div>
-            <div className="xingtu-cell-creator-badges">
-              {record.creatorBadgeIconUrl ? (
-                <span className="xingtu-cell-creator-icon-tag">
-                  <img
-                    alt=""
-                    className="xingtu-cell-creator-icon"
-                    referrerPolicy="no-referrer"
-                    src={record.creatorBadgeIconUrl}
-                  />
-                </span>
-              ) : null}
-              {record.gender ? <Tag bordered={false}>{record.gender}</Tag> : null}
-              {record.location ? <Tag bordered={false}>{record.location}</Tag> : null}
-              {record.badges?.slice(0, 3).map((badge) => (
-                <Tag bordered={false} key={badge}>{badge}</Tag>
-              ))}
-            </div>
-          </div>
-        </div>
+        <CreatorInfoCell onOpenProfile={onOpenProfile} record={record} variant={platform} />
       ),
     },
     {
@@ -183,7 +108,7 @@ function createGeneralCreatorColumns(
     {
       dataIndex: 'connectedUsers',
       key: 'connectedUsers',
-      title: '连接用户数',
+      title: '已连接用户数',
       width: 120,
       render: (value: string | undefined) => value || '-',
     },
@@ -240,19 +165,7 @@ function createDouyinCreatorColumns(
       title: '达人信息',
       minWidth: 280,
       render: (_value: string, record) => (
-        <div className="douyin-cell-creator">
-          <div className="douyin-cell-avatar">
-            {renderAvatar(record, onOpenProfile)}
-          </div>
-          <div className="douyin-cell-creator-main">
-            <div className="douyin-cell-creator-title">
-              {renderCreatorName(record, onOpenProfile)}
-            </div>
-            <div className="douyin-cell-creator-meta">
-              {record.profileName ? <Tag bordered={false}>{record.profileName}</Tag> : null}
-            </div>
-          </div>
-        </div>
+        <CreatorInfoCell onOpenProfile={onOpenProfile} record={record} variant="douyin" />
       ),
     },
     {
