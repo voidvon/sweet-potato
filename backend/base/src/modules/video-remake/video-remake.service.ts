@@ -29,6 +29,7 @@ import { publishVideoRemakeEvent } from './video-remake.events.js';
 import { defaultVideoRemakeNodeAdapters, repairVideoRemakeJsonPayload, visualDetailsFromContent, type VideoRemakeNodeContext, type VideoRemakeNodeEvent } from './video-remake.node-adapters.js';
 import { runVideoRemakeAnalysisGraph } from './video-remake.langgraph.js';
 import { videoRemakeRepository } from './video-remake.repository.js';
+import { resumeSceneAwareSegmentedSeedanceVideoGeneration } from './video-remake.segmented-runtime.js';
 import { logger } from '../../shared/logger.js';
 import {
   artifactDependencies,
@@ -550,6 +551,41 @@ function finalVideoHistoryWithResult(baseData: Record<string, unknown>, result: 
   ];
 }
 
+function finalVideoGeneratingSegmentsForMode(segments: unknown[], generationMode: string) {
+  const items = segments.filter(isRecord);
+  if (generationMode !== 'queued_extend') {
+    return items;
+  }
+  return items.map((segment, index) => ({
+    ...segment,
+    status: index === 0 && fieldText(segment.status) !== 'completed' ? 'running' : index === 0 ? fieldText(segment.status) : 'waiting',
+    generationMode,
+  }));
+}
+
+function mergeFinalVideoSegmentProgress(plannedSegments: unknown[], segmentResults: unknown[]) {
+  const planned = Array.isArray(plannedSegments) ? plannedSegments.filter(isRecord) : [];
+  const results = Array.isArray(segmentResults) ? segmentResults.filter(isRecord) : [];
+  if (!planned.length) {
+    return results;
+  }
+  return planned.map((segment, index) => {
+    const segmentIndex = segmentIndexFor(segment, index);
+    const result = results.find((item, resultIndex) => segmentIndexFor(item, resultIndex) === segmentIndex);
+    return result ? { ...segment, ...result } : segment;
+  });
+}
+
+function hasRecoverableSegmentedFailure(segmentState: unknown) {
+  if (!isSegmentedVideoGenerationState(segmentState) || segmentState.status !== 'failed') {
+    return false;
+  }
+  const results = Array.isArray(segmentState.segmentResults) ? segmentState.segmentResults.filter(isRecord) : [];
+  const completedCount = results.filter((item) => fieldText(item.videoUrl || item.fileUrl || item.remoteVideoUrl)).length;
+  const runningCount = results.filter((item) => fieldText(item.jobId) && fieldText(item.status) !== 'completed').length;
+  return completedCount > 0 || runningCount > 0;
+}
+
 function markSegmentRegenerationDraftItems(items: unknown, segmentIndex: number) {
   return Array.isArray(items)
     ? items.filter(isRecord).map((segment, index) => {
@@ -830,6 +866,29 @@ function canAttemptFinalVideoSync(session: VideoRemakeSession) {
     || card.status === 'failed';
 }
 
+function canResumeStalledFinalVideoGeneration(
+  session: VideoRemakeSession,
+  card: VideoRemakeCardMessage,
+  data: Record<string, unknown>,
+  segmentState: unknown,
+  result: Record<string, unknown> | null,
+) {
+  if (session.status !== 'generating' || fieldText(data.status) !== 'generating') {
+    return false;
+  }
+  if (!['generate_video_segments', 'merge_video'].includes(session.workflow.currentNode)) {
+    return false;
+  }
+  if (isSegmentedVideoGenerationState(segmentState)) {
+    return false;
+  }
+  if (result?.jobId || result?.videoUrl || result?.status === 'running' || result?.status === 'pending') {
+    return false;
+  }
+  const hasSegments = Array.isArray(data.segments) && data.segments.length > 0;
+  return card.cardType === 'final_video' && hasSegments;
+}
+
 function canResumeUnderstandingAnalysis(session: VideoRemakeSession) {
   if (session.workflow.pendingInterrupt) {
     return false;
@@ -888,6 +947,13 @@ function startVideoRemakeGenerationMonitor(taskId: string | undefined, source: s
   runningVideoRemakeGenerationMonitorTaskIds.add(normalizedTaskId);
   void (async () => {
     try {
+      const session = videoRemakeRepository.findSessionByTaskId(normalizedTaskId);
+      if (session && canAttemptFinalVideoSync(session)) {
+        const synced = await syncSessionVideoGenerationState(session, false);
+        if (synced.status !== 'generating') {
+          return;
+        }
+      }
       await pollRunningVideoGenerationTask(normalizedTaskId);
     } catch (error) {
       logger.warn('video remake generation monitor polling failed', {
@@ -957,6 +1023,9 @@ async function syncSessionVideoGenerationState(session: VideoRemakeSession, wait
   }
   if (isSegmentedVideoGenerationState(segmentState) && segmentState.status === 'completed') {
     const pendingAssetId = fieldText(segmentState.request.pendingAssetId);
+    const segmentedRenderMode = fieldText(segmentState.request.generationMode) === 'queued_extend'
+      ? 'queued_extend_ffmpeg'
+      : 'segmented_ffmpeg';
     const asset = pendingAssetId ? contentRepository.findAsset(pendingAssetId) : null;
     const segmentResults = Array.isArray(segmentState.segmentResults) ? segmentState.segmentResults.filter(isRecord) : [];
     const videoUrl = fieldText(asset?.fileUrl) || fieldText(latestTask.generatedVideoUrl) || fieldText(result?.videoUrl);
@@ -967,11 +1036,74 @@ async function syncSessionVideoGenerationState(session: VideoRemakeSession, wait
       ...data,
       assetId: asset?.id || pendingAssetId || fieldText(data.assetId),
       jobId: segmentResults.map((item) => fieldText(item.jobId)).filter(Boolean).join(','),
-      renderMode: fieldText(data.renderMode) || 'segmented_ffmpeg',
+      generationMode: fieldText(segmentState.request.generationMode) || fieldText(data.generationMode),
+      renderMode: fieldText(data.renderMode) || segmentedRenderMode,
       generatedSegments: segmentResults,
     }, videoUrl);
   }
   if (isSegmentedVideoGenerationState(segmentState) && segmentState.status === 'failed') {
+    if (hasRecoverableSegmentedFailure(segmentState)) {
+      const segmentResults = Array.isArray(segmentState.segmentResults) ? segmentState.segmentResults.filter(isRecord) : [];
+      const progressSegments = mergeFinalVideoSegmentProgress(Array.isArray(data.segments) ? data.segments : [], segmentResults);
+      const resumeData = {
+        ...data,
+        status: 'generating',
+        message: '视频生成中，请稍候。',
+        errorMessage: undefined,
+        generatedSegments: segmentResults,
+        segments: progressSegments,
+      };
+      updateCardById(session, card.cardId, { status: 'pending', data: resumeData });
+      syncArtifact(session, 'final_video', resumeData);
+      session.status = 'generating';
+      session.currentStep = 'merge_video';
+      session.workflow.currentNode = 'merge_video';
+      refreshTask(session, 'generating', null);
+      persistSession(session);
+      logVideoRemakeGeneration('warn', 'resuming failed segmented final video generation from saved segment state', {
+        sessionId: session.id,
+        taskId: session.taskId,
+        cardId: card.cardId,
+        completedSegments: segmentResults.filter((item) => fieldText(item.videoUrl || item.fileUrl || item.remoteVideoUrl)).map((item) => Number(item.segmentIndex)),
+        runningSegments: segmentResults.filter((item) => fieldText(item.jobId) && fieldText(item.status) !== 'completed').map((item) => Number(item.segmentIndex)),
+        failureReason: fieldText(segmentState.failureReason),
+      });
+      const resumed = await resumeSceneAwareSegmentedSeedanceVideoGeneration(latestTask, {
+        ...segmentState,
+        status: 'running',
+        failureStage: undefined,
+        failureReason: undefined,
+      });
+      if (resumed) {
+        const merged = resumed as Record<string, unknown>;
+        session.workflow.runtime.mergedVideo = merged;
+        const completedData = {
+          ...resumeData,
+          ...merged,
+          status: 'completed',
+          message: '视频生成完成。',
+          generatedAt: nowIso(),
+          generatedSegments: Array.isArray(merged.segments) ? merged.segments : resumeData.generatedSegments,
+          segments: Array.isArray(merged.segments) ? merged.segments : resumeData.segments,
+          videos: finalVideoHistory({
+            ...resumeData,
+            ...merged,
+            status: 'completed',
+            generatedSegments: Array.isArray(merged.segments) ? merged.segments : resumeData.generatedSegments,
+            segments: Array.isArray(merged.segments) ? merged.segments : resumeData.segments,
+          }),
+        };
+        updateCardById(session, card.cardId, { status: 'confirmed', data: completedData });
+        persistFinalVideoSegmentsForCard(session, card.cardId, completedData);
+        syncArtifact(session, 'final_video', completedData);
+        session.status = 'completed';
+        session.currentStep = 'completed';
+        session.workflow.currentNode = 'completed';
+        refreshTask(session, 'success', fieldText(merged.videoUrl));
+        pushEvent(session, { type: 'workflow.done', finalVideoUrl: fieldText(merged.videoUrl) });
+        return persistSession(session);
+      }
+    }
     return failSessionFromVideoGeneration(
       session,
       card,
@@ -994,7 +1126,44 @@ async function syncSessionVideoGenerationState(session: VideoRemakeSession, wait
     const rawMessage = fieldText(result.errorMessage) || '视频生成失败';
     return failSessionFromVideoGeneration(session, card, data, videoGenerationFailureMessage(new Error(rawMessage)));
   }
+  if (canResumeStalledFinalVideoGeneration(session, card, data, segmentState, result || null)) {
+    const generationMode = fieldText(data.generationMode);
+    const segments = Array.isArray(data.segments)
+      ? data.segments
+      : session.workflow.runtime.videoSegments || [];
+    const displaySegments = finalVideoGeneratingSegmentsForMode(segments, generationMode);
+    const resumeData = {
+      ...data,
+      status: 'generating',
+      message: '视频生成中，请稍候。',
+      errorMessage: undefined,
+      segments: displaySegments,
+    };
+    updateCardById(session, card.cardId, { status: 'pending', data: resumeData });
+    syncArtifact(session, 'final_video', resumeData);
+    persistSession(session);
+    logVideoRemakeGeneration('warn', 'resuming stalled final video generation without active video task', {
+      sessionId: session.id,
+      taskId: session.taskId,
+      cardId: card.cardId,
+      currentNode: session.workflow.currentNode,
+      generationMode,
+    });
+    const emit = (event: VideoRemakeNodeEvent) => pushEvent(session, { type: 'workflow.progress', step: event.node, label: event.message, percent: event.progress });
+    const context = () => createNodeContext(session, emit);
+    return await runFinalVideoMerge(session, card.cardId, resumeData, displaySegments, context);
+  }
   if (session.status === 'generating' && fieldText(data.status) === 'generating') {
+    if (isSegmentedVideoGenerationState(segmentState) && segmentState.status === 'running') {
+      const segmentResults = Array.isArray(segmentState.segmentResults) ? segmentState.segmentResults.filter(isRecord) : [];
+      const progressData = {
+        ...data,
+        generatedSegments: segmentResults,
+        segments: mergeFinalVideoSegmentProgress(Array.isArray(data.segments) ? data.segments : [], segmentResults),
+      };
+      updateCardById(session, card.cardId, { status: card.status, data: progressData });
+      syncArtifact(session, 'final_video', progressData);
+    }
     logVideoRemakeGeneration('info', 'video generation sync deferred while generation is still active', {
       sessionId: session.id,
       taskId: session.taskId,
@@ -2392,11 +2561,25 @@ function persistSession(session: VideoRemakeSession) {
 }
 
 function failSession(session: VideoRemakeSession, failureReason: string) {
+  const failedStep = session.currentStep;
   session.status = 'failed';
   session.currentStep = 'failed';
   session.workflow.currentNode = 'failed';
   session.workflow.updatedAt = nowIso();
   session.workflow.pendingInterrupt = undefined;
+  const uploadCard = lastCardOfType(session, 'uploading');
+  if (uploadCard && (failedStep === 'upload_to_vod' || uploadCard.status === 'pending')) {
+    const uploadData = isRecord(uploadCard.data) ? uploadCard.data : {};
+    updateCardById(session, uploadCard.cardId, {
+      status: 'failed',
+      data: {
+        ...uploadData,
+        status: 'failed',
+        message: failureReason,
+        errorMessage: failureReason,
+      },
+    });
+  }
   const progressCard = lastCardOfType(session, 'generation_progress');
   if (progressCard) {
     const progressData = isRecord(progressCard.data) ? progressCard.data : {};
@@ -2821,6 +3004,7 @@ async function continueAfterConfirmation(
     const seedanceVersionNumber = seedancePromptVersionNumber(seedancePrompts);
     const finalVideoDraft = withFinalVideoVersion(session, {
       message: 'Seedance 分段已准备好，确认后开始生成视频。',
+      generationMode: 'parallel',
       segments,
       seedancePrompts,
       seedanceVersionNumber,
@@ -2836,67 +3020,13 @@ async function continueAfterConfirmation(
   }
 }
 
-async function confirmFinalVideoCard(
+async function runFinalVideoMerge(
   session: VideoRemakeSession,
-  cardId: string,
-  normalizedData: unknown,
+  targetCardId: string,
+  baseData: Record<string, unknown>,
+  segments: unknown[],
   context: () => VideoRemakeNodeContext,
 ) {
-  const previousCard = findCardById(session, cardId);
-  const previousData = previousCard?.data;
-  const previousHasVideo = isRecord(previousData) && (fieldText(previousData.videoUrl) || fieldText(previousData.status) === 'completed');
-  const incomingData = isRecord(normalizedData) ? normalizedData : {};
-  const clearedIncomingData = clearFinalVideoRunState(incomingData);
-  const baseData = previousHasVideo
-    ? withFinalVideoVersion(session, clearedIncomingData, { forceNext: true })
-    : withFinalVideoVersion(session, clearedIncomingData);
-  const targetCard = previousHasVideo
-    ? addCard(session, 'final_video', { status: 'editing', data: baseData })
-    : previousCard;
-  if (!targetCard) {
-    throw new Error('卡片不存在');
-  }
-  const targetCardId = targetCard.cardId;
-  const segments = Array.isArray(baseData.segments)
-    ? baseData.segments
-    : session.workflow.runtime.videoSegments || [];
-  session.workflow.pendingInterrupt = undefined;
-  session.status = 'generating';
-  refreshTask(session, 'generating', null);
-  logVideoRemakeGeneration('info', 'final video confirmation accepted', {
-    sessionId: session.id,
-    taskId: session.taskId,
-    cardId: targetCardId,
-    previousCardId: cardId,
-    forkedFromCompletedCard: Boolean(previousHasVideo),
-    versionLabel: fieldText(baseData.versionLabel),
-    currentStep: session.currentStep,
-    videoSegmentCount: session.workflow.runtime.videoSegments?.length || 0,
-  });
-  updateCardById(session, targetCardId, {
-    status: 'pending',
-    data: {
-      ...baseData,
-      status: 'generating',
-      message: '视频生成中，请稍候。',
-      errorMessage: undefined,
-      segments,
-    },
-  });
-  syncArtifact(session, 'final_video', {
-    ...baseData,
-    status: 'generating',
-    message: '视频生成中，请稍候。',
-    errorMessage: undefined,
-    segments,
-  });
-  persistSession(session);
-  logVideoRemakeGeneration('info', 'final video card marked generating and persisted', {
-    sessionId: session.id,
-    taskId: session.taskId,
-    cardId: targetCardId,
-    versionLabel: fieldText(baseData.versionLabel),
-  });
   const releaseGenerationActive = markVideoRemakeGenerationActive(session.taskId);
   try {
     logVideoRemakeGeneration('info', 'merge_video node starting', {
@@ -2977,6 +3107,72 @@ async function confirmFinalVideoCard(
   } finally {
     releaseGenerationActive();
   }
+}
+
+async function confirmFinalVideoCard(
+  session: VideoRemakeSession,
+  cardId: string,
+  normalizedData: unknown,
+  context: () => VideoRemakeNodeContext,
+) {
+  const previousCard = findCardById(session, cardId);
+  const previousData = previousCard?.data;
+  const previousHasVideo = isRecord(previousData) && (fieldText(previousData.videoUrl) || fieldText(previousData.status) === 'completed');
+  const incomingData = isRecord(normalizedData) ? normalizedData : {};
+  const clearedIncomingData = clearFinalVideoRunState(incomingData);
+  const baseData = previousHasVideo
+    ? withFinalVideoVersion(session, clearedIncomingData, { forceNext: true })
+    : withFinalVideoVersion(session, clearedIncomingData);
+  const targetCard = previousHasVideo
+    ? addCard(session, 'final_video', { status: 'editing', data: baseData })
+    : previousCard;
+  if (!targetCard) {
+    throw new Error('卡片不存在');
+  }
+  const targetCardId = targetCard.cardId;
+  const segments = Array.isArray(baseData.segments)
+    ? baseData.segments
+    : session.workflow.runtime.videoSegments || [];
+  const generationMode = fieldText(baseData.generationMode);
+  const displaySegments = finalVideoGeneratingSegmentsForMode(segments, generationMode);
+  session.workflow.pendingInterrupt = undefined;
+  session.status = 'generating';
+  refreshTask(session, 'generating', null);
+  logVideoRemakeGeneration('info', 'final video confirmation accepted', {
+    sessionId: session.id,
+    taskId: session.taskId,
+    cardId: targetCardId,
+    previousCardId: cardId,
+    forkedFromCompletedCard: Boolean(previousHasVideo),
+    versionLabel: fieldText(baseData.versionLabel),
+    currentStep: session.currentStep,
+    videoSegmentCount: session.workflow.runtime.videoSegments?.length || 0,
+  });
+  updateCardById(session, targetCardId, {
+    status: 'pending',
+    data: {
+      ...baseData,
+      status: 'generating',
+      message: '视频生成中，请稍候。',
+      errorMessage: undefined,
+      segments: displaySegments,
+    },
+  });
+  syncArtifact(session, 'final_video', {
+    ...baseData,
+    status: 'generating',
+    message: '视频生成中，请稍候。',
+    errorMessage: undefined,
+    segments: displaySegments,
+  });
+  persistSession(session);
+  logVideoRemakeGeneration('info', 'final video card marked generating and persisted', {
+    sessionId: session.id,
+    taskId: session.taskId,
+    cardId: targetCardId,
+    versionLabel: fieldText(baseData.versionLabel),
+  });
+  return runFinalVideoMerge(session, targetCardId, baseData, segments, context);
 }
 
 async function regenerateFinalVideoFromChat(session: VideoRemakeSession, instruction: string) {
@@ -3293,7 +3489,7 @@ export const videoRemakeService = {
             await waitMs(delayMs);
           }
           if (session.status === 'generating' && session.taskId) {
-            startVideoRemakeGenerationMonitor(session.taskId, 'startup-resume');
+            await this.syncSessionByTaskId(session.taskId, { waitForCompletion: false });
           } else {
             await this.syncSession(session.id, {
               userId: session.userId,
@@ -3624,6 +3820,9 @@ export const videoRemakeService = {
         }
       }
       return this.run(sessionId);
+    }
+    if (canAttemptFinalVideoSync(session)) {
+      return await syncSessionVideoGenerationState(session, false);
     }
     return persistSession(session);
   },

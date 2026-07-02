@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -14,12 +14,16 @@ const [
   { migrateDatabase },
   { createUser },
   { listBillableUsageRecords },
+  { contentRepository },
+  { persistSegmentedVideoGenerationState },
   { defaultVideoRemakeNodeAdapters, videoRemakeVideoModelRuntime },
-  { callSceneAwareSegmentedSeedanceVideoGeneration },
+  { callSceneAwareSegmentedSeedanceVideoGeneration, resumeSceneAwareSegmentedSeedanceVideoGeneration },
 ] = await Promise.all([
   import('../src/db/schema.js'),
   import('../src/modules/users/user.service.js'),
   import('../src/modules/billing/billing.service.js'),
+  import('../src/modules/content/content.repository.js'),
+  import('../src/modules/content/internals/content-video-generation.js'),
   import('../src/modules/video-remake/video-remake.node-adapters.js'),
   import('../src/modules/video-remake/video-remake.segmented-runtime.js'),
 ]);
@@ -206,10 +210,97 @@ test('video remake scene-aware primers generate multiple spans and route each se
     assert.equal(String(segmentInputs[1]?.referencePrimerSpanId || ''), 'primer_span_1');
     assert.equal(String(segmentInputs[2]?.referencePrimerSpanId || ''), 'primer_span_2');
     assert.equal(String(segmentInputs[3]?.referencePrimerSpanId || ''), 'primer_span_2');
+    assert.match(String(segmentInputs[1]?.prompt || ''), /参考视频只提供缺素材项的形象、氛围和镜头质感参考/u);
+    assert.match(String(segmentInputs[1]?.prompt || ''), /不得参考或复用参考视频的音轨、口型、原始台词/u);
+    assert.match(String(segmentInputs[1]?.prompt || ''), /开头必须清晰朗读本段第一句/u);
+    assert.doesNotMatch(String(segmentInputs[1]?.prompt || ''), /口播音色或节奏参考/u);
     assert.equal((result as { referencePrimerPlan?: { spans?: unknown[] } }).referencePrimerPlan?.spans?.length, 2);
   } finally {
     videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
     videoRemakeVideoModelRuntime.waitForVideoModelCompletion = originalWait;
+    videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration = originalSegmented;
+    if (previousVideoApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoApiKey;
+    }
+    if (previousVideoBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
+  }
+});
+
+test('video remake queued extend skips reference primer generation', async () => {
+  const previousVideoApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const originalCallConfigured = videoRemakeVideoModelRuntime.callConfiguredVideoModel;
+  const originalSegmented = videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration;
+  const configuredCalls: Array<Record<string, unknown>> = [];
+  const segmentedCalls: Array<Record<string, unknown>> = [];
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const user = createUser(`user-reference-primer-queued-${Date.now()}`, 'password123', 'Reference Primer Queued User');
+
+    videoRemakeVideoModelRuntime.callConfiguredVideoModel = async (input) => {
+      configuredCalls.push(input as unknown as Record<string, unknown>);
+      return {
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        jobId: 'unexpected-primer-job',
+        status: 'completed',
+        videoUrl: 'https://cdn.example.com/unexpected-reference-primer.mp4',
+        coverUrl: '',
+        usage: { completionTokens: 1, totalTokens: 1 },
+      };
+    };
+    videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration = async (input) => {
+      segmentedCalls.push(input as unknown as Record<string, unknown>);
+      return {
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        status: 'completed',
+        videoUrl: '/files/content/generated-queued.mp4',
+        jobId: 'queued-segmented-job',
+        renderMode: 'queued_extend_ffmpeg',
+        segments: input.segmentInputs.map((segment) => ({
+          segmentIndex: segment.segmentIndex,
+          seconds: segment.seconds,
+          status: 'completed',
+          videoUrl: `/files/content/queued-segment-${segment.segmentIndex}.mp4`,
+        })),
+      };
+    };
+
+    const workflow = buildWorkflow();
+    workflow.artifacts.finalVideo = { generationMode: 'queued_extend' };
+
+    const result = await defaultVideoRemakeNodeAdapters.mergeVideo({
+      sessionId: 'session-reference-primer-queued',
+      userId: user.id,
+      taskId: 'task-reference-primer-queued',
+      workflow,
+      emit: () => undefined,
+    });
+
+    assert.equal(configuredCalls.length, 0);
+    assert.equal(segmentedCalls.length, 1);
+    assert.equal(String(segmentedCalls[0]?.generationMode || ''), 'queued_extend');
+    const segmentInputs = segmentedCalls[0]?.segmentInputs as Array<Record<string, unknown>>;
+    assert.equal(segmentInputs.some((segment) => String(segment.referencePrimerSpanId || '').trim().length > 0), false);
+    assert.equal((result as { referencePrimerPlan?: unknown }).referencePrimerPlan, undefined);
+  } finally {
+    videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
     videoRemakeVideoModelRuntime.callSceneAwareSegmentedSeedanceVideoGeneration = originalSegmented;
     if (previousVideoApiKey === undefined) {
       delete process.env.VIDEO_MODEL_API_KEY;
@@ -544,6 +635,281 @@ test('video remake scene-aware segmented generation records billable usage for e
     segmentUsageRecords.forEach((record) => {
       assert.equal(Number((record.quantitySnapshot as Record<string, unknown>).totalTokens || 0), 6);
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousVideoApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoApiKey;
+    }
+    if (previousVideoBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
+  }
+});
+
+test('video remake queued extend generation sends previous segment as next reference', async () => {
+  const previousVideoApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const originalFetch = globalThis.fetch;
+  const calls: Array<Record<string, unknown>> = [];
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const user = createUser(`user-queued-extend-${Date.now()}`, 'password123', 'Queued Extend User');
+
+    const runtime = {
+      callConfiguredVideoModel: async (input: Parameters<typeof videoRemakeVideoModelRuntime.callConfiguredVideoModel>[0]) => {
+        calls.push(input as unknown as Record<string, unknown>);
+        const title = String(input.title || '');
+        const segmentIndex = Number(title.match(/片段(\d+)/u)?.[1] || calls.length);
+        return {
+          provider: 'volcengine-seedance',
+          model: 'doubao-seedance-2-0-260128',
+          jobId: `queued-segment-job-${segmentIndex}`,
+          status: 'completed',
+          videoUrl: `https://cdn.example.com/queued-segment-${segmentIndex}.mp4`,
+          coverUrl: '',
+          usage: { completionTokens: 3, totalTokens: 6 },
+        };
+      },
+      waitForVideoModelCompletion: async ({ jobId, initialUsage }: Parameters<typeof videoRemakeVideoModelRuntime.waitForVideoModelCompletion>[0]) => ({
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        jobId,
+        status: 'completed',
+        videoUrl: `https://cdn.example.com/${jobId}.mp4`,
+        coverUrl: '',
+        usage: initialUsage,
+      }),
+    };
+    globalThis.fetch = async () => new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]).buffer, {
+      status: 200,
+      headers: { 'content-type': 'video/mp4' },
+    });
+
+    await assert.rejects(
+      () => callSceneAwareSegmentedSeedanceVideoGeneration({
+        taskId: 'task-queued-extend',
+        userId: user.id,
+        title: '排队延长测试视频',
+        negativePrompts: [],
+        ratio: '9:16',
+        resolution: '720p',
+        totalSeconds: 12,
+        context: {},
+        materialContext: {},
+        providerId: 'volcengine-seedance',
+        modelId: 'doubao-seedance-2-0-260128',
+        seedanceOptions: {
+          generateAudio: true,
+          watermark: false,
+          resolution: '720p',
+        },
+        traceId: 'trace-queued-extend',
+        generationMode: 'queued_extend',
+        segmentInputs: [1, 2].map((index) => ({
+          segmentIndex: index,
+          seconds: 6,
+          prompt: `排队延长第 ${index} 段`,
+          context: {},
+          materialContext: {
+            references: {
+              videos: [
+                {
+                  id: 'original-reference-video',
+                  url: 'https://cdn.example.com/original-reference.mp4',
+                  fileUrl: 'https://cdn.example.com/original-reference.mp4',
+                },
+              ],
+            },
+          },
+        })),
+      }, runtime),
+      /ffmpeg|Invalid data|Error opening input/u,
+    );
+
+    assert.equal(calls.length, 2);
+    assert.match(String(calls[0]?.prompt || ''), /排队生成画质基准/u);
+    assert.match(String(calls[0]?.prompt || ''), /第一段必须建立全片高清画质基准/u);
+    const firstNegativePrompts = calls[0]?.negativePrompts as string[];
+    assert.equal(firstNegativePrompts.includes('画面逐段变糊'), true);
+    assert.match(String(calls[1]?.prompt || ''), /视频延长上下文/u);
+    assert.match(String(calls[1]?.prompt || ''), /上一段分段 1 已生成/u);
+    assert.match(String(calls[1]?.prompt || ''), /排队生成画质基准/u);
+    assert.match(String(calls[1]?.prompt || ''), /不作为画质上限/u);
+    assert.match(String(calls[1]?.prompt || ''), /人物面部必须清晰稳定/u);
+    const secondNegativePrompts = calls[1]?.negativePrompts as string[];
+    assert.equal(secondNegativePrompts.includes('人物面部斑驳色块'), true);
+    assert.equal(secondNegativePrompts.includes('画面逐段变糊'), true);
+    assert.equal(secondNegativePrompts.includes('继承上一段模糊画质'), true);
+    const secondContext = calls[1]?.context as Record<string, unknown>;
+    const secondMaterialContext = secondContext.materialContext as Record<string, unknown>;
+    const references = secondMaterialContext.references as Record<string, unknown>;
+    const videos = references.videos as Array<Record<string, unknown>>;
+    assert.equal(videos.length, 1);
+    assert.equal(String(videos[0]?.url || ''), 'https://cdn.example.com/queued-segment-job-1.mp4');
+    assert.notEqual(String(videos[0]?.url || ''), 'https://cdn.example.com/original-reference.mp4');
+    assert.equal(String((secondContext.videoGenerationFlow as Record<string, unknown>).source), 'video_remake_queued_extend_segment_generation');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousVideoApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoApiKey;
+    }
+    if (previousVideoBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
+  }
+});
+
+test('video remake queued extend resume keeps previous segment reference mode', async () => {
+  const previousVideoApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const originalFetch = globalThis.fetch;
+  const calls: Array<Record<string, unknown>> = [];
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const user = createUser(`user-queued-resume-${Date.now()}`, 'password123', 'Queued Resume User');
+    const task = contentRepository.createParsedVideoTask({
+      userId: user.id,
+      sourceUrl: 'https://example.com/source.mp4',
+      title: '排队延长恢复测试视频',
+      parseResult: {},
+    });
+    assert.ok(task);
+    const segmentPath = path.join(dataDir, 'queued-resume-segment-1.mp4');
+    mkdirSync(path.dirname(segmentPath), { recursive: true });
+    writeFileSync(segmentPath, new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+      const state = {
+      status: 'running' as const,
+        request: {
+        taskId: task.id,
+        userId: user.id,
+        title: '排队延长恢复测试视频',
+        prompt: '',
+        negativePrompts: [],
+        ratio: '9:16',
+        resolution: '720p',
+        totalSeconds: 12,
+        maxSegmentSeconds: 6,
+        context: {
+          videoRemakeSegmentInputs: [1, 2].map((index) => ({
+            segmentIndex: index,
+            seconds: 6,
+            prompt: `恢复排队第 ${index} 段`,
+            context: {},
+            materialContext: {},
+          })),
+        },
+        materialContext: {
+          references: {
+            videos: [
+              {
+                id: 'resume-original-reference-video',
+                url: 'https://cdn.example.com/resume-original-reference.mp4',
+                fileUrl: 'https://cdn.example.com/resume-original-reference.mp4',
+              },
+            ],
+          },
+        },
+        providerId: 'volcengine-seedance',
+        modelId: 'doubao-seedance-2-0-260128',
+        seedanceOptions: {
+          generateAudio: true,
+          watermark: false,
+          resolution: '720p',
+        },
+        generationMode: 'queued_extend',
+        traceId: 'trace-queued-resume',
+      },
+      segments: [6, 6],
+      currentSegmentIndex: 1,
+      segmentResults: [
+        {
+          segmentIndex: 1,
+          seconds: 6,
+          provider: 'volcengine-seedance',
+          model: 'doubao-seedance-2-0-260128',
+          jobId: 'queued-resume-segment-job-1',
+          remoteVideoUrl: 'https://cdn.example.com/queued-resume-segment-job-1.mp4',
+          videoUrl: '/files/content/queued-resume-segment-1.mp4',
+          status: 'completed',
+          segmentPath,
+        },
+      ],
+      segmentPaths: [segmentPath],
+      updatedAt: new Date().toISOString(),
+    };
+    persistSegmentedVideoGenerationState(task.id, state);
+
+    const runtime = {
+      callConfiguredVideoModel: async (input: Parameters<typeof videoRemakeVideoModelRuntime.callConfiguredVideoModel>[0]) => {
+        calls.push(input as unknown as Record<string, unknown>);
+        return {
+          provider: 'volcengine-seedance',
+          model: 'doubao-seedance-2-0-260128',
+          jobId: 'queued-resume-segment-job-2',
+          status: 'completed',
+          videoUrl: 'https://cdn.example.com/queued-resume-segment-2.mp4',
+          coverUrl: '',
+          usage: { completionTokens: 3, totalTokens: 6 },
+        };
+      },
+      waitForVideoModelCompletion: async ({ jobId, initialUsage }: Parameters<typeof videoRemakeVideoModelRuntime.waitForVideoModelCompletion>[0]) => ({
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        jobId,
+        status: 'completed',
+        videoUrl: `https://cdn.example.com/${jobId}.mp4`,
+        coverUrl: '',
+        usage: initialUsage,
+      }),
+    };
+    globalThis.fetch = async () => new Response(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]).buffer, {
+      status: 200,
+      headers: { 'content-type': 'video/mp4' },
+    });
+
+    await assert.rejects(
+      () => resumeSceneAwareSegmentedSeedanceVideoGeneration(contentRepository.findVideoTask(task.id), state, runtime),
+      /ffmpeg|Invalid data|Error opening input/u,
+    );
+
+    assert.equal(calls.length, 1);
+    assert.match(String(calls[0]?.prompt || ''), /视频延长上下文/u);
+    assert.match(String(calls[0]?.prompt || ''), /排队生成画质基准/u);
+    assert.match(String(calls[0]?.prompt || ''), /不得继承上一段的模糊/u);
+    const secondContext = calls[0]?.context as Record<string, unknown>;
+    const secondMaterialContext = secondContext.materialContext as Record<string, unknown>;
+    const references = secondMaterialContext.references as Record<string, unknown>;
+    const videos = references.videos as Array<Record<string, unknown>>;
+    assert.equal(videos.length, 1);
+    assert.equal(String(videos[0]?.url || ''), 'https://cdn.example.com/queued-resume-segment-job-1.mp4');
+    assert.notEqual(String(videos[0]?.url || ''), 'https://cdn.example.com/resume-original-reference.mp4');
+    assert.equal(String((secondContext.videoGenerationFlow as Record<string, unknown>).source), 'video_remake_queued_extend_segment_generation');
   } finally {
     globalThis.fetch = originalFetch;
     if (previousVideoApiKey === undefined) {

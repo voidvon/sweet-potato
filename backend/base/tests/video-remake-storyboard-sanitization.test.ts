@@ -320,6 +320,29 @@ test('storyboard card normalization splits text-heavy short shots by narration l
   assert.match(String(normalized[normalized.length - 1]?.narration || ''), /没有任何一个人配得上你的美好/u);
 });
 
+test('storyboard card normalization merges over-fragmented same-scene short narration shots', async () => {
+  const { normalizeStoryboardForCardForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const normalized = normalizeStoryboardForCardForTest([
+    { shotId: 'shot_1', startTime: 0, endTime: 1.3, duration: 1.3, visualDescription: '户外开阔绿植环绕空间，自然明亮光线，中景固定构图', actionDescription: '人物1面向镜头，侧头带疑惑表情', narration: '口播：你再说一遍' },
+    { shotId: 'shot_2', startTime: 1.3, endTime: 3.6, duration: 2.3, visualDescription: '同场景中景', actionDescription: '人物1面向镜头，表情转为认真，抬手轻示意', narration: '口播：在所有的养生方法里' },
+    { shotId: 'shot_3', startTime: 3.6, endTime: 5.1, duration: 1.5, visualDescription: '同场景中景', actionDescription: '人物1点头强调', narration: '口播：最好的是少吃' },
+    { shotId: 'shot_4', startTime: 5.1, endTime: 7.4, duration: 2.3, visualDescription: '同场景中景', actionDescription: '人物1面向镜头，语速平稳', narration: '口播：在所有的补阳方法里' },
+    { shotId: 'shot_5', startTime: 7.4, endTime: 9.2, duration: 1.8, visualDescription: '同场景中景', actionDescription: '人物1抬手比太阳手势', narration: '口播：最好的是晒太阳' },
+    { shotId: 'shot_6', startTime: 9.2, endTime: 11.5, duration: 2.3, visualDescription: '同场景中景', actionDescription: '人物1收回手势，站姿放松', narration: '口播：在所有的补气方法里' },
+    { shotId: 'shot_7', startTime: 11.5, endTime: 13, duration: 1.5, visualDescription: '同场景中景', actionDescription: '人物1比睡觉的手势', narration: '口播：最好的是睡觉' },
+    { shotId: 'shot_8', startTime: 13, endTime: 15.3, duration: 2.3, visualDescription: '同场景中景', actionDescription: '人物1收回手势，面向镜头', narration: '口播：在所有的祛湿方法里' },
+    { shotId: 'shot_9', startTime: 15.3, endTime: 16.8, duration: 1.5, visualDescription: '同场景中景', actionDescription: '人物1轻微点头强调', narration: '口播：最好的是泡脚' },
+  ], 16.8);
+
+  assert.ok(normalized.length < 9);
+  assert.ok(normalized.every((shot) => Number(shot.duration || 0) >= 4 || normalized.length === 1));
+  assert.ok(normalized.every((shot) => Number(shot.duration || 0) <= 10.1));
+  const narrationText = normalized.map((shot) => String(shot.narration || '')).join('\n');
+  assert.match(narrationText, /你再说一遍[\s\S]*在所有的养生方法里[\s\S]*最好的是少吃/u);
+  assert.match(narrationText, /在所有的补阳方法里[\s\S]*最好的是晒太阳/u);
+  assert.match(narrationText, /在所有的补气方法里[\s\S]*最好的是睡觉/u);
+});
+
 test('fallback storyboard and seedance prompts preserve dialogue speaker labels without time text', async () => {
   const previousDisableLlm = process.env.VIDEO_REMAKE_STORYBOARD_DISABLE_LLM;
   try {
@@ -473,6 +496,10 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
   assert.match(mainPrompt, /人物基准状态：人物1坐于棕色休闲椅上，手持麦克风/u);
+  assert.doesNotMatch(mainPrompt, /口播与参考音视频边界/u);
+  assert.doesNotMatch(mainPrompt, /口播优先级：本段只允许朗读/u);
+  assert.doesNotMatch(mainPrompt, /参考视频的音轨、口型、原始台词/u);
+  assert.doesNotMatch(mainPrompt, /开头必须直接、清晰朗读本段第一句/u);
   assert.match(mainPrompt, /动作变化：开头：轻抬右手做开场手势/u);
   assert.match(mainPrompt, /最后：手掌向下压做示意动作/u);
   assert.match(mainPrompt, /拍摄建议变化：开头：人物表情温和自然；最后：语速稍放缓/u);
@@ -480,6 +507,19 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
   assert.doesNotMatch(mainPrompt, /必须保留各自对应关系/u);
   assert.doesNotMatch(mainPrompt, /不要理解为多个人物/u);
   assert.doesNotMatch(mainPrompt, /人物\/动作：[\s\S]*开场手势\n人物1坐/u);
+
+  workflow.artifacts.seedancePrompts = prompts;
+  const videoSegments = await defaultVideoRemakeNodeAdapters.generateVideoSegments({
+    sessionId: 'seedance-sequential-actions',
+    userId: 'seedance-sequential-user',
+    workflow,
+    emit: () => undefined,
+  });
+  const finalPrompt = String(videoSegments[0]?.seedancePrompt || '');
+  assert.match(finalPrompt, /口播与参考音视频边界/u);
+  assert.match(finalPrompt, /口播优先级：本段只允许朗读/u);
+  assert.match(finalPrompt, /参考视频的音轨、口型、原始台词/u);
+  assert.match(finalPrompt, /开头必须直接、清晰朗读本段第一句/u);
 });
 
 test('seedance prompt limits repetitive merged action and suggestion steps', async () => {
@@ -641,7 +681,9 @@ test('storyboard prompt contract preserves dialogue order without requiring time
   assert.match(videoRemakeStoryboardSystemPrompt, /长口播不能全部塞进第一个镜头/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /不得超过 15 秒/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /没有台词\/旁白的尾镜头/u);
-  assert.match(videoRemakeStoryboardSystemPrompt, /短句、单句回应、单个观点句只能给 1-4 秒/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /不要一句话切一个分镜/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /连续排比句、问答短句或同一观点展开/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /连续短句优先合并成 4-10 秒镜头/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /不能让一句短台词占 10 秒以上/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /铺垫句和结论句拆开/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /分镜字段要浓缩/u);

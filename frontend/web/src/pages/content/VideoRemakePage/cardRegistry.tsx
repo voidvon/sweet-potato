@@ -84,6 +84,12 @@ function cleanReferencePromptText(value: unknown) {
     .trim();
 }
 
+function isProgressExecutionCompleted(item: Record<string, unknown>) {
+  const status = fieldText(item.status || item.state || item.executionStatus).toLowerCase();
+  return item.completed === true
+    || ['completed', 'success', 'succeeded', 'done', 'finished', '已完成'].includes(status);
+}
+
 function characterDisplayPromptText(item: Record<string, unknown>) {
   const prompt = cleanReferencePromptText(item.characterPrompt);
   const detailLines = [
@@ -183,6 +189,23 @@ function removeDuplicatedPipPromptSection(text: string) {
     .replace(/\n{2,}#\s*画中画\s*\n[\s\S]*?(?=\n{2,}#\s|$)/gu, '')
     .replace(/\n{3,}/gu, '\n\n')
     .trim();
+}
+
+function removeRuntimeSeedancePromptSections(text: string) {
+  return [
+    '素材参考',
+    '口播与参考音视频边界',
+    '音频收尾约束',
+    '负面约束',
+    '排队生成画质基准',
+    '视频延长上下文',
+  ].reduce((current, title) => (
+    current.replace(new RegExp(`\\n{2,}#\\s*${title}\\s*\\n[\\s\\S]*?(?=\\n{2,}#\\s|$)`, 'gu'), '')
+  ), text).replace(/\n{3,}/gu, '\n\n').trim();
+}
+
+function editableSeedancePromptText(text: string) {
+  return removeRuntimeSeedancePromptSections(removeDuplicatedPipPromptSection(text));
 }
 
 function sanitizePipPreviewText(text: string) {
@@ -1819,7 +1842,7 @@ function ScriptCard(props: CardRendererProps) {
 function StoryboardCard(props: CardRendererProps) {
   return (
     <EditableCard {...props}>
-      {({ draft }) => {
+      {({ draft, setDraft }) => {
         const data = asRecord(draft);
         const isRegenerating = fieldText(data.status) === 'regenerating';
         const displayDraft = draft;
@@ -2018,10 +2041,10 @@ function PromptPreview({ title, text }: { title: string; text: string }) {
 
 function promptTextValue(value: unknown): string {
   if (typeof value === 'string') {
-    return removeDuplicatedPipPromptSection(value.trim());
+    return editableSeedancePromptText(value.trim());
   }
   if (Array.isArray(value)) {
-    return removeDuplicatedPipPromptSection(value.map(promptTextValue).filter(Boolean).join('\n\n'));
+    return editableSeedancePromptText(value.map(promptTextValue).filter(Boolean).join('\n\n'));
   }
   const record = asRecord(value);
   if (!Object.keys(record).length) {
@@ -2031,14 +2054,14 @@ function promptTextValue(value: unknown): string {
   for (const key of directKeys) {
     const text = promptTextValue(record[key]);
     if (text) {
-      return removeDuplicatedPipPromptSection(text);
+      return editableSeedancePromptText(text);
     }
   }
   const nestedKeys = ['prompt', 'data', 'value'];
   for (const key of nestedKeys) {
     const text = promptTextValue(record[key]);
     if (text) {
-      return removeDuplicatedPipPromptSection(text);
+      return editableSeedancePromptText(text);
     }
   }
   return '';
@@ -2064,31 +2087,34 @@ function GenerationProgressCard(props: CardRendererProps) {
     : [];
   const fallbackExpertLabels = retriedExpertName ? [retriedExpertName] : ['音频理解专家', '视频理解专家', '画中画理解专家'];
   const totalExperts = rawTotalExperts || executionItems.length || fallbackExpertLabels.length;
-  const completedFromExecutions = executionItems.filter((item) => item.completed === true).length;
-  const completedExperts = isCompleted
-    ? totalExperts
-    : Math.min(totalExperts, Math.max(rawCompletedExperts, completedFromExecutions));
+  const completedFromExecutions = executionItems.filter(isProgressExecutionCompleted).length;
+  const derivedCompletedExperts = Math.min(totalExperts, Math.max(rawCompletedExperts, completedFromExecutions));
+  const allExpertsCompleted = !isFailed && totalExperts > 0 && derivedCompletedExperts >= totalExperts;
+  const displayCompleted = isCompleted || allExpertsCompleted;
+  const completedExperts = displayCompleted ? totalExperts : derivedCompletedExperts;
   const expertItems = executionItems.length
     ? executionItems.map((item, index) => ({
       label: fieldText(item.roleName) || fallbackExpertLabels[index] || `专家 ${index + 1}`,
-      completed: isCompleted || item.completed === true || index < completedExperts,
+      completed: displayCompleted || isProgressExecutionCompleted(item) || index < completedExperts,
     }))
     : fallbackExpertLabels.slice(0, totalExperts || 3).map((label, index) => ({
       label,
-      completed: index < completedExperts,
+      completed: displayCompleted || index < completedExperts,
     }));
-  const percent = totalExperts > 0
+  const percent = displayCompleted
+    ? 100
+    : totalExperts > 0
     ? Math.max(0, Math.min(100, Math.round((completedExperts / totalExperts) * 100)))
     : Number(data.percent || 0);
-  const allowManualSync = !isCompleted && !isFailed && typeof props.onSyncProgress === 'function';
+  const allowManualSync = !displayCompleted && !isFailed && typeof props.onSyncProgress === 'function';
   const visibleExpertItems = expertItems.slice(0, totalExperts || expertItems.length || 3);
   return (
     <ReadonlyCard>
-      <div className={`remake-status-bubble remake-progress-bubble ${isCompleted ? 'is-completed' : isFailed ? 'is-failed' : 'is-running'}`}>
+      <div className={`remake-status-bubble remake-progress-bubble ${displayCompleted ? 'is-completed' : isFailed ? 'is-failed' : 'is-running'}`}>
         {!isVideoGeneration && totalExperts > 0 ? (
           <div className="remake-expert-progress-list">
             {visibleExpertItems.map((item) => {
-              const itemRunning = !item.completed && !isCompleted && !isFailed;
+              const itemRunning = !item.completed && !displayCompleted && !isFailed;
               const itemFailed = !item.completed && isFailed;
               const stateClass = item.completed ? 'is-done' : itemFailed ? 'is-failed' : itemRunning ? 'is-running' : 'is-muted';
               const stateText = item.completed ? '已完成' : itemRunning ? '解析中' : itemFailed ? '未完成' : '等待中';
@@ -2104,10 +2130,10 @@ function GenerationProgressCard(props: CardRendererProps) {
         ) : null}
         {!isVideoGeneration && !isFailed && totalExperts > 0 ? (
           <div className="remake-progress-detail">
-            <div className="remake-progress-track"><i className={!isCompleted ? 'is-running' : undefined} style={{ width: `${percent}%` }} /></div>
+            <div className="remake-progress-track"><i className={!displayCompleted ? 'is-running' : undefined} style={{ width: `${percent}%` }} /></div>
             <div className="remake-progress-meta">
               <small>
-                {isCompleted ? `全部完成 ${totalExperts}/${totalExperts}` : `已完成 ${completedExperts}/${totalExperts}`}
+                {displayCompleted ? `全部完成 ${totalExperts}/${totalExperts}` : `已完成 ${completedExperts}/${totalExperts}`}
               </small>
               {allowManualSync ? (
                 <Tooltip title="手动同步">
@@ -2200,10 +2226,11 @@ function FinalVideoCard(props: CardRendererProps) {
   };
   return (
     <EditableCard {...props}>
-      {({ draft }) => {
+      {({ draft, setDraft }) => {
         const data = asRecord(draft);
         const video = fieldText(data.videoUrl);
         const status = fieldText(data.status);
+        const generationMode = fieldText(data.generationMode) === 'queued_extend' ? 'queued_extend' : 'parallel';
         const regenerationMode = fieldText(data.regenerationMode);
         const isSegmentRegenerationCard = regenerationMode === 'segment';
         const regeneratedSegmentIndex = Number(data.regeneratedSegmentIndex || 0);
@@ -2229,6 +2256,7 @@ function FinalVideoCard(props: CardRendererProps) {
             : historySegments.length
               ? historySegments
               : seedancePrompts;
+        const hasCompletedFinalVideo = Boolean(video) || status === 'completed';
         const rawSegmentRows = displaySegments.map((segment, index) => {
           const seedancePromptSegment = seedancePrompts[index] || {};
           const generatedSegment = generatedSegments[index] || {};
@@ -2278,6 +2306,9 @@ function FinalVideoCard(props: CardRendererProps) {
           if (value === 'skipped') {
             return { label: '已跳过', tone: 'muted' };
           }
+          if (value === 'waiting' || (generationMode === 'queued_extend' && index > 1 && (!value || value === 'pending'))) {
+            return { label: '等待中', tone: 'muted' };
+          }
           if (hasCompletedFinalVideo) {
             return { label: '已完成', tone: 'done' };
           }
@@ -2292,6 +2323,10 @@ function FinalVideoCard(props: CardRendererProps) {
           }
           const label = segmentStatus(segment, fallbackIndex);
           const value = fieldText(segment.status);
+          const index = Number(segment.segmentIndex || segment.index || fallbackIndex || 0);
+          if (generationMode === 'queued_extend' && index > 1 && (!value || value === 'pending' || value === 'waiting')) {
+            return false;
+          }
           return /生成中/u.test(label)
             || ['pending', 'generating', 'regenerating', 'running', 'submitted', 'processing'].includes(value);
         };
@@ -2305,7 +2340,6 @@ function FinalVideoCard(props: CardRendererProps) {
           return seconds ? `${seconds}s` : '';
         };
         const segmentVideo = (segment: Record<string, unknown>) => fieldText(segment.videoUrl || segment.fileUrl || segment.url);
-        const hasCompletedFinalVideo = Boolean(video) || status === 'completed';
         const completedSegmentCount = segmentRows.filter((segment, index) => segmentStatusMeta(segment, index + 1).tone === 'done').length;
         const failedSegmentCount = segmentRows.filter((segment, index) => segmentStatusMeta(segment, index + 1).tone === 'failed').length;
         const runningSegmentCount = segmentRows.filter((segment, index) => isSegmentGenerating(segment, index + 1)).length;
@@ -2441,6 +2475,9 @@ function FinalVideoCard(props: CardRendererProps) {
                 ) : null}
                 {fieldText(data.errorMessage) ? <p className="remake-video-generation-error">错误原因：{fieldText(data.errorMessage)}</p> : null}
                 {pendingHint ? <p className="remake-video-generation-hint">{pendingHint}</p> : null}
+                <p className="remake-video-generation-hint">
+                  {generationMode === 'queued_extend' ? '生成方式：排队生成（视频延长）' : '生成方式：批量分段生成'}
+                </p>
                 <div className="remake-video-generation-status-line">
                   <p aria-live="polite">
                     {props.card.status === 'failed' || status === 'failed' ? null : <span className="remake-generating-indicator" aria-hidden="true"><span /><span /><span /></span>}
@@ -2473,6 +2510,37 @@ function FinalVideoCard(props: CardRendererProps) {
                 {canInspectSegments && segmentRows.length ? <Button onClick={() => setSegmentsOpen(true)}>查看分段</Button> : null}
               </div>
               <p>{fieldText(data.message) || '确认后将使用你确认的卡片内容组织生成提示词产出视频。'}</p>
+              {hasCompletedFinalVideo ? (
+                <p className="remake-video-generation-hint">
+                  {generationMode === 'queued_extend' ? '生成方式：排队生成（视频延长）' : '生成方式：批量分段生成'}
+                </p>
+              ) : null}
+              {!hasCompletedFinalVideo && !isSegmentRegenerationCard ? (
+                <div className="remake-final-generation-mode">
+                  <strong>生成方式</strong>
+                  <Radio.Group
+                    disabled={props.disabled}
+                    onChange={(event) => {
+                      const value = event.target.value === 'queued_extend' ? 'queued_extend' : 'parallel';
+                      setDraft({
+                        ...data,
+                        generationMode: value,
+                      });
+                    }}
+                    optionType="button"
+                    options={[
+                      { label: '批量分段生成', value: 'parallel' },
+                      { label: '排队生成（视频延长）', value: 'queued_extend' },
+                    ]}
+                    value={generationMode}
+                  />
+                  <span>
+                    {generationMode === 'queued_extend'
+                      ? '分段按顺序生成，后一段会以上一段成片作为前一段参考，连续性更强但耗时更长。'
+                      : '所有分段并行提交，生成速度更快。'}
+                  </span>
+                </div>
+              ) : null}
               {video ? <video controls src={mediaUrl(video)} /> : null}
             </div>
             {renderSegmentsModal()}

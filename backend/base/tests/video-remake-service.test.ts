@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -241,6 +241,55 @@ test('retrying an expert emits a director normalize card before returning to edi
     assert.match(JSON.stringify(directorCards[0]?.data || {}), /expert_retry/);
     assert.equal(latestCard(session, 'basic_info')?.status, 'editing');
     assert.equal(session.workflow.pendingInterrupt?.cardType, 'basic_info');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('video remake upload failure marks uploading card failed', async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'video-remake-upload-failure-'));
+  const dataDir = path.join(tempRoot, 'data');
+  mkdirSync(dataDir, { recursive: true });
+  const filePath = path.join(dataDir, 'upload-failure.mp4');
+
+  try {
+    process.env.DATA_DIR = dataDir;
+    writeFileSync(filePath, new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+
+    const [{ migrateDatabase }, { videoRemakeService }, { defaultVideoRemakeNodeAdapters }] = await Promise.all([
+      import('../src/db/schema.js'),
+      import('../src/modules/video-remake/video-remake.service.js'),
+      import('../src/modules/video-remake/video-remake.node-adapters.js'),
+    ]);
+    migrateDatabase();
+
+    const created = videoRemakeService.createSession({ userId: 'user-video-remake-upload-failure' });
+    let session = await videoRemakeService.upload(created.id, {
+      userId: 'user-video-remake-upload-failure',
+      originalFileName: 'upload-failure.mp4',
+      storedFileName: 'upload-failure.mp4',
+      mimeType: 'video/mp4',
+      fileSize: 8,
+      filePath,
+      fileUrl: '/files/content/upload-failure.mp4',
+    });
+    assert.equal(latestCard(session, 'uploading')?.status, 'pending');
+
+    const originalUploadToVod = defaultVideoRemakeNodeAdapters.uploadToVod;
+    defaultVideoRemakeNodeAdapters.uploadToVod = async () => {
+      throw new Error('VOD 上传失败：Python AI Worker 未启动或不可访问（fetch failed）');
+    };
+    try {
+      session = await videoRemakeService.run(session.id);
+    } finally {
+      defaultVideoRemakeNodeAdapters.uploadToVod = originalUploadToVod;
+    }
+
+    const uploadCard = latestCard(session, 'uploading');
+    assert.equal(session.status, 'failed');
+    assert.equal(uploadCard?.status, 'failed');
+    assert.match(JSON.stringify(uploadCard?.data || {}), /Python AI Worker 未启动或不可访问/);
+    assert.equal((uploadCard?.data as Record<string, unknown> | undefined)?.status, 'failed');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

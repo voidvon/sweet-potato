@@ -175,8 +175,55 @@ function isCompletedFinalVideoCard(card: VideoRemakeCardMessage) {
   return Boolean(fieldText(data.videoUrl) || fieldText(data.status) === 'completed');
 }
 
+function isFinalVideoCardStuckAfterSegmentsCompleted(card: VideoRemakeCardMessage) {
+  if (card.cardType !== 'final_video' || isCompletedFinalVideoCard(card)) {
+    return false;
+  }
+  const data = asRecord(card.data);
+  const status = fieldText(data.status);
+  if (card.status !== 'pending' && status !== 'generating') {
+    return false;
+  }
+  const segments = asItems(data.generatedSegments).length
+    ? asItems(data.generatedSegments)
+    : asItems(data.segments);
+  return segments.length > 0 && segments.every((segment) => fieldText(segment.status) === 'completed');
+}
+
 function cardVisualStatus(card: VideoRemakeCardMessage) {
   return card.status === 'expired' && isCompletedFinalVideoCard(card) ? 'confirmed' : card.status;
+}
+
+function isProgressExecutionCompleted(item: Record<string, unknown>) {
+  const status = fieldText(item.status || item.state || item.executionStatus).toLowerCase();
+  return item.completed === true
+    || ['completed', 'success', 'succeeded', 'done', 'finished', '已完成'].includes(status);
+}
+
+function isGenerationProgressCompleted(card: VideoRemakeCardMessage) {
+  if (card.cardType !== 'generation_progress') {
+    return false;
+  }
+  const data = asRecord(card.data);
+  const status = fieldText(data.status);
+  if (card.status === 'confirmed' || status === 'completed') {
+    return true;
+  }
+  if (card.status === 'failed' || status === 'failed') {
+    return false;
+  }
+  const executions = Array.isArray(data.executions)
+    ? data.executions.map(asRecord).filter((item) => Object.keys(item).length > 0)
+    : [];
+  const totalExperts = Number(data.totalExperts || executions.length || 0);
+  if (totalExperts <= 0) {
+    return false;
+  }
+  const completedExperts = Math.min(
+    totalExperts,
+    Math.max(Number(data.completedExperts || 0), executions.filter(isProgressExecutionCompleted).length),
+  );
+  return completedExperts >= totalExperts;
 }
 
 function cardDisplayTitle(card: VideoRemakeCardMessage) {
@@ -199,7 +246,7 @@ function cardDisplayTitle(card: VideoRemakeCardMessage) {
     if (fieldText(data.kind) === 'video_generation') {
       return status === 'completed' ? '视频生成完成' : '视频生成中';
     }
-    if (status === 'completed') {
+    if (status === 'completed' || isGenerationProgressCompleted(card)) {
       return '视频解析完成';
     }
     if (status === 'failed') {
@@ -254,7 +301,7 @@ function cardStatusDisplay(card: VideoRemakeCardMessage, active?: boolean) {
     if (fieldText(data.kind) === 'video_generation') {
       return status === 'completed' ? '已完成' : '生成中';
     }
-    return status === 'completed' ? '已完成' : '解析中';
+    return status === 'completed' || isGenerationProgressCompleted(card) ? '已完成' : '解析中';
   }
   if (card.cardType === 'director_normalize') {
     if (card.status === 'failed' || status === 'failed') {
@@ -709,6 +756,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   const assetsLoadedRef = useRef(false);
   const loadDataRequestRef = useRef(0);
   const loadSessionDetailRequestRef = useRef(0);
+  const deletingSessionIdsRef = useRef(new Set<string>());
   const sessionOverlayLoadingRequestRef = useRef(0);
   const sessionOverlayLoadingShowTimerRef = useRef<number | null>(null);
   const sessionOverlayLoadingHideTimerRef = useRef<number | null>(null);
@@ -717,6 +765,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   const initialLoadUserIdRef = useRef<string | null>(null);
   const urlSessionIdRef = useRef(urlSessionId);
   const uploadLimitWarningAtRef = useRef(0);
+  const autoSyncFinalVideoSessionIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     activeSessionRef.current = activeSession;
@@ -827,6 +876,9 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   }, [clearSessionOverlayLoadingHideTimer, clearSessionOverlayLoadingShowTimer, setSessionOverlayLoadingVisible]);
 
   const loadSessionDetail = useCallback(async (sessionId: string, options?: { silent?: boolean; syncUrl?: boolean; showOverlay?: boolean }) => {
+    if (deletingSessionIdsRef.current.has(sessionId)) {
+      return null;
+    }
     const requestId = loadSessionDetailRequestRef.current + 1;
     loadSessionDetailRequestRef.current = requestId;
     try {
@@ -849,7 +901,9 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
       if (urlSessionIdRef.current === sessionId) {
         setIsResolvingUrlSession(false);
       }
-      message.error(error instanceof Error ? error.message : '会话详情加载失败');
+      if (!deletingSessionIdsRef.current.has(sessionId)) {
+        message.error(error instanceof Error ? error.message : '会话详情加载失败');
+      }
       return null;
     } finally {
       if (options?.showOverlay) {
@@ -861,10 +915,10 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     }
   }, [selectActiveSession, startSessionOverlayLoading, stopSessionOverlayLoading]);
 
-  const replaceSession = (session: VideoRemakeSession) => {
+  const replaceSession = useCallback((session: VideoRemakeSession) => {
     selectActiveSession(session);
     setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
-  };
+  }, [selectActiveSession]);
   const updateActiveSession = (updater: (current: VideoRemakeSession | null) => VideoRemakeSession | null) => {
     setActiveSession((current) => {
       const next = updater(current);
@@ -1045,11 +1099,31 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
 
   useEffect(() => {
     const source = new EventSource(withAuthToken(`${API_BASE_URL}/api/video-remake/events`));
-    const handleWorkflow = () => {
+    const handleWorkflow = (event: MessageEvent<string>) => {
+      const payload = (() => {
+        try {
+          return JSON.parse(event.data || '{}') as { type?: string; sessionId?: string };
+        } catch {
+          return {};
+        }
+      })();
+      const eventSessionId = fieldText(payload.sessionId);
+      const activeSessionId = activeSessionRef.current?.id || '';
+      if (eventSessionId && activeSessionId && eventSessionId !== activeSessionId) {
+        void loadData({ silent: true, force: true });
+        return;
+      }
       void loadData({ silent: true, force: true });
-      const sessionId = activeSessionRef.current?.id;
-      if (sessionId) {
+      const sessionId = eventSessionId || activeSessionId;
+      if (sessionId && !deletingSessionIdsRef.current.has(sessionId)) {
         void loadSessionDetail(sessionId, { silent: true });
+        if (payload.type === 'workflow.done') {
+          window.setTimeout(() => {
+            if (!deletingSessionIdsRef.current.has(sessionId)) {
+              void loadSessionDetail(sessionId, { silent: true });
+            }
+          }, 800);
+        }
       }
     };
     source.addEventListener('workflow', handleWorkflow);
@@ -1058,6 +1132,33 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
       source.close();
     };
   }, [currentUser.id, loadData, loadSessionDetail]);
+
+  useEffect(() => {
+    const session = activeSession;
+    if (!session || deletingSessionIdsRef.current.has(session.id)) {
+      return;
+    }
+    const stuckFinalVideo = session.messages.find((item): item is VideoRemakeCardMessage => (
+      item.type === 'card' && isFinalVideoCardStuckAfterSegmentsCompleted(item)
+    ));
+    if (!stuckFinalVideo || autoSyncFinalVideoSessionIdsRef.current.has(session.id)) {
+      return;
+    }
+    autoSyncFinalVideoSessionIdsRef.current.add(session.id);
+    void (async () => {
+      try {
+        const synced = await syncVideoRemakeSession(session.id);
+        replaceSession(synced);
+        await loadData({ silent: true, force: true });
+      } catch (error) {
+        console.warn('video remake final video auto sync failed', error);
+      } finally {
+        window.setTimeout(() => {
+          autoSyncFinalVideoSessionIdsRef.current.delete(session.id);
+        }, 10_000);
+      }
+    })();
+  }, [activeSession, loadData, replaceSession]);
 
   const activeMessages = useMemo(() => (
     (activeSession?.messages || []).filter((item) => !(
@@ -1211,15 +1312,21 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
       okButtonProps: { danger: true },
       cancelText: '取消',
       async onOk() {
-        await deleteVideoRemakeSession(session.id, { userId: currentUser.id });
-        setSessions((items) => items.filter((item) => item.id !== session.id));
-        if (activeSessionRef.current?.id === session.id) {
-          selectActiveSession(null);
-          setShowStartPanel(true);
-          setHighlightCardId('');
+        deletingSessionIdsRef.current.add(session.id);
+        loadSessionDetailRequestRef.current += 1;
+        try {
+          await deleteVideoRemakeSession(session.id, { userId: currentUser.id });
+          setSessions((items) => items.filter((item) => item.id !== session.id));
+          if (activeSessionRef.current?.id === session.id) {
+            selectActiveSession(null);
+            setShowStartPanel(true);
+            setHighlightCardId('');
+          }
+          await loadData({ silent: true });
+          message.success('会话已删除');
+        } finally {
+          deletingSessionIdsRef.current.delete(session.id);
         }
-        await loadData({ silent: true });
-        message.success('会话已删除');
       },
     });
   };

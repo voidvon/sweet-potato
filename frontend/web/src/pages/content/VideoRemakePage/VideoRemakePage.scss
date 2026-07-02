@@ -1548,6 +1548,26 @@
   margin: 0;
 }
 
+.remake-final-generation-mode {
+  background: #ffffff;
+  border: 1px solid #e6edf5;
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.remake-final-generation-mode > strong {
+  color: var(--remake-text);
+  font-size: 13px;
+}
+
+.remake-final-generation-mode > span {
+  color: var(--remake-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .remake-final-card video {
   aspect-ratio: 16 / 9;
   background: #0f172a;

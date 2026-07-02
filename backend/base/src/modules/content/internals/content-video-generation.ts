@@ -1222,6 +1222,14 @@ function seedanceCopyrightSafeNegativePrompts(retry = false) {
   ].filter(Boolean);
 }
 
+export function seedanceSegmentSpeechReferenceGuard() {
+  return [
+    '口播优先级：本段只允许朗读“音频白名单”或“本段口播”列出的文本；开头必须直接、清晰朗读本段第一句，不得含糊带过。',
+    '参考图片/参考视频/参考音频只用于对应素材特征；参考视频的音轨、口型、原始台词、语气停顿和发声节奏不得作为本段口播来源。',
+    '禁止复读上一段结尾、参考视频台词或参考素材里的任何原声内容；不得把参考视频里的含糊发音、尾音、杂音带入本段。',
+  ].join('\n');
+}
+
 export function buildSegmentedSeedancePrompt(input: {
   basePrompt: string;
   totalSeconds: number;
@@ -1285,6 +1293,7 @@ export function buildSegmentedSeedancePrompt(input: {
     '',
     '音频白名单：',
     audioContract,
+    seedanceSegmentSpeechReferenceGuard(),
     '',
     '边界：',
     previousBoundarySummary ? `上一段已完成，不回放：${previousBoundarySummary}` : '无上一段。',
@@ -1297,6 +1306,7 @@ export function buildSegmentedSeedancePrompt(input: {
     '字幕规则：本段只生成纯画面和音轨，画面内不要出现字幕、口播文字、逐字稿、标题条、文字浮层或任何可读文字。',
     '音频白名单：',
     audioContract,
+    seedanceSegmentSpeechReferenceGuard(),
     '画面要求：保持真实拍摄感，画面内无新增可读文字、标识、来源标记或界面元素；禁止复述完整脚本。',
   ].join('\n');
   return renderPromptTemplate(viralSeedanceSegmentPromptTemplate, {
@@ -1980,6 +1990,7 @@ export type SegmentedVideoGenerationState = {
     };
     confirmedSpeech?: string;
     speechPlan?: SegmentedSpeechSlice[];
+    generationMode?: string;
     traceId: string;
     pendingAssetId?: string;
   };
@@ -1993,7 +2004,7 @@ export type SegmentedVideoGenerationState = {
 
 export function isSegmentedVideoGenerationState(value: unknown): value is SegmentedVideoGenerationState {
   return isRecord(value)
-    && (value.status === 'running' || value.status === 'failed')
+    && (value.status === 'running' || value.status === 'failed' || value.status === 'completed')
     && isRecord(value.request)
     && Array.isArray(value.segments)
     && value.segments.length > 1
@@ -2430,6 +2441,8 @@ export async function waitForVideoModelCompletion(input: {
   }
   const intervalMs = Number(process.env.VIDEO_GENERATION_POLL_INTERVAL_MS || 30000);
   const maxAttempts = Number(process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || 120);
+  const maxTransientErrors = Number(process.env.VIDEO_GENERATION_POLL_MAX_TRANSIENT_ERRORS || 8);
+  let transientErrors = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     logVideoGenerationFlow('info', 'video segment polling status', {
       traceId: input.traceId,
@@ -2438,11 +2451,32 @@ export async function waitForVideoModelCompletion(input: {
       jobId: input.jobId,
       attempt,
     });
-    const result = await queryConfiguredVideoModelTask({
-      providerId: input.providerId,
-      modelId: input.modelId,
-      jobId: input.jobId,
-    });
+    let result: Awaited<ReturnType<typeof queryConfiguredVideoModelTask>>;
+    try {
+      result = await queryConfiguredVideoModelTask({
+        providerId: input.providerId,
+        modelId: input.modelId,
+        jobId: input.jobId,
+      });
+      transientErrors = 0;
+    } catch (error) {
+      transientErrors += 1;
+      logVideoGenerationFlow('warn', 'video segment polling transient error', {
+        traceId: input.traceId,
+        taskId: input.taskId,
+        segmentIndex: input.segmentIndex,
+        jobId: input.jobId,
+        attempt,
+        transientErrors,
+        maxTransientErrors,
+        error: errorLogContext(error),
+      });
+      if (transientErrors > maxTransientErrors) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      continue;
+    }
     if (result.status === 'completed' && result.videoUrl) {
       return result;
     }
