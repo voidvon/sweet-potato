@@ -331,16 +331,35 @@ function seedanceReferenceMentions(prompt: Record<string, unknown>, assets: Cont
   if (Array.isArray(rawReferenceMentions)) {
     return explicit;
   }
-  return assets
-    .filter((asset) => asset.mimeType.startsWith('image/'))
-    .map((asset, index) => ({
+  const images = assets.filter((asset) => asset.mimeType.startsWith('image/'));
+  const videos = assets.filter((asset) => asset.mimeType.startsWith('video/'));
+  const audios = assets.filter((asset) => asset.mimeType.startsWith('audio/'));
+  return [
+    ...images.map((asset, index) => ({
       assetId: asset.id,
       fileUrl: asset.fileUrl,
       label: `图片${index + 1}`,
       mimeType: asset.mimeType,
       name: asset.name || asset.originalFileName || `图片${index + 1}`,
       token: `@图片${index + 1}`,
-    }));
+    })),
+    ...videos.map((asset, index) => ({
+      assetId: asset.id,
+      fileUrl: asset.fileUrl,
+      label: `视频${index + 1}`,
+      mimeType: asset.mimeType,
+      name: asset.name || asset.originalFileName || `视频${index + 1}`,
+      token: `@视频${index + 1}`,
+    })),
+    ...audios.map((asset, index) => ({
+      assetId: asset.id,
+      fileUrl: asset.fileUrl,
+      label: `音频${index + 1}`,
+      mimeType: asset.mimeType,
+      name: asset.name || asset.originalFileName || `音频${index + 1}`,
+      token: `@音频${index + 1}`,
+    })),
+  ];
 }
 
 function renderSeedancePromptWithReferences(text: string, mentions: SeedanceReferenceMention[]) {
@@ -355,6 +374,8 @@ function renderSeedancePromptWithReferences(text: string, mentions: SeedanceRefe
     return (
       <span className="remake-seedance-reference-chip" contentEditable={false} data-seedance-token={part} key={`${index}-${part}`}>
         {mention?.mimeType?.startsWith('image/') && previewUrl ? <img alt={match[1]} src={previewUrl} /> : null}
+        {mention?.mimeType?.startsWith('audio/') ? <span className="remake-seedance-reference-chip-icon">♪</span> : null}
+        {mention?.mimeType?.startsWith('video/') ? <span className="remake-seedance-reference-chip-icon">视</span> : null}
         <b>{match[1]}</b>
       </span>
     );
@@ -364,7 +385,8 @@ function renderSeedancePromptWithReferences(text: string, mentions: SeedanceRefe
 function seedanceMentionOptions(mentions: SeedanceReferenceMention[]): MentionRichTextareaOption[] {
   return mentions.map((mention) => ({
     label: mention.label,
-    previewUrl: mention.fileUrl ? mediaUrl(mention.fileUrl) : '',
+    mimeType: mention.mimeType,
+    previewUrl: mention.mimeType?.startsWith('image/') && mention.fileUrl ? mediaUrl(mention.fileUrl) : '',
     subtitle: mention.name,
     token: mention.token,
   }));
@@ -596,7 +618,10 @@ function EditableCard({
   const handleConfirm = async () => {
     setIsSaving(true);
     try {
-      await onConfirm(draft);
+      const confirmDraft = card.cardType === 'final_video'
+        ? { ...asRecord(draft), generationMode: 'parallel' }
+        : draft;
+      await onConfirm(confirmDraft);
     } finally {
       setIsSaving(false);
     }
@@ -2302,6 +2327,7 @@ function FinalVideoCard(props: CardRendererProps) {
         const versionLabel = fieldText(data.versionLabel || data.version) || (fieldText(data.versionNumber) ? `v${fieldText(data.versionNumber)}` : '');
         const isPendingSegmentRegeneration = isSegmentRegenerationCard
           && (props.card.status === 'pending' || status === 'generating');
+
         const videoHistory = asItems(data.videos);
         const currentVideo = videoHistory.find((item) => {
           const itemVersionNumber = Number(item.versionNumber || 0);
@@ -2579,32 +2605,6 @@ function FinalVideoCard(props: CardRendererProps) {
                 <p className="remake-video-generation-hint">
                   {generationMode === 'queued_extend' ? '生成方式：排队生成（视频延长）' : '生成方式：批量分段生成'}
                 </p>
-              ) : null}
-              {!hasCompletedFinalVideo && !isSegmentRegenerationCard ? (
-                <div className="remake-final-generation-mode">
-                  <strong>生成方式</strong>
-                  <Radio.Group
-                    disabled={props.disabled}
-                    onChange={(event) => {
-                      const value = event.target.value === 'queued_extend' ? 'queued_extend' : 'parallel';
-                      setDraft({
-                        ...data,
-                        generationMode: value,
-                      });
-                    }}
-                    optionType="button"
-                    options={[
-                      { label: '批量分段生成', value: 'parallel' },
-                      { label: '排队生成（视频延长）', value: 'queued_extend' },
-                    ]}
-                    value={generationMode}
-                  />
-                  <span>
-                    {generationMode === 'queued_extend'
-                      ? '分段按顺序生成，后一段会以上一段成片作为前一段参考，连续性更强但耗时更长。'
-                      : '所有分段并行提交，生成速度更快。'}
-                  </span>
-                </div>
               ) : null}
               {video ? <video controls src={mediaUrl(video)} /> : null}
             </div>

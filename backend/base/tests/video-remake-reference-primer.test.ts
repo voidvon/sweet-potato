@@ -1078,7 +1078,8 @@ test('video remake seedance prompt stays storyboard-driven and request matches e
     assert.match(mainPrompt, /场景 1/u);
     assert.match(mainPrompt, /场景 2/u);
     assert.match(mainPrompt, /@图片1/u);
-    assert.match(mainPrompt, /音频参考：人物 1 只能绑定 参考音频1/u);
+    assert.match(mainPrompt, /音频参考：人物 1 只能绑定 参考@音频1/u);
+    assert.match(mainPrompt, /@音频1/u);
     assert.ok(mainPrompt.indexOf('# 素材/音频参考') < mainPrompt.indexOf('# 当前分镜'));
     assert.doesNotMatch(mainPrompt, /沿用已确认声音设定/u);
     assert.doesNotMatch(mainPrompt, /使用原声参考/u);
@@ -1087,8 +1088,9 @@ test('video remake seedance prompt stays storyboard-driven and request matches e
     assert.doesNotMatch(mainPrompt, /# 音频\s*\n/u);
     assert.doesNotMatch(mainPrompt, /# 已确认设定\s*\n/u);
     assert.doesNotMatch(mainPrompt, /# 口播与参考音视频边界\s*\n/u);
-    assert.equal(referenceMentions.length, 1);
+    assert.equal(referenceMentions.length, 2);
     assert.equal(String(referenceMentions[0]?.token || ''), '@图片1');
+    assert.equal(String(referenceMentions[1]?.token || ''), '@音频1');
 
     workflow.artifacts.seedancePrompts = prompts;
     const segments = await defaultVideoRemakeNodeAdapters.generateVideoSegments({

@@ -1,6 +1,7 @@
+import { SoundOutlined } from '@ant-design/icons';
 import { mergeAttributes, type JSONContent } from '@tiptap/core';
 import Mention from '@tiptap/extension-mention';
-import { EditorContent, ReactRenderer, useEditor } from '@tiptap/react';
+import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, useEditor, type NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -8,6 +9,7 @@ import './MentionRichTextarea.scss';
 
 export type MentionRichTextareaOption = {
   label: string;
+  mimeType?: string;
   previewUrl?: string;
   subtitle?: string;
   token: string;
@@ -23,7 +25,7 @@ type MentionRichTextareaProps = {
 };
 
 type MentionSuggestionItem = MentionRichTextareaOption;
-type MentionDomChild = ['img', { alt: string; src: string }] | ['b', Record<string, never>, string];
+type MentionDomChild = ['img', { alt: string; src: string }] | ['span', { class: string }, string] | ['b', Record<string, never>, string];
 
 type MentionListRef = {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean;
@@ -32,7 +34,49 @@ type MentionListRef = {
 type MentionListProps = SuggestionProps<MentionSuggestionItem, MentionSuggestionItem>;
 
 const mentionPattern = /@(?:图片|视频|音频)\d+/gu;
+
+function isAudioMention(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
+  return option.mimeType?.startsWith('audio/') || /音频/u.test(`${option.token} ${option.label}`);
+}
+
+function isVideoMention(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
+  return option.mimeType?.startsWith('video/') || /视频/u.test(`${option.token} ${option.label}`);
+}
+
+function mentionKind(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
+  if (isAudioMention(option)) {
+    return 'audio';
+  }
+  if (isVideoMention(option)) {
+    return 'video';
+  }
+  return 'image';
+}
+
+function mentionFallbackIcon(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
+  if (isAudioMention(option)) {
+    return '♪';
+  }
+  if (isVideoMention(option)) {
+    return '视';
+  }
+  return option.label.slice(0, 1);
+}
+
+function mentionOptionIcon(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
+  if (isAudioMention(option)) {
+    return <SoundOutlined />;
+  }
+  if (isVideoMention(option)) {
+    return '视';
+  }
+  return option.label.slice(0, 1);
+}
+
 const ReferenceMention = Mention.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(MentionChipView);
+  },
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -44,9 +88,41 @@ const ReferenceMention = Mention.extend({
           return previewUrl ? { 'data-preview-url': previewUrl } : {};
         },
       },
+      mimeType: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-mime-type'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const mimeType = typeof attributes.mimeType === 'string' ? attributes.mimeType : '';
+          return mimeType ? { 'data-mime-type': mimeType } : {};
+        },
+      },
     };
   },
 });
+
+function MentionChipView({ node }: NodeViewProps) {
+  const previewUrl = String(node.attrs.previewUrl ?? '');
+  const mimeType = String(node.attrs.mimeType ?? '');
+  const token = String(node.attrs.id ?? '');
+  const label = String(node.attrs.label ?? token).replace(/^@/, '');
+  const mentionInfo = { label, mimeType, token };
+  const fallbackIcon = mentionFallbackIcon(mentionInfo);
+  const shouldShowPreview = Boolean(previewUrl && !isAudioMention(mentionInfo));
+  const kind = mentionKind(mentionInfo);
+  return (
+    <NodeViewWrapper
+      as="span"
+      className="mention-rich-textarea-chip"
+      data-mention-kind={kind}
+      data-mime-type={mimeType || undefined}
+      data-preview-url={previewUrl || undefined}
+      data-token={token}
+    >
+      {shouldShowPreview ? <img alt={label} src={previewUrl} /> : <span className="mention-rich-textarea-chip-icon">{fallbackIcon}</span>}
+      <b>{label}</b>
+    </NodeViewWrapper>
+  );
+}
 
 function textNode(text: string): JSONContent {
   return { type: 'text', text };
@@ -76,6 +152,7 @@ function plainTextToDoc(value: string, options: MentionRichTextareaOption[]): JS
           attrs: {
             id: option.token,
             label: option.label,
+            mimeType: option.mimeType ?? '',
             previewUrl: option.previewUrl ?? '',
           },
         });
@@ -156,6 +233,10 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
 
   return (
     <div className="mention-rich-textarea-menu">
+      <div className="mention-rich-textarea-menu__header">
+        <strong>可引用素材</strong>
+        <span>选择素材会自动插入引用</span>
+      </div>
       {items.map((item, index) => (
         <button
           className={index === selectedIndex ? 'is-selected' : ''}
@@ -166,7 +247,11 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
           }}
           type="button"
         >
-          {item.previewUrl ? <img alt={item.label} src={item.previewUrl} /> : <span>{item.label.slice(0, 1)}</span>}
+          {item.previewUrl && !isAudioMention(item) ? (
+            <img alt={item.label} src={item.previewUrl} />
+          ) : (
+            <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
+          )}
           <span className="mention-rich-textarea-option__body">
             <strong>{item.token}</strong>
             {item.subtitle ? <small>{item.subtitle}</small> : null}
@@ -212,16 +297,29 @@ export function MentionRichTextarea({
         },
         renderHTML({ node, options: mentionOptions }) {
           const previewUrl = String(node.attrs.previewUrl ?? '');
+          const mimeType = String(node.attrs.mimeType ?? '');
           const label = String(node.attrs.label ?? node.attrs.id ?? '').replace(/^@/, '');
-          const children: MentionDomChild[] = previewUrl
+          const mentionInfo = {
+            label,
+            mimeType,
+            token: String(node.attrs.id ?? ''),
+          };
+          const fallbackIcon = mentionFallbackIcon(mentionInfo);
+          const shouldShowPreview = Boolean(previewUrl && !isAudioMention(mentionInfo));
+          const kind = mentionKind(mentionInfo);
+          const children: MentionDomChild[] = shouldShowPreview
             ? [
                 ['img', { alt: label, src: previewUrl }],
                 ['b', {}, label],
               ]
-            : [['b', {}, label]];
+            : [
+                ['span', { class: 'mention-rich-textarea-chip-icon' }, fallbackIcon],
+                ['b', {}, label],
+              ];
           return [
             'span',
             mergeAttributes(mentionOptions.HTMLAttributes, {
+              'data-mention-kind': kind,
               'data-token': node.attrs.id,
             }),
             ...children,
@@ -255,6 +353,7 @@ export function MentionRichTextarea({
                   attrs: {
                     id: item.token,
                     label: item.label,
+                    mimeType: item.mimeType ?? '',
                     previewUrl: item.previewUrl ?? '',
                   },
                 },

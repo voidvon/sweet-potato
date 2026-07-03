@@ -375,6 +375,16 @@ function withFinalVideoVersion(session: VideoRemakeSession, data: unknown, optio
   };
 }
 
+function normalizeFinalVideoGenerationMode(data: Record<string, unknown>) {
+  if (fieldText(data.regenerationMode) === 'segment') {
+    return data;
+  }
+  return {
+    ...data,
+    generationMode: 'parallel',
+  };
+}
+
 function seedancePromptVersionNumber(data: unknown) {
   if (Array.isArray(data)) {
     return seedancePromptVersionNumber(data[0]);
@@ -3119,7 +3129,7 @@ async function confirmFinalVideoCard(
   const previousData = previousCard?.data;
   const previousHasVideo = isRecord(previousData) && (fieldText(previousData.videoUrl) || fieldText(previousData.status) === 'completed');
   const incomingData = isRecord(normalizedData) ? normalizedData : {};
-  const clearedIncomingData = clearFinalVideoRunState(incomingData);
+  const clearedIncomingData = normalizeFinalVideoGenerationMode(clearFinalVideoRunState(incomingData));
   const baseData = previousHasVideo
     ? withFinalVideoVersion(session, clearedIncomingData, { forceNext: true })
     : withFinalVideoVersion(session, clearedIncomingData);

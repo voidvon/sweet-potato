@@ -30,14 +30,15 @@ export const cardStatusLabels: Record<VideoRemakeCardStatus, string> = {
 };
 
 export const downstreamCardTypesByUpstream: Partial<Record<VideoRemakeCardType, VideoRemakeCardType[]>> = {
-  basic_info: ['storyboard_script', 'seedance_prompt'],
-  character_setting: ['storyboard_script', 'seedance_prompt'],
-  scene_setting: ['storyboard_script', 'seedance_prompt'],
-  product_setting: ['storyboard_script', 'seedance_prompt'],
-  pip_setting: ['storyboard_script', 'seedance_prompt'],
-  voice_audio_setting: ['storyboard_script', 'seedance_prompt'],
-  script_content: ['storyboard_script', 'seedance_prompt'],
-  storyboard_script: ['seedance_prompt'],
+  basic_info: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  character_setting: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  scene_setting: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  product_setting: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  pip_setting: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  voice_audio_setting: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  script_content: ['storyboard_script', 'seedance_prompt', 'final_video'],
+  storyboard_script: ['seedance_prompt', 'final_video'],
+  seedance_prompt: ['final_video'],
 };
 
 export function formatDate(value?: string) {

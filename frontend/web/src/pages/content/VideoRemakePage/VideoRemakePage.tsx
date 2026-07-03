@@ -1653,6 +1653,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
               status: 'pending',
               data: {
                 ...baseData,
+                generationMode: 'parallel',
                 status: 'generating',
                 message: '视频生成中，请稍候。',
                 errorMessage: undefined,

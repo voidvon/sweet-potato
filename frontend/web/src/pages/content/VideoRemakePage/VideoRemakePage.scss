@@ -1454,25 +1454,38 @@
   align-items: center;
   background: #eef4ff;
   border: 1px solid #b8c7ff;
-  border-radius: 12px;
+  border-radius: 10px;
   color: #2f3bbd;
   display: inline-flex;
-  gap: 6px;
-  margin: 0 2px;
-  padding: 2px 8px 2px 4px;
+  gap: 4px;
+  margin: 0 1px;
+  padding: 2px 6px 2px 3px;
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .remake-seedance-reference-chip img {
-  border-radius: 8px;
-  height: 28px;
+  border-radius: 7px;
+  height: 18px;
   object-fit: cover;
-  width: 28px;
+  width: 18px;
+}
+
+.remake-seedance-reference-chip-icon {
+  align-items: center;
+  background: #dbeafe;
+  border-radius: 7px;
+  color: #1d4ed8;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
 }
 
 .remake-seedance-reference-chip b {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
 }
 

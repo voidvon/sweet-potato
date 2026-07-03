@@ -2286,17 +2286,41 @@ type SeedanceReferenceIds = {
 };
 
 function seedanceReferenceMentions(references: SeedanceReferenceIds) {
-  return references.referenceImageIds.map((assetId, index) => {
-    const asset = contentRepository.findAsset(assetId);
-    return {
-      label: `图片${index + 1}`,
-      token: `@图片${index + 1}`,
-      assetId,
-      name: asset?.name || asset?.originalFileName || `图片${index + 1}`,
-      fileUrl: asset?.fileUrl || '',
-      mimeType: asset?.mimeType || 'image/*',
-    };
-  });
+  return [
+    ...references.referenceImageIds.map((assetId, index) => {
+      const asset = contentRepository.findAsset(assetId);
+      return {
+        label: `图片${index + 1}`,
+        token: `@图片${index + 1}`,
+        assetId,
+        name: asset?.name || asset?.originalFileName || `图片${index + 1}`,
+        fileUrl: asset?.fileUrl || '',
+        mimeType: asset?.mimeType || 'image/*',
+      };
+    }),
+    ...references.referenceVideoIds.map((assetId, index) => {
+      const asset = contentRepository.findAsset(assetId);
+      return {
+        label: `视频${index + 1}`,
+        token: `@视频${index + 1}`,
+        assetId,
+        name: asset?.name || asset?.originalFileName || `视频${index + 1}`,
+        fileUrl: asset?.fileUrl || '',
+        mimeType: asset?.mimeType || 'video/*',
+      };
+    }),
+    ...references.referenceAudioIds.map((assetId, index) => {
+      const asset = contentRepository.findAsset(assetId);
+      return {
+        label: `音频${index + 1}`,
+        token: `@音频${index + 1}`,
+        assetId,
+        name: asset?.name || asset?.originalFileName || `音频${index + 1}`,
+        fileUrl: asset?.fileUrl || '',
+        mimeType: asset?.mimeType || 'audio/*',
+      };
+    }),
+  ];
 }
 
 type ReferencePrimerGap = {
@@ -2564,6 +2588,16 @@ function promptReferenceLine(prefix: string, labels: string[], suffix: string) {
   return uniqueLabels.length ? `${prefix}${uniqueLabels.map((label) => `@${label}`).join('、')}${suffix}` : '';
 }
 
+function exposeAudioReferenceTokens(line: string, referenceAudioIds: string[]) {
+  return referenceAudioIds.reduce((text, _assetId, index) => {
+    const referenceLabel = `参考音频${index + 1}`;
+    const token = `@音频${index + 1}`;
+    return text.includes(token)
+      ? text
+      : text.replace(new RegExp(referenceLabel, 'gu'), `参考${token}`);
+  }, line);
+}
+
 function settingReferenceLines(
   userId: string,
   items: Record<string, unknown>[],
@@ -2650,11 +2684,12 @@ function seedanceReferenceGuide(userId: string, workflow: VideoRemakeWorkflowSta
     if (productLine) lines.push(productLine);
     if (pipLine) lines.push(pipLine);
   }
-  const audioBindingLines = buildVideoRemakeSeedanceAudioBindingLines(voiceSetting(workflow), references.referenceAudioIds);
+  const audioBindingLines = buildVideoRemakeSeedanceAudioBindingLines(voiceSetting(workflow), references.referenceAudioIds)
+    .map((line) => exposeAudioReferenceTokens(line, references.referenceAudioIds));
   if (audioBindingLines.length) {
     lines.push(...audioBindingLines);
   } else if (audioLabels.length) {
-    lines.push(`人声/音频参考以${audioLabels.map((label) => `参考${label}`).join('、')}为准；只参考音色、语速和口播节奏，不复用素材原始台词，不复刻素材里的杂音、尾音、点击声或转场声。`);
+    lines.push(`人声/音频参考以${audioLabels.map((label) => `参考@${label}`).join('、')}为准；只参考音色、语速和口播节奏，不复用素材原始台词，不复刻素材里的杂音、尾音、点击声或转场声。`);
   }
   return uniqueUsefulLines(lines).join('\n');
 }
@@ -2696,9 +2731,12 @@ function conciseSeedanceReferenceContext(userId: string, workflow: VideoRemakeWo
   ));
 
   const audioBindingLines = buildVideoRemakeSeedanceAudioBindingLines(voiceSetting(workflow), references.referenceAudioIds)
+    .map((line) => exposeAudioReferenceTokens(line, references.referenceAudioIds))
     .map((line) => line.replace(/^/u, '音频参考：'));
   if (audioBindingLines.length) {
     lines.push(...audioBindingLines);
+  } else if (references.referenceAudioIds.length) {
+    lines.push(`音频参考：${references.referenceAudioIds.map((_assetId, index) => `参考@音频${index + 1}`).join('、')}；只参考音色、语速和口播节奏。`);
   }
   return uniqueUsefulLines(lines).join('\n');
 }
