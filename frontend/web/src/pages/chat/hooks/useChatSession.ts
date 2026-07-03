@@ -10,7 +10,7 @@ import {
   streamChatMessage,
 } from '../../../api/chat';
 import { getStoredUser } from '../../../utils/session';
-import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage } from '../../../types';
+import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
 import { resolveChatCapabilityPayload } from '../chatCapabilities';
 
 const defaultChatAgent: AiAgent = {
@@ -413,6 +413,7 @@ export function useChatSession() {
     attachments?: ChatAttachment[];
     clearComposer?: boolean;
     editMessageId?: string;
+    capabilityContext?: SendChatPayload['capabilityContext'];
     imageModelConfigId?: string | null;
     requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
   }) => {
@@ -483,6 +484,10 @@ export function useChatSession() {
           attachments: sendingAttachments,
           content: contentForSend,
           ...capabilityPayload,
+          capabilityContext: {
+            ...(capabilityPayload.capabilityContext || {}),
+            ...(override?.capabilityContext || {}),
+          },
           imageModelConfigId: override?.imageModelConfigId || null,
           requestedCapabilities: override?.requestedCapabilities || capabilityPayload.requestedCapabilities,
         },
@@ -569,8 +574,12 @@ export function useChatSession() {
     }
   }, [activeAgent, activeConversationId, attachments, currentUser, input, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
 
-  const sendCurrentMessage = useCallback(async (options?: { imageModelConfigId?: string | null }) => {
+  const sendCurrentMessage = useCallback(async (options?: {
+    capabilityContext?: SendChatPayload['capabilityContext'];
+    imageModelConfigId?: string | null;
+  }) => {
     await sendMessage({
+      capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
       requestedCapabilities: ['image_generation'],
     });

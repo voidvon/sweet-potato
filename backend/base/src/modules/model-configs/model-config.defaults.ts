@@ -30,6 +30,9 @@ export const defaultImageModelConfig: AiModelConfig = {
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
   temperature: 0.7,
   settings: {
+    imageGeneration: {
+      adapter: 'compatible',
+    },
     billing: {
       multiplier: 1,
       creditsPerRequest: 0,
@@ -48,10 +51,13 @@ export const openaiImageModelConfig: AiModelConfig = {
   provider: 'openai-images',
   model: 'gpt-image-1',
   apiKey: '',
-  baseUrl: 'https://api.openai.com/v1/images/edits',
+  baseUrl: 'https://api.openai.com/v1',
   temperature: 0.7,
   settings: {
     imageSize: '1024x1024',
+    imageGeneration: {
+      adapter: 'compatible',
+    },
     billing: {
       multiplier: 1,
       creditsPerRequest: 0,

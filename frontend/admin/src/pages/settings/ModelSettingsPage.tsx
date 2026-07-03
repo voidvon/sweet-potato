@@ -81,6 +81,19 @@ const modelTypeLabelMap: Record<ModelType, string> = {
   audio: '音频模型',
 };
 
+const imageGenerationAdapterOptions = [
+  { label: '通用兼容适配器', value: 'compatible' },
+  { label: 'Image2 适配器', value: 'image2' },
+];
+
+const imageGenerationQualityOptions = [
+  { label: '默认', value: '' },
+  { label: '低', value: 'low' },
+  { label: '中', value: 'medium' },
+  { label: '高', value: 'high' },
+  { label: '自动', value: 'auto' },
+];
+
 type ModelColumn = NonNullable<TableProps<ModelConfig>['columns']>[number];
 type LlmPriceTableRow = {
   key: string;
@@ -214,6 +227,39 @@ function imageBillingSettingsOf(record: ModelConfig): ImageBillingSettings {
   };
 }
 
+function imageGenerationAdapterOf(record: ModelConfig | null) {
+  const settings = record?.settings && typeof record.settings === 'object'
+    ? record.settings as Record<string, unknown>
+    : {};
+  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+  const adapter = imageGeneration.adapter || imageGeneration.providerAdapter || settings.imageGenerationAdapter;
+  return typeof adapter === 'string' && adapter.trim() ? adapter.trim() : 'compatible';
+}
+
+function imageGenerationAdapterLabel(record: ModelConfig) {
+  const adapter = imageGenerationAdapterOf(record);
+  return imageGenerationAdapterOptions.find((item) => item.value === adapter)?.label || adapter;
+}
+
+function imageGenerationSettingsOf(record: ModelConfig | null) {
+  const settings = record?.settings && typeof record.settings === 'object'
+    ? record.settings as Record<string, unknown>
+    : {};
+  return settings.imageGeneration && typeof settings.imageGeneration === 'object'
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+}
+
+function imageGenerationSummary(record: ModelConfig) {
+  const settings = imageGenerationSettingsOf(record);
+  const items = [
+    typeof settings.quality === 'string' && settings.quality ? `质量 ${settings.quality}` : '',
+  ].filter(Boolean);
+  return items.join('，') || '默认参数';
+}
+
 function videoBillingSettingsOf(record: ModelConfig): VideoBillingSettings {
   const settings = record.settings && typeof record.settings === 'object'
     ? record.settings as Record<string, unknown>
@@ -265,6 +311,14 @@ function normalizedSettingsForForm(record: ModelConfig | null, activeType: Model
 
   return {
     ...settings,
+    ...(activeType === 'image'
+      ? {
+        imageGeneration: {
+          ...imageGenerationSettingsOf(record),
+          adapter: imageGenerationAdapterOf(record),
+        },
+      }
+      : {}),
     billing,
   };
 }
@@ -620,6 +674,7 @@ function ModelFormModal({
             )}
             <Form.Item
               className="full-span"
+              extra={activeType === 'image' ? '图片模型填写 API 根地址即可，不要填写 /images/edits 或 /images/generations。' : undefined}
               label="Base URL"
               name="baseUrl"
               rules={[{ required: true, message: '请输入 Base URL' }]}
@@ -732,6 +787,19 @@ function ModelFormModal({
             )}
             {activeType === 'image' && (
               <>
+                <Form.Item
+                  label="生图适配器"
+                  name={['settings', 'imageGeneration', 'adapter']}
+                  rules={[{ required: true, message: '请选择生图适配器' }]}
+                >
+                  <Select options={imageGenerationAdapterOptions} />
+                </Form.Item>
+                <Form.Item
+                  label="生成质量"
+                  name={['settings', 'imageGeneration', 'quality']}
+                >
+                  <Select options={imageGenerationQualityOptions} />
+                </Form.Item>
                 <Form.Item
                   label="模型消耗倍率"
                   name={['settings', 'billing', 'multiplier']}
@@ -1305,6 +1373,16 @@ export function ModelSettingsPage() {
           dataIndex: 'model',
         },
         {
+          title: '生图适配器',
+          width: 220,
+          render: (_, record) => (
+            <Space orientation="vertical" size={2}>
+              <Tag>{imageGenerationAdapterLabel(record)}</Tag>
+              <span className="model-subtext">{imageGenerationSummary(record)}</span>
+            </Space>
+          ),
+        },
+        {
           title: 'Key 状态',
           render: (_, record) => <Tag color={record.apiKey ? 'green' : 'orange'}>{record.apiKey ? '已配置' : '未配置'}</Tag>,
         },
@@ -1481,7 +1559,7 @@ export function ModelSettingsPage() {
         <section className="settings-section">
         <div className="model-config-toolbar">
           <Space>
-            {activeType !== 'audio' && activeType !== 'image' && activeType !== 'video' && (
+            {activeType !== 'audio' && activeType !== 'video' && (
               <Button icon={<PlusOutlined />} onClick={openCreateModal} type="primary">
                 新增{modelTypeLabelMap[activeType]}
               </Button>

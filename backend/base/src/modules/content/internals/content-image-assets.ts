@@ -33,29 +33,11 @@ type ImageBillingContext = {
 };
 
 export function imageEditsUrl(baseUrl: string) {
-  const trimmed = baseUrl.replace(/\/+$/, '');
-  if (trimmed.endsWith('/images/edits')) {
-    return trimmed;
-  }
-  if (trimmed.endsWith('/images/generations')) {
-    return trimmed.replace(/\/images\/generations$/, '/images/edits');
-  }
-  return `${trimmed}/images/edits`;
+  return `${baseUrl.replace(/\/+$/, '')}/images/edits`;
 }
 
 export function imageGenerationsUrl(baseUrl: string) {
-  const trimmed = baseUrl.replace(/\/+$/, '');
-  if (trimmed.endsWith('/images/generations')) {
-    return trimmed;
-  }
-  if (trimmed.endsWith('/images/edits')) {
-    return trimmed.replace(/\/images\/edits$/, '/images/generations');
-  }
-  return `${trimmed}/images/generations`;
-}
-
-export function isImageEditsEndpoint(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, '').endsWith('/images/edits');
+  return `${baseUrl.replace(/\/+$/, '')}/images/generations`;
 }
 
 function imageGenerationSize(config: { provider?: string; settings?: Record<string, unknown> }) {
@@ -66,6 +48,11 @@ function imageGenerationSize(config: { provider?: string; settings?: Record<stri
     return size;
   }
   return config.provider === 'openai-images' ? '1024x1024' : threeViewImageSize;
+}
+
+function requestedImageSize(config: { provider?: string; settings?: Record<string, unknown> }, size?: string) {
+  const requestedSize = String(size || '').trim();
+  return requestedSize || imageGenerationSize(config);
 }
 
 export async function parseGeneratedImageResponse(response: Response, config: { model: string }): Promise<GeneratedImage> {
@@ -129,14 +116,6 @@ export async function withSpecificImageModelTimeout<T>(
   }
 }
 
-export function imageReferenceRequestUrl(baseUrl: string) {
-  const trimmed = baseUrl.replace(/\/+$/, '');
-  if (trimmed.endsWith('/images/generations') || trimmed.endsWith('/images/edits')) {
-    return trimmed;
-  }
-  return `${trimmed}/images/generations`;
-}
-
 export async function referenceAssetToDataUri(asset: { filePath: string; mimeType: string }) {
   const bytes = await readFile(asset.filePath);
   const mimeType = asset.mimeType || 'image/png';
@@ -154,6 +133,7 @@ export async function editImageWithJsonReferences(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
   modelConfig?: ImageModelConfig;
+  size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
   const run: <T>(request: (input: { config: ImageModelConfig; signal: AbortSignal }) => Promise<T>) => Promise<T> = input.modelConfig
@@ -162,7 +142,7 @@ export async function editImageWithJsonReferences(input: {
   return run(async ({ config, signal }) => {
     try {
       const imageUrls = await Promise.all(input.referenceAssets.slice(0, 4).map(referenceAssetToDataUri));
-      const size = imageGenerationSize(config);
+      const size = requestedImageSize(config, input.size);
       const response = await fetch(imageGenerationsUrl(config.baseUrl), {
         method: 'POST',
         signal,
@@ -214,15 +194,13 @@ export async function editImageWithConfiguredModel(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
   modelConfig?: ImageModelConfig;
+  size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
   const resolvedConfig = input.modelConfig || resolveDefaultImageModel();
-  if (!isImageEditsEndpoint(resolvedConfig.baseUrl)) {
-    return editImageWithJsonReferences(input);
-  }
   return withSpecificImageModelTimeout(resolvedConfig, async ({ config, signal }) => {
     try {
-      const size = imageGenerationSize(config);
+      const size = requestedImageSize(config, input.size);
       const form = new FormData();
       form.set('model', config.model);
       form.set('prompt', input.prompt);
@@ -274,12 +252,13 @@ export async function editImageWithConfiguredModel(input: {
 export async function generateImageWithConfiguredModel(input: {
   prompt: string;
   modelConfig: ImageModelConfig;
+  size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
   return withSpecificImageModelTimeout(input.modelConfig, async ({ config, signal }) => {
     try {
-      const size = imageGenerationSize(config);
-      const response = await fetch(imageReferenceRequestUrl(config.baseUrl), {
+      const size = requestedImageSize(config, input.size);
+      const response = await fetch(imageGenerationsUrl(config.baseUrl), {
         method: 'POST',
         signal,
         headers: {

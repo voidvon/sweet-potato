@@ -6,8 +6,8 @@ export const openaiImagesProvider: ImageModelProvider = {
   description: 'OpenAI 图片生成与编辑 API，支持文生图、参考图和图片编辑。',
   keyLabel: 'OpenAI API Key',
   keyPlaceholder: '请输入 OpenAI API Key',
-  keyHelp: '调用 OpenAI Images API，使用 Bearer API Key 鉴权；Base URL 可按代理或兼容网关配置。',
-  defaultBaseUrl: 'https://api.openai.com/v1/images/edits',
+  keyHelp: '调用 OpenAI Images API，使用 Bearer API Key 鉴权；Base URL 填 API 根地址，例如 https://api.openai.com/v1 或兼容网关的 /v1。',
+  defaultBaseUrl: 'https://api.openai.com/v1',
   defaultModel: 'gpt-image-1',
   models: [
     { id: 'gpt-image-1', name: 'GPT Image 1', description: 'OpenAI 图片生成与编辑模型。' },

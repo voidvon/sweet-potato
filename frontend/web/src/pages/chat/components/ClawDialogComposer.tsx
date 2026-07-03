@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { listModelConfigs } from '../../../api/model-config';
-import type { ChatAttachment, ModelConfig } from '../../../types';
+import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
@@ -31,7 +31,7 @@ type ClawDialogComposerProps = {
   onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
-  onSend: (options?: { imageModelConfigId?: string | null }) => void;
+  onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
   onStop: () => void;
   sending: boolean;
 };
@@ -312,6 +312,7 @@ export function ClawDialogComposer({
   const [selectedImageModelValue, setSelectedImageModelValue] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
+  const [selectedOutputCount, setSelectedOutputCount] = useState(1);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
   const hasPrompt = Boolean(input.trim());
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
@@ -496,7 +497,28 @@ export function ClawDialogComposer({
       return;
     }
     if (canStartGeneration) {
-      onSend({ imageModelConfigId: selectedImageModel?.config.id || null });
+      onSend({
+        imageModelConfigId: selectedImageModel?.config.id || null,
+        capabilityContext: {
+          imageGeneration: {
+            modeKey: selectedMode.key,
+            modeTitle: selectedMode.title,
+            promptText: input.trim(),
+            promptHint: selectedMode.promptHint,
+            outputSize: outputSizeLabel,
+            outputCount: selectedOutputCount,
+            aspectRatio: selectedAspectRatio,
+            resolution: selectedResolution,
+            referenceGroups: selectedMode.referenceGroups.map((group) => ({
+              key: group.key,
+              label: group.label,
+              required: group.required,
+              maxCount: group.maxCount,
+              attachmentIds: (groupedAttachments[group.key] || []).map((attachment) => attachment.id),
+            })),
+          },
+        },
+      });
     }
   }
 
@@ -616,9 +638,16 @@ export function ClawDialogComposer({
               </Popover>
             ) : null}
             {showOutputCountControl ? (
-              <Dropdown menu={{ items: [{ key: '1', label: '1 张' }, { key: '2', label: '2 张' }, { key: '3', label: '3 张' }, { key: '4', label: '4 张' }] }} trigger={['click']}>
+              <Dropdown
+                menu={{
+                  items: [{ key: '1', label: '1 张' }, { key: '2', label: '2 张' }, { key: '3', label: '3 张' }, { key: '4', label: '4 张' }],
+                  onClick: ({ key }) => setSelectedOutputCount(Number(key) || 1),
+                  selectedKeys: [String(selectedOutputCount)],
+                }}
+                trigger={['click']}
+              >
                 <Button className="claw-option-button" icon={<List size={12} />}>
-                  1 张
+                  {selectedOutputCount} 张
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>

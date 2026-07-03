@@ -47,7 +47,7 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
     return [];
   }
 
-  return value.slice(0, 6).flatMap((item) => {
+  return value.slice(0, 16).flatMap((item) => {
     if (!item || typeof item !== 'object') {
       return [];
     }
@@ -73,13 +73,67 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
   });
 }
 
+function stringValue(value: unknown, maxLength: number) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : undefined;
+}
+
+function parseImageGenerationReferenceGroups(value: unknown): NonNullable<NonNullable<SendChatPayload['capabilityContext']>['imageGeneration']>['referenceGroups'] {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const groups = value.slice(0, 16).flatMap((item) => {
+    if (!item || typeof item !== 'object') {
+      return [];
+    }
+    const source = item as Record<string, unknown>;
+    const key = stringValue(source.key, 80);
+    const label = stringValue(source.label, 80);
+    const attachmentIds = Array.isArray(source.attachmentIds)
+      ? source.attachmentIds.map((id) => stringValue(id, 160)).filter((id): id is string => Boolean(id))
+      : [];
+    if (!key || !label) {
+      return [];
+    }
+    const maxCount = Number(source.maxCount);
+    return [{
+      key,
+      label,
+      attachmentIds: attachmentIds.slice(0, 16),
+      required: source.required === true,
+      maxCount: Number.isFinite(maxCount) && maxCount > 0 ? Math.floor(maxCount) : undefined,
+    }];
+  });
+  return groups.length ? groups : undefined;
+}
+
+function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<SendChatPayload['capabilityContext']>['imageGeneration']> | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const source = value as Record<string, unknown>;
+  const outputCount = Number(source.outputCount);
+  const context = {
+    modeKey: stringValue(source.modeKey, 80),
+    modeTitle: stringValue(source.modeTitle, 80),
+    promptText: stringValue(source.promptText, 4000),
+    promptHint: stringValue(source.promptHint, 4000),
+    outputSize: stringValue(source.outputSize, 40),
+    outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.min(4, Math.floor(outputCount))) : undefined,
+    aspectRatio: stringValue(source.aspectRatio, 20),
+    resolution: stringValue(source.resolution, 20),
+    referenceGroups: parseImageGenerationReferenceGroups(source.referenceGroups),
+  };
+  return Object.values(context).some((item) => item !== undefined) ? context : undefined;
+}
+
 export function parseCapabilityContext(value: unknown): SendChatPayload['capabilityContext'] {
   if (!value || typeof value !== 'object') {
     return undefined;
   }
-  const source = value as { imageModelConfigId?: unknown; xingtuProfileId?: unknown };
+  const source = value as { imageGeneration?: unknown; imageModelConfigId?: unknown; xingtuProfileId?: unknown };
   return {
     imageModelConfigId: typeof source.imageModelConfigId === 'string' ? source.imageModelConfigId.trim() : undefined,
+    imageGeneration: parseImageGenerationContext(source.imageGeneration),
     xingtuProfileId: typeof source.xingtuProfileId === 'string' ? source.xingtuProfileId.trim() : undefined,
   };
 }
