@@ -20,7 +20,7 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
   return (
     <WorkspaceShellLayout
       accountPath={routePaths.account}
-      appName="萌猫"
+      appName="萌猫 AI"
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}
       defaultPath={defaultPath}

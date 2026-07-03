@@ -32,7 +32,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
       <section className="admin-auth-hero">
         <div className="admin-brand-pill">
           <img src={appLogo} alt="" />
-          萌猫后台
+          萌猫 AI 后台
         </div>
         <h1>登录后台管理</h1>
         <p>仅限管理员账号访问用户、积分和模型配置。</p>

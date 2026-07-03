@@ -2,7 +2,7 @@ import { db } from './database.js';
 import { defaultAgents } from '../modules/agents/agent.defaults.js';
 import { listAudioModelProviders } from '../modules/audio-models/audio-model.registry.js';
 import { llmModelPricingSeeds } from '../modules/model-configs/llm-model-pricing.seed.js';
-import { defaultModelConfig } from '../modules/model-configs/model-config.defaults.js';
+import { defaultImageModelConfig, defaultModelConfig, openaiImageModelConfig } from '../modules/model-configs/model-config.defaults.js';
 import { defaultAppRoleKey, defaultOnboardingRoleKey } from '../modules/roles/permission-catalog.js';
 import { defaultRoleResourceIds, seededRouteResources } from '../modules/route-resources/route-resource.seed.js';
 
@@ -734,14 +734,21 @@ export function migrateDatabase() {
     updatedAt: now,
   });
 
-  db.prepare(`
+  const insertDefaultModelConfig = db.prepare(`
     INSERT OR IGNORE INTO model_configs (
       id, type, name, provider, model, api_key, base_url, temperature, settings, is_default, created_at, updated_at
     )
     VALUES (
       @id, @type, @name, @provider, @model, @apiKey, @baseUrl, @temperature, @settings, @isDefault, @createdAt, @updatedAt
     )
-  `).run({ ...defaultModelConfig, settings: JSON.stringify(defaultModelConfig.settings || {}), isDefault: 1 });
+  `);
+  [defaultModelConfig, defaultImageModelConfig, openaiImageModelConfig].forEach((config) => {
+    insertDefaultModelConfig.run({
+      ...config,
+      settings: JSON.stringify(config.settings || {}),
+      isDefault: config.isDefault ? 1 : 0,
+    });
+  });
 
   const llmModelPricingCount = db.prepare('SELECT COUNT(*) as count FROM llm_model_pricing').get() as { count: number };
   if (llmModelPricingCount.count === 0) {

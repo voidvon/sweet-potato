@@ -1,5 +1,5 @@
 {
-  "productName": "萌猫",
+  "productName": "萌猫 AI",
   "appId": "com.electron.ee",
   "copyright": "© 2025 duola Technology Co., Ltd.",
   "directories": {
@@ -29,7 +29,7 @@
     "installerHeaderIcon": "build/icons/icon.ico",
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "萌猫"
+    "shortcutName": "萌猫 AI"
   },
   "publish": [
     {

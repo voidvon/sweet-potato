@@ -19,3 +19,46 @@ export const defaultModelConfig: AiModelConfig = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
+
+export const defaultImageModelConfig: AiModelConfig = {
+  id: 'default-image',
+  type: 'image',
+  name: '默认图片模型',
+  provider: 'volcengine-seedream',
+  model: 'doubao-seedream-5-0-260128',
+  apiKey: '',
+  baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+  temperature: 0.7,
+  settings: {
+    billing: {
+      multiplier: 1,
+      creditsPerRequest: 0,
+      priceSource: 'official-manual',
+    },
+  },
+  isDefault: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+export const openaiImageModelConfig: AiModelConfig = {
+  id: 'openai-image',
+  type: 'image',
+  name: 'OpenAI Images',
+  provider: 'openai-images',
+  model: 'gpt-image-1',
+  apiKey: '',
+  baseUrl: 'https://api.openai.com/v1/images/edits',
+  temperature: 0.7,
+  settings: {
+    imageSize: '1024x1024',
+    billing: {
+      multiplier: 1,
+      creditsPerRequest: 0,
+      priceSource: 'official-manual',
+    },
+  },
+  isDefault: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};

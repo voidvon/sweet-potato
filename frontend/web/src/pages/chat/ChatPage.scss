@@ -55,6 +55,23 @@
   overflow: hidden;
 }
 
+.chat-page.is-idle .video-workbench-main {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.chat-page.is-idle .video-workbench-main-body {
+  grid-row: 1;
+}
+
+.chat-page.is-idle .video-workbench-footer {
+  grid-row: 2;
+}
+
+.chat-page.is-idle .chat-history {
+  padding: 0;
+}
+
 .workspace-chat-title-shell {
   display: flex;
   justify-content: center;

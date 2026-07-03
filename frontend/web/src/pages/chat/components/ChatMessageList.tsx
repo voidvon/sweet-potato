@@ -1,4 +1,4 @@
-import { Button, Empty, Image, message } from 'antd';
+import { Button, Image, message } from 'antd';
 import { CopyOutlined, DownCircleOutlined, EditOutlined, FileOutlined } from '@ant-design/icons';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
@@ -112,18 +112,13 @@ export function ChatMessageList({
   return (
     <>
       <div className="chat-history" onScroll={onScroll} ref={scrollContainerRef}>
-        {messages.length === 0 ? (
-          <div className="chat-empty-state">
-            <Empty description="开始一次 AI 对话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          </div>
-        ) : (
-          messages.map((item) => {
-            const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
-            const thinkingContent = item.role === 'assistant' ? item.reasoningContent || parsed?.thinking : '';
-            const answerContent = item.role === 'assistant' ? parsed?.answer || item.content : item.content;
-            const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
+        {messages.map((item) => {
+          const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
+          const thinkingContent = item.role === 'assistant' ? item.reasoningContent || parsed?.thinking : '';
+          const answerContent = item.role === 'assistant' ? parsed?.answer || item.content : item.content;
+          const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
 
-            return (
+          return (
               <div className={`chat-message-shell ${item.role}`} key={item.id}>
                 <article className={`chat-message ${item.role}`}>
                   {thinkingContent && (
@@ -247,8 +242,7 @@ export function ChatMessageList({
                 )}
               </div>
             );
-          })
-        )}
+          })}
         {sending && !hasStreamingAssistant && (
           <div className="chat-typing">
             <span />

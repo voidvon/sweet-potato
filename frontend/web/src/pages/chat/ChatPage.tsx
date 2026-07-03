@@ -1,9 +1,8 @@
 import { Spin } from 'antd';
 import { useEffect } from 'react';
-import { ChatComposer } from './components/ChatComposer';
+import { ClawDialogComposer } from './components/ClawDialogComposer';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ClawSidebar } from './components/ClawSidebar';
-import { ClawWelcome } from './components/ClawWelcome';
 import { SkillCenterModal } from './components/SkillCenterModal';
 import { useChatSession } from './hooks/useChatSession';
 import { useSkillCenter } from './hooks/useSkillCenter';
@@ -11,7 +10,6 @@ import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import { VideoWorkbenchLayout } from '../../layouts/VideoWorkbenchLayout';
 import { Button, Space } from 'antd';
 import { Plus, Zap } from 'lucide-react';
-import type { ClawSkill } from './types';
 import '../content/VideoRemakePage/VideoRemakePage.scss';
 import './ChatPage.scss';
 
@@ -32,28 +30,21 @@ export function ChatPage() {
     };
   }, [chat.activeConversation?.title, setHeaderExtra]);
 
-  function handleSkillClick(skill: ClawSkill) {
-    chat.setInput(`/${skill.command}`);
-  }
-
-  const renderComposer = (variant: 'floating' | 'welcome' = 'floating') => (
-    <ChatComposer
-      activeAgent={chat.activeAgent}
+  const renderComposer = () => (
+    <ClawDialogComposer
       attachments={chat.attachments}
       input={chat.input}
       onAddFiles={chat.addAttachments}
       onInputChange={chat.setInput}
       onRemoveAttachment={chat.removeAttachment}
-      onSend={() => void chat.sendCurrentMessage()}
+      onSend={(options) => void chat.sendCurrentMessage(options)}
       onStop={chat.stopSending}
       sending={chat.sending}
-      showFloatingAddButton={variant === 'floating'}
-      variant={variant}
     />
   );
 
   return (
-    <section className="chat-page">
+    <section className={`chat-page${chat.showWelcome ? ' is-idle' : ''}`}>
       <VideoWorkbenchLayout
         footer={renderComposer()}
         sidebarHeader={(
@@ -69,7 +60,6 @@ export function ChatPage() {
           </div>
         )}
         sidebarTitle="会话"
-        showStartContent={chat.showWelcome}
         sidebarContent={(
           <ClawSidebar
             activeConversationId={chat.activeConversationId}
@@ -81,9 +71,6 @@ export function ChatPage() {
             onRename={chat.updateConversationTitle}
             sending={chat.sending}
           />
-        )}
-        startContent={(
-          <ClawWelcome onSkillClick={handleSkillClick} skills={skillCenter.skills} />
         )}
       >
         <main className="chat-main">
