@@ -1,11 +1,11 @@
 {
   "name": "ai-marketing-docker-package",
   "private": true,
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
   "scripts": {
     "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm：corepack enable pnpm && pnpm install'); process.exit(1); }\"",
     "dev": "node ./scripts/dev-entry.cjs electron",
-    "dev:web": "node ./scripts/dev-entry.cjs web",
+    "dev:web": "bash ./scripts/dev-web.sh",
     "package:macos": "bash ./scripts/package.sh",
     "package:docker": "bash ./package-docker.sh",
     "package:docker:test": "bash ./package-docker.sh test"

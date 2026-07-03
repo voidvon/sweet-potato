@@ -22,7 +22,6 @@ import {
   deleteLlmModelPricing,
   deleteModelConfig,
   listAudioModelProviders,
-  listImageModelProviders,
   listLlmModelPricing,
   listModelConfigs,
   listVideoModelProviders,
@@ -31,7 +30,7 @@ import {
   updateModelConfig,
 } from '../../api/model-config';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import type { AudioModelProviderOption, ImageModelProviderOption, VideoModelProviderOption } from '../../api/model-config';
+import type { AudioModelProviderOption, VideoModelProviderOption } from '../../api/model-config';
 import type {
   AudioBillingSettings,
   ImageBillingSettings,
@@ -45,7 +44,7 @@ import './ModelSettingsPage.scss';
 
 const visibleModelTypes: Array<{ key: ModelType; label: string }> = [
   { key: 'llm', label: 'LLM 模型' },
-  // { key: 'image', label: '图片模型' },
+  { key: 'image', label: '图片模型' },
   { key: 'video', label: '视频模型' },
   // { key: 'audio', label: '音频模型' },
 ];
@@ -311,7 +310,7 @@ function videoProviderConfigRow(provider: VideoModelProviderOption, existing?: M
     name: provider.name,
     provider: provider.id,
     model: overrides.model || existing?.model || provider.defaultModel,
-    baseUrl: provider.defaultBaseUrl,
+    baseUrl: overrides.baseUrl ?? existing?.baseUrl ?? provider.defaultBaseUrl,
     temperature: 0,
     settings: {
       ...(existing?.settings || {}),
@@ -328,39 +327,9 @@ function videoProviderConfigRow(provider: VideoModelProviderOption, existing?: M
   };
 }
 
-function imageProviderConfigRow(provider: ImageModelProviderOption, existing?: ModelConfig, overrides: Partial<ModelConfig> = {}): ModelConfig {
-  const baseRecord = {
-    ...defaultFormValues,
-    ...existing,
-    ...overrides,
-  };
-  return {
-    ...baseRecord,
-    type: 'image',
-    name: provider.name,
-    provider: provider.id,
-    model: overrides.model || existing?.model || provider.defaultModel,
-    baseUrl: provider.defaultBaseUrl,
-    temperature: existing?.temperature ?? 0.7,
-    settings: {
-      ...(existing?.settings || {}),
-      ...(overrides.settings || {}),
-      billing: {
-        ...imageBillingSettingsOf(baseRecord as ModelConfig),
-        ...(overrides.settings && typeof overrides.settings === 'object' && 'billing' in overrides.settings
-          ? ((overrides.settings as Record<string, unknown>).billing as Record<string, unknown> || {})
-          : {}),
-      },
-    },
-    apiKey: overrides.apiKey ?? existing?.apiKey ?? '',
-    isDefault: Boolean(overrides.isDefault ?? existing?.isDefault ?? false),
-  };
-}
-
 type ModelFormModalProps = {
   activeType: ModelType;
   audioProviders: AudioModelProviderOption[];
-  imageProviders: ImageModelProviderOption[];
   llmModelPricing: LlmModelPricing[];
   videoProviders: VideoModelProviderOption[];
   editingRecord: ModelConfig | null;
@@ -378,7 +347,6 @@ type LlmPricingFormValues = LlmModelPricing;
 function ModelFormModal({
   activeType,
   audioProviders,
-  imageProviders,
   llmModelPricing,
   videoProviders,
   editingRecord,
@@ -390,9 +358,6 @@ function ModelFormModal({
   const [saving, setSaving] = useState(false);
   const audioProvider = activeType === 'audio' && editingRecord
     ? audioProviders.find((item) => item.id === editingRecord.provider)
-    : undefined;
-  const imageProvider = activeType === 'image' && editingRecord
-    ? imageProviders.find((item) => item.id === editingRecord.provider)
     : undefined;
   const videoProvider = activeType === 'video' && editingRecord
     ? videoProviders.find((item) => item.id === editingRecord.provider)
@@ -471,15 +436,6 @@ function ModelFormModal({
           baseUrl: payload.baseUrl,
           settings: payload.settings,
         }));
-      } else if (activeType === 'image' && editingRecord) {
-        if (!imageProvider) {
-          throw new Error('图片服务商不存在');
-        }
-        await saveModelConfig(imageProviderConfigRow(imageProvider, editingRecord, {
-          apiKey: payload.apiKey,
-          model: payload.model,
-          settings: payload.settings,
-        }));
       } else if (activeType === 'video' && editingRecord) {
         if (!videoProvider) {
           throw new Error('视频服务商不存在');
@@ -531,7 +487,7 @@ function ModelFormModal({
 
   return (
     <Modal
-      className={activeType === 'audio' || activeType === 'image' || activeType === 'video' ? 'audio-model-modal' : undefined}
+      className={activeType === 'audio' || activeType === 'video' ? 'audio-model-modal' : undefined}
       confirmLoading={saving}
       okText="保存"
       cancelText="取消"
@@ -539,10 +495,10 @@ function ModelFormModal({
       onOk={() => form.submit()}
       open={open}
       title={editingRecord ? '编辑模型配置' : `新增${modelTypeLabelMap[activeType]}`}
-      width={activeType === 'audio' || activeType === 'image' || activeType === 'video' ? 760 : 720}
+      width={activeType === 'audio' || activeType === 'video' ? 760 : 720}
     >
       <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark={false}>
-        {(activeType === 'audio' || activeType === 'image' || activeType === 'video') && editingRecord ? (
+        {(activeType === 'audio' || activeType === 'video') && editingRecord ? (
           <div className="audio-model-form">
             <div className="audio-form-section">
               <div className="section-heading">
@@ -551,8 +507,6 @@ function ModelFormModal({
                   <p>
                     {activeType === 'audio'
                       ? (audioProvider?.description || '服务端内置音频模型')
-                      : activeType === 'image'
-                        ? (imageProvider?.description || '服务端内置图片模型')
                       : (videoProvider?.description || '服务端内置视频模型')}
                   </p>
                 </div>
@@ -560,16 +514,12 @@ function ModelFormModal({
               <Form.Item
                 label={activeType === 'audio'
                   ? (audioProvider?.keyLabel || 'API Key')
-                  : activeType === 'image'
-                    ? (imageProvider?.keyLabel || 'API Key')
-                    : (videoProvider?.keyLabel || 'API Key')}
+                  : (videoProvider?.keyLabel || 'API Key')}
                 name="apiKey"
               >
                 <Input.Password
                   placeholder={activeType === 'audio'
                     ? (audioProvider?.keyPlaceholder || '请输入 API Key')
-                    : activeType === 'image'
-                      ? (imageProvider?.keyPlaceholder || '请输入 API Key')
                     : (videoProvider?.keyPlaceholder || '请输入 API Key')}
                 />
               </Form.Item>
@@ -581,29 +531,6 @@ function ModelFormModal({
                 >
                   <Input placeholder={audioProvider?.baseUrlPlaceholder || '请输入 Base URL'} />
                 </Form.Item>
-              ) : activeType === 'image' ? (
-                <>
-                  <Form.Item
-                    label="默认模型"
-                    name="model"
-                    rules={[{ required: true, message: '请选择默认模型' }]}
-                  >
-                    <Select
-                      options={(imageProvider?.models || []).map((item) => ({
-                        label: item.name,
-                        value: item.id,
-                        disabled: Boolean(item.disabled),
-                      }))}
-                      placeholder="请选择图片模型"
-                    />
-                  </Form.Item>
-                  <div className="model-subtext">
-                    默认 Base URL：{imageProvider?.defaultBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3'}
-                  </div>
-                  <div className="model-subtext">
-                    {imageProvider?.keyHelp || '图片模型由服务端适配器提供，前端只配置 API Key 和默认模型。'}
-                  </div>
-                </>
               ) : (
                 <div className="model-subtext">
                   默认 Base URL：{videoProvider?.defaultBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3'}
@@ -619,58 +546,38 @@ function ModelFormModal({
               >
                 <InputNumber controls={false} min={0} precision={2} step={0.01} style={{ width: '100%' }} />
               </Form.Item>
-              {activeType === 'image' ? (
+              {activeType === 'audio' ? (
                 <>
                   <Form.Item
-                    label="图片生成单价 (Credit / 张)"
-                    name={['settings', 'billing', 'creditsPerRequest']}
-                    rules={[{ required: true, message: '请输入图片生成单价' }]}
+                    label="声音克隆单价 (Credit / 次)"
+                    name={['settings', 'billing', 'voiceCloneCredits']}
+                    rules={[{ required: true, message: '请输入声音克隆单价' }]}
                   >
                     <InputNumber min={0} precision={6} style={{ width: '100%' }} />
                   </Form.Item>
                   <Form.Item
-                    label="价格来源备注"
-                    name={['settings', 'billing', 'priceSource']}
+                    label="语音合成单价 (Credit / 1K 字符)"
+                    name={['settings', 'billing', 'speechCreditsPer1kChars']}
+                    rules={[{ required: true, message: '请输入语音合成单价' }]}
                   >
-                    <Input placeholder="例如：official-manual-2026-06-12" />
+                    <InputNumber min={0} precision={6} style={{ width: '100%' }} />
                   </Form.Item>
                 </>
               ) : (
-                <>
-                  {activeType === 'audio' ? (
-                    <>
-                      <Form.Item
-                        label="声音克隆单价 (Credit / 次)"
-                        name={['settings', 'billing', 'voiceCloneCredits']}
-                        rules={[{ required: true, message: '请输入声音克隆单价' }]}
-                      >
-                        <InputNumber min={0} precision={6} style={{ width: '100%' }} />
-                      </Form.Item>
-                      <Form.Item
-                        label="语音合成单价 (Credit / 1K 字符)"
-                        name={['settings', 'billing', 'speechCreditsPer1kChars']}
-                        rules={[{ required: true, message: '请输入语音合成单价' }]}
-                      >
-                        <InputNumber min={0} precision={6} style={{ width: '100%' }} />
-                      </Form.Item>
-                    </>
-                  ) : (
-                    <Form.Item
-                      label="视频生成单价 (Credit / 1M tokens)"
-                      name={['settings', 'billing', 'creditsPer1MTokens']}
-                      rules={[{ required: true, message: '请输入视频生成单价' }]}
-                    >
-                      <InputNumber min={0} precision={6} style={{ width: '100%' }} />
-                    </Form.Item>
-                  )}
-                  <Form.Item
-                    label="价格来源备注"
-                    name={['settings', 'billing', 'priceSource']}
-                  >
-                    <Input placeholder="例如：official-manual-2026-06-12" />
-                  </Form.Item>
-                </>
+                <Form.Item
+                  label="视频生成单价 (Credit / 1M tokens)"
+                  name={['settings', 'billing', 'creditsPer1MTokens']}
+                  rules={[{ required: true, message: '请输入视频生成单价' }]}
+                >
+                  <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+                </Form.Item>
               )}
+              <Form.Item
+                label="价格来源备注"
+                name={['settings', 'billing', 'priceSource']}
+              >
+                <Input placeholder="例如：official-manual-2026-06-12" />
+              </Form.Item>
             </div>
           </div>
         ) : (
@@ -687,7 +594,7 @@ function ModelFormModal({
               name="provider"
               rules={[{ required: true, message: '请输入服务商' }]}
             >
-              <Input disabled={activeType === 'llm'} placeholder="OpenAI / Anthropic / 通义千问 / Runway" />
+              <Input disabled={activeType === 'llm'} placeholder="openai-images / volcengine-seedream / Runway" />
             </Form.Item>
             <Form.Item
               label="模型名称"
@@ -703,12 +610,14 @@ function ModelFormModal({
                   placeholder="请选择模型"
                 />
               ) : (
-                <Input placeholder="gpt-4.1-mini / sora / flux-pro" />
+                <Input placeholder="gpt-image-1 / doubao-seedream-5-0-260128 / flux-pro" />
               )}
             </Form.Item>
-            <Form.Item label="Temperature" name="temperature">
-              <InputNumber max={2} min={0} step={0.1} style={{ width: '100%' }} />
-            </Form.Item>
+            {activeType === 'llm' && (
+              <Form.Item label="Temperature" name="temperature">
+                <InputNumber max={2} min={0} step={0.1} style={{ width: '100%' }} />
+              </Form.Item>
+            )}
             <Form.Item
               className="full-span"
               label="Base URL"
@@ -820,6 +729,31 @@ function ModelFormModal({
               <Form.Item className="full-span" name={['settings', 'supportsAudioInput']} valuePropName="checked">
                 <Checkbox>支持音频输入</Checkbox>
               </Form.Item>
+            )}
+            {activeType === 'image' && (
+              <>
+                <Form.Item
+                  label="模型消耗倍率"
+                  name={['settings', 'billing', 'multiplier']}
+                  rules={[{ required: true, message: '请输入模型消耗倍率' }]}
+                >
+                  <InputNumber controls={false} min={0} precision={2} step={0.01} style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item
+                  label="图片生成单价 (Credit / 张)"
+                  name={['settings', 'billing', 'creditsPerRequest']}
+                  rules={[{ required: true, message: '请输入图片生成单价' }]}
+                >
+                  <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item
+                  className="full-span"
+                  label="价格来源备注"
+                  name={['settings', 'billing', 'priceSource']}
+                >
+                  <Input placeholder="例如：official-manual-2026-06-12" />
+                </Form.Item>
+              </>
             )}
           </div>
         )}
@@ -1088,7 +1022,6 @@ function LlmPricingEditorModal({
 
 export function ModelSettingsPage() {
   const [audioProviders, setAudioProviders] = useState<AudioModelProviderOption[]>([]);
-  const [imageProviders, setImageProviders] = useState<ImageModelProviderOption[]>([]);
   const [llmModelPricing, setLlmModelPricing] = useState<LlmModelPricing[]>([]);
   const [videoProviders, setVideoProviders] = useState<VideoModelProviderOption[]>([]);
   const [activeType, setActiveType] = useState<ModelType>('llm');
@@ -1105,7 +1038,7 @@ export function ModelSettingsPage() {
   const [llmPricingEditorModalOpen, setLlmPricingEditorModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ModelConfig | null>(null);
   const [editingLlmPricing, setEditingLlmPricing] = useState<LlmModelPricing | null>(null);
-  const [savingVideoProviderId, setSavingVideoProviderId] = useState('');
+  const [savingProviderId, setSavingProviderId] = useState('');
 
   const audioConfigRows = useMemo(
     () => audioProviders.map((provider) => audioProviderConfigRow(
@@ -1121,17 +1054,8 @@ export function ModelSettingsPage() {
     )),
     [videoProviders, configsByType.video],
   );
-  const imageConfigRows = useMemo(
-    () => imageProviders.map((provider) => imageProviderConfigRow(
-      provider,
-      configsByType.image.find((item) => item.type === 'image' && item.provider === provider.id),
-    )),
-    [imageProviders, configsByType.image],
-  );
   const tableRows = activeType === 'audio'
     ? audioConfigRows
-    : activeType === 'image'
-      ? imageConfigRows
     : activeType === 'video'
       ? videoConfigRows
       : configsByType[activeType];
@@ -1144,8 +1068,7 @@ export function ModelSettingsPage() {
         setAudioProviders(providers);
         setConfigsByType((current) => ({ ...current, [type]: rows }));
       } else if (type === 'image') {
-        const [rows, providers] = await Promise.all([listModelConfigs(type), listImageModelProviders()]);
-        setImageProviders(providers);
+        const rows = await listModelConfigs(type);
         setConfigsByType((current) => ({ ...current, [type]: rows }));
       } else if (type === 'video') {
         const [rows, providers] = await Promise.all([listModelConfigs(type), listVideoModelProviders()]);
@@ -1189,12 +1112,10 @@ export function ModelSettingsPage() {
   }, []);
 
   function openCreateModal() {
-    if (activeType === 'audio' || activeType === 'image' || activeType === 'video') {
+    if (activeType === 'audio' || activeType === 'video') {
       message.info(activeType === 'audio'
         ? '音频模型由服务端适配器提供，只能编辑 Key 和 Base URL'
-        : activeType === 'image'
-          ? '图片模型由服务端适配器提供，只能编辑 API Key 和默认模型'
-          : '视频模型由服务端适配器提供，只需配置 API Key');
+        : '视频模型由服务端适配器提供，只需配置 API Key');
       return;
     }
     setEditingRecord(null);
@@ -1228,12 +1149,6 @@ export function ModelSettingsPage() {
           throw new Error('音频服务商不存在');
         }
         await saveModelConfig(audioProviderConfigRow(provider, record, { isDefault: true }));
-      } else if (activeType === 'image' && !record.id) {
-        const provider = imageProviders.find((item) => item.id === record.provider);
-        if (!provider) {
-          throw new Error('图片服务商不存在');
-        }
-        await saveModelConfig(imageProviderConfigRow(provider, record, { isDefault: true }));
       } else if (activeType === 'video' && !record.id) {
         const provider = videoProviders.find((item) => item.id === record.provider);
         if (!provider) {
@@ -1280,7 +1195,7 @@ export function ModelSettingsPage() {
       message.error('视频服务商不存在');
       return;
     }
-    setSavingVideoProviderId(provider.id);
+    setSavingProviderId(provider.id);
     try {
       await saveModelConfig(videoProviderConfigRow(provider, record, { model }));
       message.success('视频模型已更新');
@@ -1288,7 +1203,7 @@ export function ModelSettingsPage() {
     } catch (error) {
       message.error(error instanceof Error ? error.message : '视频模型更新失败');
     } finally {
-      setSavingVideoProviderId('');
+      setSavingProviderId('');
     }
   }
 
@@ -1305,9 +1220,9 @@ export function ModelSettingsPage() {
           默认
         </Button>
         <Button onClick={() => openEditModal(record)}>
-          {activeType === 'audio' ? '编辑 Key / Base URL' : activeType === 'image' || activeType === 'video' ? '编辑 API Key' : '编辑'}
+          {activeType === 'audio' ? '编辑 Key / Base URL' : activeType === 'video' ? '编辑 API Key' : '编辑'}
         </Button>
-        {activeType !== 'audio' && activeType !== 'image' && activeType !== 'video' && (
+        {activeType !== 'audio' && activeType !== 'video' && (
           <Popconfirm
             disabled={record.isDefault}
             okText="删除"
@@ -1375,27 +1290,19 @@ export function ModelSettingsPage() {
         {
           title: '图片配置',
           dataIndex: 'name',
-          render: (value, record) => {
-            const provider = imageProviders.find((item) => item.id === record.provider);
-            const selectedModel = provider?.models.find((item) => item.id === record.model) || provider?.models[0];
-            return (
-              <Space orientation="vertical" size={2}>
-                <Space>
-                  <strong>{value}</strong>
-                  {record.isDefault && <Tag color="green">默认</Tag>}
-                </Space>
-                <span className="model-subtext">{provider?.description || selectedModel?.description || record.model}</span>
+          render: (value, record) => (
+            <Space orientation="vertical" size={2}>
+              <Space>
+                <strong>{value}</strong>
+                {record.isDefault && <Tag color="green">默认</Tag>}
               </Space>
-            );
-          },
+              <span className="model-subtext">{record.provider}</span>
+            </Space>
+          ),
         },
         {
           title: '模型',
-          render: (_, record) => {
-            const provider = imageProviders.find((item) => item.id === record.provider);
-            const selectedModel = provider?.models.find((item) => item.id === record.model) || provider?.models[0];
-            return <span>{selectedModel?.name || record.model || '-'}</span>;
-          },
+          dataIndex: 'model',
         },
         {
           title: 'Key 状态',
@@ -1417,10 +1324,7 @@ export function ModelSettingsPage() {
         {
           title: 'Base URL',
           width: 320,
-          render: (_, record) => {
-            const provider = imageProviders.find((item) => item.id === record.provider);
-            return <span className="model-url-text">{provider?.defaultBaseUrl || record.baseUrl}</span>;
-          },
+          render: (_, record) => <span className="model-url-text">{record.baseUrl}</span>,
         },
         operationColumn,
       ]
@@ -1459,8 +1363,8 @@ export function ModelSettingsPage() {
                     options={options}
                     value={selectedModel?.id}
                     style={{ minWidth: 240 }}
-                    loading={savingVideoProviderId === record.provider}
-                    disabled={savingVideoProviderId === record.provider || options.length === 0}
+                    loading={savingProviderId === record.provider}
+                    disabled={savingProviderId === record.provider || options.length === 0}
                     onChange={(value) => {
                       void handleVideoModelChange(record, value);
                     }}
@@ -1609,7 +1513,6 @@ export function ModelSettingsPage() {
         activeType={activeType}
         audioProviders={audioProviders}
         editingRecord={editingRecord}
-        imageProviders={imageProviders}
         llmModelPricing={llmModelPricing}
         onCancel={() => setModalOpen(false)}
         onSaved={() => {

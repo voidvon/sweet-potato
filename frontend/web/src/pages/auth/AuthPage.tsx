@@ -39,7 +39,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
       <section className="auth-hero">
         <div className="brand-pill">
           <img src={appLogo} alt="" />
-          萌猫
+          萌猫 AI
         </div>
         <h1>登录后进入工作台</h1>
       </section>

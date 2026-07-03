@@ -16,6 +16,22 @@ import { contentFilesDir,createContentAssetRecord,deleteRemoteVirtualPortraitAss
 import { resolveDefaultImageModel } from './content-video-generation.js';
 import { isRecord } from './content-viral-analysis.js';
 
+type ImageModelConfig = ReturnType<typeof resolveDefaultImageModel>;
+
+type GeneratedImage = {
+  buffer: Buffer;
+  mimeType: string;
+  source: string;
+  model: string;
+};
+
+type ImageBillingContext = {
+  userId: string;
+  sourceType: string;
+  sourceId: string;
+  groupId?: string;
+};
+
 export function imageEditsUrl(baseUrl: string) {
   const trimmed = baseUrl.replace(/\/+$/, '');
   if (trimmed.endsWith('/images/edits')) {
@@ -27,11 +43,32 @@ export function imageEditsUrl(baseUrl: string) {
   return `${trimmed}/images/edits`;
 }
 
+export function imageGenerationsUrl(baseUrl: string) {
+  const trimmed = baseUrl.replace(/\/+$/, '');
+  if (trimmed.endsWith('/images/generations')) {
+    return trimmed;
+  }
+  if (trimmed.endsWith('/images/edits')) {
+    return trimmed.replace(/\/images\/edits$/, '/images/generations');
+  }
+  return `${trimmed}/images/generations`;
+}
+
 export function isImageEditsEndpoint(baseUrl: string) {
   return baseUrl.replace(/\/+$/, '').endsWith('/images/edits');
 }
 
-export async function parseGeneratedImageResponse(response: Response, config: { model: string }) {
+function imageGenerationSize(config: { provider?: string; settings?: Record<string, unknown> }) {
+  const size = config.settings && typeof config.settings.imageSize === 'string'
+    ? config.settings.imageSize.trim()
+    : '';
+  if (size) {
+    return size;
+  }
+  return config.provider === 'openai-images' ? '1024x1024' : threeViewImageSize;
+}
+
+export async function parseGeneratedImageResponse(response: Response, config: { model: string }): Promise<GeneratedImage> {
   const text = await response.text();
   let data: unknown = {};
   try {
@@ -71,6 +108,13 @@ export async function parseGeneratedImageResponse(response: Response, config: { 
 
 export async function withImageModelTimeout<T>(request: (input: { config: ReturnType<typeof resolveDefaultImageModel>; signal: AbortSignal }) => Promise<T>) {
   const config = resolveDefaultImageModel();
+  return withSpecificImageModelTimeout(config, request);
+}
+
+export async function withSpecificImageModelTimeout<T>(
+  config: ImageModelConfig,
+  request: (input: { config: ImageModelConfig; signal: AbortSignal }) => Promise<T>,
+) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 600_000);
   try {
@@ -109,17 +153,17 @@ export function normalizeImageModelError(error: unknown): never {
 export async function editImageWithJsonReferences(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
-  billingContext?: {
-    userId: string;
-    sourceType: string;
-    sourceId: string;
-    groupId?: string;
-  };
-}) {
-  return withImageModelTimeout(async ({ config, signal }) => {
+  modelConfig?: ImageModelConfig;
+  billingContext?: ImageBillingContext;
+}): Promise<GeneratedImage> {
+  const run: <T>(request: (input: { config: ImageModelConfig; signal: AbortSignal }) => Promise<T>) => Promise<T> = input.modelConfig
+    ? (request) => withSpecificImageModelTimeout(input.modelConfig!, request)
+    : withImageModelTimeout;
+  return run(async ({ config, signal }) => {
     try {
       const imageUrls = await Promise.all(input.referenceAssets.slice(0, 4).map(referenceAssetToDataUri));
-      const response = await fetch(imageReferenceRequestUrl(config.baseUrl), {
+      const size = imageGenerationSize(config);
+      const response = await fetch(imageGenerationsUrl(config.baseUrl), {
         method: 'POST',
         signal,
         headers: {
@@ -132,7 +176,7 @@ export async function editImageWithJsonReferences(input: {
           image: imageUrls[0],
           image_urls: imageUrls,
           n: 1,
-          size: threeViewImageSize,
+          size,
           response_format: 'b64_json',
           watermark: false,
         }),
@@ -149,7 +193,7 @@ export async function editImageWithJsonReferences(input: {
             promptLength: input.prompt.length,
             referenceAssetCount: input.referenceAssets.length,
             requestMode: 'json_references',
-            size: threeViewImageSize,
+            size,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,
@@ -169,23 +213,21 @@ export async function editImageWithJsonReferences(input: {
 export async function editImageWithConfiguredModel(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
-  billingContext?: {
-    userId: string;
-    sourceType: string;
-    sourceId: string;
-    groupId?: string;
-  };
-}) {
-  if (!isImageEditsEndpoint(resolveDefaultImageModel().baseUrl)) {
+  modelConfig?: ImageModelConfig;
+  billingContext?: ImageBillingContext;
+}): Promise<GeneratedImage> {
+  const resolvedConfig = input.modelConfig || resolveDefaultImageModel();
+  if (!isImageEditsEndpoint(resolvedConfig.baseUrl)) {
     return editImageWithJsonReferences(input);
   }
-  return withImageModelTimeout(async ({ config, signal }) => {
+  return withSpecificImageModelTimeout(resolvedConfig, async ({ config, signal }) => {
     try {
+      const size = imageGenerationSize(config);
       const form = new FormData();
       form.set('model', config.model);
       form.set('prompt', input.prompt);
       form.set('n', '1');
-      form.set('size', threeViewImageSize);
+      form.set('size', size);
       form.set('response_format', 'b64_json');
       await Promise.all(input.referenceAssets.slice(0, 6).map(async (asset) => {
         const bytes = await readFile(asset.filePath);
@@ -212,7 +254,60 @@ export async function editImageWithConfiguredModel(input: {
             promptLength: input.prompt.length,
             referenceAssetCount: input.referenceAssets.length,
             requestMode: 'multipart_edits',
-            size: threeViewImageSize,
+            size,
+          },
+          responseSnapshot: {
+            mimeType: generated.mimeType,
+            source: generated.source,
+            model: generated.model,
+            byteLength: generated.buffer.byteLength,
+          },
+        });
+      }
+      return generated;
+    } catch (error) {
+      normalizeImageModelError(error);
+    }
+  });
+}
+
+export async function generateImageWithConfiguredModel(input: {
+  prompt: string;
+  modelConfig: ImageModelConfig;
+  billingContext?: ImageBillingContext;
+}): Promise<GeneratedImage> {
+  return withSpecificImageModelTimeout(input.modelConfig, async ({ config, signal }) => {
+    try {
+      const size = imageGenerationSize(config);
+      const response = await fetch(imageReferenceRequestUrl(config.baseUrl), {
+        method: 'POST',
+        signal,
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: config.model,
+          prompt: input.prompt,
+          n: 1,
+          size,
+          response_format: 'b64_json',
+          watermark: false,
+        }),
+      });
+      const generated = await parseGeneratedImageResponse(response, config);
+      if (input.billingContext) {
+        recordImageGenerationUsage({
+          userId: input.billingContext.userId,
+          modelConfig: config,
+          sourceType: input.billingContext.sourceType,
+          sourceId: input.billingContext.sourceId,
+          groupId: input.billingContext.groupId,
+          requestSnapshot: {
+            promptLength: input.prompt.length,
+            referenceAssetCount: 0,
+            requestMode: 'text_to_image',
+            size,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,

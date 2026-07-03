@@ -57,7 +57,9 @@ export async function dispatchChatCapability(input: ChatCapabilityExecutionInput
     content: input.invocation.cleanedContent,
     agent: input.agent,
     modelConfig: input.modelConfig,
+    imageModelConfig: input.imageModelConfig,
     history: input.history,
+    attachments: input.attachments,
     capabilityContext: input.capabilityContext,
     conversation: input.conversation,
   });

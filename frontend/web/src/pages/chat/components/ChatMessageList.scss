@@ -34,12 +34,6 @@
   background-clip: content-box;
 }
 
-.chat-empty-state {
-  display: grid;
-  flex: 1;
-  place-items: center;
-}
-
 .chat-message-shell {
   display: flex;
   flex-direction: column;

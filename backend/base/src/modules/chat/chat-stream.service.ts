@@ -24,6 +24,7 @@ export type ParsedChatStreamPayload = {
   content: string;
   agentId: string;
   modelConfigId: string | null;
+  imageModelConfigId: string | null;
   attachments: ChatAttachment[];
   capabilityContext?: SendChatPayload['capabilityContext'];
   requestedCapabilities?: SendChatPayload['requestedCapabilities'];
@@ -76,8 +77,9 @@ export function parseCapabilityContext(value: unknown): SendChatPayload['capabil
   if (!value || typeof value !== 'object') {
     return undefined;
   }
-  const source = value as { xingtuProfileId?: unknown };
+  const source = value as { imageModelConfigId?: unknown; xingtuProfileId?: unknown };
   return {
+    imageModelConfigId: typeof source.imageModelConfigId === 'string' ? source.imageModelConfigId.trim() : undefined,
     xingtuProfileId: typeof source.xingtuProfileId === 'string' ? source.xingtuProfileId.trim() : undefined,
   };
 }
@@ -98,6 +100,7 @@ function parseStreamPayload(body: Record<string, unknown>): ParsedChatStreamPayl
     content: String(body.content || '').trim(),
     agentId: String(body.agentId || '').trim(),
     modelConfigId: typeof body.modelConfigId === 'string' ? body.modelConfigId : null,
+    imageModelConfigId: typeof body.imageModelConfigId === 'string' ? body.imageModelConfigId : null,
     attachments: parseChatAttachments(body.attachments),
     capabilityContext: parseCapabilityContext(body.capabilityContext),
     requestedCapabilities: parseRequestedCapabilities(body.requestedCapabilities),
@@ -111,6 +114,7 @@ export async function handleCapabilityConversation(input: {
   content: string;
   agent: AiAgent;
   modelConfig: AiModelConfig;
+  imageModelConfig?: AiModelConfig;
   attachments: ChatAttachment[];
   capabilityContext?: SendChatPayload['capabilityContext'];
   requestedCapabilities?: SendChatPayload['requestedCapabilities'];
@@ -142,7 +146,9 @@ export async function handleCapabilityConversation(input: {
     content: input.content,
     agent: input.agent,
     modelConfig: input.modelConfig,
+    imageModelConfig: input.imageModelConfig,
     history: input.existingHistory || [],
+    attachments: input.attachments,
     invocation,
     capabilityContext: input.capabilityContext,
     conversation,
@@ -152,7 +158,7 @@ export async function handleCapabilityConversation(input: {
     ...conversation,
     metadata: {
       ...result.metadata,
-      previewText: makeConversationPreview(result.assistantContent || input.content),
+      previewText: result.metadata.previewText || makeConversationPreview(result.assistantContent || input.content),
     },
     updatedAt: now,
   };
@@ -174,6 +180,7 @@ export async function handleCapabilityConversation(input: {
     actions: result.assistantActions || [],
     agentId: input.agent.id,
     modelConfigId: nextConversation.modelConfigId || undefined,
+    attachments: result.assistantAttachments || [],
     createdAt: new Date(Date.now() + 1).toISOString(),
     isCompleted: true,
   };
@@ -236,6 +243,7 @@ export function createChatStreamExecutor() {
       content,
       agentId,
       modelConfigId,
+      imageModelConfigId,
       attachments,
       capabilityContext,
       requestedCapabilities,
@@ -276,6 +284,17 @@ export function createChatStreamExecutor() {
     }
 
     const capabilityInvocation = resolveChatCapabilityInvocation(content, requestedCapabilities);
+    const imageModelConfig = imageModelConfigId ? modelConfigRepository.find(imageModelConfigId) : undefined;
+    if (capabilityInvocation?.capability === 'image_generation' && !imageModelConfig) {
+      sink.send({ type: 'error', message: '请选择可用的图片模型' });
+      sink.end();
+      return;
+    }
+    if (imageModelConfig && imageModelConfig.type !== 'image') {
+      sink.send({ type: 'error', message: '请选择图片模型配置' });
+      sink.end();
+      return;
+    }
     const existingConversation = conversationId ? chatRepository.findConversation(conversationId) : undefined;
     if (existingConversation && existingConversation.userId !== userId) {
       sink.send({ type: 'error', message: '无权访问该对话' });
@@ -305,6 +324,7 @@ export function createChatStreamExecutor() {
           content,
           agent,
           modelConfig,
+          imageModelConfig,
           attachments,
           capabilityContext,
           requestedCapabilities,

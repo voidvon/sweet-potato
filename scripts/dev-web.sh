@@ -5,7 +5,9 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PYTHON_WORKER_DIR="$ROOT_DIR/backend/ai-worker"
 NODE_BACKEND_DIR="$ROOT_DIR/backend/base"
+FRONTEND_DIR="$ROOT_DIR/frontend"
 FRONTEND_WEB_DIR="$ROOT_DIR/frontend/web"
+FRONTEND_ADMIN_DIR="$ROOT_DIR/frontend/admin"
 
 PIDS=()
 CLEANED_UP=0
@@ -75,7 +77,9 @@ cleanup() {
 
 install_node_deps_if_needed() {
   local dir="$1"
-  if [ ! -d "$dir/node_modules" ]; then
+  local bin="${2:-}"
+
+  if [ ! -d "$dir/node_modules" ] || { [ -n "$bin" ] && [ ! -x "$dir/node_modules/.bin/$bin" ]; }; then
     echo "Installing node dependencies in $dir"
     (cd "$dir" && pnpm install)
   fi
@@ -134,12 +138,14 @@ if [ "$OPEN_BROWSER" = "1" ]; then
     exit 1
   }
 fi
-install_node_deps_if_needed "$NODE_BACKEND_DIR"
-install_node_deps_if_needed "$FRONTEND_WEB_DIR"
+install_node_deps_if_needed "$NODE_BACKEND_DIR" tsx
+install_node_deps_if_needed "$FRONTEND_DIR" vite
+install_node_deps_if_needed "$FRONTEND_ADMIN_DIR" vite
 
 ensure_port_free "${PYTHON_AI_WORKER_PORT:-7073}"
 ensure_port_free "${BACKEND_PORT:-7072}"
 ensure_port_free "${FRONTEND_PORT:-9527}"
+ensure_port_free "${FRONTEND_ADMIN_PORT:-9528}"
 
 export PYTHON_AI_WORKER_PORT="${PYTHON_AI_WORKER_PORT:-7073}"
 export PYTHON_AI_WORKER_URL="${PYTHON_AI_WORKER_URL:-http://127.0.0.1:${PYTHON_AI_WORKER_PORT}}"
@@ -150,7 +156,10 @@ start_service "Node backend" "$NODE_BACKEND_DIR" \
   pnpm run dev
 
 start_service "Frontend/Web" "$FRONTEND_WEB_DIR" \
-  pnpm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT:-9527}"
+  "$FRONTEND_DIR/node_modules/.bin/vite" --host 0.0.0.0 --port "${FRONTEND_PORT:-9527}"
+
+start_service "Frontend admin" "$FRONTEND_ADMIN_DIR" \
+  "$FRONTEND_DIR/node_modules/.bin/vite" --host 0.0.0.0 --port "${FRONTEND_ADMIN_PORT:-9528}"
 
 if [ "$OPEN_BROWSER" = "1" ]; then
   open_browser_when_ready "http://localhost:${FRONTEND_PORT:-9527}/" "$BROWSER_OPEN_CMD"
@@ -163,6 +172,7 @@ Web dev services are starting:
   Node backend:     http://localhost:${BACKEND_PORT:-7072}
   Frontend:         http://localhost:${FRONTEND_PORT:-9527}/
   Automation entry: http://localhost:${FRONTEND_PORT:-9527}/app/automation
+  Admin:            http://localhost:${FRONTEND_ADMIN_PORT:-9528}/
 
 Press Ctrl+C to stop all services started by this script.
 INFO

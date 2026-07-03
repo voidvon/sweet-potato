@@ -1,0 +1,578 @@
+.claw-dialog-composer {
+  box-sizing: border-box;
+  display: grid;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: 1640px;
+  padding: 0 16px 28px;
+  width: 1640px;
+  zoom: 0.4988;
+}
+
+.claw-dialog-card {
+  background: #ffffff;
+  border: 1px solid #dedede;
+  border-radius: 30px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.claw-dialog-heading {
+  border-bottom: 1px solid #e8e8e8;
+  color: #171717;
+  font-size: 27px;
+  line-height: 1.45;
+  padding: 28px 40px;
+}
+
+.claw-dialog-input-zone {
+  align-items: start;
+  border-bottom: 1px solid #eeeeee;
+  display: grid;
+  gap: 36px;
+  grid-template-columns: 188px minmax(0, 1fr) 60px;
+  min-height: 252px;
+  padding: 44px 40px 20px 32px;
+}
+
+.claw-reference-tile {
+  align-items: center;
+  background: #f2f3f7;
+  border: 0;
+  border-radius: 18px;
+  color: #8c99aa;
+  cursor: pointer;
+  display: grid;
+  height: 178px;
+  justify-items: center;
+  padding: 16px;
+  position: relative;
+  transform: rotate(-4deg);
+  transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  width: 164px;
+}
+
+.claw-reference-tile:hover {
+  background: #ebedf2;
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.1);
+  transform: rotate(-2deg) translateY(-1px);
+}
+
+.claw-reference-tile.has-image {
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  overflow: hidden;
+  padding: 0;
+}
+
+.claw-reference-badge {
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  color: #7a8798;
+  font-size: 17px;
+  font-weight: 800;
+  left: 10px;
+  line-height: 1;
+  padding: 6px 12px;
+  position: absolute;
+  top: 12px;
+}
+
+.claw-reference-label {
+  align-self: end;
+  color: #6d7785;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.claw-reference-image,
+.claw-reference-tile.has-image .ant-image,
+.claw-reference-tile.has-image .ant-image-img {
+  border-radius: 18px;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.claw-reference-remove {
+  background: rgba(15, 23, 42, 0.74);
+  border-radius: 999px;
+  bottom: 10px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  position: absolute;
+}
+
+.claw-dialog-textarea-wrap {
+  min-width: 0;
+  position: relative;
+}
+
+.claw-dialog-textarea.ant-input {
+  color: #182230;
+  font-size: 28px;
+  line-height: 1.55;
+  min-height: 144px;
+  padding: 10px 0;
+  resize: none;
+}
+
+.claw-dialog-textarea.ant-input::placeholder {
+  color: #9aa9bd;
+}
+
+.claw-expand-button.ant-btn {
+  align-self: start;
+  border-radius: 999px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  color: #6b7a90;
+  height: 52px;
+  justify-self: end;
+  width: 52px;
+}
+
+.claw-attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 40px 0;
+}
+
+.claw-attachment-pill {
+  align-items: center;
+  background: #f6f8fb;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  color: #344054;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+  max-width: 280px;
+  padding: 7px 10px;
+}
+
+.claw-attachment-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claw-attachment-pill button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #98a2b3;
+  cursor: pointer;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 2px;
+  width: 18px;
+}
+
+.claw-dialog-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 24px 32px;
+}
+
+.claw-dialog-options,
+.claw-dialog-submit {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  min-width: 0;
+}
+
+.claw-dialog-submit {
+  justify-content: flex-end;
+}
+
+.claw-option-button.ant-btn {
+  align-items: center;
+  border-color: #e5e7eb;
+  border-radius: 18px;
+  box-shadow: none;
+  color: #171717;
+  display: inline-flex;
+  font-size: 24px;
+  font-weight: 800;
+  gap: 10px;
+  height: 72px;
+  padding: 0 28px;
+}
+
+.claw-option-button.is-active.ant-btn {
+  background: #e5f6d7;
+  border-color: #e5f6d7;
+}
+
+.claw-option-button .ant-btn-icon {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  border-radius: 8px;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.claw-option-divider {
+  background: #d9d9d9;
+  height: 30px;
+  width: 1px;
+}
+
+.claw-mode-dropdown .ant-dropdown-menu {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6px;
+  width: 260px;
+}
+
+.claw-mode-dropdown .ant-dropdown-menu-item {
+  border-radius: 8px;
+  padding: 5px;
+}
+
+.claw-mode-dropdown .ant-dropdown-menu-item-selected {
+  background: #e5f6d7;
+}
+
+.claw-mode-menu-item {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.claw-mode-menu-icon {
+  align-items: center;
+  background: #f3f4f6;
+  border-radius: 6px;
+  color: #111827;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.claw-mode-dropdown .ant-dropdown-menu-item-selected .claw-mode-menu-icon {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.claw-mode-menu-copy {
+  min-width: 0;
+}
+
+.claw-mode-menu-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.claw-mode-menu-copy span {
+  color: #171717;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.claw-image-model-dropdown .ant-dropdown-menu {
+  min-width: 190px;
+  padding: 6px;
+}
+
+.claw-image-model-dropdown .ant-dropdown-menu-item {
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.claw-image-model-dropdown .ant-dropdown-menu-item-selected {
+  background: #e5f6d7;
+}
+
+.claw-size-popover .ant-popover-inner {
+  background: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 10px 23px rgba(15, 23, 42, 0.14);
+  padding: 0;
+}
+
+.claw-size-popover .ant-popover-inner-content {
+  padding: 0;
+}
+
+.claw-size-panel {
+  box-sizing: border-box;
+  display: grid;
+  gap: 13px;
+  width: 360px;
+}
+
+.claw-size-panel-section {
+  display: grid;
+  gap: 8px;
+}
+
+.claw-size-panel-section h3 {
+  color: #7b8794;
+  font-size: 11px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.claw-aspect-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.claw-aspect-option,
+.claw-resolution-option {
+  align-items: center;
+  background: #f5f6f9;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #111827;
+  cursor: pointer;
+  display: inline-grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.claw-aspect-option {
+  gap: 5px;
+  height: 42px;
+  padding: 6px 4px;
+}
+
+.claw-aspect-option span:last-child {
+  font-size: 11px;
+}
+
+.claw-aspect-option.selected,
+.claw-resolution-option.selected {
+  background: #ffffff;
+  border-color: #a8a8a8;
+}
+
+.claw-aspect-icon {
+  border: 1px solid #111827;
+  border-radius: 2px;
+  display: block;
+  height: 10px;
+  width: 15px;
+}
+
+.claw-aspect-icon.ratio-auto {
+  border-style: dashed;
+}
+
+.claw-aspect-icon.ratio-21-9 {
+  height: 7px;
+  width: 18px;
+}
+
+.claw-aspect-icon.ratio-16-9 {
+  height: 8px;
+  width: 17px;
+}
+
+.claw-aspect-icon.ratio-3-2 {
+  height: 9px;
+  width: 15px;
+}
+
+.claw-aspect-icon.ratio-4-3 {
+  height: 10px;
+  width: 14px;
+}
+
+.claw-aspect-icon.ratio-1-1 {
+  height: 14px;
+  width: 14px;
+}
+
+.claw-aspect-icon.ratio-3-4 {
+  height: 17px;
+  width: 12px;
+}
+
+.claw-aspect-icon.ratio-2-3 {
+  height: 18px;
+  width: 11px;
+}
+
+.claw-aspect-icon.ratio-9-16 {
+  height: 19px;
+  width: 10px;
+}
+
+.claw-resolution-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.claw-resolution-option {
+  font-size: 13px;
+  height: 35px;
+}
+
+.claw-canvas-size-row {
+  align-items: center;
+  background: #f5f6f9;
+  border-radius: 7px;
+  color: #7b8794;
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  min-height: 29px;
+  padding: 0 11px;
+}
+
+.claw-canvas-size-row strong {
+  color: #111827;
+  font-size: 11px;
+}
+
+.claw-prompt-status {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.claw-prompt-status.ready {
+  color: #0f766e;
+}
+
+.claw-credit {
+  align-items: center;
+  color: #171717;
+  display: inline-flex;
+  font-size: 22px;
+  font-weight: 800;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.claw-credit svg {
+  color: #ff9500;
+}
+
+.claw-send-button.ant-btn {
+  align-items: center;
+  background: #ececec;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  color: #6d7785;
+  display: inline-flex;
+  height: 72px;
+  justify-content: center;
+  min-width: 72px;
+  padding: 0;
+  width: 72px;
+}
+
+.claw-send-button.ant-btn:not(:disabled) {
+  background: #111827;
+  color: #ffffff;
+}
+
+.claw-send-button.ant-btn:disabled {
+  color: #7b8794;
+}
+
+.claw-feature-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.claw-feature-card {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dedede;
+  border-radius: 26px;
+  color: #171717;
+  cursor: pointer;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  min-height: 144px;
+  padding: 24px 30px;
+  position: relative;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.claw-feature-card:hover,
+.claw-feature-card.selected {
+  border-color: #d0d5dd;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
+.claw-feature-icon {
+  align-items: center;
+  background: #f3f4f6;
+  border-radius: 18px;
+  color: #111827;
+  display: inline-flex;
+  height: 76px;
+  justify-content: center;
+  width: 76px;
+}
+
+.claw-feature-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.claw-feature-copy strong {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.claw-feature-copy small {
+  color: #646464;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.claw-feature-check {
+  align-items: center;
+  background: #050505;
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  position: absolute;
+  right: 22px;
+  top: 20px;
+  width: 32px;
+}
+
+@media (max-width: 960px) {
+  .claw-dialog-composer {
+    padding: 0 14px 22px;
+    width: 1640px;
+    zoom: 0.46;
+  }
+}

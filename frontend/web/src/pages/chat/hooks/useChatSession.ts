@@ -405,7 +405,14 @@ export function useChatSession() {
     });
   }, [activeConversationId, refreshConversations]);
 
-  const sendMessage = useCallback(async (override?: { content?: string; attachments?: ChatAttachment[]; clearComposer?: boolean; editMessageId?: string }) => {
+  const sendMessage = useCallback(async (override?: {
+    content?: string;
+    attachments?: ChatAttachment[];
+    clearComposer?: boolean;
+    editMessageId?: string;
+    imageModelConfigId?: string | null;
+    requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
+  }) => {
     const content = (override?.content ?? input).trim();
     const messageAttachments = override?.attachments ?? attachments;
     if ((!content && !messageAttachments.length) || !activeAgent || !currentUser) {
@@ -473,6 +480,8 @@ export function useChatSession() {
           attachments: sendingAttachments,
           content: contentForSend,
           ...capabilityPayload,
+          imageModelConfigId: override?.imageModelConfigId || null,
+          requestedCapabilities: override?.requestedCapabilities || capabilityPayload.requestedCapabilities,
         },
         (event) => {
           if (event.type === 'conversation') {
@@ -557,8 +566,11 @@ export function useChatSession() {
     }
   }, [activeAgent, activeConversationId, attachments, currentUser, input, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
 
-  const sendCurrentMessage = useCallback(async () => {
-    await sendMessage();
+  const sendCurrentMessage = useCallback(async (options?: { imageModelConfigId?: string | null }) => {
+    await sendMessage({
+      imageModelConfigId: options?.imageModelConfigId || null,
+      requestedCapabilities: ['image_generation'],
+    });
   }, [sendMessage]);
 
   const sendPresetMessage = useCallback(async (content: string) => {

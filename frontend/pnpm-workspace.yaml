@@ -3,7 +3,7 @@ packages:
   - 'admin'
 
 allowBuilds:
-  '@parcel/watcher': set this to true or false
+  '@parcel/watcher': true
   electron: true
-  electron-winstaller: set this to true or false
-  esbuild: set this to true or false
+  electron-winstaller: true
+  esbuild: true

@@ -1,7 +1,7 @@
 {
-  "productName": "萌猫",
+  "productName": "萌猫 AI",
   "appId": "com.bilibili.ai-marketing-desktop",
-  "copyright": "© 2026 萌猫 Technology Co., Ltd.",
+  "copyright": "© 2026 萌猫 AI Technology Co., Ltd.",
   "directories": {
     "output": "out"
   },

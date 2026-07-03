@@ -424,12 +424,14 @@ export type SendChatPayload = {
   editMessageId?: string;
   agentId: string;
   modelConfigId?: string | null;
+  imageModelConfigId?: string | null;
   attachments?: ChatAttachment[];
   content: string;
   capabilityContext?: {
+    imageModelConfigId?: string | null;
     xingtuProfileId?: string | null;
   };
-  requestedCapabilities?: Array<'xingtu_creator_search'>;
+  requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
 };
 
 export type ChatStreamEvent =

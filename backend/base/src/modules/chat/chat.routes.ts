@@ -143,6 +143,7 @@ export function createChatRouter() {
     const content = String(req.body.content || '').trim();
     const agentId = String(req.body.agentId || '').trim();
     const modelConfigId = typeof req.body.modelConfigId === 'string' ? req.body.modelConfigId : null;
+    const imageModelConfigId = typeof req.body.imageModelConfigId === 'string' ? req.body.imageModelConfigId : null;
     const attachments = parseChatAttachments(req.body.attachments);
     const capabilityContext = parseCapabilityContext(req.body.capabilityContext);
     const requestedCapabilities = parseRequestedCapabilities(req.body.requestedCapabilities);
@@ -183,6 +184,15 @@ export function createChatRouter() {
     }
 
     const capabilityInvocation = resolveChatCapabilityInvocation(content, requestedCapabilities);
+    const imageModelConfig = imageModelConfigId ? modelConfigRepository.find(imageModelConfigId) : undefined;
+    if (capabilityInvocation?.capability === 'image_generation' && !imageModelConfig) {
+      sendError(res, 400, '请选择可用的图片模型');
+      return;
+    }
+    if (imageModelConfig && imageModelConfig.type !== 'image') {
+      sendError(res, 400, '请选择图片模型配置');
+      return;
+    }
     if (capabilityInvocation) {
       const history = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
       try {
@@ -191,6 +201,7 @@ export function createChatRouter() {
           content,
           agent,
           modelConfig,
+          imageModelConfig,
           attachments,
           capabilityContext,
           requestedCapabilities,
