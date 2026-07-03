@@ -46,7 +46,7 @@ async function confirmBuyinSession(ctx) {
     isLoginUrl,
     readAccount: readAccountName,
     inspectLoginState: inspectAccountNameDom,
-    checkCurrentPageFirst: false,
+    checkCurrentPageFirst: true,
     loginMessage: '当前精选联盟账号未登录，请先进入账号后台完成登录',
     waitAfterGotoMs: 1500,
     timeoutMs: 15000,

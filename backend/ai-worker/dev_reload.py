@@ -74,7 +74,12 @@ def stop_worker(process, timeout=5):
 
     try:
         if os.name == "nt":
-            process.kill()
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         else:
             os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=timeout)

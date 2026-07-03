@@ -9,6 +9,8 @@ export const routePaths = {
   contentModule: (moduleCode = ':moduleCode') => `/app/content/${moduleCode}`,
   xingtuCreators: '/app/creator-ops/xingtu',
   buyinCreators: '/app/creator-ops/buyin',
+  douyinCreators: '/app/creator-ops/douyin',
+  creatorFavorites: '/app/creator-ops/favorites',
   wechatOps: '/app/creator-ops/wechat',
   account: '/app/account',
   noPermission: '/app/no-permission',

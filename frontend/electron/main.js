@@ -8,6 +8,7 @@ const { startAutomationBridgeServer } = require("./service/browser-automation/br
 const { prepareCdpRuntime } = require("./service/browser-automation/cdp-runtime");
 
 electronApp.disableHardwareAcceleration();
+electronApp.commandLine.appendSwitch('persist-session-cookies');
 
 const appDataName = electronApp.isPackaged
   ? "ai-marketing-desktop-prod"
@@ -19,6 +20,22 @@ electronApp.setPath(
   "userData",
   userDataPath,
 );
+electronApp.setPath(
+  "sessionData",
+  userDataPath,
+);
+
+if (typeof process.on === 'function') {
+  process.on('message', (message) => {
+    if (!message || typeof message !== 'object') {
+      return;
+    }
+    if (message.type !== 'graceful-exit') {
+      return;
+    }
+    electronApp.quit();
+  });
+}
 
 function restoreDockMainWindow() {
   restoreMainWindow();

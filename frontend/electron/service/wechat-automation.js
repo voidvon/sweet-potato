@@ -8,7 +8,8 @@ const { app } = require('electron');
 const { getMainWindow } = require('ee-core/electron');
 
 const execFileAsync = promisify(execFile);
-const SCRIPT_RELATIVE_PATH = path.join('backend', 'ai-worker', 'scripts', 'wechat_probe.py');
+const RUNTIME_SCRIPT_RELATIVE_PATH = path.join('python', 'wechat_probe.py');
+const SOURCE_SCRIPT_RELATIVE_PATH = path.join('frontend', 'electron', 'python', 'wechat_probe.py');
 const DEFAULT_WINDOW_NAME = '\u5fae\u4fe1';
 
 function formatDatePart(date) {
@@ -37,7 +38,7 @@ function resolveRepoRoot() {
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(path.join(candidate, SCRIPT_RELATIVE_PATH))) {
+    if (fs.existsSync(path.join(candidate, SOURCE_SCRIPT_RELATIVE_PATH))) {
       return candidate;
     }
   }
@@ -49,8 +50,10 @@ function resolvePythonCommand(repoRoot) {
   const candidates = [
     process.env.WECHAT_AUTOMATION_PYTHON,
     process.env.PYTHON,
-    path.join(repoRoot, 'backend', 'ai-worker', '.venv', 'Scripts', 'python.exe'),
-    path.join(repoRoot, 'backend', 'ai-worker', '.venv', 'bin', 'python'),
+    path.resolve(__dirname, '..', 'python', '.venv', 'Scripts', 'python.exe'),
+    path.resolve(__dirname, '..', 'python', '.venv', 'bin', 'python'),
+    path.join(repoRoot, 'frontend', 'electron', 'python', '.venv', 'Scripts', 'python.exe'),
+    path.join(repoRoot, 'frontend', 'electron', 'python', '.venv', 'bin', 'python'),
     process.platform === 'win32' ? 'python' : 'python3',
     process.platform === 'win32' ? 'py' : null,
   ].filter(Boolean);
@@ -70,7 +73,11 @@ function resolvePythonCommand(repoRoot) {
 }
 
 function resolveScriptPath(repoRoot) {
-  return path.join(repoRoot, SCRIPT_RELATIVE_PATH);
+  const runtimeLocal = path.resolve(__dirname, '..', RUNTIME_SCRIPT_RELATIVE_PATH);
+  if (fs.existsSync(runtimeLocal)) {
+    return runtimeLocal;
+  }
+  return path.join(repoRoot, SOURCE_SCRIPT_RELATIVE_PATH);
 }
 
 function focusMainWindow() {

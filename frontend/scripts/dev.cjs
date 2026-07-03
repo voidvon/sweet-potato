@@ -38,6 +38,7 @@ let electronWatcher = null;
 let electronRestartPending = false;
 let electronRestartTimer = null;
 let sharedEnv = null;
+const pendingGracefulStops = new WeakMap();
 
 function log(message) {
   process.stdout.write(`${message}\n`);
@@ -87,7 +88,59 @@ function waitForHttp(url, timeoutMs) {
   });
 }
 
-function terminateProcess(child) {
+function waitForChildExit(child, timeoutMs) {
+  if (!child || child.exitCode !== null) {
+    return Promise.resolve();
+  }
+
+  const existing = pendingGracefulStops.get(child);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      pendingGracefulStops.delete(child);
+      child.removeListener('exit', onExit);
+      resolve();
+    };
+    const onExit = () => finish();
+    const timer = setTimeout(finish, timeoutMs);
+    child.once('exit', onExit);
+  });
+
+  pendingGracefulStops.set(child, promise);
+  return promise;
+}
+
+function requestGracefulStop(child) {
+  if (!child || child.killed || child.exitCode !== null) {
+    return false;
+  }
+
+  try {
+    if (child === electronChild && typeof child.send === 'function') {
+      child.send({ type: 'graceful-exit' });
+      return true;
+    }
+    if (process.platform === 'win32') {
+      child.kill();
+    } else {
+      child.kill('SIGTERM');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function forceTerminateProcess(child) {
   if (!child || child.killed || child.exitCode !== null) {
     return;
   }
@@ -105,14 +158,30 @@ function terminateProcess(child) {
   }
 
   try {
-    child.kill("SIGTERM");
+    child.kill("SIGKILL");
   } catch {
     // Ignore cleanup failures during shutdown.
   }
 }
 
+async function terminateProcess(child, options = {}) {
+  if (!child || child.killed || child.exitCode !== null) {
+    return;
+  }
+
+  const gracefulTimeoutMs = Number(options.gracefulTimeoutMs || 0);
+  const requested = requestGracefulStop(child);
+  if (requested && gracefulTimeoutMs > 0) {
+    await waitForChildExit(child, gracefulTimeoutMs);
+  }
+
+  if (child.exitCode === null) {
+    forceTerminateProcess(child);
+  }
+}
+
 function isElectronWatchTarget(filePath = "") {
-  return /\.(js|json)$/i.test(filePath);
+  return /\.(js|json|py)$/i.test(filePath);
 }
 
 function clearElectronRestartTimer() {
@@ -123,7 +192,14 @@ function clearElectronRestartTimer() {
 }
 
 function syncElectronSourceToPublic() {
-  const targets = ["config", "controller", "preload", "service", "main.js"];
+  const targets = [
+    "config",
+    "controller",
+    "preload",
+    "python",
+    "service",
+    "main.js",
+  ];
 
   fs.mkdirSync(electronPublicDir, { recursive: true });
 
@@ -169,7 +245,7 @@ function startElectronShell(env) {
     {
       cwd: rootDir,
       env,
-      stdio: "inherit",
+      stdio: ["inherit", "inherit", "inherit", "ipc"],
       windowsHide: false,
     },
   );
@@ -224,7 +300,7 @@ function restartElectronShell(reason) {
 
   log(`[dev] Electron source changed (${reason}), restarting Electron shell`);
   electronRestartPending = true;
-  terminateProcess(electronChild);
+  void terminateProcess(electronChild, { gracefulTimeoutMs: 3000 });
 }
 
 function scheduleElectronRestart(reason) {
@@ -267,7 +343,7 @@ function watchElectronSource() {
   });
 }
 
-function cleanupAndExit(code) {
+async function cleanupAndExit(code) {
   if (shuttingDown) {
     return;
   }
@@ -282,17 +358,30 @@ function cleanupAndExit(code) {
     }
   }
   for (const child of childProcesses.slice().reverse()) {
-    terminateProcess(child);
+    const gracefulTimeoutMs = child === electronChild ? 5000 : 1200;
+    await terminateProcess(child, { gracefulTimeoutMs });
   }
   process.exit(code);
 }
 
+if (typeof process.on === 'function') {
+  process.on('message', (message) => {
+    if (!message || typeof message !== 'object') {
+      return;
+    }
+    if (message.type !== 'graceful-exit') {
+      return;
+    }
+    void cleanupAndExit(0);
+  });
+}
+
 function registerCleanup() {
-  process.once("SIGINT", () => cleanupAndExit(130));
-  process.once("SIGTERM", () => cleanupAndExit(143));
+  process.once("SIGINT", () => { void cleanupAndExit(130); });
+  process.once("SIGTERM", () => { void cleanupAndExit(143); });
   process.once("exit", () => {
     for (const child of childProcesses.slice().reverse()) {
-      terminateProcess(child);
+      forceTerminateProcess(child);
     }
   });
 }
@@ -312,7 +401,7 @@ function spawnTracked(name, command, args, cwd, env) {
       return;
     }
     console.error(`[dev] failed to start ${name}: ${error.message}`);
-    cleanupAndExit(1);
+    void cleanupAndExit(1);
   });
 
   child.on("exit", (code, signal) => {
@@ -320,12 +409,12 @@ function spawnTracked(name, command, args, cwd, env) {
       return;
     }
     if (signal) {
-      cleanupAndExit(signal === "SIGINT" ? 130 : 143);
+      void cleanupAndExit(signal === "SIGINT" ? 130 : 143);
       return;
     }
     if (code && code !== 0) {
       console.error(`[dev] ${name} exited with code ${code}`);
-      cleanupAndExit(code);
+      void cleanupAndExit(code);
     }
   });
 

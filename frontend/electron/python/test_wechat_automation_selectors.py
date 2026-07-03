@@ -1,6 +1,6 @@
 import unittest
 
-from ai_worker.wechat_automation.constants import (
+from wechat_automation.constants import (
     ADD_FRIEND_NAME,
     ADD_TO_CONTACTS_NAME,
     PANEL_CHAT_NAME,
@@ -9,7 +9,7 @@ from ai_worker.wechat_automation.constants import (
     REQUEST_LABEL_NAME,
     SEND_MESSAGE_NAME,
 )
-from ai_worker.wechat_automation.selectors import (
+from wechat_automation.selectors import (
     build_menu_probe_region,
     click_add_to_contacts_strict,
     click_send_message,
