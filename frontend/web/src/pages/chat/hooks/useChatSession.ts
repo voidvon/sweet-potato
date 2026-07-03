@@ -332,7 +332,7 @@ export function useChatSession() {
     const remainingSlots = maxAttachmentCount - attachments.length;
     if (remainingSlots <= 0) {
       message.warning(`最多添加 ${maxAttachmentCount} 个附件`);
-      return;
+      return [];
     }
 
     const acceptedFiles = files.slice(0, remainingSlots).filter((file) => {
@@ -353,8 +353,10 @@ export function useChatSession() {
         url: await readFileAsDataUrl(file),
       })));
       setAttachments((items) => [...items, ...nextAttachments]);
+      return nextAttachments;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '附件添加失败');
+      return [];
     }
   }, [attachments.length]);
 
