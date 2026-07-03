@@ -123,7 +123,7 @@ test('video remake workflow runs cards through final video independently', async
       provider: 'volcengine-seedance',
       model: 'doubao-seedance-2-0-260128',
       status: 'completed',
-      videoUrl: '/files/content/generated-video-video-remake-test.mp4',
+      videoUrl: '/files/generated-video-video-remake-test.mp4',
       assetId: 'asset-generated-video-remake-test',
       renderMode: 'single_seedance',
       segments: [],
@@ -271,7 +271,7 @@ test('video remake upload failure marks uploading card failed', async () => {
       mimeType: 'video/mp4',
       fileSize: 8,
       filePath,
-      fileUrl: '/files/content/upload-failure.mp4',
+      fileUrl: '/files/upload-failure.mp4',
     });
     assert.equal(latestCard(session, 'uploading')?.status, 'pending');
 

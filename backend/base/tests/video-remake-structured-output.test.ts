@@ -132,7 +132,7 @@ test('director normalize structured parser accepts JSON payload', async () => {
   const parsed = await parseVideoRemakeDirectorStructuredOutput([
     '```json',
     JSON.stringify({
-      basicInfo: { title: '测试视频', resolution: '1080x1920', aspectRatio: '9:16', sourceUrl: '/files/content/source.mp4' },
+      basicInfo: { title: '测试视频', resolution: '1080x1920', aspectRatio: '9:16', sourceUrl: '/files/source.mp4' },
       expertAnalysis: { audio: {}, visual: {}, pip: {} },
       characterSetting: {
         items: [

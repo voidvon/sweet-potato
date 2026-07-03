@@ -81,7 +81,7 @@ function completedSegmentResultWithLocalUrl(input: {
   status?: string;
   segmentPath: string;
 }) {
-  const localUrl = `/files/content/${encodeURIComponent(input.segmentPath.split('/').pop() || '')}`;
+  const localUrl = `/files/${encodeURIComponent(input.segmentPath.split('/').pop() || '')}`;
   return {
     segmentIndex: input.segmentIndex,
     seconds: input.seconds,

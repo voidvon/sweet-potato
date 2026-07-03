@@ -135,7 +135,7 @@ function isVideoGenerationResult(value: unknown): value is VideoGenerationResult
 }
 
 function isSyntheticGeneratedVideoUrl(url?: string | null) {
-  return Boolean(url && /\/files\/content\/generated-[^/?#]+\.mp4(?:[?#].*)?$/i.test(url));
+  return Boolean(url && /\/files\/generated-[^/?#]+\.mp4(?:[?#].*)?$/i.test(url));
 }
 
 function resolveMediaUrl(url?: string | null) {

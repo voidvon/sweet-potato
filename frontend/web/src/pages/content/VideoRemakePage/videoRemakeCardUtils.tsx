@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../../api/request';
+import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetGroup } from '../../../types';
 import type { VideoRemakeCardMessage, VideoRemakeCardStatus, VideoRemakeCardType, VideoRemakeChatMessage } from '../../../api/video-remake';
 
@@ -83,13 +83,7 @@ export function fieldNumber(value: unknown, fallback = 0) {
 }
 
 export function mediaUrl(url: string) {
-  if (!url) {
-    return '';
-  }
-  if (/^(blob:|data:|https?:\/\/)/i.test(url)) {
-    return url;
-  }
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+  return resolveAssetUrl(url);
 }
 
 function isThreeViewResultAsset(asset: ContentAsset) {

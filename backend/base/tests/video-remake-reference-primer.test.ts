@@ -155,14 +155,14 @@ test('video remake scene-aware primers generate multiple spans and route each se
         provider: 'volcengine-seedance',
         model: 'doubao-seedance-2-0-260128',
         status: 'completed',
-        videoUrl: '/files/content/generated.mp4',
+        videoUrl: '/files/generated.mp4',
         jobId: 'segmented-job-1',
         renderMode: 'segmented_ffmpeg',
         segments: input.segmentInputs.map((segment) => ({
           segmentIndex: segment.segmentIndex,
           seconds: segment.seconds,
           status: 'completed',
-          videoUrl: `/files/content/segment-${segment.segmentIndex}.mp4`,
+          videoUrl: `/files/segment-${segment.segmentIndex}.mp4`,
         })),
       };
     };
@@ -270,14 +270,14 @@ test('video remake queued extend skips reference primer generation', async () =>
         provider: 'volcengine-seedance',
         model: 'doubao-seedance-2-0-260128',
         status: 'completed',
-        videoUrl: '/files/content/generated-queued.mp4',
+        videoUrl: '/files/generated-queued.mp4',
         jobId: 'queued-segmented-job',
         renderMode: 'queued_extend_ffmpeg',
         segments: input.segmentInputs.map((segment) => ({
           segmentIndex: segment.segmentIndex,
           seconds: segment.seconds,
           status: 'completed',
-          videoUrl: `/files/content/queued-segment-${segment.segmentIndex}.mp4`,
+          videoUrl: `/files/queued-segment-${segment.segmentIndex}.mp4`,
         })),
       };
     };
@@ -364,14 +364,14 @@ test('video remake scene-aware primers keep stable multi-segment spans in mixed 
         provider: 'volcengine-seedance',
         model: 'doubao-seedance-2-0-260128',
         status: 'completed',
-        videoUrl: '/files/content/generated-mixed.mp4',
+        videoUrl: '/files/generated-mixed.mp4',
         jobId: 'segmented-job-mixed',
         renderMode: 'segmented_ffmpeg',
         segments: input.segmentInputs.map((segment) => ({
           segmentIndex: segment.segmentIndex,
           seconds: segment.seconds,
           status: 'completed',
-          videoUrl: `/files/content/segment-mixed-${segment.segmentIndex}.mp4`,
+          videoUrl: `/files/segment-mixed-${segment.segmentIndex}.mp4`,
         })),
       };
     };
@@ -496,14 +496,14 @@ test('video remake scene-aware primers collapse rapid scene switching to a singl
       provider: 'volcengine-seedance',
       model: 'doubao-seedance-2-0-260128',
       status: 'completed',
-      videoUrl: '/files/content/generated-rapid.mp4',
+      videoUrl: '/files/generated-rapid.mp4',
       jobId: 'segmented-job-rapid',
       renderMode: 'segmented_ffmpeg',
       segments: input.segmentInputs.map((segment) => ({
         segmentIndex: segment.segmentIndex,
         seconds: segment.seconds,
         status: 'completed',
-        videoUrl: `/files/content/segment-rapid-${segment.segmentIndex}.mp4`,
+        videoUrl: `/files/segment-rapid-${segment.segmentIndex}.mp4`,
       })),
     });
 
@@ -855,7 +855,7 @@ test('video remake queued extend resume keeps previous segment reference mode', 
           model: 'doubao-seedance-2-0-260128',
           jobId: 'queued-resume-segment-job-1',
           remoteVideoUrl: 'https://cdn.example.com/queued-resume-segment-job-1.mp4',
-          videoUrl: '/files/content/queued-resume-segment-1.mp4',
+          videoUrl: '/files/queued-resume-segment-1.mp4',
           status: 'completed',
           segmentPath,
         },
@@ -972,7 +972,7 @@ test('video remake seedance prompt stays storyboard-driven and request matches e
       mimeType: 'image/jpeg',
       fileSize: 128,
       filePath: imagePath,
-      fileUrl: '/files/content/host.jpg',
+      fileUrl: '/files/host.jpg',
       metadata: {},
     });
     const audioAsset = contentRepository.createAsset({
@@ -986,7 +986,7 @@ test('video remake seedance prompt stays storyboard-driven and request matches e
       mimeType: 'audio/wav',
       fileSize: 128,
       filePath: audioPath,
-      fileUrl: '/files/content/host.wav',
+      fileUrl: '/files/host.wav',
       metadata: {},
     });
     assert.ok(imageAsset);

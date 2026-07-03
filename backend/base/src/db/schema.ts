@@ -1,4 +1,6 @@
-import { db } from './database.js';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import path from 'node:path';
+import { dataDir, db } from './database.js';
 import { defaultAgents } from '../modules/agents/agent.defaults.js';
 import { listAudioModelProviders } from '../modules/audio-models/audio-model.registry.js';
 import { llmModelPricingSeeds } from '../modules/model-configs/llm-model-pricing.seed.js';
@@ -16,6 +18,61 @@ function addColumnIfMissing(table: string, column: string, definition: string) {
 function hasColumn(table: string, column: string) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   return columns.some((item) => item.name === column);
+}
+
+function quoteIdentifier(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function migrateContentFilesDirectory() {
+  const oldFilesDir = path.join(dataDir, 'content-files');
+  const newFilesDir = path.join(dataDir, 'files');
+  if (existsSync(oldFilesDir)) {
+    if (!existsSync(newFilesDir)) {
+      renameSync(oldFilesDir, newFilesDir);
+    } else {
+      mkdirSync(newFilesDir, { recursive: true });
+      readdirSync(oldFilesDir).forEach((fileName) => {
+        const oldFilePath = path.join(oldFilesDir, fileName);
+        const newFilePath = path.join(newFilesDir, fileName);
+        if (!existsSync(newFilePath)) {
+          cpSync(oldFilePath, newFilePath, { recursive: true });
+        }
+      });
+      rmSync(oldFilesDir, { recursive: true, force: true });
+    }
+  } else {
+    mkdirSync(newFilesDir, { recursive: true });
+  }
+
+  const tables = db.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name NOT LIKE 'sqlite_%'
+  `).all() as Array<{ name: string }>;
+  tables.forEach(({ name }) => {
+    const tableName = quoteIdentifier(name);
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string; type: string }>;
+    columns
+      .filter((column) => String(column.type || '').toUpperCase().includes('TEXT'))
+      .forEach((column) => {
+        const columnName = quoteIdentifier(column.name);
+        db.prepare(`
+          UPDATE ${tableName}
+          SET ${columnName} = replace(replace(${columnName}, @oldUrl, @newUrl), @oldDir, @newDir)
+          WHERE ${columnName} LIKE @oldUrlLike
+            OR ${columnName} LIKE @oldDirLike
+        `).run({
+          oldUrl: '/files/content/',
+          newUrl: '/files/',
+          oldUrlLike: '%/files/content/%',
+          oldDir: oldFilesDir,
+          newDir: newFilesDir,
+          oldDirLike: `%${oldFilesDir}%`,
+        });
+      });
+  });
 }
 
 export function migrateDatabase() {
@@ -516,6 +573,8 @@ export function migrateDatabase() {
   addColumnIfMissing('video_generation_tasks', 'selected_skill_ids', "selected_skill_ids TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('video_generation_tasks', 'expert_context', "expert_context TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('xingtu_search_drafts', 'automation_filters', 'automation_filters TEXT');
+
+  migrateContentFilesDirectory();
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_key
