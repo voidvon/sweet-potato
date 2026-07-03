@@ -4,7 +4,7 @@ import Mention from '@tiptap/extension-mention';
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, useEditor, type NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import './MentionRichTextarea.scss';
 
 export type MentionRichTextareaOption = {
@@ -17,10 +17,12 @@ export type MentionRichTextareaOption = {
 
 type MentionRichTextareaProps = {
   disabled?: boolean;
+  fallbackMentionMenu?: boolean;
   minRows?: number;
   onChange: (value: string) => void;
   options: MentionRichTextareaOption[];
   placeholder?: string;
+  suggestionContainer?: string | HTMLElement;
   value: string;
 };
 
@@ -264,19 +266,88 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
 
 export function MentionRichTextarea({
   disabled,
+  fallbackMentionMenu = false,
   minRows = 8,
   onChange,
   options,
   placeholder,
+  suggestionContainer,
   value,
 }: MentionRichTextareaProps) {
   const minHeight = Math.max(minRows, 1) * 25 + 40;
   const isEmpty = value.length === 0;
   const optionsRef = useRef(options);
+  const [fallbackMenuOpen, setFallbackMenuOpen] = useState(false);
+  const [fallbackSelectedIndex, setFallbackSelectedIndex] = useState(0);
 
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
+
+  useEffect(() => {
+    setFallbackSelectedIndex(0);
+  }, [fallbackMenuOpen, options]);
+
+  const insertMention = (item: MentionRichTextareaOption) => {
+    if (!editor) {
+      return;
+    }
+    const cursor = editor.state.selection.from;
+    const previousChar = cursor > 1 ? editor.state.doc.textBetween(cursor - 1, cursor) : '';
+    const chain = editor.chain().focus();
+    if (previousChar === '@') {
+      chain.deleteRange({ from: cursor - 1, to: cursor });
+    }
+    chain
+      .insertContent([
+        {
+          type: 'mention',
+          attrs: {
+            id: item.token,
+            label: item.label,
+            mimeType: item.mimeType ?? '',
+            previewUrl: item.previewUrl ?? '',
+          },
+        },
+      ])
+      .run();
+    setFallbackMenuOpen(false);
+  };
+
+  const handleFallbackKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled || !fallbackMentionMenu) {
+      return;
+    }
+    if (event.key === '@') {
+      setFallbackMenuOpen(true);
+      return;
+    }
+    if (!fallbackMenuOpen) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setFallbackMenuOpen(false);
+      return;
+    }
+    if (!options.length) {
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setFallbackSelectedIndex((index) => (index + options.length - 1) % options.length);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setFallbackSelectedIndex((index) => (index + 1) % options.length);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      insertMention(options[fallbackSelectedIndex] || options[0]);
+    }
+  };
 
   const extensions = useMemo(() => {
     return [
@@ -331,6 +402,8 @@ export function MentionRichTextarea({
         suggestion: {
           allowedPrefixes: null,
           char: '@',
+          container: suggestionContainer,
+          floatingUi: { strategy: 'fixed' },
           items: ({ query }) => {
             const normalizedQuery = query.trim().toLowerCase();
             return optionsRef.current
@@ -397,7 +470,7 @@ export function MentionRichTextarea({
         },
       }),
     ];
-  }, []);
+  }, [suggestionContainer]);
 
   const editor = useEditor({
     content: plainTextToDoc(value, options),
@@ -431,7 +504,11 @@ export function MentionRichTextarea({
   }, [editor, options, value]);
 
   return (
-    <div className={disabled ? 'mention-rich-textarea is-disabled' : 'mention-rich-textarea'} style={{ minHeight }}>
+    <div
+      className={disabled ? 'mention-rich-textarea is-disabled' : 'mention-rich-textarea'}
+      onKeyDownCapture={handleFallbackKeyDown}
+      style={{ minHeight }}
+    >
       {placeholder && isEmpty ? (
         <button
           className="mention-rich-textarea-placeholder"
@@ -443,6 +520,37 @@ export function MentionRichTextarea({
         </button>
       ) : null}
       <EditorContent editor={editor} />
+      {fallbackMentionMenu && fallbackMenuOpen ? (
+        <div className="mention-rich-textarea-fallback-menu">
+          <div className="mention-rich-textarea-menu">
+            <div className="mention-rich-textarea-menu__header">
+              <strong>可引用素材</strong>
+              <span>选择素材会自动插入引用</span>
+            </div>
+            {options.length ? options.map((item, index) => (
+              <button
+                className={index === fallbackSelectedIndex ? 'is-selected' : ''}
+                key={item.token}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  insertMention(item);
+                }}
+                type="button"
+              >
+                {item.previewUrl && !isAudioMention(item) ? (
+                  <img alt={item.label} src={item.previewUrl} />
+                ) : (
+                  <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
+                )}
+                <span className="mention-rich-textarea-option__body">
+                  <strong>{item.token}</strong>
+                  {item.subtitle ? <small>{item.subtitle}</small> : null}
+                </span>
+              </button>
+            )) : <div className="mention-rich-textarea-menu--empty">没有可用素材</div>}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

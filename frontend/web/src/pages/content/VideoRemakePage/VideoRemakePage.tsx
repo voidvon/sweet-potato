@@ -12,8 +12,10 @@ import {
   getVideoRemakeSession,
   listVideoRemakeSessions,
   parseVideoRemakeSessionUrl,
+  recoverVideoRemakeCard,
   regenerateVideoRemakeCard,
   regenerateVideoRemakeFinalSegment,
+  regenerateVideoRemakeFinalSegments,
   resumeVideoRemakeSession,
   retryVideoRemakeExpert,
   renameVideoRemakeSession,
@@ -414,6 +416,25 @@ function isStoryboardResolving(card: VideoRemakeCardMessage) {
     || /生成中|解析中|思考/u.test(message);
 }
 
+const recoverableLlmCardTypes = new Set<VideoRemakeCardType>([
+  'director_normalize',
+  'llm_thinking',
+  'storyboard_script',
+  'seedance_prompt',
+]);
+
+function shouldShowStuckCardRefresh(card: VideoRemakeCardMessage) {
+  if (!recoverableLlmCardTypes.has(card.cardType) || card.status === 'expired') {
+    return false;
+  }
+  const data = asRecord(card.data);
+  const status = fieldText(data.status);
+  const message = fieldText(data.message);
+  return card.status === 'pending'
+    || ['thinking', 'regenerating', 'generating', 'running', 'pending'].includes(status)
+    || /生成中|解析中|整理中|思考/u.test(message);
+}
+
 function isBlockedByResolvingStoryboard(card: VideoRemakeCardMessage, messages: VideoRemakeChatMessage[]) {
   if (!['seedance_prompt', 'final_video'].includes(card.cardType)) {
     return false;
@@ -579,7 +600,9 @@ function MessageItem({
   onEditCard,
   onEnsureAssets,
   onRegenerateCard,
+  onRecoverCard,
   onRegenerateFinalSegment,
+  onRegenerateFinalSegments,
   onSyncSession,
   syncing,
   onRetryExpert,
@@ -597,7 +620,9 @@ function MessageItem({
   onEditCard: (card: VideoRemakeCardMessage) => Promise<void>;
   onEnsureAssets: () => Promise<void>;
   onRegenerateCard: (card: VideoRemakeCardMessage, instruction?: string) => Promise<void>;
+  onRecoverCard: (card: VideoRemakeCardMessage) => Promise<void>;
   onRegenerateFinalSegment: (card: VideoRemakeCardMessage, segmentIndex: number, prompt?: string) => Promise<void>;
+  onRegenerateFinalSegments: (card: VideoRemakeCardMessage, segments: Array<{ segmentIndex: number; prompt?: string }>) => Promise<void>;
   onSyncSession: () => Promise<void>;
   syncing?: boolean;
   onRetryExpert: (card: VideoRemakeCardMessage) => Promise<void>;
@@ -673,6 +698,7 @@ function MessageItem({
             onEdit: () => onEditCard(item),
             onRegenerate: (instruction) => onRegenerateCard(item, instruction),
             onRegenerateFinalSegment: (segmentIndex, prompt) => onRegenerateFinalSegment(item, segmentIndex, prompt),
+            onRegenerateFinalSegments: (segments) => onRegenerateFinalSegments(item, segments),
             onSyncProgress: ['generation_progress', 'final_video'].includes(item.cardType) ? onSyncSession : undefined,
             syncing,
             onUploadPipImage,
@@ -681,6 +707,19 @@ function MessageItem({
         </div>
         <div className="remake-message-footer remake-card-footer">
           <time dateTime={item.createdAt}>{formatRelativeCalendarDateTime(item.createdAt)}</time>
+          {shouldShowStuckCardRefresh(item) ? (
+            <Tooltip title="刷新卡片状态，卡住时重新开始">
+              <button
+                aria-label="刷新卡片状态"
+                className="remake-message-icon-action"
+                disabled={disabled}
+                onClick={() => void onRecoverCard(item)}
+                type="button"
+              >
+                <RefreshCw size={14} />
+              </button>
+            </Tooltip>
+          ) : null}
           {shouldShowExpertRetry(item) ? (
             <Tooltip title="重试">
               <button
@@ -1709,7 +1748,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     }
   };
 
-  const handleRegenerateFinalSegment = async (card: VideoRemakeCardMessage, segmentIndex: number, prompt?: string) => {
+  const handleRecoverCard = async (card: VideoRemakeCardMessage) => {
     if (!activeSession) {
       return;
     }
@@ -1717,10 +1756,41 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     setHighlightCardId(card.cardId);
     startSessionWorking(sessionId);
     try {
-      const session = await regenerateVideoRemakeFinalSegment(sessionId, card.cardId, segmentIndex, {
+      const session = await recoverVideoRemakeCard(sessionId, card.cardId, {
         userId: currentUser.id,
-        prompt,
+        cardType: card.cardType,
       });
+      replaceSession(session);
+      await loadData({ silent: true });
+      message.success('已刷新卡片状态');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '卡片刷新失败');
+    } finally {
+      stopSessionWorking(sessionId);
+    }
+  };
+
+  const handleRegenerateFinalSegment = async (card: VideoRemakeCardMessage, segmentIndex: number, prompt?: string) => {
+    await handleRegenerateFinalSegments(card, [{ segmentIndex, prompt }]);
+  };
+
+  const handleRegenerateFinalSegments = async (card: VideoRemakeCardMessage, segments: Array<{ segmentIndex: number; prompt?: string }>) => {
+    if (!activeSession) {
+      return;
+    }
+    const sessionId = activeSession.id;
+    setHighlightCardId(card.cardId);
+    startSessionWorking(sessionId);
+    try {
+      const session = segments.length === 1
+        ? await regenerateVideoRemakeFinalSegment(sessionId, card.cardId, segments[0].segmentIndex, {
+        userId: currentUser.id,
+          prompt: segments[0].prompt,
+        })
+        : await regenerateVideoRemakeFinalSegments(sessionId, card.cardId, {
+          userId: currentUser.id,
+          segments,
+        });
       selectActiveSession(session);
       setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
       await loadData({ silent: true });
@@ -2057,8 +2127,10 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
                     onConfirmCard={handleConfirmCard}
                     onEditCard={handleEditCard}
                     onEnsureAssets={ensureAssetsLoaded}
+                    onRecoverCard={handleRecoverCard}
                     onRegenerateCard={handleRegenerateCard}
                     onRegenerateFinalSegment={handleRegenerateFinalSegment}
+                    onRegenerateFinalSegments={handleRegenerateFinalSegments}
                     onSyncSession={handleSyncSession}
                     syncing={activeSessionSyncing}
                     onRetryExpert={handleRetryExpert}

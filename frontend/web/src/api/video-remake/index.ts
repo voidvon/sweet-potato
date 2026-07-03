@@ -276,6 +276,14 @@ export function regenerateVideoRemakeCard(sessionId: string, cardId: string, pay
   });
 }
 
+export function recoverVideoRemakeCard(sessionId: string, cardId: string, payload: VideoRemakeCardRegeneratePayload) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoRemakeSession>(`${Api.sessions}/${sessionId}/cards/${cardId}/recover`, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
 export function regenerateVideoRemakeFinalSegment(
   sessionId: string,
   cardId: string,
@@ -284,6 +292,18 @@ export function regenerateVideoRemakeFinalSegment(
 ) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoRemakeSession>(`${Api.sessions}/${sessionId}/cards/${cardId}/final-video/segments/${segmentIndex}/regenerate`, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
+export function regenerateVideoRemakeFinalSegments(
+  sessionId: string,
+  cardId: string,
+  payload: { userId: string; segments: Array<{ segmentIndex: number; prompt?: string }> },
+) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoRemakeSession>(`${Api.sessions}/${sessionId}/cards/${cardId}/final-video/segments/regenerate`, {
     method: 'POST',
     body: JSON.stringify(requestPayload),
   });

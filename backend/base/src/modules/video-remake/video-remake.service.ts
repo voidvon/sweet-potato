@@ -596,11 +596,14 @@ function hasRecoverableSegmentedFailure(segmentState: unknown) {
   return completedCount > 0 || runningCount > 0;
 }
 
-function markSegmentRegenerationDraftItems(items: unknown, segmentIndex: number) {
+function markSegmentRegenerationDraftItems(items: unknown, segmentIndexes: number | number[]) {
+  const targetIndexes = new Set((Array.isArray(segmentIndexes) ? segmentIndexes : [segmentIndexes])
+    .map((value) => Math.max(1, Number(value || 0)))
+    .filter(Boolean));
   return Array.isArray(items)
     ? items.filter(isRecord).map((segment, index) => {
       const currentSegmentIndex = segmentIndexFor(segment, index);
-      if (currentSegmentIndex !== segmentIndex) {
+      if (!targetIndexes.has(currentSegmentIndex)) {
         return {
           ...cloneJson(segment),
           status: fieldText(segment.status) || 'completed',
@@ -609,7 +612,7 @@ function markSegmentRegenerationDraftItems(items: unknown, segmentIndex: number)
       return {
         ...cloneJson(segment),
         status: 'generating',
-        message: `分段 ${segmentIndex} 重新生成中，请稍候。`,
+        message: `分段 ${currentSegmentIndex} 重新生成中，请稍候。`,
         regeneratedAt: undefined,
         videoUrl: undefined,
         fileUrl: undefined,
@@ -625,7 +628,7 @@ function markSegmentRegenerationDraftItems(items: unknown, segmentIndex: number)
 
 function finalVideoSegmentRegenerationDraft(
   sourceData: Record<string, unknown>,
-  options: { segmentIndex: number; sourceCardId: string },
+  options: { segmentIndex: number; segmentIndexes?: number[]; sourceCardId: string },
 ) {
   const seedancePrompts = Array.isArray(sourceData.seedancePrompts)
     ? sourceData.seedancePrompts.filter(isRecord)
@@ -633,12 +636,17 @@ function finalVideoSegmentRegenerationDraft(
   const sourceSegments = finalVideoSegments(sourceData);
   const versionNumber = finalVideoVersionNumber(sourceData);
   const versionLabel = fieldText(sourceData.versionLabel) || (versionNumber ? `v${versionNumber}` : '');
+  const segmentIndexes = options.segmentIndexes?.length ? options.segmentIndexes : [options.segmentIndex];
+  const segmentLabel = segmentIndexes.length > 1
+    ? `分段 ${segmentIndexes.join('、')}`
+    : `分段 ${options.segmentIndex}`;
   return {
     ...cloneJson(sourceData),
     status: 'generating',
-    message: `分段 ${options.segmentIndex} 重新生成中，请稍候。`,
+    message: `${segmentLabel} 重新生成中，请稍候。`,
     regenerationMode: 'segment',
     regeneratedSegmentIndex: options.segmentIndex,
+    regeneratedSegmentIndexes: segmentIndexes,
     seedancePrompts: cloneJson(seedancePrompts),
     seedanceVersionNumber: Number(sourceData.seedanceVersionNumber) || undefined,
     seedanceVersionLabel: fieldText(sourceData.seedanceVersionLabel),
@@ -650,8 +658,8 @@ function finalVideoSegmentRegenerationDraft(
     sourceVersionLabel: fieldText(sourceData.versionLabel),
     sourceSnapshot: cloneJson(sourceData),
     referencePrimerPlan: isRecord(sourceData.referencePrimerPlan) ? cloneJson(sourceData.referencePrimerPlan) : undefined,
-    segments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
-    generatedSegments: markSegmentRegenerationDraftItems(sourceSegments, options.segmentIndex),
+    segments: markSegmentRegenerationDraftItems(sourceSegments, segmentIndexes),
+    generatedSegments: markSegmentRegenerationDraftItems(sourceSegments, segmentIndexes),
     videos: cloneJson(finalVideoHistory(sourceData)),
     videoUrl: undefined,
     errorMessage: undefined,
@@ -1010,6 +1018,25 @@ function markVideoRemakeGenerationActive(taskId: string | undefined) {
   return () => {
     activeVideoRemakeGenerationTaskIds.delete(normalizedTaskId);
   };
+}
+
+const recoverableLlmCardTypes = new Set<VideoRemakeCardType>([
+  'director_normalize',
+  'llm_thinking',
+  'storyboard_script',
+  'seedance_prompt',
+]);
+
+function isRecoverableLlmCardProcessing(card: VideoRemakeCardMessage) {
+  if (!recoverableLlmCardTypes.has(card.cardType) || card.status === 'expired') {
+    return false;
+  }
+  const data = isRecord(card.data) ? card.data : {};
+  const status = fieldText(data.status);
+  const message = fieldText(data.message);
+  return card.status === 'pending'
+    || ['thinking', 'regenerating', 'generating', 'running', 'pending'].includes(status)
+    || /生成中|解析中|整理中|思考/u.test(message);
 }
 
 async function syncSessionVideoGenerationState(session: VideoRemakeSession, waitForCompletion = true) {
@@ -4140,7 +4167,74 @@ export const videoRemakeService = {
     return persistSession(session);
   },
 
+  async recoverCard(sessionId: string, cardId: string, input: { userId: string; cardType: VideoRemakeCardType }) {
+    assertUserId(input.userId);
+    const session = requireSession(sessionId);
+    if (session.userId !== input.userId) {
+      throw new Error('无权访问该会话');
+    }
+    const card = findCardById(session, cardId);
+    if (!card) {
+      throw new Error('卡片不存在');
+    }
+    if (input.cardType !== card.cardType) {
+      throw new Error('卡片类型不匹配');
+    }
+    if (!recoverableLlmCardTypes.has(card.cardType) || !isRecoverableLlmCardProcessing(card)) {
+      return persistSession(session);
+    }
+    const emit = (event: VideoRemakeNodeEvent) => pushEvent(session, { type: 'workflow.progress', step: event.node, label: event.message, percent: event.progress });
+    const context = () => ({ sessionId: session.id, userId: session.userId, taskId: session.taskId, workflow: session.workflow, emit });
+    if (card.cardType === 'llm_thinking') {
+      const data = isRecord(card.data) ? card.data : {};
+      const instruction = fieldText(data.instruction);
+      if (!instruction) {
+        return persistSession(session);
+      }
+      updateCardById(session, cardId, {
+        status: 'pending',
+        data: {
+          ...data,
+          status: 'thinking',
+          message: '大模型正在重新理解你的需求，请稍候。',
+          recoveredAt: nowIso(),
+        },
+      });
+      persistSession(session);
+      await askLlmForUnknownChat(session, instruction, cardId);
+      return persistSession(session);
+    }
+    if (card.cardType === 'director_normalize') {
+      const directorCard = ensureDirectorNormalizePendingCard(session, 'recover');
+      const normalized = await runNode(session, 'director_normalize', () => defaultVideoRemakeNodeAdapters.directorNormalize(context()));
+      Object.entries(normalized).forEach(([key, value]) => {
+        session.workflow.artifacts = { ...session.workflow.artifacts, [key]: value };
+      });
+      confirmDirectorNormalizeCard(session, directorCard, 'recover');
+      const firstCard = ensureEditingCard(session, 'basic_info', { data: dataForCard('basic_info', { workflow: session.workflow }) });
+      session.status = 'waiting_edit';
+      interruptForCard(session, firstCard, 'regenerate');
+      refreshTask(session, 'waiting_edit');
+      return persistSession(session);
+    }
+    return this.regenerateCard(sessionId, cardId, {
+      userId: input.userId,
+      cardType: card.cardType,
+    });
+  },
+
   async regenerateFinalVideoSegment(sessionId: string, cardId: string, input: { userId: string; segmentIndex: number; prompt?: string }) {
+    return this.regenerateFinalVideoSegments(sessionId, cardId, {
+      userId: input.userId,
+      segments: [{ segmentIndex: input.segmentIndex, prompt: input.prompt }],
+    });
+  },
+
+  async regenerateFinalVideoSegments(
+    sessionId: string,
+    cardId: string,
+    input: { userId: string; segments: Array<{ segmentIndex: number; prompt?: string }> },
+  ) {
     assertUserId(input.userId);
     const session = requireSession(sessionId);
     if (session.userId !== input.userId) {
@@ -4156,15 +4250,33 @@ export const videoRemakeService = {
       && (card.status === 'pending' || card.status === 'failed' || currentStatus === 'generating' || currentStatus === 'failed');
     const rawSourceData = shouldUseStoredSnapshot && isRecord(currentData.sourceSnapshot) ? currentData.sourceSnapshot : currentData;
     const sourceData = withPersistedFinalVideoSegments(session, cardId, rawSourceData);
-    const segmentIndex = Math.max(1, Number(input.segmentIndex || 0));
+    const normalizedSegments = new Map<number, { segmentIndex: number; prompt?: string }>();
+    for (const item of input.segments || []) {
+      const segmentIndex = Math.max(1, Number(item.segmentIndex || 0));
+      if (!segmentIndex) {
+        continue;
+      }
+      normalizedSegments.set(segmentIndex, {
+        segmentIndex,
+        prompt: typeof item.prompt === 'string' ? item.prompt : undefined,
+      });
+    }
+    const regenerationSegments = [...normalizedSegments.values()].sort((left, right) => left.segmentIndex - right.segmentIndex);
+    if (!regenerationSegments.length) {
+      throw new Error('请选择要重新生成的分段');
+    }
+    const segmentIndexes = regenerationSegments.map((item) => item.segmentIndex);
     const plannedSegments = Array.isArray(sourceData.segments) ? sourceData.segments.filter(isRecord) : [];
     const generatedSegments = Array.isArray(sourceData.generatedSegments) ? sourceData.generatedSegments.filter(isRecord) : [];
     const sourceSegments = plannedSegments.length ? plannedSegments : generatedSegments;
-    if (!sourceSegments[segmentIndex - 1]) {
-      throw new Error(`分段 ${segmentIndex} 不存在`);
+    for (const segmentIndex of segmentIndexes) {
+      if (!sourceSegments[segmentIndex - 1]) {
+        throw new Error(`分段 ${segmentIndex} 不存在`);
+      }
     }
     const pendingData = finalVideoSegmentRegenerationDraft(sourceData, {
-      segmentIndex,
+      segmentIndex: segmentIndexes[0],
+      segmentIndexes,
       sourceCardId: cardId,
     });
     const targetCard = addCard(session, 'final_video', {
@@ -4183,17 +4295,29 @@ export const videoRemakeService = {
     const context = () => ({ sessionId: session.id, userId: session.userId, taskId: session.taskId, workflow: session.workflow, emit });
     const releaseGenerationActive = markVideoRemakeGenerationActive(session.taskId);
     try {
-      const regenerated = await defaultVideoRemakeNodeAdapters.regenerateVideoSegment(context(), {
-        cardData: sourceData,
-        segmentIndex,
-        prompt: input.prompt,
-      });
+      let workingData = sourceData;
+      let regenerated: Record<string, unknown> = {};
+      for (const item of regenerationSegments) {
+        regenerated = await defaultVideoRemakeNodeAdapters.regenerateVideoSegment(context(), {
+          cardData: workingData,
+          segmentIndex: item.segmentIndex,
+          prompt: item.prompt,
+        });
+        workingData = {
+          ...workingData,
+          ...regenerated,
+          generatedSegments: Array.isArray(regenerated.generatedSegments) ? regenerated.generatedSegments : workingData.generatedSegments,
+          segments: Array.isArray(regenerated.segments) ? regenerated.segments : workingData.segments,
+          videoUrl: fieldText(regenerated.videoUrl) || fieldText(workingData.videoUrl),
+        };
+      }
       const videos = finalVideoHistoryWithResult(pendingData, regenerated);
+      const segmentLabel = segmentIndexes.length > 1 ? `分段 ${segmentIndexes.join('、')}` : '分段';
       const nextData = {
         ...pendingData,
         ...regenerated,
         status: 'completed',
-        message: '分段已重新生成，并已重新合成最终视频。',
+        message: `${segmentLabel}已重新生成，并已重新合成最终视频。`,
         referencePrimerPlan: isRecord(regenerated.referencePrimerPlan)
           ? regenerated.referencePrimerPlan
           : pendingData.referencePrimerPlan,
@@ -4215,14 +4339,15 @@ export const videoRemakeService = {
       const markFailedSegment = (items: unknown) => Array.isArray(items)
         ? items.filter(isRecord).map((segment, index) => ({
           ...segment,
-          status: index === segmentIndex - 1 ? 'failed' : 'completed',
-          message: index === segmentIndex - 1 ? `分段 ${segmentIndex} 重新生成失败。` : '复用当前版本原分段。',
+          status: segmentIndexes.includes(index + 1) ? 'failed' : 'completed',
+          message: segmentIndexes.includes(index + 1) ? `分段 ${index + 1} 重新生成失败。` : '复用当前版本原分段。',
         }))
         : items;
+      const segmentLabel = segmentIndexes.length > 1 ? `分段 ${segmentIndexes.join('、')}` : `分段 ${segmentIndexes[0]}`;
       const failedData = {
         ...pendingData,
         status: 'failed',
-        message: `分段 ${segmentIndex} 重新生成失败。`,
+        message: `${segmentLabel} 重新生成失败。`,
         errorMessage: userMessage,
         segments: markFailedSegment(pendingData.segments),
         generatedSegments: markFailedSegment(pendingData.generatedSegments),

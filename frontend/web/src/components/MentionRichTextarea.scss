@@ -134,7 +134,7 @@
   min-width: 248px;
   overflow: auto;
   padding: 6px;
-  z-index: 2000;
+  z-index: 3000;
 }
 
 .mention-rich-textarea-menu__header {
@@ -212,6 +212,13 @@
   background: #fff7ed;
   border-color: #fed7aa;
   color: #f97316;
+}
+
+.mention-rich-textarea-fallback-menu {
+  left: 12px;
+  position: absolute;
+  top: 46px;
+  z-index: 4;
 }
 
 .mention-rich-textarea-option__body {

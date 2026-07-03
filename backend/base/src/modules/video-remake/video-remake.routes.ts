@@ -395,6 +395,20 @@ export function createVideoRemakeRouter() {
     }
   });
 
+  router.post('/sessions/:sessionId/cards/:cardId/recover', (req, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      void videoRemakeService.recoverCard(req.params.sessionId, req.params.cardId, {
+        userId,
+        cardType: String(req.body.cardType || '') as VideoRemakeCardType,
+      })
+        .then((session) => res.json(session))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '卡片刷新失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '卡片刷新失败'));
+    }
+  });
+
   router.post('/sessions/:sessionId/cards/:cardId/final-video/segments/:segmentIndex/regenerate', (req, res) => {
     try {
       const userId = getCurrentUserId(req);
@@ -402,6 +416,26 @@ export function createVideoRemakeRouter() {
         userId,
         segmentIndex: Number(req.params.segmentIndex),
         prompt: typeof req.body.prompt === 'string' ? req.body.prompt : undefined,
+      })
+        .then((session) => res.json(session))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '分段重新生成失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '分段重新生成失败'));
+    }
+  });
+
+  router.post('/sessions/:sessionId/cards/:cardId/final-video/segments/regenerate', (req, res) => {
+    try {
+      const userId = getCurrentUserId(req);
+      const segments = Array.isArray(req.body.segments)
+        ? req.body.segments.map((item: { segmentIndex?: unknown; prompt?: unknown }) => ({
+          segmentIndex: Number(item?.segmentIndex),
+          prompt: typeof item?.prompt === 'string' ? item.prompt : undefined,
+        }))
+        : [];
+      void videoRemakeService.regenerateFinalVideoSegments(req.params.sessionId, req.params.cardId, {
+        userId,
+        segments,
       })
         .then((session) => res.json(session))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '分段重新生成失败')));

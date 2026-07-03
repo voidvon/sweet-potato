@@ -1,6 +1,6 @@
-import { Alert, Button, Input, InputNumber, Modal, Radio, Select, Tabs, Tooltip, Upload } from 'antd';
+import { Alert, Button, Input, InputNumber, Modal, Popover, Radio, Select, Tabs, Tooltip, Upload, message } from 'antd';
 import { useEffect, useRef, useState, type Dispatch, type ReactElement, type ReactNode, type SetStateAction } from 'react';
-import { CheckCircle2, CircleAlert, Info, Pause, Play, Plus, RefreshCw, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, CircleAlert, Info, ListPlus, Pause, PencilLine, Play, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
 import type { VideoRemakeCardMessage, VideoRemakeCardType } from '../../../api/video-remake';
 import type { ContentAsset, ContentAssetGroup } from '../../../types';
 import { AppForm } from '../../../components/AppForm';
@@ -30,6 +30,7 @@ type CardRendererContext = {
   onEdit: () => Promise<void>;
   onRegenerate?: (instruction?: string) => Promise<void>;
   onRegenerateFinalSegment?: (segmentIndex: number, prompt?: string) => Promise<void>;
+  onRegenerateFinalSegments?: (segments: FinalSegmentRegenerationInput[]) => Promise<void>;
   onSyncProgress?: () => Promise<void>;
   onUploadPipImage?: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
   videoDurationSeconds?: number;
@@ -45,6 +46,17 @@ type AssetSelectorState = {
   selectedAssetId?: string;
   selectedGroupId?: string;
   onSelect: (selection: { assetId?: string; groupId?: string }) => void;
+};
+
+type FinalSegmentQueueItem = {
+  mode: 'direct' | 'prompt';
+  prompt?: string;
+  segmentIndex: number;
+};
+
+type FinalSegmentRegenerationInput = {
+  prompt?: string;
+  segmentIndex: number;
 };
 
 type SeedanceReferenceMention = {
@@ -2300,18 +2312,67 @@ function LlmThinkingCard(props: CardRendererProps) {
 function FinalVideoCard(props: CardRendererProps) {
   const [segmentsOpen, setSegmentsOpen] = useState(false);
   const [regeneratingIndex, setRegeneratingIndex] = useState(0);
-  const [promptEditor, setPromptEditor] = useState<{ segmentIndex: number; prompt: string } | null>(null);
+  const [promptEditor, setPromptEditor] = useState<{ mentions: SeedanceReferenceMention[]; mode: 'regenerate' | 'queue'; segmentIndex: number; prompt: string } | null>(null);
+  const [promptPreview, setPromptPreview] = useState<{ mentions: SeedanceReferenceMention[]; segmentIndex: number; prompt: string } | null>(null);
+  const [segmentQueue, setSegmentQueue] = useState<FinalSegmentQueueItem[]>([]);
+  const [openSegmentActionIndex, setOpenSegmentActionIndex] = useState<number | null>(null);
+  const [queueSubmitting, setQueueSubmitting] = useState(false);
   const requestSegmentRegeneration = async (segmentIndex: number, prompt?: string) => {
-    if (!props.onRegenerateFinalSegment) {
+    if (!props.onRegenerateFinalSegments && !props.onRegenerateFinalSegment) {
       return;
     }
     setRegeneratingIndex(segmentIndex);
     try {
-      await props.onRegenerateFinalSegment(segmentIndex, prompt);
+      if (props.onRegenerateFinalSegments) {
+        await props.onRegenerateFinalSegments([{ segmentIndex, prompt }]);
+      } else {
+        await props.onRegenerateFinalSegment?.(segmentIndex, prompt);
+      }
       setPromptEditor(null);
+      setPromptPreview(null);
       setSegmentsOpen(false);
+      setOpenSegmentActionIndex(null);
     } finally {
       setRegeneratingIndex(0);
+    }
+  };
+  const upsertSegmentQueue = (item: FinalSegmentQueueItem) => {
+    setSegmentQueue((current) => {
+      const next = current.filter((queueItem) => queueItem.segmentIndex !== item.segmentIndex);
+      return [...next, item].sort((left, right) => left.segmentIndex - right.segmentIndex);
+    });
+  };
+  const removeSegmentQueueItem = (segmentIndex: number) => {
+    setSegmentQueue((current) => current.filter((item) => item.segmentIndex !== segmentIndex));
+  };
+  const submitSegmentQueue = async () => {
+    if ((!props.onRegenerateFinalSegments && !props.onRegenerateFinalSegment) || !segmentQueue.length) {
+      return;
+    }
+    const queue = [...segmentQueue].sort((left, right) => left.segmentIndex - right.segmentIndex);
+    setQueueSubmitting(true);
+    try {
+      setRegeneratingIndex(queue[0]?.segmentIndex || 0);
+      const segments = queue.map((item) => ({
+        segmentIndex: item.segmentIndex,
+        prompt: item.mode === 'prompt' ? item.prompt : undefined,
+      }));
+      if (props.onRegenerateFinalSegments) {
+        await props.onRegenerateFinalSegments(segments);
+      } else {
+        for (const item of segments) {
+          setRegeneratingIndex(item.segmentIndex);
+          await props.onRegenerateFinalSegment?.(item.segmentIndex, item.prompt);
+        }
+      }
+      setSegmentQueue([]);
+      setPromptEditor(null);
+      setPromptPreview(null);
+      setSegmentsOpen(false);
+      setOpenSegmentActionIndex(null);
+    } finally {
+      setRegeneratingIndex(0);
+      setQueueSubmitting(false);
     }
   };
   return (
@@ -2444,79 +2505,229 @@ function FinalVideoCard(props: CardRendererProps) {
           return promptTextValue(segment.prompt)
             || promptTextValue(segment.seedancePrompt);
         };
-        const openPromptEditor = (segmentIndex: number, segment: Record<string, unknown>) => {
-          setSegmentsOpen(false);
-          setPromptEditor({ segmentIndex, prompt: segmentPromptText(segment) });
+        const openPromptEditor = (segmentIndex: number, segment: Record<string, unknown>, mode: 'regenerate' | 'queue') => {
+          setOpenSegmentActionIndex(null);
+          setPromptEditor({
+            mentions: seedanceReferenceMentions(asRecord(segment.prompt), props.assets),
+            mode,
+            segmentIndex,
+            prompt: segmentPromptText(segment),
+          });
         };
+        const openPromptPreview = (segmentIndex: number, segment: Record<string, unknown>) => {
+          setPromptPreview({
+            mentions: seedanceReferenceMentions(asRecord(segment.prompt), props.assets),
+            segmentIndex,
+            prompt: segmentPromptText(segment),
+          });
+        };
+        const queueSegment = (segmentIndex: number) => {
+          setOpenSegmentActionIndex(null);
+          upsertSegmentQueue({ mode: 'direct', segmentIndex });
+          message.success(`分段 ${segmentIndex} 已加入待生成队列`);
+        };
+        const regenerateSegmentFromMenu = (segmentIndex: number) => {
+          setOpenSegmentActionIndex(null);
+          void requestSegmentRegeneration(segmentIndex);
+        };
+        const confirmPromptEditor = async () => {
+          if (!promptEditor) {
+            return;
+          }
+          if (promptEditor.mode === 'queue') {
+            upsertSegmentQueue({
+              mode: 'prompt',
+              prompt: promptEditor.prompt,
+              segmentIndex: promptEditor.segmentIndex,
+            });
+            message.success(`分段 ${promptEditor.segmentIndex} 已加入待生成队列`);
+            setPromptEditor(null);
+            return;
+          }
+          await requestSegmentRegeneration(promptEditor.segmentIndex, promptEditor.prompt);
+        };
+        const renderPromptPreviewModal = () => (
+          <Modal
+            footer={null}
+            onCancel={() => setPromptPreview(null)}
+            open={Boolean(promptPreview)}
+            title={`分段 ${promptPreview?.segmentIndex || ''} 提示词`}
+            width={820}
+          >
+            <div className="remake-segment-prompt-preview-modal">
+              <SeedancePromptPreview mentions={promptPreview?.mentions || []} text={promptPreview?.prompt || ''} />
+            </div>
+          </Modal>
+        );
         const renderPromptEditorModal = () => (
           <Modal
             okButtonProps={{ loading: regeneratingIndex === promptEditor?.segmentIndex }}
-            okText="重新生成"
+            okText={promptEditor?.mode === 'queue' ? '加入待生成队列' : '重新生成'}
             onCancel={() => setPromptEditor(null)}
-            onOk={() => promptEditor ? requestSegmentRegeneration(promptEditor.segmentIndex, promptEditor.prompt) : undefined}
+            onOk={() => void confirmPromptEditor()}
             open={Boolean(promptEditor)}
             title={`调整分段 ${promptEditor?.segmentIndex || ''} 提示词`}
             width={820}
           >
-            <Input.TextArea
-              autoSize={{ minRows: 10, maxRows: 18 }}
-              onChange={(event) => setPromptEditor((current) => current ? { ...current, prompt: event.target.value } : current)}
-              value={promptEditor?.prompt || ''}
-            />
+            <div className="remake-prompt-editor remake-segment-prompt-editor">
+              <label>提示词</label>
+              <MentionRichTextarea
+                fallbackMentionMenu
+                minRows={10}
+                onChange={(value) => setPromptEditor((current) => current ? { ...current, prompt: value } : current)}
+                options={seedanceMentionOptions(promptEditor?.mentions || [])}
+                placeholder="输入分段生成提示词，可通过 @ 引用素材"
+                suggestionContainer=".ant-modal-root"
+                value={promptEditor?.prompt || ''}
+              />
+            </div>
           </Modal>
         );
         const renderSegmentsModal = () => (
           <Modal
-            footer={null}
+            footer={segmentRows.length ? (
+              <div className="remake-final-segment-queue-footer">
+                <div>
+                  <strong>待生成队列</strong>
+                  <span>{segmentQueue.length ? `已选择 ${segmentQueue.map((item) => `分段 ${item.segmentIndex}`).join('、')}` : '可先调整多个分段，再统一提交生成'}</span>
+                </div>
+                <Button disabled={!segmentQueue.length || queueSubmitting || regeneratingIndex > 0} onClick={() => setSegmentQueue([])}>
+                  清空队列
+                </Button>
+                <Button
+                  disabled={!segmentQueue.length || (!props.onRegenerateFinalSegments && !props.onRegenerateFinalSegment)}
+                  loading={queueSubmitting}
+                  onClick={() => void submitSegmentQueue()}
+                  type="primary"
+                >
+                  统一生成
+                </Button>
+              </div>
+            ) : null}
             onCancel={() => setSegmentsOpen(false)}
             open={segmentsOpen}
             title={`${versionLabel ? `${versionLabel} ` : ''}生成分段`}
-            width={860}
+            width={960}
           >
             <div className="remake-final-segments-modal">
-              {segmentRows.length ? segmentRows.map((segment, index) => {
-                const source = segmentVideo(segment);
-                const segmentGenerating = isSegmentGenerating(segment, index + 1);
-                const segmentActionDisabled = !props.onRegenerateFinalSegment || regeneratingIndex > 0 || segmentGenerating;
-                const statusMeta = segmentStatusMeta(segment, index + 1);
-                return (
-                  <div
-                    key={`${fieldText(segment.segmentId || segment.segmentIndex) || index}`}
-                    className={`remake-final-segment-item ${isSegmentRegenerationCard && regeneratedSegmentIndex === index + 1 ? 'is-regenerating' : ''}`}
-                  >
-                    <header>
-                      <strong>{`分段 ${index + 1}`}</strong>
-                      <span>{segmentTime(segment)}</span>
-                      <em className={`remake-segment-status-pill is-${statusMeta.tone}`}>
-                        <span aria-hidden="true" />
-                        {statusMeta.label}
-                      </em>
-                    </header>
-                    {source ? <video controls src={mediaUrl(source)} /> : <div className="remake-final-segment-placeholder">暂无分段视频</div>}
-                    {segmentPromptText(segment) ? (
-                      <details>
-                        <summary>查看提示词</summary>
-                        <pre>{segmentPromptText(segment)}</pre>
-                      </details>
-                    ) : null}
-                    <div className="remake-final-segment-actions">
-                      <Button
-                        disabled={segmentActionDisabled}
-                        onClick={() => openPromptEditor(index + 1, segment)}
-                      >
-                        调整提示词后重生成
-                      </Button>
-                      <Button
-                        disabled={segmentActionDisabled}
-                        loading={regeneratingIndex === index + 1}
-                        onClick={() => requestSegmentRegeneration(index + 1)}
-                      >
-                        直接重生成
-                      </Button>
+              {segmentRows.length ? (
+                <>
+                  <div className="remake-final-segments-summary">
+                    <div>
+                      <strong>{`${completedSegmentCount}/${segmentRows.length}`}</strong>
+                      <span>已完成</span>
+                    </div>
+                    <div>
+                      <strong>{runningSegmentCount}</strong>
+                      <span>生成中</span>
+                    </div>
+                    <div>
+                      <strong>{failedSegmentCount}</strong>
+                      <span>失败</span>
+                    </div>
+                    <div>
+                      <strong>{`${segmentProgressPercent}%`}</strong>
+                      <span>整体进度</span>
                     </div>
                   </div>
-                );
-              }) : <Alert message="暂无可查看的生成分段。" type="info" showIcon />}
+                  {segmentQueue.length ? (
+                    <div className="remake-final-segment-queue">
+                      <span>待生成</span>
+                      {segmentQueue.map((item) => (
+                        <button key={item.segmentIndex} onClick={() => removeSegmentQueueItem(item.segmentIndex)} type="button">
+                          {`分段 ${item.segmentIndex}${item.mode === 'prompt' ? ' · 已调词' : ' · 直接'}`}
+                          <X size={12} />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="remake-final-segment-grid">
+                    {segmentRows.map((segment, index) => {
+                      const source = segmentVideo(segment);
+                      const segmentGenerating = isSegmentGenerating(segment, index + 1);
+                      const segmentActionDisabled = (!props.onRegenerateFinalSegments && !props.onRegenerateFinalSegment) || regeneratingIndex > 0 || segmentGenerating;
+                      const statusMeta = segmentStatusMeta(segment, index + 1);
+                      const queuedItem = segmentQueue.find((item) => item.segmentIndex === index + 1);
+                      const actionContent = (
+                        <div className="remake-final-segment-action-menu">
+                          <button disabled={segmentActionDisabled} onClick={() => openPromptEditor(index + 1, segment, 'regenerate')} type="button">
+                            <PencilLine size={16} />
+                            <span>
+                              <strong>调整提示词后重新生成</strong>
+                              <small>编辑当前分段提示词，并立即提交这一段</small>
+                            </span>
+                          </button>
+                          <button disabled={segmentActionDisabled} onClick={() => regenerateSegmentFromMenu(index + 1)} type="button">
+                            <RotateCcw size={16} />
+                            <span>
+                              <strong>直接重新生成</strong>
+                              <small>使用当前分段提示词立即提交</small>
+                            </span>
+                          </button>
+                          <button disabled={segmentActionDisabled} onClick={() => queueSegment(index + 1)} type="button">
+                            <ListPlus size={16} />
+                            <span>
+                              <strong>放入待生成队列</strong>
+                              <small>先收集多个分段，稍后统一生成</small>
+                            </span>
+                          </button>
+                          <button disabled={segmentActionDisabled} onClick={() => openPromptEditor(index + 1, segment, 'queue')} type="button">
+                            <PencilLine size={16} />
+                            <span>
+                              <strong>调整后放入队列</strong>
+                              <small>适合多个分段分别调词后统一生成</small>
+                            </span>
+                          </button>
+                        </div>
+                      );
+                      return (
+                        <div
+                          key={`${fieldText(segment.segmentId || segment.segmentIndex) || index}`}
+                          className={`remake-final-segment-item ${isSegmentRegenerationCard && regeneratedSegmentIndex === index + 1 ? 'is-regenerating' : ''}`}
+                        >
+                          <header>
+                            <strong>{`分段 ${index + 1}`}</strong>
+                            <span>{segmentTime(segment)}</span>
+                            <em className={`remake-segment-status-pill is-${statusMeta.tone}`}>
+                              <span aria-hidden="true" />
+                              {statusMeta.label}
+                            </em>
+                          </header>
+                          {source ? <video controls src={mediaUrl(source)} /> : <div className="remake-final-segment-placeholder">暂无分段视频</div>}
+                          {segmentPromptText(segment) ? (
+                            <button className="remake-final-segment-prompt-button" onClick={() => openPromptPreview(index + 1, segment)} type="button">
+                              查看提示词
+                            </button>
+                          ) : null}
+                          <div className="remake-final-segment-actions">
+                            {queuedItem ? (
+                              <span className="remake-final-segment-queued">
+                                {queuedItem.mode === 'prompt' ? '已加入队列 · 调整提示词' : '已加入队列 · 直接生成'}
+                              </span>
+                            ) : null}
+                            <Popover
+                              content={actionContent}
+                              onOpenChange={(open) => setOpenSegmentActionIndex(open ? index + 1 : null)}
+                              open={openSegmentActionIndex === index + 1}
+                              placement="bottomRight"
+                              trigger="click"
+                            >
+                              <Button
+                                disabled={segmentActionDisabled}
+                                loading={regeneratingIndex === index + 1}
+                                type="primary"
+                              >
+                                重生成
+                                <ChevronDown size={14} />
+                              </Button>
+                            </Popover>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : <Alert message="暂无可查看的生成分段。" type="info" showIcon />}
             </div>
           </Modal>
         );
@@ -2566,9 +2777,9 @@ function FinalVideoCard(props: CardRendererProps) {
                 ) : null}
                 {fieldText(data.errorMessage) ? <p className="remake-video-generation-error">错误原因：{fieldText(data.errorMessage)}</p> : null}
                 {pendingHint ? <p className="remake-video-generation-hint">{pendingHint}</p> : null}
-                <p className="remake-video-generation-hint">
+                {/* <p className="remake-video-generation-hint">
                   {generationMode === 'queued_extend' ? '生成方式：排队生成（视频延长）' : '生成方式：批量分段生成'}
-                </p>
+                </p> */}
                 <div className="remake-video-generation-status-line">
                   <p aria-live="polite">
                     {props.card.status === 'failed' || status === 'failed' ? null : <span className="remake-generating-indicator" aria-hidden="true"><span /><span /><span /></span>}
@@ -2590,6 +2801,7 @@ function FinalVideoCard(props: CardRendererProps) {
                 </div>
               </div>
               {showPendingSegments ? renderSegmentsModal() : null}
+              {renderPromptPreviewModal()}
               {renderPromptEditorModal()}
             </>
           );
@@ -2601,14 +2813,15 @@ function FinalVideoCard(props: CardRendererProps) {
                 {canInspectSegments && segmentRows.length ? <Button onClick={() => setSegmentsOpen(true)}>查看分段</Button> : null}
               </div>
               <p>{fieldText(data.message) || '确认后将使用你确认的卡片内容组织生成提示词产出视频。'}</p>
-              {hasCompletedFinalVideo ? (
+              {/* {hasCompletedFinalVideo ? (
                 <p className="remake-video-generation-hint">
                   {generationMode === 'queued_extend' ? '生成方式：排队生成（视频延长）' : '生成方式：批量分段生成'}
                 </p>
-              ) : null}
+              ) : null} */}
               {video ? <video controls src={mediaUrl(video)} /> : null}
             </div>
             {renderSegmentsModal()}
+            {renderPromptPreviewModal()}
             {renderPromptEditorModal()}
           </>
         );
