@@ -12,7 +12,7 @@
 .claw-dialog-card {
   background: #ffffff;
   border: 1px solid #dedede;
-  border-radius: 30px;
+  border-radius: 36px;
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.06);
   overflow: hidden;
 }
@@ -33,6 +33,16 @@
   grid-template-columns: 188px minmax(0, 1fr) 60px;
   min-height: 252px;
   padding: 44px 40px 20px 32px;
+}
+
+.claw-dialog-hint {
+  background: #f5f7fa;
+  border-radius: 18px;
+  color: #182230;
+  font-size: 22px;
+  line-height: 1.45;
+  margin: 24px 40px 0 32px;
+  padding: 18px 24px;
 }
 
 .claw-reference-tile {
@@ -110,6 +120,14 @@
 .claw-dialog-textarea-wrap {
   min-width: 0;
   position: relative;
+}
+
+.claw-dialog-mode-hint {
+  align-self: center;
+  color: #182230;
+  font-size: 28px;
+  line-height: 1.55;
+  min-width: 0;
 }
 
 .claw-dialog-textarea.ant-input {

@@ -59,7 +59,10 @@ type ClawModeKey =
 type ClawModeConfig = {
   description: string;
   Icon: LucideIcon;
+  inputPlaceholder?: string;
   key: ClawModeKey;
+  promptHint?: string;
+  requiresPrompt?: boolean;
   title: string;
   toolbarControls?: ClawToolbarControl[];
 };
@@ -70,24 +73,135 @@ type ClawResolutionKey = '2K' | '4K';
 
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const noGenerationToolbarControls: ClawToolbarControl[] = [];
+const defaultOptionalPlaceholder = '补充要求（选填），例如：调整光线、风格、姿态…';
 
 const clawModeConfigs: ClawModeConfig[] = [
-  { key: 'dialog', title: '对话生图', description: '多图对话', Icon: MessageCircle },
-  { key: 'detail', title: '详情图生成', description: '商品详情', Icon: Images },
-  { key: 'outfit', title: '换装', description: '一键试穿', Icon: Shirt },
-  { key: 'model-views', title: '模特三视图', description: '多角度展示', Icon: Layers },
-  { key: 'pose-reference', title: '姿势参考', description: '参考姿态', Icon: Scan },
-  { key: 'upscale', title: '高清放大', description: '提分辨率', Icon: Maximize2 },
-  { key: 'cutout', title: '图片抠图', description: '主体分离', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'background', title: '换背景', description: '环境焕新', Icon: Images, toolbarControls: noGenerationToolbarControls },
-  { key: 'scene-extract', title: '场景提取', description: '提取环境', Icon: ImagePlus, toolbarControls: noGenerationToolbarControls },
-  { key: 'model-face-swap', title: '模特换脸', description: '替换模特脸', Icon: Shirt, toolbarControls: noGenerationToolbarControls },
-  { key: 'head-swap', title: '智能换头', description: '头部替换', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'face-swap', title: '智能换脸', description: '脸部替换', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'redraw', title: '智能重绘', description: '读图后重绘', Icon: Brush, toolbarControls: noGenerationToolbarControls },
-  { key: 'detail-enhance', title: '细节增强', description: '优化细节', Icon: Zap },
-  { key: 'print-extract', title: '印花提取', description: '提取图案', Icon: Images, toolbarControls: noGenerationToolbarControls },
-  { key: 'face-enhance', title: '脸部增强', description: '优化脸部', Icon: Scan, toolbarControls: noGenerationToolbarControls },
+  {
+    key: 'dialog',
+    title: '对话生图',
+    description: '多图对话',
+    Icon: MessageCircle,
+    inputPlaceholder: '描述你要的画面，可上传参考图，输入 @ 引用图片。',
+    requiresPrompt: true,
+  },
+  {
+    key: 'detail',
+    title: '详情图生成',
+    description: '商品详情',
+    Icon: Images,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页',
+  },
+  {
+    key: 'outfit',
+    title: '换装',
+    description: '一键试穿',
+    Icon: Shirt,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '让 图一 的模特穿上 图二 的衣服，AI 自动出图。',
+  },
+  {
+    key: 'model-views',
+    title: '模特三视图',
+    description: '多角度展示',
+    Icon: Layers,
+    promptHint: '为 图一 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
+  },
+  {
+    key: 'pose-reference',
+    title: '姿势参考',
+    description: '参考姿态',
+    Icon: Scan,
+    promptHint: '让 图一 的主体摆出 图二 的姿势。',
+  },
+  {
+    key: 'upscale',
+    title: '高清放大',
+    description: '提分辨率',
+    Icon: Maximize2,
+    promptHint: '把 图一 放大变清晰。',
+  },
+  {
+    key: 'cutout',
+    title: '图片抠图',
+    description: '主体分离',
+    Icon: Scan,
+    promptHint: '把 图一 的背景去掉，按所选底色输出。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'background',
+    title: '换背景',
+    description: '环境焕新',
+    Icon: Images,
+    promptHint: '把 图一 的背景换成 图二 的风格。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'scene-extract',
+    title: '场景提取',
+    description: '提取环境',
+    Icon: ImagePlus,
+    promptHint: '从 图一 提取干净的场景素材。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'model-face-swap',
+    title: '模特换脸',
+    description: '替换模特脸',
+    Icon: Shirt,
+    promptHint: '把 图一 模特的脸换成 图二 的样子，造型不变。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'head-swap',
+    title: '智能换头',
+    description: '头部替换',
+    Icon: Scan,
+    promptHint: '给 图一 模特随机换一个新头型。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'face-swap',
+    title: '智能换脸',
+    description: '脸部替换',
+    Icon: Scan,
+    promptHint: '给 图一 模特随机换一张新脸。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'redraw',
+    title: '智能重绘',
+    description: '读图后重绘',
+    Icon: Brush,
+    promptHint: '读懂 图一 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'detail-enhance',
+    title: '细节增强',
+    description: '优化细节',
+    Icon: Zap,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '在 图一 涂抹位置上补强、修复或替换：',
+  },
+  {
+    key: 'print-extract',
+    title: '印花提取',
+    description: '提取图案',
+    Icon: Images,
+    inputPlaceholder: '补充印花提取要求（选填），例如：只保留胸前主图案、支持单张图片详情描述。',
+    promptHint: '提取 图一 服装的印花，输出 PNG 和 PSD。',
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'face-enhance',
+    title: '脸部增强',
+    description: '优化脸部',
+    Icon: Scan,
+    promptHint: '为 图一 等图像增强脸部细节。',
+    toolbarControls: noGenerationToolbarControls,
+  },
 ];
 
 const featuredModeKeys: ClawModeKey[] = ['outfit', 'dialog', 'upscale', 'background', 'redraw'];
@@ -167,10 +281,12 @@ export function ClawDialogComposer({
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
   const hasPrompt = Boolean(input.trim());
-  const hasContent = hasPrompt || attachments.length > 0;
   const selectedImage = firstImageAttachment(attachments);
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
   const SelectedModeIcon = selectedMode.Icon;
+  const showPromptInput = Boolean(selectedMode.inputPlaceholder);
+  const promptRequired = Boolean(selectedMode.requiresPrompt);
+  const canStartGeneration = promptRequired ? hasPrompt : true;
   const selectedToolbarControls = selectedMode.toolbarControls ?? defaultToolbarControls;
   const showImageModelControl = selectedToolbarControls.includes('model');
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
@@ -289,7 +405,7 @@ export function ClawDialogComposer({
       onStop();
       return;
     }
-    if (hasContent) {
+    if (canStartGeneration) {
       onSend({ imageModelConfigId: selectedImageModel?.config.id || null });
     }
   }
@@ -308,6 +424,10 @@ export function ClawDialogComposer({
         <header className="claw-dialog-heading">
           上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。
         </header>
+
+        {selectedMode.promptHint ? (
+          <div className="claw-dialog-hint">{selectedMode.promptHint}</div>
+        ) : null}
 
         <div className="claw-dialog-input-zone">
           <Upload {...uploadProps}>
@@ -338,19 +458,25 @@ export function ClawDialogComposer({
             </button>
           </Upload>
 
-          <div className="claw-dialog-textarea-wrap">
-            <TextArea
-              autoSize={{ minRows: 3, maxRows: 8 }}
-              bordered={false}
-              className="claw-dialog-textarea"
-              onChange={(event) => onInputChange(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="描述你要的画面，可上传参考图，输入 @ 引用图片。"
-              value={input}
-            />
-          </div>
+          {showPromptInput ? (
+            <div className="claw-dialog-textarea-wrap">
+              <TextArea
+                autoSize={{ minRows: 3, maxRows: 8 }}
+                bordered={false}
+                className="claw-dialog-textarea"
+                onChange={(event) => onInputChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={selectedMode.inputPlaceholder}
+                value={input}
+              />
+            </div>
+          ) : (
+            <div className="claw-dialog-mode-hint" />
+          )}
 
-          <Button aria-label="放大输入框" className="claw-expand-button" icon={<Expand size={20} />} type="text" />
+          {showPromptInput ? (
+            <Button aria-label="放大输入框" className="claw-expand-button" icon={<Expand size={20} />} type="text" />
+          ) : null}
         </div>
 
         {attachments.length > 1 ? (
@@ -426,9 +552,9 @@ export function ClawDialogComposer({
           </div>
 
           <div className="claw-dialog-submit">
-            <span className={`claw-prompt-status${hasPrompt ? ' ready' : ''}`}>
-              {hasPrompt ? '准备生成' : '还需输入提示词'}
-            </span>
+            {!canStartGeneration ? (
+              <span className="claw-prompt-status">还需输入提示词</span>
+            ) : null}
             <span className="claw-credit">
               <Zap size={18} fill="currentColor" />
               15
@@ -436,7 +562,7 @@ export function ClawDialogComposer({
             <Button
               aria-label={sending ? '停止生成' : '发送消息'}
               className="claw-send-button"
-              disabled={!sending && !hasContent}
+              disabled={!sending && !canStartGeneration}
               icon={sending ? <Square size={18} fill="currentColor" /> : <ArrowRight size={24} />}
               onClick={handlePrimaryAction}
               type="primary"
