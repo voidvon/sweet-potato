@@ -328,10 +328,11 @@ export function useChatSession() {
     syncConversationUrl,
   ]);
 
-  const addAttachments = useCallback(async (files: File[]) => {
-    const remainingSlots = maxAttachmentCount - attachments.length;
+  const addAttachments = useCallback(async (files: File[], options?: { maxCount?: number }) => {
+    const attachmentLimit = options?.maxCount ?? maxAttachmentCount;
+    const remainingSlots = attachmentLimit - attachments.length;
     if (remainingSlots <= 0) {
-      message.warning(`最多添加 ${maxAttachmentCount} 个附件`);
+      message.warning(`最多添加 ${attachmentLimit} 个附件`);
       return [];
     }
 

@@ -1,5 +1,4 @@
-import { Button, Dropdown, Image, Input, message, Popover, Upload } from 'antd';
-import type { UploadProps } from 'antd';
+import { Button, Dropdown, Input, Popover } from 'antd';
 import {
   ArrowRight,
   Brush,
@@ -12,17 +11,16 @@ import {
   List,
   Maximize2,
   MessageCircle,
-  Plus,
   Scan,
   Shirt,
   Square,
-  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig } from '../../../types';
+import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
 const { TextArea } = Input;
@@ -30,7 +28,7 @@ const { TextArea } = Input;
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
   input: string;
-  onAddFiles: (files: File[]) => Promise<ChatAttachment[]>;
+  onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { imageModelConfigId?: string | null }) => void;
@@ -71,12 +69,6 @@ type ClawModeConfig = {
 type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount';
 type ClawAspectRatioKey = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
 type ClawResolutionKey = '2K' | '4K';
-type ClawReferenceGroupConfig = {
-  key: string;
-  label: string;
-  maxCount?: number;
-  required?: boolean;
-};
 
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const noGenerationToolbarControls: ClawToolbarControl[] = [];
@@ -335,6 +327,12 @@ export function ClawDialogComposer({
   const showImageModelControl = selectedToolbarControls.includes('model');
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount');
+  const maxReferenceAttachmentCount = useMemo(() => {
+    if (selectedMode.referenceGroups.some((group) => !group.maxCount)) {
+      return undefined;
+    }
+    return selectedMode.referenceGroups.reduce((total, group) => total + (group.maxCount || 0), 0);
+  }, [selectedMode.referenceGroups]);
   const groupedAttachments = useMemo(() => {
     const groups = Object.fromEntries(referenceGroupKeys.map((key) => [key, [] as ChatAttachment[]]));
     attachments.forEach((attachment) => {
@@ -510,41 +508,14 @@ export function ClawDialogComposer({
     handlePrimaryAction();
   }
 
-  async function handleReferenceUpload(group: ClawReferenceGroupConfig, files: File[]) {
-    const currentCount = groupedAttachments[group.key]?.length || 0;
-    const maxCount = group.maxCount ?? unlimitedReferenceCount;
-    const remainingCount = maxCount - currentCount;
-    if (remainingCount <= 0) {
-      message.warning(`${group.label}最多上传 ${group.maxCount} 张`);
-      return;
-    }
-
-    const acceptedFiles = files.slice(0, remainingCount);
-    if (acceptedFiles.length < files.length && group.maxCount) {
-      message.warning(`${group.label}最多上传 ${group.maxCount} 张`);
-    }
-
-    const nextAttachments = await onAddFiles(acceptedFiles);
+  async function handleAddReferenceFiles(group: ClawReferenceGroupConfig, files: File[]) {
+    const nextAttachments = await onAddFiles(files, { maxCount: maxReferenceAttachmentCount });
     if (nextAttachments.length) {
       setAttachmentGroupById((items) => ({
         ...items,
         ...Object.fromEntries(nextAttachments.map((attachment) => [attachment.id, group.key])),
       }));
     }
-  }
-
-  function createReferenceUploadProps(group: ClawReferenceGroupConfig): UploadProps {
-    return {
-      accept: 'image/*',
-      beforeUpload: (file, fileList) => {
-        if (file.uid === fileList[0]?.uid) {
-          void handleReferenceUpload(group, fileList);
-        }
-        return false;
-      },
-      multiple: group.maxCount !== 1,
-      showUploadList: false,
-    };
   }
 
   function handleRemoveReference(attachmentId: string) {
@@ -568,48 +539,12 @@ export function ClawDialogComposer({
         ) : null}
 
         <div className="claw-dialog-input-zone">
-          <div className="claw-reference-groups">
-            {selectedMode.referenceGroups.map((group) => {
-              const groupAttachments = groupedAttachments[group.key] || [];
-              const maxCount = group.maxCount ?? unlimitedReferenceCount;
-              const uploadDisabled = groupAttachments.length >= maxCount;
-
-              return (
-                <div className="claw-reference-group" key={group.key}>
-                  <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
-                    <button className="claw-reference-tile" disabled={uploadDisabled} type="button">
-                      {!group.required ? (
-                        <span className="claw-reference-badge">可选</span>
-                      ) : null}
-                      <Plus size={22} strokeWidth={1.7} />
-                      <span className="claw-reference-label">{group.label}</span>
-                    </button>
-                  </Upload>
-                  {groupAttachments.length ? (
-                    <div className="claw-reference-preview-list">
-                      {groupAttachments.map((attachment) => (
-                        <span className="claw-reference-preview" key={attachment.id}>
-                          <Image
-                            alt={attachment.name}
-                            className="claw-reference-image"
-                            preview={false}
-                            src={attachment.url}
-                          />
-                          <button
-                            aria-label={`移除 ${attachment.name}`}
-                            onClick={() => handleRemoveReference(attachment.id)}
-                            type="button"
-                          >
-                            <X size={10} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+          <ClawReferenceGroups
+            groupedAttachments={groupedAttachments}
+            groups={selectedMode.referenceGroups}
+            onAddFiles={handleAddReferenceFiles}
+            onRemoveAttachment={handleRemoveReference}
+          />
 
           {showPromptInput ? (
             <div className="claw-dialog-textarea-wrap">
