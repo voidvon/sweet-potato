@@ -1,7 +1,10 @@
-.xingtu-creator-page {
+﻿.xingtu-creator-page {
   display: grid;
   gap: 20px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
   max-width: none;
+  min-height: 0;
   padding: 22px;
   width: 100%;
 }
@@ -81,45 +84,6 @@
   padding: 6px 8px;
   transition: background-color 0.2s ease, border-color 0.2s ease;
   width: fit-content;
-}
-
-.xingtu-task-log-trigger.ant-btn {
-  align-items: center;
-  background: #f5f7fb;
-  border: 1px solid transparent;
-  color: #6b7280;
-  display: inline-flex;
-  height: 40px;
-  justify-content: center;
-  transition: background-color 0.2s ease, color 0.2s ease;
-  width: 40px;
-}
-
-.xingtu-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
-.xingtu-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
-.xingtu-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
-  background: #edf2f8;
-  border-color: transparent;
-  box-shadow: none;
-  color: #1677ff;
-  outline: none;
-}
-
-.xingtu-task-log-trigger.ant-btn.is-running,
-.xingtu-task-log-trigger.ant-btn.is-waiting_user {
-  color: #1677ff;
-}
-
-.xingtu-task-log-trigger.ant-btn.is-done {
-  color: #389e0d;
-}
-
-.xingtu-task-log-trigger.ant-btn.is-canceled {
-  color: #d48806;
-}
-
-.xingtu-task-log-trigger.ant-btn.is-failed {
-  color: #cf1322;
 }
 
 .xingtu-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
@@ -258,37 +222,12 @@
   padding-top: 12px;
 }
 
-.xingtu-task-log-popover {
-  color: #374151;
-  display: grid;
-  gap: 8px;
-  max-width: 360px;
-  min-width: 280px;
-}
-
-.xingtu-task-log-popover-header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-}
-
-.xingtu-task-log-lines {
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
-  border-radius: 8px;
-  display: grid;
-  gap: 6px;
-  max-height: 180px;
-  overflow: auto;
-  padding: 10px 12px;
-}
-
-.xingtu-task-log-popover-empty {
-  color: #6b7280;
-}
-
 .xingtu-search-results {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   margin: 0 auto;
+  min-height: 0;
   width: 100%;
 }
 
@@ -565,12 +504,22 @@
 .xingtu-search-results-table {
   background: #fff;
   border-radius: 8px;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
+  width: 100%;
+}
+
+.xingtu-search-results-table-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .xingtu-search-results-footer {
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   gap: 16px;
   justify-content: space-between;
   padding: 12px 4px 18px;
@@ -622,7 +571,20 @@
 }
 
 .xingtu-search-results-table .ant-table-container {
+  min-width: 0;
   overflow: hidden;
+  width: 100%;
+}
+
+.xingtu-search-results-table .ant-table-content {
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.xingtu-search-results-table .ant-table {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .xingtu-cell-creator {
@@ -766,10 +728,6 @@
     width: 100%;
   }
 
-  .xingtu-task-log-trigger.ant-btn {
-    flex: 0 0 auto;
-  }
-
   .xingtu-search-button.ant-btn {
     justify-self: end;
   }
@@ -799,3 +757,4 @@
     flex-direction: column;
   }
 }
+

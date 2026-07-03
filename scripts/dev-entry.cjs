@@ -5,13 +5,63 @@ const mode = process.argv[2] === 'web' ? 'web' : 'electron';
 const rootDir = path.resolve(__dirname, '..');
 let childProcess = null;
 let shuttingDown = false;
+let pendingStop = null;
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
   cleanupAndExit(1);
 }
 
-function terminateChild() {
+function waitForChildExit(timeoutMs) {
+  if (!childProcess || childProcess.exitCode !== null) {
+    return Promise.resolve();
+  }
+  if (pendingStop) {
+    return pendingStop;
+  }
+
+  pendingStop = new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      pendingStop = null;
+      childProcess.removeListener('exit', onExit);
+      resolve();
+    };
+    const onExit = () => finish();
+    const timer = setTimeout(finish, timeoutMs);
+    childProcess.once('exit', onExit);
+  });
+
+  return pendingStop;
+}
+
+function requestGracefulStop() {
+  if (!childProcess || childProcess.killed || childProcess.exitCode !== null) {
+    return false;
+  }
+
+  try {
+    if (typeof childProcess.send === 'function') {
+      childProcess.send({ type: 'graceful-exit' });
+      return true;
+    }
+    if (process.platform === 'win32') {
+      childProcess.kill();
+    } else {
+      childProcess.kill('SIGTERM');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function forceTerminateChild() {
   if (!childProcess || childProcess.killed || childProcess.exitCode !== null) {
     return;
   }
@@ -26,34 +76,51 @@ function terminateChild() {
   }
 
   try {
-    childProcess.kill('SIGTERM');
+    childProcess.kill('SIGKILL');
   } catch {
     // Ignore cleanup failures during shutdown.
   }
 }
 
-function cleanupAndExit(code) {
+async function terminateChild() {
+  const requested = requestGracefulStop();
+  if (requested) {
+    await waitForChildExit(5000);
+  }
+  if (childProcess && childProcess.exitCode === null) {
+    forceTerminateChild();
+  }
+}
+
+async function cleanupAndExit(code, options = {}) {
   if (shuttingDown) {
     return;
   }
 
   shuttingDown = true;
-  terminateChild();
+  if (options.passiveWindowsWait && process.platform === 'win32') {
+    await waitForChildExit(5000);
+    if (childProcess && childProcess.exitCode === null) {
+      forceTerminateChild();
+    }
+  } else {
+    await terminateChild();
+  }
   process.exit(code);
 }
 
 function registerCleanup() {
-  process.once('SIGINT', () => cleanupAndExit(130));
-  process.once('SIGTERM', () => cleanupAndExit(143));
+  process.once('SIGINT', () => { void cleanupAndExit(130, { passiveWindowsWait: true }); });
+  process.once('SIGTERM', () => { void cleanupAndExit(143, { passiveWindowsWait: true }); });
   process.once('exit', () => {
-    terminateChild();
+    forceTerminateChild();
   });
 }
 
 function run(command, args) {
   childProcess = spawn(command, args, {
     cwd: rootDir,
-    stdio: 'inherit',
+    stdio: process.platform === 'win32' ? ['inherit', 'inherit', 'inherit', 'ipc'] : 'inherit',
     windowsHide: false,
   });
 
@@ -62,10 +129,10 @@ function run(command, args) {
       return;
     }
     if (signal) {
-      cleanupAndExit(signal === 'SIGINT' ? 130 : 143);
+      void cleanupAndExit(signal === 'SIGINT' ? 130 : 143);
       return;
     }
-    cleanupAndExit(code || 0);
+    void cleanupAndExit(code || 0);
   });
 
   childProcess.on('error', (error) => {

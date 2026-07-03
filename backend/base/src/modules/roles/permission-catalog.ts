@@ -102,6 +102,12 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
     group: 'creator_ops',
   },
   {
+    key: 'web.module.creator_ops.douyin',
+    label: '抖音达人',
+    description: '允许访问抖音达人搜索入口，并在 Electron 中打开抖音 PC 版搜索页。',
+    group: 'creator_ops',
+  },
+  {
     key: 'web.module.creator_ops.wechat',
     label: '微信运营',
     description: '允许访问微信运营模块。',

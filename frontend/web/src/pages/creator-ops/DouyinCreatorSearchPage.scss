@@ -1,0 +1,320 @@
+﻿.douyin-creator-page {
+  align-content: start;
+  display: grid;
+  gap: 20px;
+  height: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 22px;
+  width: 100%;
+}
+
+.douyin-creator-header-actions {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.douyin-account-trigger.ant-btn {
+  align-items: center;
+  background-color: #edf2f8;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-sizing: border-box;
+  box-shadow: none;
+  display: inline-flex;
+  font-size: 14px;
+  flex: 0 0 auto;
+  height: 44px;
+  justify-content: flex-start;
+  max-width: 240px;
+  min-width: 0;
+  padding: 6px 8px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  width: fit-content;
+}
+
+.douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
+.douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
+  background-color: #e3ebf5;
+  border: 1px solid transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.douyin-account-trigger-avatar {
+  align-items: center;
+  background: #111827;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 16px;
+  height: 30px;
+  justify-content: center;
+  margin-right: 8px;
+  width: 30px;
+}
+
+.douyin-account-trigger-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.douyin-account-trigger .anticon {
+  color: #6b7280;
+  flex: 0 0 auto;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.douyin-spotlight-panel {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.douyin-spotlight-bar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 50px;
+  padding: 6px 7px;
+  width: 640px;
+}
+
+.douyin-command-input.ant-input-affix-wrapper {
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  height: 36px;
+  padding-inline: 14px;
+}
+
+.douyin-search-button.ant-btn {
+  height: 34px;
+  width: 34px;
+}
+
+.douyin-account-popover {
+  width: 280px;
+}
+
+.douyin-account-list {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.douyin-account-list-item {
+  min-width: 0;
+  padding: 3px 0;
+}
+
+.douyin-account-list-empty.ant-empty {
+  margin: 8px 0;
+}
+
+.douyin-account-item {
+  align-items: center;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  height: 40px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0 6px 0 12px;
+  width: 100%;
+}
+
+.douyin-account-item:hover {
+  background: #f5f7fb;
+}
+
+.douyin-account-item.selected {
+  background: #eef4ff;
+}
+
+.douyin-account-name {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.douyin-account-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.douyin-account-backstage.ant-btn {
+  color: #6b7280;
+  flex: 0 0 auto;
+}
+
+.douyin-account-popover-footer {
+  margin-top: 10px;
+}
+
+.douyin-results-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.douyin-results-panel-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.douyin-results-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.douyin-results-panel-header .ant-typography {
+  margin-bottom: 4px;
+}
+
+.douyin-results-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.douyin-results-toolbar-meta {
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.douyin-results-toolbar-action.ant-btn {
+  min-width: 88px;
+}
+
+.douyin-search-results-table {
+  background: #fff;
+  border-radius: 8px;
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.douyin-search-results-table .ant-table-cell {
+  align-content: center;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.douyin-search-results-table .ant-table-cell,
+.douyin-search-results-table .ant-table-cell a {
+  overflow-wrap: anywhere;
+}
+
+.douyin-search-results-table .ant-table-thead > tr > th {
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.douyin-search-results-table .ant-table-selection-column {
+  background: #fff;
+}
+
+.douyin-search-results-table .ant-table-tbody > tr > td {
+  color: #4b5563;
+}
+
+.douyin-search-results-table .ant-table-container {
+  overflow: hidden;
+  min-width: 0;
+  width: 100%;
+}
+
+.douyin-search-results-table .ant-table-content {
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.douyin-search-results-table .ant-table-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto !important;
+}
+
+.douyin-search-results-table .ant-table {
+  background: transparent;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.douyin-cell-operation {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.douyin-cell-operation .ant-btn {
+  min-width: 72px;
+}
+
+.douyin-favorite-button.ant-btn {
+  color: #9ca3af;
+  min-width: 0;
+}
+
+.douyin-favorite-button.ant-btn:hover,
+.douyin-favorite-button.ant-btn:focus,
+.douyin-favorite-button.ant-btn:focus-visible {
+  color: #f59e0b;
+}
+
+.douyin-favorite-button.ant-btn.is-active {
+  color: #f59e0b;
+}
+
+@media (max-width: 900px) {
+  .douyin-spotlight-bar {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .douyin-creator-page {
+    padding: 16px;
+  }
+
+  .douyin-results-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .douyin-spotlight-bar {
+    grid-template-columns: 1fr;
+  }
+}
+

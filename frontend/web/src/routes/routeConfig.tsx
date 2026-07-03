@@ -37,6 +37,8 @@ const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage'
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
 const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
+const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
+const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
 const WechatAutomationPage = lazy(() => import('../pages/creator-ops/WechatAutomationPage').then((m) => ({ default: m.WechatAutomationPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
 
@@ -399,6 +401,44 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     visible: () => isElectronEgg,
   },
   {
+    key: 'creator-ops-douyin',
+    path: 'creator-ops/douyin',
+    fullPath: routePaths.douyinCreators,
+    element: () => withSuspense(<DouyinCreatorSearchPage />),
+    routeResource: {
+      permissionCode: 'web.module.creator_ops.douyin',
+      protected: true,
+      resourceKey: 'web.module.creator_ops.douyin',
+      resourceType: 'menu',
+    },
+    handle: {
+      title: '抖音达人',
+      sidebar: {
+        groupKey: 'creatorOps',
+        icon: <Star {...menuIconProps} />,
+      },
+    },
+    visible: () => isElectronEgg,
+  },
+  {
+    key: 'creator-ops-favorites',
+    path: 'creator-ops/favorites',
+    fullPath: routePaths.creatorFavorites,
+    element: () => withSuspense(<CreatorFavoritesPage />),
+    routeResource: {
+      protected: false,
+      resourceType: 'menu',
+    },
+    handle: {
+      title: '达人收藏',
+      sidebar: {
+        groupKey: 'creatorOps',
+        icon: <Star {...menuIconProps} />,
+      },
+    },
+    visible: () => isElectronEgg,
+  },
+  {
     key: 'creator-ops-wechat',
     path: 'creator-ops/wechat',
     fullPath: routePaths.wechatOps,
@@ -526,6 +566,10 @@ function resolveResourceName(route: WorkspacePageDefinition, resourceInfoMap?: M
 }
 
 function getRouteSortOrder(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  if (route.handle?.sidebar?.groupKey === 'creatorOps') {
+    return workspacePageDefinitions.indexOf(route);
+  }
+
   return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0;
 }
 

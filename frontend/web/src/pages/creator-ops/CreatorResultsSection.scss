@@ -1,0 +1,8 @@
+.creator-results-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--creator-results-section-gap, 12px);
+  min-height: 0;
+  min-width: 0;
+}

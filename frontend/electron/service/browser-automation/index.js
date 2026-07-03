@@ -3,11 +3,13 @@
 const { listAdapters } = require('./adapters');
 const { listTasks } = require('./task-store');
 const { startTask, cancelTask, resumeTask, getTaskStatus } = require('./task-runner');
-const { closeAutomationWindows, countAutomationWindows } = require('./automation-window');
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const {
+  closeAutomationWindows,
+  countAutomationWindows,
+  findAutomationWindow,
+  activateAutomationWindow,
+} = require('./automation-window');
+const { pollUntil, sleep } = require('./core/polling');
 
 class BrowserAutomationService {
   listAdapters() {
@@ -37,7 +39,7 @@ class BrowserAutomationService {
   closeWindows(args = {}) {
     const profileId = String(args.profileId || '').trim();
     if (!profileId) {
-      return { ok: false, message: '缺少 profileId' };
+      return { ok: false, message: '缂哄皯 profileId' };
     }
     return {
       ok: true,
@@ -45,11 +47,27 @@ class BrowserAutomationService {
     };
   }
 
+  focusProfileWindow(args = {}) {
+    const profileId = String(args.profileId || '').trim();
+    if (!profileId) {
+      return { ok: false, message: 'Missing profileId' };
+    }
+
+    const win = findAutomationWindow({ profileId });
+    if (!win) {
+      return { ok: false, message: 'No automation window found for profile' };
+    }
+
+    return {
+      ok: activateAutomationWindow(win, {}),
+    };
+  }
+
   async stopProfile(args = {}) {
     const profileId = String(args.profileId || '').trim();
     const site = String(args.site || '').trim();
     if (!profileId) {
-      return { ok: false, message: '缺少 profileId' };
+      return { ok: false, message: '缂哄皯 profileId' };
     }
 
     const activeTasks = listTasks().filter((task) => {
@@ -71,8 +89,7 @@ class BrowserAutomationService {
     }
 
     const closedCount = closeAutomationWindows({ profileId });
-    const deadline = Date.now() + Number(args.timeoutMs || 4000);
-    while (Date.now() < deadline) {
+    const settled = await pollUntil(() => {
       const remainingTasks = listTasks().filter((task) => {
         if (task.profileId !== profileId) {
           return false;
@@ -84,20 +101,27 @@ class BrowserAutomationService {
       }).length;
       const remainingWindows = countAutomationWindows({ profileId });
       if (remainingTasks === 0 && remainingWindows === 0) {
-        return {
-          ok: true,
-          canceledTaskIds,
-          closedCount,
-        };
+        return true;
       }
-      await sleep(80);
+      return false;
+    }, {
+      timeoutMs: Number(args.timeoutMs || 4000),
+      intervalMs: 80,
+    });
+
+    if (settled) {
+      return {
+        ok: true,
+        canceledTaskIds,
+        closedCount,
+      };
     }
 
     return {
       ok: true,
       canceledTaskIds,
       closedCount,
-      message: '旧账号任务或窗口仍在关闭中',
+      message: 'Some automation tasks or windows are still closing.',
     };
   }
 }

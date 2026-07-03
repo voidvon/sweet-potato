@@ -31,6 +31,10 @@ class BrowserAutomationController {
     return browserAutomationService.closeWindows(args);
   }
 
+  focusProfileWindow(args) {
+    return browserAutomationService.focusProfileWindow(args);
+  }
+
   stopProfile(args) {
     return browserAutomationService.stopProfile(args);
   }

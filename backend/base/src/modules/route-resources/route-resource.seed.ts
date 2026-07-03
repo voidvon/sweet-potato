@@ -16,6 +16,7 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
   'web.module.content.finished_assets',
   'web.module.creator_ops.xingtu',
   'web.module.creator_ops.buyin',
+  'web.module.creator_ops.douyin',
   'web.module.creator_ops.wechat',
 ]);
 
@@ -46,6 +47,9 @@ const webRouteMetaByPermission = {
   },
   'web.module.creator_ops.buyin': {
     path: '/app/creator-ops/buyin',
+  },
+  'web.module.creator_ops.douyin': {
+    path: '/app/creator-ops/douyin',
   },
   'web.module.creator_ops.wechat': {
     path: '/app/creator-ops/wechat',
@@ -119,7 +123,8 @@ export const seededRouteResources: SeedRouteResource[] = [
       'web.module.content.video_remake': 10,
       'web.module.creator_ops.xingtu': 10,
       'web.module.creator_ops.buyin': 20,
-      'web.module.creator_ops.wechat': 30,
+      'web.module.creator_ops.douyin': 30,
+      'web.module.creator_ops.wechat': 40,
     };
     return {
       id: `rr-${entry.key}`,

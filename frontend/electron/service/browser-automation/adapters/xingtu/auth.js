@@ -48,7 +48,7 @@ async function confirmXingtuSession(ctx) {
     isLoginUrl,
     readAccount: readAccountName,
     inspectLoginState: inspectAccountNameDom,
-    checkCurrentPageFirst: false,
+    checkCurrentPageFirst: true,
     loginMessage: '当前星图账号未登录，请先进入账号后台完成登录',
     waitAfterBootstrapMs: 1800,
     waitAfterGotoMs: 1500,

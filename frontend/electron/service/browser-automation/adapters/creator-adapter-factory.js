@@ -120,6 +120,7 @@ function createCreatorOpenProfileAdapter(config) {
     isCreatorUrl,
     confirmSession,
     openLogMessage,
+    resolveTargetUrl = (input) => normalizeText(input && input.url),
   } = config;
 
   return {
@@ -131,9 +132,15 @@ function createCreatorOpenProfileAdapter(config) {
     closeWindowOnFailure: false,
     windowOptions: createWindowOptions(isCreatorUrl),
 
-    async run(ctx) {
+    async run(ctx, input = {}) {
       ctx.log.info(openLogMessage);
       const nickname = await confirmSession(ctx);
+      const targetUrl = resolveTargetUrl(input);
+
+      if (targetUrl && ctx.page.url() !== targetUrl) {
+        ctx.log.info(`打开目标主页: ${targetUrl}`);
+        await ctx.page.goto(targetUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      }
 
       return {
         nickname,

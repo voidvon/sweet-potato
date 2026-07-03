@@ -1,5 +1,8 @@
+import { useCallback, useRef } from 'react';
+import type { ReactNode, UIEvent } from 'react';
 import { Button, Table, Tag } from 'antd';
 import type { TableProps } from 'antd';
+import { CreatorInfoCell } from './CreatorInfoCell';
 import type { CreatorOpsPlatform } from './creatorOpsPlatforms';
 
 export type CreatorSearchResult = {
@@ -20,63 +23,65 @@ export type CreatorSearchResult = {
   operationText?: string;
   operationLabel?: string;
   operationHint?: string;
+  profileName?: string;
+  douyinId?: string;
+  likeCount?: string;
+  followerCount?: string;
+  intro?: string;
 };
 
 type CreatorResultsTableProps = {
+  className?: string;
+  columns?: TableProps<CreatorSearchResult>['columns'];
+  dataSource?: CreatorSearchResult[];
+  emptyText?: string;
   loading: boolean;
-  platform: CreatorOpsPlatform;
-  results: CreatorSearchResult[];
+  locale?: {
+    emptyText?: ReactNode;
+  };
+  onOpenProfile?: (record: CreatorSearchResult) => void;
+  pagination?: TableProps<CreatorSearchResult>['pagination'];
+  platform?: CreatorOpsPlatform | 'douyin';
+  resultsMode?: {
+    type: 'static' | 'pagination' | 'infinite';
+    infiniteScroll?: {
+      disabled?: boolean;
+      loading?: boolean;
+      onLoadMore: () => void;
+      threshold?: number;
+    };
+  };
+  results?: CreatorSearchResult[];
+  rowSelection?: TableProps<CreatorSearchResult>['rowSelection'];
+  rowKey?: TableProps<CreatorSearchResult>['rowKey'];
+  scroll?: TableProps<CreatorSearchResult>['scroll'];
+  size?: TableProps<CreatorSearchResult>['size'];
+  tableLayout?: TableProps<CreatorSearchResult>['tableLayout'];
 };
 
-function createCreatorResultColumns(platform: CreatorOpsPlatform): TableProps<CreatorSearchResult>['columns'] {
+function formatDouyinId(value: string | undefined) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '-';
+  }
+
+  const match = normalized.match(/抖音号[\uFF1A:]\s*(\S+)/);
+  return match ? match[1] : normalized;
+}
+
+function createGeneralCreatorColumns(
+  platform: CreatorOpsPlatform,
+  onOpenProfile?: (record: CreatorSearchResult) => void,
+): TableProps<CreatorSearchResult>['columns'] {
   return [
     {
       dataIndex: 'creatorInfo',
       key: 'creatorInfo',
       title: '达人信息',
       minWidth: 280,
-      render: (_value: string | undefined, record) => {
-        const titleNode = record.href
-          ? <a href={record.href} rel="noreferrer" target="_blank">{record.name}</a>
-          : <span>{record.name}</span>;
-        return (
-          <div className="xingtu-cell-creator">
-            <div className="xingtu-cell-avatar">
-              {record.avatarUrl ? (
-                <img
-                  alt={record.name}
-                  referrerPolicy="no-referrer"
-                  src={record.avatarUrl}
-                />
-              ) : (
-                <span>{record.name.slice(0, 1)}</span>
-              )}
-            </div>
-            <div className="xingtu-cell-creator-main">
-              <div className="xingtu-cell-creator-title">
-                {titleNode}
-              </div>
-              <div className="xingtu-cell-creator-badges">
-                {record.creatorBadgeIconUrl ? (
-                  <span className="xingtu-cell-creator-icon-tag">
-                    <img
-                      alt=""
-                      className="xingtu-cell-creator-icon"
-                      referrerPolicy="no-referrer"
-                      src={record.creatorBadgeIconUrl}
-                    />
-                  </span>
-                ) : null}
-                {record.gender ? <Tag bordered={false}>{record.gender}</Tag> : null}
-                {record.location ? <Tag bordered={false}>{record.location}</Tag> : null}
-                {record.badges?.slice(0, 3).map((badge) => (
-                  <Tag bordered={false} key={badge}>{badge}</Tag>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      },
+      render: (_value: string | undefined, record) => (
+        <CreatorInfoCell onOpenProfile={onOpenProfile} record={record} variant={platform} />
+      ),
     },
     {
       dataIndex: 'creatorType',
@@ -103,7 +108,7 @@ function createCreatorResultColumns(platform: CreatorOpsPlatform): TableProps<Cr
     {
       dataIndex: 'connectedUsers',
       key: 'connectedUsers',
-      title: '连接用户数',
+      title: '已连接用户数',
       width: 120,
       render: (value: string | undefined) => value || '-',
     },
@@ -121,7 +126,16 @@ function createCreatorResultColumns(platform: CreatorOpsPlatform): TableProps<Cr
       width: 150,
       render: (_value: string | undefined, record) => {
         const action = record.href ? (
-          <Button className="xingtu-cell-action-button" danger href={record.href} rel="noreferrer" size="small" target="_blank" type="primary">
+          <Button
+            className="xingtu-cell-action-button"
+            danger
+            href={!onOpenProfile ? record.href : undefined}
+            onClick={onOpenProfile ? () => onOpenProfile(record) : undefined}
+            rel="noreferrer"
+            size="small"
+            target={!onOpenProfile ? '_blank' : undefined}
+            type="primary"
+          >
             {record.operationLabel || '查看'}
           </Button>
         ) : (
@@ -141,19 +155,168 @@ function createCreatorResultColumns(platform: CreatorOpsPlatform): TableProps<Cr
   ];
 }
 
-export function CreatorResultsTable({ loading, platform, results }: CreatorResultsTableProps) {
+function createDouyinCreatorColumns(
+  onOpenProfile?: (record: CreatorSearchResult) => void,
+): TableProps<CreatorSearchResult>['columns'] {
+  return [
+    {
+      dataIndex: 'name',
+      key: 'creatorInfo',
+      title: '达人信息',
+      minWidth: 280,
+      render: (_value: string, record) => (
+        <CreatorInfoCell onOpenProfile={onOpenProfile} record={record} variant="douyin" />
+      ),
+    },
+    {
+      dataIndex: 'creatorType',
+      key: 'creatorType',
+      title: '类型',
+      width: 120,
+      render: (value: string | undefined) => value ? <Tag bordered={false}>{value}</Tag> : '-',
+    },
+    {
+      dataIndex: 'douyinId',
+      key: 'douyinId',
+      title: '抖音号',
+      width: 180,
+      render: (value: string | undefined) => formatDouyinId(value),
+    },
+    {
+      dataIndex: 'likeCount',
+      key: 'likeCount',
+      title: '获赞',
+      width: 140,
+      render: (value: string | undefined) => value || '-',
+    },
+    {
+      dataIndex: 'followerCount',
+      key: 'followerCount',
+      title: '粉丝',
+      width: 140,
+      render: (value: string | undefined) => value || '-',
+    },
+    {
+      dataIndex: 'intro',
+      key: 'intro',
+      title: '个人介绍',
+      width: 320,
+      render: (value: string | undefined, record) => value || record.summary || '-',
+    },
+    {
+      dataIndex: 'operationLabel',
+      key: 'action',
+      title: '操作',
+      width: 150,
+      render: (_value: string | undefined, record) => (
+        <div className="douyin-cell-operation">
+          {record.href ? (
+            <Button
+              danger
+              onClick={() => {
+                onOpenProfile?.(record);
+              }}
+              size="small"
+              type="primary"
+            >
+              {record.operationLabel || '查看主页'}
+            </Button>
+          ) : (
+            <Button danger size="small" type="primary">
+              {record.operationLabel || '查看主页'}
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+}
+
+function createCreatorResultColumns(
+  platform: CreatorOpsPlatform | 'douyin',
+  onOpenProfile?: (record: CreatorSearchResult) => void,
+): TableProps<CreatorSearchResult>['columns'] {
+  if (platform === 'douyin') {
+    return createDouyinCreatorColumns(onOpenProfile);
+  }
+
+  return createGeneralCreatorColumns(platform, onOpenProfile);
+}
+
+export function CreatorResultsTable({
+  className,
+  columns,
+  dataSource,
+  emptyText,
+  loading,
+  locale,
+  onOpenProfile,
+  pagination,
+  platform = 'douyin',
+  resultsMode,
+  results,
+  rowSelection,
+  rowKey,
+  scroll,
+  size,
+  tableLayout,
+}: CreatorResultsTableProps) {
+  const resolvedResults = results || dataSource || [];
+  const resolvedEmptyText = emptyText || locale?.emptyText || (loading ? '正在搜索达人' : '暂无搜索结果');
+  const infiniteScrollLockRef = useRef(false);
+  const infiniteScroll = resultsMode?.type === 'infinite' ? resultsMode.infiniteScroll : undefined;
+  const resolvedScroll = scroll || { x: platform === 'douyin' ? 1180 : 910 };
+
+  const handleScroll = useCallback((event: UIEvent<HTMLElement>) => {
+    if (!infiniteScroll) {
+      return;
+    }
+
+    const target = event.currentTarget;
+    const threshold = Math.max(0, Number(infiniteScroll.threshold || 96));
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom > threshold) {
+      return;
+    }
+
+    if (infiniteScroll.disabled || infiniteScroll.loading || infiniteScrollLockRef.current) {
+      return;
+    }
+
+    infiniteScrollLockRef.current = true;
+    infiniteScroll.onLoadMore();
+    window.setTimeout(() => {
+      infiniteScrollLockRef.current = false;
+    }, 500);
+  }, [infiniteScroll]);
+
   return (
-    <Table
-      className="xingtu-search-results-table"
-      columns={createCreatorResultColumns(platform)}
-      dataSource={results}
-      loading={loading}
-      locale={{ emptyText: loading ? '正在搜索达人' : '暂无搜索结果' }}
-      pagination={false}
-      rowKey={(record, index) => `${record.name}-${index || 0}`}
-      scroll={{ x: 910 }}
-      tableLayout="auto"
-      size="middle"
-    />
+    <div
+      style={{
+        display: 'flex',
+        flex: '1 1 auto',
+        flexDirection: 'column',
+        height: '100%',
+        maxWidth: '100%',
+        minHeight: 0,
+        minWidth: 0,
+        width: '100%',
+      }}
+    >
+      <Table
+        className={className || (platform === 'douyin' ? 'douyin-search-results-table' : 'xingtu-search-results-table')}
+        columns={columns || createCreatorResultColumns(platform, onOpenProfile)}
+        dataSource={resolvedResults}
+        loading={loading}
+        locale={{ emptyText: resolvedEmptyText }}
+        onScroll={handleScroll}
+        pagination={pagination === undefined ? false : pagination}
+        rowSelection={rowSelection}
+        rowKey={rowKey || ((record, index) => `${record.name}-${index || 0}`)}
+        scroll={resolvedScroll}
+        tableLayout={tableLayout || 'auto'}
+        size={size || 'middle'}
+      />
+    </div>
   );
 }
