@@ -1,5 +1,4 @@
-import { Button, Dropdown, Image, Input, Popover, Upload } from 'antd';
-import type { UploadProps } from 'antd';
+import { Button, Dropdown, Input, Popover } from 'antd';
 import {
   ArrowRight,
   Brush,
@@ -12,17 +11,16 @@ import {
   List,
   Maximize2,
   MessageCircle,
-  Plus,
   Scan,
   Shirt,
   Square,
-  X,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig } from '../../../types';
+import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
 const { TextArea } = Input;
@@ -30,7 +28,7 @@ const { TextArea } = Input;
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
   input: string;
-  onAddFiles: (files: File[]) => void;
+  onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { imageModelConfigId?: string | null }) => void;
@@ -59,7 +57,11 @@ type ClawModeKey =
 type ClawModeConfig = {
   description: string;
   Icon: LucideIcon;
+  inputPlaceholder?: string;
   key: ClawModeKey;
+  promptHint?: string;
+  referenceGroups: ClawReferenceGroupConfig[];
+  requiresPrompt?: boolean;
   title: string;
   toolbarControls?: ClawToolbarControl[];
 };
@@ -70,24 +72,172 @@ type ClawResolutionKey = '2K' | '4K';
 
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const noGenerationToolbarControls: ClawToolbarControl[] = [];
+const defaultOptionalPlaceholder = '补充要求（选填），例如：调整光线、风格、姿态…';
+const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
 
 const clawModeConfigs: ClawModeConfig[] = [
-  { key: 'dialog', title: '对话生图', description: '多图对话', Icon: MessageCircle },
-  { key: 'detail', title: '详情图生成', description: '商品详情', Icon: Images },
-  { key: 'outfit', title: '换装', description: '一键试穿', Icon: Shirt },
-  { key: 'model-views', title: '模特三视图', description: '多角度展示', Icon: Layers },
-  { key: 'pose-reference', title: '姿势参考', description: '参考姿态', Icon: Scan },
-  { key: 'upscale', title: '高清放大', description: '提分辨率', Icon: Maximize2 },
-  { key: 'cutout', title: '图片抠图', description: '主体分离', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'background', title: '换背景', description: '环境焕新', Icon: Images, toolbarControls: noGenerationToolbarControls },
-  { key: 'scene-extract', title: '场景提取', description: '提取环境', Icon: ImagePlus, toolbarControls: noGenerationToolbarControls },
-  { key: 'model-face-swap', title: '模特换脸', description: '替换模特脸', Icon: Shirt, toolbarControls: noGenerationToolbarControls },
-  { key: 'head-swap', title: '智能换头', description: '头部替换', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'face-swap', title: '智能换脸', description: '脸部替换', Icon: Scan, toolbarControls: noGenerationToolbarControls },
-  { key: 'redraw', title: '智能重绘', description: '读图后重绘', Icon: Brush, toolbarControls: noGenerationToolbarControls },
-  { key: 'detail-enhance', title: '细节增强', description: '优化细节', Icon: Zap },
-  { key: 'print-extract', title: '印花提取', description: '提取图案', Icon: Images, toolbarControls: noGenerationToolbarControls },
-  { key: 'face-enhance', title: '脸部增强', description: '优化脸部', Icon: Scan, toolbarControls: noGenerationToolbarControls },
+  {
+    key: 'dialog',
+    title: '对话生图',
+    description: '多图对话',
+    Icon: MessageCircle,
+    inputPlaceholder: '描述你要的画面，可上传参考图，输入 @ 引用图片。',
+    referenceGroups: [{ key: 'reference', label: '参考图', maxCount: 8 }],
+    requiresPrompt: true,
+  },
+  {
+    key: 'detail',
+    title: '详情图生成',
+    description: '商品详情',
+    Icon: Images,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页',
+    referenceGroups: [
+      { key: 'product', label: '产品图', maxCount: 3, required: true },
+      { key: 'reference', label: '参考图', maxCount: 10 },
+    ],
+  },
+  {
+    key: 'outfit',
+    title: '换装',
+    description: '一键试穿',
+    Icon: Shirt,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '让 图一 的模特穿上 图二 的衣服，AI 自动出图。',
+    referenceGroups: [
+      { key: 'model', label: '模特', maxCount: 1, required: true },
+      { key: 'clothes', label: '图片', required: true },
+    ],
+  },
+  {
+    key: 'model-views',
+    title: '模特三视图',
+    description: '多角度展示',
+    Icon: Layers,
+    promptHint: '为 图一 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
+    referenceGroups: [
+      { key: 'model', label: '模特', maxCount: 1, required: true },
+      { key: 'front', label: '服装正面', maxCount: 1 },
+      { key: 'back', label: '服装背面', maxCount: 1 },
+      { key: 'background', label: '背景', maxCount: 1 },
+    ],
+  },
+  {
+    key: 'pose-reference',
+    title: '姿势参考',
+    description: '参考姿态',
+    Icon: Scan,
+    promptHint: '让 图一 的主体摆出 图二 的姿势。',
+    referenceGroups: [
+      { key: 'subject', label: '主体', maxCount: 1, required: true },
+      { key: 'pose', label: '姿势', required: true },
+    ],
+  },
+  {
+    key: 'upscale',
+    title: '高清放大',
+    description: '提分辨率',
+    Icon: Maximize2,
+    promptHint: '把 图一 放大变清晰。',
+    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+  },
+  {
+    key: 'cutout',
+    title: '图片抠图',
+    description: '主体分离',
+    Icon: Scan,
+    promptHint: '把 图一 的背景去掉，按所选底色输出。',
+    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'background',
+    title: '换背景',
+    description: '环境焕新',
+    Icon: Images,
+    promptHint: '把 图一 的背景换成 图二 的风格。',
+    referenceGroups: [
+      { key: 'subject', label: '主体', maxCount: 1, required: true },
+      { key: 'background', label: '背景', maxCount: 1, required: true },
+    ],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'scene-extract',
+    title: '场景提取',
+    description: '提取环境',
+    Icon: ImagePlus,
+    promptHint: '从 图一 提取干净的场景素材。',
+    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'model-face-swap',
+    title: '模特换脸',
+    description: '替换模特脸',
+    Icon: Shirt,
+    promptHint: '把 图一 模特的脸换成 图二 的样子，造型不变。',
+    referenceGroups: [
+      { key: 'model', label: '模特', maxCount: 1, required: true },
+      { key: 'face', label: '脸部', maxCount: 1, required: true },
+    ],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'head-swap',
+    title: '智能换头',
+    description: '头部替换',
+    Icon: Scan,
+    promptHint: '给 图一 模特随机换一个新头型。',
+    referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'face-swap',
+    title: '智能换脸',
+    description: '脸部替换',
+    Icon: Scan,
+    promptHint: '给 图一 模特随机换一张新脸。',
+    referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'redraw',
+    title: '智能重绘',
+    description: '读图后重绘',
+    Icon: Brush,
+    promptHint: '读懂 图一 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
+    referenceGroups: [{ key: 'reference', label: '参考图', required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'detail-enhance',
+    title: '细节增强',
+    description: '优化细节',
+    Icon: Zap,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    promptHint: '在 图一 涂抹位置上补强、修复或替换：',
+    referenceGroups: [{ key: 'base', label: '基础图', maxCount: 1, required: true }],
+  },
+  {
+    key: 'print-extract',
+    title: '印花提取',
+    description: '提取图案',
+    Icon: Images,
+    inputPlaceholder: '补充印花提取要求（选填），例如：只保留胸前主图案、支持单张图片详情描述。',
+    promptHint: '提取 图一 服装的印花，输出 PNG 和 PSD。',
+    referenceGroups: [{ key: 'clothes', label: '服装', required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
+  {
+    key: 'face-enhance',
+    title: '脸部增强',
+    description: '优化脸部',
+    Icon: Scan,
+    promptHint: '为 图一 等图像增强脸部细节。',
+    referenceGroups: [{ key: 'portrait', label: '人像', required: true }],
+    toolbarControls: noGenerationToolbarControls,
+  },
 ];
 
 const featuredModeKeys: ClawModeKey[] = ['outfit', 'dialog', 'upscale', 'background', 'redraw'];
@@ -128,7 +278,7 @@ const modeMenuItems = clawModeConfigs.map((mode) => {
     label: (
       <span className="claw-mode-menu-item">
         <span className="claw-mode-menu-icon">
-          <ModeIcon size={14} />
+          <ModeIcon size={12} />
         </span>
         <span className="claw-mode-menu-copy">
           <span>{mode.title}</span>
@@ -147,10 +297,6 @@ function imageModelValue(config: ModelConfig) {
   return config.id || `${config.provider}::${config.model}`;
 }
 
-function firstImageAttachment(attachments: ChatAttachment[]) {
-  return attachments.find((attachment) => attachment.kind === 'image');
-}
-
 export function ClawDialogComposer({
   attachments,
   input,
@@ -166,24 +312,84 @@ export function ClawDialogComposer({
   const [selectedImageModelValue, setSelectedImageModelValue] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
+  const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
   const hasPrompt = Boolean(input.trim());
-  const hasContent = hasPrompt || attachments.length > 0;
-  const selectedImage = firstImageAttachment(attachments);
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
   const SelectedModeIcon = selectedMode.Icon;
+  const showPromptInput = Boolean(selectedMode.inputPlaceholder);
+  const promptRequired = Boolean(selectedMode.requiresPrompt);
+  const referenceGroupKeys = useMemo(
+    () => selectedMode.referenceGroups.map((group) => group.key),
+    [selectedMode],
+  );
+  const firstReferenceGroupKey = referenceGroupKeys[0];
   const selectedToolbarControls = selectedMode.toolbarControls ?? defaultToolbarControls;
   const showImageModelControl = selectedToolbarControls.includes('model');
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount');
-  const uploadProps: UploadProps = {
-    accept: 'image/*',
-    beforeUpload: (file) => {
-      onAddFiles([file]);
-      return false;
-    },
-    multiple: true,
-    showUploadList: false,
-  };
+  const maxReferenceAttachmentCount = useMemo(() => {
+    if (selectedMode.referenceGroups.some((group) => !group.maxCount)) {
+      return undefined;
+    }
+    return selectedMode.referenceGroups.reduce((total, group) => total + (group.maxCount || 0), 0);
+  }, [selectedMode.referenceGroups]);
+  const groupedAttachments = useMemo(() => {
+    const groups = Object.fromEntries(referenceGroupKeys.map((key) => [key, [] as ChatAttachment[]]));
+    attachments.forEach((attachment) => {
+      const mappedGroupKey = attachmentGroupById[attachment.id];
+      const groupKey = mappedGroupKey && referenceGroupKeys.includes(mappedGroupKey)
+        ? mappedGroupKey
+        : firstReferenceGroupKey;
+      if (groupKey) {
+        groups[groupKey].push(attachment);
+      }
+    });
+    return groups;
+  }, [attachmentGroupById, attachments, firstReferenceGroupKey, referenceGroupKeys]);
+  const missingReferenceGroups = selectedMode.referenceGroups.filter(
+    (group) => group.required && !groupedAttachments[group.key]?.length,
+  );
+  const generationBlockReason = promptRequired && !hasPrompt
+    ? '还需输入提示词'
+    : missingReferenceGroups.length
+      ? `还需上传${missingReferenceGroups[0].label}`
+      : '';
+  const canStartGeneration = !generationBlockReason;
+
+  useEffect(() => {
+    const attachmentIds = new Set(attachments.map((attachment) => attachment.id));
+    setAttachmentGroupById((items) => Object.fromEntries(
+      Object.entries(items).filter(([attachmentId]) => attachmentIds.has(attachmentId)),
+    ));
+  }, [attachments]);
+
+  useEffect(() => {
+    setAttachmentGroupById((items) => {
+      const nextItems = { ...items };
+      let changed = false;
+      const groupCounts = Object.fromEntries(referenceGroupKeys.map((key) => [key, 0]));
+
+      attachments.forEach((attachment) => {
+        const currentGroupKey = nextItems[attachment.id];
+        if (currentGroupKey && referenceGroupKeys.includes(currentGroupKey)) {
+          groupCounts[currentGroupKey] += 1;
+          return;
+        }
+
+        const nextGroup = selectedMode.referenceGroups.find((group) => {
+          const maxCount = group.maxCount ?? unlimitedReferenceCount;
+          return groupCounts[group.key] < maxCount;
+        }) || selectedMode.referenceGroups[0];
+        if (nextGroup) {
+          nextItems[attachment.id] = nextGroup.key;
+          groupCounts[nextGroup.key] += 1;
+          changed = true;
+        }
+      });
+
+      return changed ? nextItems : items;
+    });
+  }, [attachments, referenceGroupKeys, selectedMode.referenceGroups]);
 
   useEffect(() => {
     let ignore = false;
@@ -289,7 +495,7 @@ export function ClawDialogComposer({
       onStop();
       return;
     }
-    if (hasContent) {
+    if (canStartGeneration) {
       onSend({ imageModelConfigId: selectedImageModel?.config.id || null });
     }
   }
@@ -302,6 +508,25 @@ export function ClawDialogComposer({
     handlePrimaryAction();
   }
 
+  async function handleAddReferenceFiles(group: ClawReferenceGroupConfig, files: File[]) {
+    const nextAttachments = await onAddFiles(files, { maxCount: maxReferenceAttachmentCount });
+    if (nextAttachments.length) {
+      setAttachmentGroupById((items) => ({
+        ...items,
+        ...Object.fromEntries(nextAttachments.map((attachment) => [attachment.id, group.key])),
+      }));
+    }
+  }
+
+  function handleRemoveReference(attachmentId: string) {
+    setAttachmentGroupById((items) => {
+      const nextItems = { ...items };
+      delete nextItems[attachmentId];
+      return nextItems;
+    });
+    onRemoveAttachment(attachmentId);
+  }
+
   return (
     <section className="claw-dialog-composer" aria-label="对话生图输入框">
       <div className="claw-dialog-card">
@@ -309,63 +534,38 @@ export function ClawDialogComposer({
           上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。
         </header>
 
-        <div className="claw-dialog-input-zone">
-          <Upload {...uploadProps}>
-            <button className={`claw-reference-tile${selectedImage ? ' has-image' : ''}`} type="button">
-              {selectedImage ? (
-                <>
-                  <Image
-                    alt={selectedImage.name}
-                    className="claw-reference-image"
-                    preview={false}
-                    src={selectedImage.url}
-                  />
-                  <span className="claw-reference-remove" onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onRemoveAttachment(selectedImage.id);
-                  }}>
-                    删除
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="claw-reference-badge">可选</span>
-                  <Plus size={30} strokeWidth={1.7} />
-                  <span className="claw-reference-label">参考图</span>
-                </>
-              )}
-            </button>
-          </Upload>
-
-          <div className="claw-dialog-textarea-wrap">
-            <TextArea
-              autoSize={{ minRows: 3, maxRows: 8 }}
-              bordered={false}
-              className="claw-dialog-textarea"
-              onChange={(event) => onInputChange(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="描述你要的画面，可上传参考图，输入 @ 引用图片。"
-              value={input}
-            />
-          </div>
-
-          <Button aria-label="放大输入框" className="claw-expand-button" icon={<Expand size={20} />} type="text" />
-        </div>
-
-        {attachments.length > 1 ? (
-          <div className="claw-attachment-row">
-            {attachments.slice(1).map((attachment) => (
-              <span className="claw-attachment-pill" key={attachment.id}>
-                {attachment.kind === 'image' ? <ImagePlus size={14} /> : <Layers size={14} />}
-                <span>{attachment.name}</span>
-                <button aria-label={`移除 ${attachment.name}`} onClick={() => onRemoveAttachment(attachment.id)} type="button">
-                  <X size={14} />
-                </button>
-              </span>
-            ))}
-          </div>
+        {selectedMode.promptHint ? (
+          <div className="claw-dialog-hint">{selectedMode.promptHint}</div>
         ) : null}
+
+        <div className="claw-dialog-input-zone">
+          <ClawReferenceGroups
+            groupedAttachments={groupedAttachments}
+            groups={selectedMode.referenceGroups}
+            onAddFiles={handleAddReferenceFiles}
+            onRemoveAttachment={handleRemoveReference}
+          />
+
+          {showPromptInput ? (
+            <div className="claw-dialog-textarea-wrap">
+              <TextArea
+                autoSize={{ minRows: 3, maxRows: 8 }}
+                className="claw-dialog-textarea"
+                onChange={(event) => onInputChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={selectedMode.inputPlaceholder}
+                variant="borderless"
+                value={input}
+              />
+            </div>
+          ) : (
+            <div className="claw-dialog-mode-hint" />
+          )}
+
+          {showPromptInput ? (
+            <Button aria-label="放大输入框" className="claw-expand-button" icon={<Expand size={12} />} type="text" />
+          ) : null}
+        </div>
 
         <footer className="claw-dialog-toolbar">
           <div className="claw-dialog-options">
@@ -375,12 +575,12 @@ export function ClawDialogComposer({
                 onClick: ({ key }) => setSelectedModeKey(key as ClawModeKey),
                 selectedKeys: [selectedModeKey],
               }}
-              overlayClassName="claw-mode-dropdown"
+              classNames={{ root: 'claw-mode-dropdown' }}
               trigger={['click']}
             >
-              <Button className="claw-option-button is-active" icon={<SelectedModeIcon size={18} />}>
+              <Button className="claw-option-button is-active" icon={<SelectedModeIcon size={12} />}>
                 {selectedMode.title}
-                <ChevronDown size={17} />
+                <ChevronDown size={11} />
               </Button>
             </Dropdown>
             {showImageModelControl ? (
@@ -390,12 +590,12 @@ export function ClawDialogComposer({
                   onClick: ({ key }) => setSelectedImageModelValue(key),
                   selectedKeys: selectedImageModelValue ? [selectedImageModelValue] : [],
                 }}
-                overlayClassName="claw-image-model-dropdown"
+                classNames={{ root: 'claw-image-model-dropdown' }}
                 trigger={['click']}
               >
-                <Button className="claw-option-button" icon={<Layers size={18} />}>
+                <Button className="claw-option-button" icon={<Layers size={12} />}>
                   {selectedImageModel?.config.name || selectedImageModel?.config.model || '图片模型'}
-                  <ChevronDown size={17} />
+                  <ChevronDown size={11} />
                 </Button>
               </Dropdown>
             ) : null}
@@ -403,41 +603,41 @@ export function ClawDialogComposer({
               <Popover
                 arrow={false}
                 content={outputSizePanel}
-                overlayClassName="claw-size-popover"
+                classNames={{ root: 'claw-size-popover' }}
                 placement="bottomLeft"
                 trigger="click"
               >
-                <Button className="claw-option-button" icon={<Scan size={18} />}>
+                <Button className="claw-option-button" icon={<Scan size={12} />}>
                   {selectedAspectRatio}
                   <span className="claw-option-divider" />
                   {selectedResolution}
-                  <ChevronDown size={17} />
+                  <ChevronDown size={11} />
                 </Button>
               </Popover>
             ) : null}
             {showOutputCountControl ? (
               <Dropdown menu={{ items: [{ key: '1', label: '1 张' }, { key: '2', label: '2 张' }, { key: '3', label: '3 张' }, { key: '4', label: '4 张' }] }} trigger={['click']}>
-                <Button className="claw-option-button" icon={<List size={18} />}>
+                <Button className="claw-option-button" icon={<List size={12} />}>
                   1 张
-                  <ChevronDown size={17} />
+                  <ChevronDown size={11} />
                 </Button>
               </Dropdown>
             ) : null}
           </div>
 
           <div className="claw-dialog-submit">
-            <span className={`claw-prompt-status${hasPrompt ? ' ready' : ''}`}>
-              {hasPrompt ? '准备生成' : '还需输入提示词'}
-            </span>
+            {!canStartGeneration ? (
+              <span className="claw-prompt-status">{generationBlockReason}</span>
+            ) : null}
             <span className="claw-credit">
-              <Zap size={18} fill="currentColor" />
+              <Zap size={12} fill="currentColor" />
               15
             </span>
             <Button
               aria-label={sending ? '停止生成' : '发送消息'}
               className="claw-send-button"
-              disabled={!sending && !hasContent}
-              icon={sending ? <Square size={18} fill="currentColor" /> : <ArrowRight size={24} />}
+              disabled={!sending && !canStartGeneration}
+              icon={sending ? <Square size={12} fill="currentColor" /> : <ArrowRight size={16} />}
               onClick={handlePrimaryAction}
               type="primary"
             />
@@ -457,7 +657,7 @@ export function ClawDialogComposer({
               type="button"
             >
               <span className="claw-feature-icon">
-                <FeatureIcon size={24} />
+                <FeatureIcon size={14} />
               </span>
               <span className="claw-feature-copy">
                 <strong>{item.title}</strong>
@@ -465,7 +665,7 @@ export function ClawDialogComposer({
               </span>
               {item.key === selectedModeKey ? (
                 <span className="claw-feature-check">
-                  <Check size={18} strokeWidth={3} />
+                  <Check size={10} strokeWidth={3} />
                 </span>
               ) : null}
             </button>

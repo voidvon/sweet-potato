@@ -66,7 +66,7 @@ function App() {
   if (!sessionHydrated) {
     return (
       <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <Spin size="large" tip="正在同步账号权限..." />
+        <Spin description="正在同步账号权限..." size="large" />
       </main>
     );
   }
