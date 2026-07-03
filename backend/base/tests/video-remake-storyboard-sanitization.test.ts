@@ -289,6 +289,7 @@ test('storyboard card normalization splits long monologue shots and removes empt
   assert.ok(normalized.length >= 4);
   assert.equal(normalized[0]?.startTime, 0);
   assert.equal(normalized[normalized.length - 1]?.endTime, 54);
+  assert.equal(normalized.every((shot) => Number.isInteger(Number(shot.startTime)) && Number.isInteger(Number(shot.endTime)) && Number.isInteger(Number(shot.duration))), true);
   assert.equal(normalized.some((shot) => !String(shot.narration || '').trim()), false);
   assert.equal(normalized.some((shot) => Number(shot.duration || 0) > 15.1), false);
   assert.equal(normalized.every((shot) => /^口播：/u.test(String(shot.narration || ''))), true);
@@ -312,6 +313,7 @@ test('storyboard card normalization splits text-heavy short shots by narration l
 
   assert.equal(normalized[0]?.startTime, 0);
   assert.equal(normalized[normalized.length - 1]?.endTime, 54);
+  assert.equal(normalized.every((shot) => Number.isInteger(Number(shot.startTime)) && Number.isInteger(Number(shot.endTime)) && Number.isInteger(Number(shot.duration))), true);
   assert.equal(normalized.some((shot) => !String(shot.narration || '').trim()), false);
   assert.equal(normalized.some((shot) => Number(shot.duration || 0) > 15.1), false);
   assert.ok(normalized.length > 4);

@@ -3634,6 +3634,34 @@ function mergeOverFragmentedStoryboardShots(storyboard: Array<Record<string, unk
   return merged;
 }
 
+function roundStoryboardShotsToIntegerSeconds(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {
+  if (!storyboard.length) {
+    return storyboard;
+  }
+  const targetEnd = Number.isFinite(targetSeconds) && targetSeconds > 0 ? Math.max(storyboard.length, Math.round(targetSeconds)) : 0;
+  let cursor = 0;
+  return storyboard.map((shot, index) => {
+    const remainingShots = storyboard.length - index;
+    const timing = storyboardShotTiming(shot);
+    const isLast = index === storyboard.length - 1;
+    const roundedDuration = Math.max(1, Math.round(timing.duration));
+    const maxEndBeforeRemaining = targetEnd > 0 ? targetEnd - (remainingShots - 1) : 0;
+    const endTime = isLast
+      ? Math.max(cursor + 1, targetEnd || Math.round(timing.endTime) || cursor + roundedDuration)
+      : targetEnd > 0
+        ? Math.max(cursor + 1, Math.min(maxEndBeforeRemaining, cursor + roundedDuration))
+        : Math.max(cursor + 1, cursor + roundedDuration);
+    const normalized = {
+      ...shot,
+      startTime: cursor,
+      endTime,
+      duration: Math.max(1, endTime - cursor),
+    };
+    cursor = endTime;
+    return normalized;
+  });
+}
+
 function normalizeStoryboardForCard(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {
   const maxDuration = storyboardDisplayMaxShotSeconds();
   const hasNarratedShot = storyboard.some((shot) => Boolean(usefulText(shot.narration)));
@@ -3668,7 +3696,8 @@ function normalizeStoryboardForCard(storyboard: Array<Record<string, unknown>>, 
       };
     });
   });
-  return renumberStoryboardShots(expandRelativeStoryboardVisuals(splitStoryboard));
+  const integerTimedStoryboard = roundStoryboardShotsToIntegerSeconds(splitStoryboard, targetSeconds);
+  return renumberStoryboardShots(expandRelativeStoryboardVisuals(integerTimedStoryboard));
 }
 
 export function normalizeStoryboardForCardForTest(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {

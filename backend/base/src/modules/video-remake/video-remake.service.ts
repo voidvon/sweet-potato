@@ -278,6 +278,9 @@ function mergeSegmentsByIndex(baseSegments: Record<string, unknown>[], persisted
 }
 
 function normalizeCompletedFinalVideoSegments(data: Record<string, unknown>, segments: Record<string, unknown>[]) {
+  if (fieldText(data.regenerationMode) === 'segment' && fieldText(data.status) !== 'completed') {
+    return segments;
+  }
   if (!fieldText(data.videoUrl) && fieldText(data.status) !== 'completed') {
     return segments;
   }

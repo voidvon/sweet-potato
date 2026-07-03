@@ -101,6 +101,11 @@ function usefulText(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function finiteRoundedSecond(value: unknown, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : fallback;
+}
+
 function parseStructuredOutput<T extends z.ZodTypeAny>(schema: T, content: string) {
   const parser = StructuredOutputParser.fromZodSchema(schema);
   return parser.parse(content);
@@ -184,15 +189,15 @@ export function sanitizeStoryboardRemakeSuggestion(value: string) {
 export function normalizeVideoRemakeStructuredStoryboardShots(shots: VideoRemakeStoryboardStructuredShot[]) {
   return shots.map((shot, index) => {
     const shotIndex = Number(shot.index) || index + 1;
-    const startTime = Number(shot.startTime ?? shot.startSecond);
-    const endTime = Number(shot.endTime ?? shot.endSecond);
+    const startTime = finiteRoundedSecond(shot.startTime ?? shot.startSecond);
+    const endTime = Math.max(startTime + 1, finiteRoundedSecond(shot.endTime ?? shot.endSecond, startTime + 1));
     return {
       shotId: `shot_${shotIndex}`,
       index: shotIndex,
       label: shot.label?.trim() || `镜头 ${shotIndex}`,
       startTime,
       endTime,
-      duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
+      duration: Math.max(1, endTime - startTime),
       visualDescription: stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(usefulText(shot.visualDescription) || usefulText(shot.visual) || usefulText(shot.description))),
       actionDescription: stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(usefulText(shot.actionDescription) || usefulText(shot.action) || usefulText(shot.characterAction))),
       narration: stripNestedStoryboardFields(usefulText(shot.narration) || usefulText(shot.script) || usefulText(shot.dialogue), { keepSpeechLabels: true }),
@@ -225,8 +230,8 @@ export function parseVideoRemakeStoryboardMarkdown(content: string) {
     const startOffset = match.index || 0;
     const endOffset = matches[index + 1]?.index ?? normalized.length;
     const block = normalized.slice(startOffset, endOffset).trim();
-    const startTime = Number(match[2]);
-    const endTime = Number(match[3]);
+    const startTime = finiteRoundedSecond(match[2]);
+    const endTime = Math.max(startTime + 1, finiteRoundedSecond(match[3], startTime + 1));
     const shotIndex = Number(match[1]) || index + 1;
     const visualDescription = stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '画面')));
     const actionDescription = stripStoryboardEntityDetailBlocks(stripNestedStoryboardFields(fieldFromStoryboardBlock(block, '人物/动作')
@@ -243,7 +248,7 @@ export function parseVideoRemakeStoryboardMarkdown(content: string) {
       label: `镜头 ${shotIndex}`,
       startTime,
       endTime,
-      duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
+      duration: Math.max(1, endTime - startTime),
       visualDescription,
       actionDescription,
       narration,

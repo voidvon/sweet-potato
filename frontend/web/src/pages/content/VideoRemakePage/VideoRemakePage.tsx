@@ -265,11 +265,19 @@ function cardDisplayTitle(card: VideoRemakeCardMessage) {
     const versionLabel = fieldText(data.versionLabel || data.version)
       || (fieldText(data.versionNumber) ? `v${fieldText(data.versionNumber)}` : '');
     const regenerationMode = fieldText(data.regenerationMode);
+    const regeneratedSegmentIndexes = Array.isArray(data.regeneratedSegmentIndexes)
+      ? data.regeneratedSegmentIndexes.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+      : [];
     const regeneratedSegmentIndex = Number(data.regeneratedSegmentIndex || 0);
-    if (regenerationMode === 'segment' && regeneratedSegmentIndex > 0) {
+    const segmentLabel = regeneratedSegmentIndexes.length
+      ? `分段 ${regeneratedSegmentIndexes.join('、')}`
+      : regeneratedSegmentIndex > 0
+        ? `分段 ${regeneratedSegmentIndex}`
+        : '';
+    if (regenerationMode === 'segment' && segmentLabel) {
       return versionLabel
-        ? `最终视频 ${versionLabel} · 重生成分段 ${regeneratedSegmentIndex}`
-        : `最终视频 · 重生成分段 ${regeneratedSegmentIndex}`;
+        ? `分段重新生成 ${versionLabel} · ${segmentLabel}`
+        : `分段重新生成 · ${segmentLabel}`;
     }
     return versionLabel ? `最终视频 ${versionLabel}` : card.title;
   }
@@ -312,7 +320,7 @@ function cardStatusDisplay(card: VideoRemakeCardMessage, active?: boolean) {
     return card.status === 'confirmed' || status === 'completed' ? '已完成' : '生成中';
   }
   if (card.cardType === 'final_video' && card.status === 'pending') {
-    return '生成中';
+    return fieldText(data.regenerationMode) === 'segment' ? '分段重生成中' : '生成中';
   }
   if (card.cardType === 'final_video' && card.status === 'expired' && isCompletedFinalVideoCard(card)) {
     return '已确认';

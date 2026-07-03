@@ -2384,7 +2384,15 @@ function FinalVideoCard(props: CardRendererProps) {
         const generationMode = fieldText(data.generationMode) === 'queued_extend' ? 'queued_extend' : 'parallel';
         const regenerationMode = fieldText(data.regenerationMode);
         const isSegmentRegenerationCard = regenerationMode === 'segment';
+        const regeneratedSegmentIndexes = Array.isArray(data.regeneratedSegmentIndexes)
+          ? data.regeneratedSegmentIndexes.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+          : [];
         const regeneratedSegmentIndex = Number(data.regeneratedSegmentIndex || 0);
+        const regeneratedSegmentLabel = regeneratedSegmentIndexes.length
+          ? `分段 ${regeneratedSegmentIndexes.join('、')}`
+          : regeneratedSegmentIndex > 0
+            ? `分段 ${regeneratedSegmentIndex}`
+            : '分段';
         const versionLabel = fieldText(data.versionLabel || data.version) || (fieldText(data.versionNumber) ? `v${fieldText(data.versionNumber)}` : '');
         const isPendingSegmentRegeneration = isSegmentRegenerationCard
           && (props.card.status === 'pending' || status === 'generating');
@@ -2734,9 +2742,12 @@ function FinalVideoCard(props: CardRendererProps) {
         if (props.card.status === 'pending' || status === 'generating' || props.card.status === 'failed' || status === 'failed') {
           const showPendingSegments = canInspectSegments && segmentRows.length > 0;
           const canManualSync = typeof props.onSyncProgress === 'function';
-          const pendingHint = isSegmentRegenerationCard && regeneratedSegmentIndex > 0
-            ? `正在基于 ${versionLabel || '当前版本'} 创建分段 ${regeneratedSegmentIndex} 的重生成版本`
+          const pendingHint = isSegmentRegenerationCard
+            ? `正在基于 ${versionLabel || '当前版本'} 重新生成${regeneratedSegmentLabel}`
             : '';
+          const pendingMessage = isPendingSegmentRegeneration
+            ? `${regeneratedSegmentLabel}重新生成中，请稍候。`
+            : fieldText(data.message) || (props.card.status === 'failed' || status === 'failed' ? '视频生成失败。' : '视频生成中，请稍候。');
           return (
             <>
                 <div className="remake-video-generation-card">
@@ -2783,7 +2794,7 @@ function FinalVideoCard(props: CardRendererProps) {
                 <div className="remake-video-generation-status-line">
                   <p aria-live="polite">
                     {props.card.status === 'failed' || status === 'failed' ? null : <span className="remake-generating-indicator" aria-hidden="true"><span /><span /><span /></span>}
-                    {isPendingSegmentRegeneration ? '视频生成中，请稍候。' : fieldText(data.message) || (props.card.status === 'failed' || status === 'failed' ? '视频生成失败。' : '视频生成中，请稍候。')}
+                    {pendingMessage}
                   </p>
                   {canManualSync ? (
                     <Tooltip title="手动同步">

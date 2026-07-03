@@ -34,7 +34,8 @@ test('storyboard structured parser accepts JSON shots and normalizes existing st
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0]?.shotId, 'shot_1');
   assert.equal(parsed[0]?.source, 'llm_storyboard');
-  assert.equal(parsed[0]?.duration, 3.5);
+  assert.equal(parsed[0]?.endTime, 4);
+  assert.equal(parsed[0]?.duration, 4);
   assert.match(String(parsed[0]?.visualDescription || ''), /厨房台面/u);
   assert.match(String(parsed[0]?.narration || ''), /口播：不要固定水龙头，要抽拉水龙头/u);
   assert.deepEqual((parsed[0]?.seedancePromptHints as Record<string, unknown>)?.keyActionChanges, ['抬手指向抽拉水龙头']);
@@ -63,8 +64,8 @@ test('storyboard structured parser coerces string timestamp fields from JSON sho
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0]?.index, 2);
   assert.equal(parsed[0]?.startTime, 0);
-  assert.equal(parsed[0]?.endTime, 4.5);
-  assert.equal(parsed[0]?.duration, 4.5);
+  assert.equal(parsed[0]?.endTime, 5);
+  assert.equal(parsed[0]?.duration, 5);
   assert.match(String(parsed[0]?.narration || ''), /情绪低落是大伤/u);
 });
 
