@@ -320,6 +320,39 @@ test('storyboard card normalization splits text-heavy short shots by narration l
   assert.match(String(normalized[normalized.length - 1]?.narration || ''), /没有任何一个人配得上你的美好/u);
 });
 
+test('storyboard normalization keeps semantic phrases and expands relative scene visuals', async () => {
+  const { normalizeStoryboardForCardForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
+  const normalized = normalizeStoryboardForCardForTest([
+    {
+      shotId: 'shot_1',
+      startTime: 0,
+      endTime: 22.6,
+      duration: 22.6,
+      visualDescription: '室内居家温馨场景，固定中景，可见部分棕色椅子与白色窗帘',
+      actionDescription: '人物1表情稍显严肃，语气稍加重',
+      narration: '口播：情绪低落是大伤，口播：所有的情绪都伤肝伤胃伤肺，口播：负面情绪太多的女人，口播：最终会影响她的身体，口播：会给她带来痛苦，口播：影响健康',
+      soundEffect: '无特殊音效',
+      remakeSuggestion: '语气带适度警示感',
+    },
+    {
+      shotId: 'shot_2',
+      startTime: 22.6,
+      endTime: 30,
+      duration: 7.4,
+      visualDescription: '同场景固定中景',
+      actionDescription: '人物1继续讲述',
+      narration: '口播：很多人的不舒服，其实是从心病开始的',
+    },
+  ], 30);
+
+  const narrationText = normalized.map((shot) => String(shot.narration || '')).join('\n');
+  assert.doesNotMatch(narrationText, /负面情绪太多\s*$/mu);
+  assert.doesNotMatch(narrationText, /^口播：的女人/mu);
+  assert.match(narrationText, /负面情绪太多的女人/u);
+  assert.match(String(normalized[normalized.length - 1]?.visualDescription || ''), /室内居家温馨场景/u);
+  assert.match(String(normalized[normalized.length - 1]?.visualDescription || ''), /同场景固定中景/u);
+});
+
 test('storyboard card normalization merges over-fragmented same-scene short narration shots', async () => {
   const { normalizeStoryboardForCardForTest } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
   const normalized = normalizeStoryboardForCardForTest([
@@ -414,8 +447,8 @@ test('seedance prompt keeps repeated short replies inside the same segment', asy
       storyboardScript: [{
         shotId: 'shot_1',
         startTime: 0,
-        endTime: 10,
-        duration: 10,
+        endTime: 4,
+        duration: 4,
         visualDescription: '墙面点位近景',
         actionDescription: '女性装修专家指向墙面',
         narration: [
@@ -446,7 +479,7 @@ test('seedance prompt keeps repeated short replies inside the same segment', asy
   assert.equal((mainPrompt.match(/旁白：对啊/gu) || []).length, 2);
 });
 
-test('seedance prompt compacts multiple storyboard actions into a sequential action line', async () => {
+test('seedance prompt keeps storyboard shots as the editable prompt content', async () => {
   const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
   const workflow = {
     mode: 'test',
@@ -495,18 +528,26 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
   });
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
-  assert.match(mainPrompt, /人物基准状态：人物1坐于棕色休闲椅上，手持麦克风/u);
+  assert.match(mainPrompt, /# 生成规则/u);
+  assert.match(mainPrompt, /# 当前分镜/u);
+  assert.match(mainPrompt, /镜头 1/u);
+  assert.match(mainPrompt, /镜头 2/u);
+  assert.match(mainPrompt, /台词\/旁白：口播：最近我忽然发现/u);
+  assert.match(mainPrompt, /口播：你的身体就会好/u);
+  assert.match(mainPrompt, /人物\/动作：人物1坐于棕色休闲椅上，手持麦克风，轻抬右手做开场手势/u);
+  assert.match(mainPrompt, /人物\/动作：人物1坐于棕色休闲椅上，手持麦克风，手掌向下压做示意动作/u);
   assert.doesNotMatch(mainPrompt, /口播与参考音视频边界/u);
   assert.doesNotMatch(mainPrompt, /口播优先级：本段只允许朗读/u);
   assert.doesNotMatch(mainPrompt, /参考视频的音轨、口型、原始台词/u);
   assert.doesNotMatch(mainPrompt, /开头必须直接、清晰朗读本段第一句/u);
-  assert.match(mainPrompt, /动作变化：开头：轻抬右手做开场手势/u);
-  assert.match(mainPrompt, /最后：手掌向下压做示意动作/u);
-  assert.match(mainPrompt, /拍摄建议变化：开头：人物表情温和自然；最后：语速稍放缓/u);
+  assert.doesNotMatch(mainPrompt, /# 人物\s*\n/u);
+  assert.doesNotMatch(mainPrompt, /# 场景\s*\n/u);
+  assert.doesNotMatch(mainPrompt, /# 音频\s*\n/u);
+  assert.doesNotMatch(mainPrompt, /# 已确认设定\s*\n/u);
+  assert.doesNotMatch(mainPrompt, /# 本段口播\s*\n/u);
   assert.doesNotMatch(mainPrompt, /不要同时叠加/u);
   assert.doesNotMatch(mainPrompt, /必须保留各自对应关系/u);
   assert.doesNotMatch(mainPrompt, /不要理解为多个人物/u);
-  assert.doesNotMatch(mainPrompt, /人物\/动作：[\s\S]*开场手势\n人物1坐/u);
 
   workflow.artifacts.seedancePrompts = prompts;
   const videoSegments = await defaultVideoRemakeNodeAdapters.generateVideoSegments({
@@ -516,13 +557,10 @@ test('seedance prompt compacts multiple storyboard actions into a sequential act
     emit: () => undefined,
   });
   const finalPrompt = String(videoSegments[0]?.seedancePrompt || '');
-  assert.match(finalPrompt, /口播与参考音视频边界/u);
-  assert.match(finalPrompt, /口播优先级：本段只允许朗读/u);
-  assert.match(finalPrompt, /参考视频的音轨、口型、原始台词/u);
-  assert.match(finalPrompt, /开头必须直接、清晰朗读本段第一句/u);
+  assert.equal(finalPrompt, mainPrompt);
 });
 
-test('seedance prompt limits repetitive merged action and suggestion steps', async () => {
+test('seedance prompt preserves repetitive storyboard steps without hidden compaction', async () => {
   const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
   const actions = [
     '人物1身着粉色上衣、白色裤子，手持麦克风，表情温和，开口说话，头部微微前倾',
@@ -578,15 +616,16 @@ test('seedance prompt limits repetitive merged action and suggestion steps', asy
   });
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
-  assert.equal((mainPrompt.match(/(?:开头|随后|最后)：/gu) || []).length <= 5, true);
-  assert.doesNotMatch(mainPrompt, /保持坐姿/u);
-  assert.doesNotMatch(mainPrompt, /人物面部光线充足/u);
-  assert.match(mainPrompt, /人物基准状态：人物1身着粉色上衣、白色裤子，手持麦克风/u);
-  assert.match(mainPrompt, /动作变化：/u);
-  assert.match(mainPrompt, /拍摄建议变化：/u);
+  assert.match(mainPrompt, /镜头 1/u);
+  assert.match(mainPrompt, /镜头 8/u);
+  assert.match(mainPrompt, /人物\/动作：人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，双手轻轻合十/u);
+  assert.match(mainPrompt, /复刻建议：保持画面稳定，人物面部光线充足/u);
+  assert.doesNotMatch(mainPrompt, /人物基准状态：/u);
+  assert.doesNotMatch(mainPrompt, /动作变化：/u);
+  assert.doesNotMatch(mainPrompt, /拍摄建议变化：/u);
 });
 
-test('seedance prompt uses hidden storyboard seedance hints when available', async () => {
+test('seedance prompt ignores hidden storyboard seedance hints in editable content', async () => {
   const { defaultVideoRemakeNodeAdapters } = await import('../src/modules/video-remake/video-remake.node-adapters.js');
   const workflow = {
     mode: 'test',
@@ -644,12 +683,13 @@ test('seedance prompt uses hidden storyboard seedance hints when available', asy
   });
   const mainPrompt = String((prompts[0]?.prompt as Record<string, unknown>).mainPrompt || '');
 
-  assert.match(mainPrompt, /画面：室内固定中景，温馨居家背景/u);
-  assert.match(mainPrompt, /人物基准状态：人物1身着粉色上衣、白色裤子，坐在棕色休闲椅上手持麦克风/u);
-  assert.match(mainPrompt, /关键动作变化：头部微微前倾开口讲述；双手轻轻合十表达赞许/u);
-  assert.match(mainPrompt, /关键拍摄建议：中景固定，语速平缓；合十动作幅度小/u);
-  assert.doesNotMatch(mainPrompt, /保持坐姿/u);
-  assert.doesNotMatch(mainPrompt, /人物面部光线充足/u);
+  assert.match(mainPrompt, /画面：室内固定中景，人物坐棕色休闲椅/u);
+  assert.match(mainPrompt, /人物\/动作：人物1身着粉色上衣、白色裤子，手持麦克风，表情温和，开口说话/u);
+  assert.match(mainPrompt, /人物\/动作：人物1身着粉色上衣、白色裤子，手持麦克风，保持坐姿，双手轻轻合十/u);
+  assert.match(mainPrompt, /复刻建议：保持画面稳定，人物面部光线充足/u);
+  assert.doesNotMatch(mainPrompt, /室内固定中景，温馨居家背景/u);
+  assert.doesNotMatch(mainPrompt, /关键动作变化：/u);
+  assert.doesNotMatch(mainPrompt, /关键拍摄建议：/u);
 });
 
 test('seedance audio binding prompt includes explicit role-to-audio bindings when audio references are present', () => {
@@ -665,6 +705,19 @@ test('seedance audio binding prompt includes explicit role-to-audio bindings whe
   assert.match(guide, /人物1 只能绑定 参考音频1/u);
   assert.match(guide, /人物2 只能绑定 参考音频2/u);
   assert.match(guide, /只复用音色和节奏，不复用参考音频原始台词/u);
+});
+
+test('seedance audio binding prompt omits reference-audio reuse constraints without audio references', () => {
+  const guide = buildVideoRemakeSeedanceAudioBindingLines({
+    items: [
+      { label: '人物1 声音', characterLabel: '人物1', voiceStyle: '柔和清晰的女声，语速适中' },
+    ],
+  }, []).join('\n');
+
+  assert.match(guide, /人物1；柔和清晰的女声，语速适中/u);
+  assert.doesNotMatch(guide, /参考音频/u);
+  assert.doesNotMatch(guide, /只复用音色和节奏/u);
+  assert.doesNotMatch(guide, /不复用参考音频原始台词/u);
 });
 
 test('storyboard prompt contract includes max-three-speaker rule', () => {
@@ -683,9 +736,9 @@ test('storyboard prompt contract preserves dialogue order without requiring time
   assert.match(videoRemakeStoryboardSystemPrompt, /没有台词\/旁白的尾镜头/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /不要一句话切一个分镜/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /连续排比句、问答短句或同一观点展开/u);
-  assert.match(videoRemakeStoryboardSystemPrompt, /连续短句优先合并成 4-10 秒镜头/u);
-  assert.match(videoRemakeStoryboardSystemPrompt, /不能让一句短台词占 10 秒以上/u);
-  assert.match(videoRemakeStoryboardSystemPrompt, /铺垫句和结论句拆开/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /语义组块合并/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /完整词语、短语/u);
+  assert.match(videoRemakeStoryboardSystemPrompt, /单个镜头建议 4-14 秒/u);
   assert.match(videoRemakeStoryboardSystemPrompt, /分镜字段要浓缩/u);
 });
 

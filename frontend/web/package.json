@@ -4,11 +4,18 @@
   "private": true,
   "scripts": {
     "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm install'); process.exit(1); }\"",
-    "dev": "vite",
-    "serve": "vite",
-    "build-staging": "vite build --mode staging",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "dev": "pnpm --dir .. exec vite --config web/vite.config.js web",
+    "serve": "pnpm --dir .. exec vite --config web/vite.config.js web",
+    "build-staging": "pnpm --dir .. exec vite build --config web/vite.config.js web --mode staging",
+    "build": "pnpm --dir .. exec vite build --config web/vite.config.js web",
+    "typecheck": "pnpm --dir .. exec tsc --noEmit -p web/tsconfig.json",
+    "preview": "pnpm --dir .. exec vite preview --config web/vite.config.js web"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.27.1",
+    "@tiptap/extension-mention": "^3.27.1",
+    "@tiptap/react": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
+    "@tiptap/suggestion": "^3.27.1"
   }
 }

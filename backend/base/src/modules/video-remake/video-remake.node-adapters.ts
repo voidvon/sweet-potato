@@ -1673,7 +1673,7 @@ function scriptContent(workflow: VideoRemakeWorkflowState) {
 }
 
 function voiceSetting(workflow: VideoRemakeWorkflowState) {
-  const artifact = workflow.artifacts.voiceAudioSetting;
+  const artifact = workflow.artifacts.voiceAudioSetting || workflow.artifacts.voiceSetting;
   return artifact && typeof artifact === 'object' && !Array.isArray(artifact)
     ? artifact as Record<string, unknown>
     : {};
@@ -1760,6 +1760,16 @@ function uniqueUsefulLines(values: string[]) {
 function promptSectionText(title: string, content: string) {
   const lines = uniqueUsefulLines([content]);
   return lines.length ? `# ${title}\n${lines.join('\n')}` : '';
+}
+
+function orderedPromptSectionText(title: string, content: string) {
+  const body = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^.+[:：]\s*无$/u.test(line) && !/^无$/u.test(line))
+    .join('\n')
+    .trim();
+  return body ? `# ${title}\n${body}` : '';
 }
 
 function speechPromptSectionText(title: string, content: string) {
@@ -2275,6 +2285,20 @@ type SeedanceReferenceIds = {
   referenceAudioIds: string[];
 };
 
+function seedanceReferenceMentions(references: SeedanceReferenceIds) {
+  return references.referenceImageIds.map((assetId, index) => {
+    const asset = contentRepository.findAsset(assetId);
+    return {
+      label: `图片${index + 1}`,
+      token: `@图片${index + 1}`,
+      assetId,
+      name: asset?.name || asset?.originalFileName || `图片${index + 1}`,
+      fileUrl: asset?.fileUrl || '',
+      mimeType: asset?.mimeType || 'image/*',
+    };
+  });
+}
+
 type ReferencePrimerGap = {
   kind: 'character' | 'scene' | 'voice' | 'product';
   label: string;
@@ -2537,7 +2561,7 @@ function settingItemReferenceLabels(userId: string, item: Record<string, unknown
 
 function promptReferenceLine(prefix: string, labels: string[], suffix: string) {
   const uniqueLabels = uniqueReferenceLabels(labels);
-  return uniqueLabels.length ? `${prefix}${formatSeedanceReferenceLabels(uniqueLabels)}${suffix}` : '';
+  return uniqueLabels.length ? `${prefix}${uniqueLabels.map((label) => `@${label}`).join('、')}${suffix}` : '';
 }
 
 function settingReferenceLines(
@@ -2553,7 +2577,7 @@ function settingReferenceLines(
       return '';
     }
     const label = textFrom(item.label) || `${fallbackPrefix}${index + 1}`;
-    return `${label} 对应${formatSeedanceReferenceLabels(labels)}；${suffix}`;
+    return `${label} 对应${labels.map((referenceLabel) => `@${referenceLabel}`).join('、')}；${suffix}`;
   }).filter(Boolean);
 }
 
@@ -2631,6 +2655,50 @@ function seedanceReferenceGuide(userId: string, workflow: VideoRemakeWorkflowSta
     lines.push(...audioBindingLines);
   } else if (audioLabels.length) {
     lines.push(`人声/音频参考以${audioLabels.map((label) => `参考${label}`).join('、')}为准；只参考音色、语速和口播节奏，不复用素材原始台词，不复刻素材里的杂音、尾音、点击声或转场声。`);
+  }
+  return uniqueUsefulLines(lines).join('\n');
+}
+
+function conciseSeedanceReferenceContext(userId: string, workflow: VideoRemakeWorkflowState, references: SeedanceReferenceIds) {
+  const lines: string[] = [];
+  const characterItems = expandedCharacterSettingItems(characterSetting(workflow));
+  const sceneItems = enabledSceneItems(sceneSetting(workflow));
+  const productItems = enabledProductItems(productSetting(workflow));
+  const pipItems = settingItems(pipSetting(workflow)).filter((item) => item.required !== false);
+
+  lines.push(...settingReferenceLines(
+    userId,
+    characterItems,
+    references,
+    '人物',
+    '人物外观以对应图片为准，镜头动作仍按本段分镜执行。',
+  ));
+  lines.push(...settingReferenceLines(
+    userId,
+    sceneItems,
+    references,
+    '场景',
+    '空间、背景和光线以对应图片为准，不另造冲突环境。',
+  ));
+  lines.push(...settingReferenceLines(
+    userId,
+    productItems,
+    references,
+    '产品',
+    '产品外观以对应图片为准，不改包装、不改 Logo。',
+  ));
+  lines.push(...settingReferenceLines(
+    userId,
+    pipItems,
+    references,
+    '画中画',
+    '仅用于画中画内部内容替换，不作为主画面主体参考。',
+  ));
+
+  const audioBindingLines = buildVideoRemakeSeedanceAudioBindingLines(voiceSetting(workflow), references.referenceAudioIds)
+    .map((line) => line.replace(/^/u, '音频参考：'));
+  if (audioBindingLines.length) {
+    lines.push(...audioBindingLines);
   }
   return uniqueUsefulLines(lines).join('\n');
 }
@@ -2964,6 +3032,9 @@ function trimDuplicateStoryboardNarration(
   storyboard: Array<Record<string, unknown>>,
   spokenSegments: Array<{ narration: string; startTime: number; endTime: number }>,
 ) {
+  if (!spokenSegments.length) {
+    return storyboard;
+  }
   const allowedCounts = countAllowedNarrationUnits(spokenSegments);
   const usedCounts = new Map<string, number>();
   return storyboard.map((shot) => {
@@ -3201,21 +3272,9 @@ async function generateStoryboardWithLlm(context: VideoRemakeNodeContext) {
     audioPromptText(voiceSetting(context.workflow)) || '原声参考。',
     '',
     '# 输出要求',
-    '按已确认口播原文顺序切镜头；时间按台词长度估算并连续覆盖 0 到目标总时长。',
-    '短句给短时长，长口播按语义继续拆分；不得生成无台词收尾镜头。',
-    '连续同场景镜头要浓缩描述，只写本镜头必要动作、情绪或画面差异。',
-    '台词/旁白只能使用已确认口播原句，保留“口播：/旁白：/人物X：”等主体前缀，不新增台词。',
-    videoRemakeStoryboardSpeakerLimitUserPrompt,
-    '不要写字幕、标题条、屏幕文字、水印或 Logo。',
-    '人物/动作字段必须自包含写清本镜头人物姿态、动作，并保留已确认人物设定中需要持续可见的配件、道具、服饰细节或其他标识性细节。',
-    '人物/动作字段不要另起“人物1：外观/动作/表情/适用时间/时间范围/口播线索/关键词”等设定明细块；只写当前镜头实际画面里的动作描述。',
     '必须结合本镜头台词/旁白、画面语境和已确认设定，判断本镜头应该出现哪些人物、场景、产品；只写与当前口播语义相关的实体，不要无脑套用第一个人物、场景或产品。',
     '如果人物、场景或产品设定里带有“适用时间”“口播线索”“关键词”，必须优先按当前镜头时间范围和台词语义选择实体；没有时间/线索命中的实体不要强行写入当前镜头。',
-    '如果本镜头台词或画面涉及多个人物，人物/动作字段必须逐一写出对应人物标签和动作；不得把多个人物合并成“人物1”，也不得漏掉人物2/人物3/人物4。',
-    '复刻建议不得列出人物、角色、场景、产品、画中画、环境、道具、灯光、构图、机位、氛围等设定明细块；这些信息应分别体现在画面和人物/动作字段。',
-    '复刻建议只能写本镜头拍摄执行建议，例如景别控制、镜头稳定性、表演节奏、光线控制、避坑要求；不要重复人物外观、场景环境、产品信息，也不要输出“适用时间、时间范围、口播线索、关键词”等设定元信息。',
     '画中画只能分配给时间范围与画中画设定重叠的镜头；不重叠的镜头不要写画中画内容。',
-    '复刻建议必须写本镜头可直接执行的具体要求，不要写“保持机位、光线参数和上一镜头一致”“保持拍摄参数统一”“人物不要出现大幅度位移”“不要切换景别”等依赖上一镜头或空泛的句子。',
   ].join('\n');
   const timeoutMs = Number(process.env.VIDEO_REMAKE_STORYBOARD_LLM_TIMEOUT_MS || 300_000);
   const response = await callConfiguredStructuredLlm({
@@ -3304,6 +3363,36 @@ function splitTextByLength(text: string, count: number) {
   if (!value || count <= 1) {
     return value ? [value] : [];
   }
+  const punctuationUnits = value
+    .split(/(?<=[，,。！？!?；;、])/u)
+    .map((unit) => unit.trim())
+    .filter(Boolean);
+  if (punctuationUnits.length >= count) {
+    const totalLength = punctuationUnits.reduce((sum, unit) => sum + unit.length, 0);
+    const chunks: string[] = [];
+    let unitIndex = 0;
+    for (let chunkIndex = 0; chunkIndex < count; chunkIndex += 1) {
+      const remainingChunks = count - chunkIndex;
+      const remainingLength = punctuationUnits.slice(unitIndex).reduce((sum, unit) => sum + unit.length, 0);
+      const targetLength = Math.max(1, Math.ceil((remainingLength || totalLength) / remainingChunks));
+      const current: string[] = [];
+      let currentLength = 0;
+      while (
+        unitIndex < punctuationUnits.length
+        && (current.length === 0 || currentLength < targetLength)
+        && punctuationUnits.length - unitIndex > remainingChunks - 1
+      ) {
+        current.push(punctuationUnits[unitIndex]);
+        currentLength += punctuationUnits[unitIndex].length;
+        unitIndex += 1;
+      }
+      chunks.push(current.join('').trim());
+    }
+    if (unitIndex < punctuationUnits.length) {
+      chunks[chunks.length - 1] = [chunks[chunks.length - 1], ...punctuationUnits.slice(unitIndex)].filter(Boolean).join('').trim();
+    }
+    return chunks.filter(Boolean);
+  }
   const words = value.split(/\s+/u).map((word) => word.trim()).filter(Boolean);
   if (words.length >= count * 2) {
     const targetLength = Math.max(1, Math.ceil(words.reduce((sum, word) => sum + word.length, 0) / count));
@@ -3360,10 +3449,10 @@ function splitNarrationForSeedance(text: string, count: number) {
       currentLength += units[unitIndex].length;
       unitIndex += 1;
     }
-    chunks.push(current.join('').trim());
+    chunks.push(current.join('\n').trim());
   }
   if (unitIndex < units.length) {
-    chunks[chunks.length - 1] = [chunks[chunks.length - 1], ...units.slice(unitIndex)].filter(Boolean).join('').trim();
+    chunks[chunks.length - 1] = [chunks[chunks.length - 1], ...units.slice(unitIndex)].filter(Boolean).join('\n').trim();
   }
   return chunks.map((chunk) => chunk.trim()).filter(Boolean);
 }
@@ -3400,6 +3489,29 @@ function renumberStoryboardShots(storyboard: Array<Record<string, unknown>>) {
     index: index + 1,
     label: `镜头 ${index + 1}`,
   }));
+}
+
+function isRelativeStoryboardVisualText(value: unknown) {
+  const text = usefulText(value);
+  return Boolean(text) && /^(?:同|承接|延续|继续|保持).{0,12}(?:场景|前景|前序|上个?镜头|画面|中景|近景|固定机位|固定构图)/u.test(text);
+}
+
+function expandRelativeStoryboardVisuals(storyboard: Array<Record<string, unknown>>) {
+  let lastConcreteVisual = '';
+  return storyboard.map((shot) => {
+    const visual = usefulText(shot.visualDescription);
+    if (!visual) {
+      return shot;
+    }
+    if (isRelativeStoryboardVisualText(visual) && lastConcreteVisual) {
+      return {
+        ...shot,
+        visualDescription: `${lastConcreteVisual}；${visual}`,
+      };
+    }
+    lastConcreteVisual = visual;
+    return shot;
+  });
 }
 
 function normalizedStoryboardSimilarityText(value: unknown) {
@@ -3513,12 +3625,12 @@ function normalizeStoryboardForCard(storyboard: Array<Record<string, unknown>>, 
         startTime,
         endTime,
         duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
-        narration: narrationChunks[index] || narration,
+        narration: narrationChunks[index] || '',
         pipDescription: '',
       };
     });
   });
-  return renumberStoryboardShots(splitStoryboard);
+  return renumberStoryboardShots(expandRelativeStoryboardVisuals(splitStoryboard));
 }
 
 export function normalizeStoryboardForCardForTest(storyboard: Array<Record<string, unknown>>, targetSeconds: number) {
@@ -3539,7 +3651,7 @@ function splitLongStoryboardShotsForSeedance(storyboard: Array<Record<string, un
   if (!Number.isFinite(maxDuration) || maxDuration <= 0) {
     return storyboard;
   }
-  return storyboard.flatMap((shot) => {
+  const split = storyboard.flatMap((shot) => {
     const timing = storyboardShotTiming(shot);
     if (timing.duration <= maxDuration + 0.01) {
       return [shot];
@@ -3559,11 +3671,12 @@ function splitLongStoryboardShotsForSeedance(storyboard: Array<Record<string, un
         startTime,
         endTime,
         duration: Math.max(1, Number((endTime - startTime).toFixed(1))),
-        narration: narrationChunks[index] || usefulText(shot.narration),
+        narration: narrationChunks[index] || '',
         pipDescription: '',
       };
     });
   });
+  return expandRelativeStoryboardVisuals(split);
 }
 
 function commonPrefixByChars(values: string[]) {
@@ -3762,20 +3875,46 @@ function groupStoryboardForSeedance(storyboard: Array<Record<string, unknown>>, 
 
 function buildSegmentPrompt(input: {
   segment: Record<string, unknown>;
-  confirmedSettingPrompt?: string;
+  referenceContext?: string;
+  negativePrompt?: string;
 }) {
   const segment = input.segment;
-  const currentStoryboard = [
-    usefulText(segment.visualDescription) ? `画面：${usefulText(segment.visualDescription)}` : '',
-    usefulText(segment.actionDescription) ? `人物/动作：${usefulText(segment.actionDescription)}` : '',
-    usefulText(segment.soundEffect) ? `原片音效参考：${usefulText(segment.soundEffect)}；只可作为环境氛围参考，不要在本段结尾追加转场音、点击音或杂音。` : '',
-    usefulText(segment.pipDescription) ? `画中画：${usefulText(segment.pipDescription)}` : '',
-    usefulText(segment.remakeSuggestion) ? `复刻建议：${usefulText(segment.remakeSuggestion)}` : '',
-  ].filter(Boolean).join('\n');
+  const shots = Array.isArray(segment.shots) ? segment.shots.filter(isRecord) : [];
+  const storyboardLines = shots.length
+    ? shots.map((shot, index) => {
+      const timing = storyboardShotTiming(shot);
+      const narrationText = shots.length === 1
+        ? usefulText(segment.narration || shot.narration)
+        : usefulText(shot.narration);
+      return [
+        `镜头 ${index + 1}`,
+        `${Number(timing.startTime.toFixed(1))}s - ${Number(timing.endTime.toFixed(1))}s`,
+        usefulText(shot.visualDescription) ? `画面：${usefulText(shot.visualDescription)}` : '',
+        usefulText(shot.actionDescription) ? `人物/动作：${usefulText(shot.actionDescription)}` : '',
+        narrationText ? `台词/旁白：${narrationText}` : '',
+        usefulText(shot.soundEffect) ? `音效：${usefulText(shot.soundEffect)}` : '',
+        usefulText(shot.pipDescription) ? `画中画：${usefulText(shot.pipDescription)}` : '',
+        usefulText(shot.remakeSuggestion) ? `复刻建议：${usefulText(shot.remakeSuggestion)}` : '',
+      ].filter(Boolean).join('\n');
+    }).join('\n\n')
+    : [
+      usefulText(segment.visualDescription) ? `画面：${usefulText(segment.visualDescription)}` : '',
+      usefulText(segment.actionDescription) ? `人物/动作：${usefulText(segment.actionDescription)}` : '',
+      usefulText(segment.narration) ? `台词/旁白：${usefulText(segment.narration)}` : '',
+      usefulText(segment.soundEffect) ? `音效：${usefulText(segment.soundEffect)}` : '',
+      usefulText(segment.pipDescription) ? `画中画：${usefulText(segment.pipDescription)}` : '',
+      usefulText(segment.remakeSuggestion) ? `复刻建议：${usefulText(segment.remakeSuggestion)}` : '',
+    ].filter(Boolean).join('\n');
   return [
-    promptSectionText('当前分镜', currentStoryboard),
-    promptSectionText('已确认设定', input.confirmedSettingPrompt || ''),
-    speechPromptSectionText('本段口播', String(segment.narration || '')),
+    orderedPromptSectionText('生成规则', [
+      '生成纯画面视频；不要添加字幕、文字浮层、标题条、水印、Logo 或界面元素。',
+      '只朗读分镜中“台词/旁白”列出的内容，不新增结束语或行动号召。',
+    ].join('\n')),
+    orderedPromptSectionText('素材/音频参考', input.referenceContext || ''),
+    orderedPromptSectionText('当前分镜', [
+      storyboardLines,
+    ].filter(Boolean).join('\n\n')),
+    orderedPromptSectionText('负面约束', input.negativePrompt || ''),
   ].filter(Boolean).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
 }
 
@@ -3806,43 +3945,14 @@ function removeRuntimeSeedancePromptSections(text: string) {
   ), text).replace(/\n{3,}/gu, '\n\n').trim();
 }
 
-function editableSeedanceMainPrompt(text: string) {
-  return removeRuntimeSeedancePromptSections(removeDuplicatedPipPromptSection(text));
-}
-
 function buildSeedancePromptForRequest(input: {
-  systemPrompt: string;
   mainPrompt: string;
-  negativePrompt: string;
-  referenceGuide?: string;
 }) {
-  return [
-    input.systemPrompt,
-    editableSeedanceMainPrompt(input.mainPrompt),
-    promptSectionText('素材参考', input.referenceGuide || ''),
-    promptSectionText('口播与参考音视频边界', seedanceSegmentSpeechReferenceGuard()),
-    promptSectionText('音频收尾约束', seedanceAudioBoundaryConstraint()),
-    promptSectionText('负面约束', input.negativePrompt),
-  ].filter(Boolean).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
-}
-
-function withSeedanceAudioBoundaryConstraint(prompt: string) {
-  const trimmed = prompt.trim();
-  if (!trimmed || trimmed.includes('音频收尾约束')) {
-    return trimmed;
-  }
-  return [
-    trimmed,
-    promptSectionText('音频收尾约束', seedanceAudioBoundaryConstraint()),
-  ].filter(Boolean).join('\n\n').replace(/\n{3,}/gu, '\n\n').trim();
+  return removeDuplicatedPipPromptSection(input.mainPrompt).trim();
 }
 
 function confirmedSpeechFromSeedancePrompts(prompts: Array<Record<string, unknown>>) {
-  return prompts.map((segment) => {
-    const prompt = isRecord(segment.prompt) ? segment.prompt : {};
-    const speech = promptSectionContent(String(prompt.mainPrompt || ''), '本段口播');
-    return speech.trim();
-  }).filter(Boolean).join('\n');
+  return prompts.map((segment) => textFrom(segment.narration)).filter(Boolean).join('\n');
 }
 
 function summarizeSpeechBoundary(text: string, side: 'head' | 'tail') {
@@ -3859,10 +3969,7 @@ function summarizeSpeechBoundary(text: string, side: 'head' | 'tail') {
 }
 
 function speechPlanFromSeedancePrompts(prompts: Array<Record<string, unknown>>) {
-  const speeches = prompts.map((segment) => {
-    const prompt = isRecord(segment.prompt) ? segment.prompt : {};
-    return promptSectionContent(String(prompt.mainPrompt || ''), '本段口播').trim();
-  });
+  const speeches = prompts.map((segment) => textFrom(segment.narration));
   if (!speeches.some(Boolean)) {
     return undefined;
   }
@@ -3877,9 +3984,7 @@ function speechPlanFromSeedancePrompts(prompts: Array<Record<string, unknown>>) 
 }
 
 function firstSegmentSpeechFromSeedancePrompts(prompts: Array<Record<string, unknown>>) {
-  const firstPrompt = isRecord(prompts[0]?.prompt) ? prompts[0].prompt : {};
-  return promptSectionContent(String(firstPrompt.mainPrompt || ''), '本段口播').trim()
-    || textFrom(prompts[0]?.narration);
+  return textFrom(prompts[0]?.narration);
 }
 
 function primerPlanFromRuntime(workflow: VideoRemakeWorkflowState, cardData?: Record<string, unknown>) {
@@ -3972,13 +4077,13 @@ function sceneAwarePrimerPlan(input: {
     const promptRecord = isRecord(segmentPrompt.prompt) ? segmentPrompt.prompt : isRecord(segment.prompt) ? segment.prompt : {};
     const startTime = positiveNumber(segment.startSecond || segment.startTime);
     const endTime = positiveNumber(segment.endSecond || segment.endTime) || (startTime + Math.max(1, positiveNumber(segment.durationSecond || segment.duration || 1)));
-    const narrationText = promptSectionContent(String(promptRecord.mainPrompt || ''), '本段口播').trim()
-      || textFrom(segmentPrompt.narration || segment.narration);
     const overlappingShots = storyboard.filter((shot) => {
       const shotStart = positiveNumber(shot.startSecond || shot.startTime);
       const shotEnd = positiveNumber(shot.endSecond || shot.endTime) || shotStart + positiveNumber(shot.duration || 1);
       return shotStart < endTime && shotEnd > startTime;
     });
+    const narrationText = textFrom(segmentPrompt.narration || segment.narration)
+      || overlappingShots.map((shot) => usefulText(shot.narration || shot.script)).filter(Boolean).join('\n');
     const combinedText = uniqueUsefulLines([
       String(promptRecord.mainPrompt || ''),
       ...overlappingShots.map((shot) => [
@@ -4452,21 +4557,19 @@ function firstSeedanceFinalPrompt(workflow: VideoRemakeWorkflowState) {
   const promptBlocks = prompts.map((segment, index) => {
     const prompt = isRecord(segment.prompt) ? segment.prompt : {};
     const finalPrompt = buildSeedancePromptForRequest({
-      systemPrompt: String(prompt.systemPrompt || buildSeedanceSystemPrompt(workflow)),
       mainPrompt: String(prompt.mainPrompt || ''),
-      negativePrompt: String(prompt.negativePrompt || videoRemakeDefaultNegativePrompt),
-      referenceGuide: textFrom(prompt.referenceGuide),
     });
     return `分段 ${index + 1}\n${finalPrompt}`;
   }).filter(Boolean);
+  if (promptBlocks.length === 1) {
+    const prompt = isRecord(prompts[0]?.prompt) ? prompts[0].prompt : {};
+    return buildSeedancePromptForRequest({
+      mainPrompt: String(prompt.mainPrompt || ''),
+    });
+  }
   return promptBlocks.length
     ? promptBlocks.join('\n\n')
-    : buildSeedancePromptForRequest({
-      systemPrompt: buildSeedanceSystemPrompt(workflow),
-      mainPrompt: '',
-      negativePrompt: String(videoRemakeDefaultNegativePrompt),
-      referenceGuide: seedanceReferenceGuide('', workflow, collectMaterialReferences(workflow)),
-    });
+    : '';
 }
 
 function generationContextForSeedance(workflow: VideoRemakeWorkflowState, traceId: string) {
@@ -4709,7 +4812,7 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     const systemPrompt = buildSeedanceSystemPrompt(context.workflow);
     const referenceIds = collectMaterialReferences(context.workflow);
     const referenceGuide = seedanceReferenceGuide(context.userId, context.workflow, referenceIds);
-    const editableConfirmedSettingPrompt = seedanceEditableConfirmedSettingPrompt(context.workflow);
+    const referenceContext = conciseSeedanceReferenceContext(context.userId, context.workflow, referenceIds);
     const maxDuration = seedanceMaxSegmentSeconds();
     const splitStoryboard = splitLongStoryboardShotsForSeedance(storyboard, maxDuration);
     const storyboardWithPipReferences = attachPipDescriptionsToStoryboard(
@@ -4733,17 +4836,20 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
       duration: Number(segment.duration || 4),
       startTime: Number(segment.startTime || 0),
       endTime: Number(segment.endTime || Number(segment.duration || 4)),
+      narration: String(segment.narration || ''),
       maxDuration,
       segmentPurpose: String(segment.segmentPurpose || `分段 ${segment.index}`).slice(0, 24),
       status: 'pending',
       prompt: {
         mainPrompt: buildSegmentPrompt({
           segment,
-          confirmedSettingPrompt: editableConfirmedSettingPrompt,
+          referenceContext,
+          negativePrompt: videoRemakeDefaultNegativePrompt,
         }),
         systemPrompt,
         negativePrompt: videoRemakeDefaultNegativePrompt,
         referenceGuide,
+        referenceMentions: seedanceReferenceMentions(referenceIds),
         pipPrompt: usefulText(segment.pipDescription),
       },
     }));
@@ -4756,12 +4862,9 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     context.emit({ node: 'generate_video_segments', message: 'Seedance 分段提示词已准备。', progress: 92 });
     return prompts.map((segment, index) => {
       const prompt = isRecord(segment.prompt) ? segment.prompt : {};
-      const spokenLines = promptSectionContent(String(prompt.mainPrompt || ''), '本段口播');
+      const spokenLines = textFrom(segment.narration);
       const finalPrompt = buildSeedancePromptForRequest({
-        systemPrompt: String(prompt.systemPrompt || buildSeedanceSystemPrompt(context.workflow)),
         mainPrompt: String(prompt.mainPrompt || ''),
-        negativePrompt: String(prompt.negativePrompt || videoRemakeDefaultNegativePrompt),
-        referenceGuide: textFrom(prompt.referenceGuide),
       });
       logVideoRemakeGeneration('info', 'seedance video segment prepared', {
         sessionId: context.sessionId,
@@ -5193,18 +5296,12 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     const seconds = Math.max(1, positiveNumber(targetSegment.seconds || targetSegment.durationSecond || targetSegment.duration));
     const targetPrompt = isRecord(targetSegment.prompt) ? targetSegment.prompt : {};
     const promptOverride = input.prompt?.trim();
-    const prompt = withSeedanceAudioBoundaryConstraint(promptOverride
+    const prompt = (promptOverride
       ? buildSeedancePromptForRequest({
-        systemPrompt: textFrom(targetPrompt.systemPrompt) || buildSeedanceSystemPrompt(context.workflow),
         mainPrompt: promptOverride,
-        negativePrompt: textFrom(targetPrompt.negativePrompt) || videoRemakeDefaultNegativePrompt,
-        referenceGuide: textFrom(targetPrompt.referenceGuide),
       })
       : (textFrom(targetSegment.seedancePrompt) || buildSeedancePromptForRequest({
-        systemPrompt: textFrom(targetPrompt.systemPrompt) || buildSeedanceSystemPrompt(context.workflow),
         mainPrompt: textFrom(targetPrompt.mainPrompt || targetSegment.prompt),
-        negativePrompt: textFrom(targetPrompt.negativePrompt) || videoRemakeDefaultNegativePrompt,
-        referenceGuide: textFrom(targetPrompt.referenceGuide),
       })).trim());
     if (!prompt) {
       throw new Error(`分段 ${segmentIndex} 缺少可重生成的提示词`);

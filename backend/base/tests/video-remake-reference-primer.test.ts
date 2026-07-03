@@ -929,3 +929,211 @@ test('video remake queued extend resume keeps previous segment reference mode', 
     }
   }
 });
+
+test('video remake seedance prompt stays storyboard-driven and request matches editable prompt', async () => {
+  const previousVideoApiKey = process.env.VIDEO_MODEL_API_KEY;
+  const previousVideoBaseUrl = process.env.VIDEO_MODEL_BASE_URL;
+  const previousVideoModelId = process.env.VIDEO_MODEL_ID;
+  const originalCallConfigured = videoRemakeVideoModelRuntime.callConfiguredVideoModel;
+  const originalWait = videoRemakeVideoModelRuntime.waitForVideoModelCompletion;
+  const submittedCalls: Array<Record<string, unknown>> = [];
+
+  try {
+    process.env.VIDEO_MODEL_API_KEY = 'test-video-key';
+    process.env.VIDEO_MODEL_BASE_URL = 'https://video-model.example.com';
+    process.env.VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+    const user = createUser(`user-seedance-wysiwyg-${Date.now()}`, 'password123', 'Seedance Prompt User');
+    const imageGroup = contentRepository.createGroup({
+      userId: user.id,
+      resourceType: 'image',
+      name: '图像参考组',
+      description: '',
+      metadata: {},
+    });
+    const voiceGroup = contentRepository.createGroup({
+      userId: user.id,
+      resourceType: 'voice',
+      name: '声音参考组',
+      description: '',
+      metadata: {},
+    });
+    const imagePath = path.join(dataDir, 'host.jpg');
+    const audioPath = path.join(dataDir, 'host.wav');
+    writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    writeFileSync(audioPath, Buffer.from('RIFF....WAVE', 'utf8'));
+    const imageAsset = contentRepository.createAsset({
+      userId: user.id,
+      groupId: String(imageGroup?.id || ''),
+      resourceType: 'image',
+      name: '主持人参考图',
+      description: '',
+      originalFileName: 'host.jpg',
+      storedFileName: 'host.jpg',
+      mimeType: 'image/jpeg',
+      fileSize: 128,
+      filePath: imagePath,
+      fileUrl: '/files/content/host.jpg',
+      metadata: {},
+    });
+    const audioAsset = contentRepository.createAsset({
+      userId: user.id,
+      groupId: String(voiceGroup?.id || ''),
+      resourceType: 'voice',
+      name: '主持人口播参考',
+      description: '',
+      originalFileName: 'host.wav',
+      storedFileName: 'host.wav',
+      mimeType: 'audio/wav',
+      fileSize: 128,
+      filePath: audioPath,
+      fileUrl: '/files/content/host.wav',
+      metadata: {},
+    });
+    assert.ok(imageAsset);
+    assert.ok(audioAsset);
+
+    videoRemakeVideoModelRuntime.callConfiguredVideoModel = async (input) => {
+      submittedCalls.push(input as unknown as Record<string, unknown>);
+      return {
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
+        jobId: 'wysiwyg-job-1',
+        status: 'completed',
+        videoUrl: 'data:video/mp4;base64,AAAA',
+        coverUrl: '',
+        usage: { completionTokens: 1, totalTokens: 1 },
+      };
+    };
+    videoRemakeVideoModelRuntime.waitForVideoModelCompletion = async ({ jobId }) => ({
+      provider: 'volcengine-seedance',
+      model: 'doubao-seedance-2-0-260128',
+      jobId,
+      status: 'completed',
+      videoUrl: 'data:video/mp4;base64,AAAA',
+      coverUrl: '',
+      usage: { completionTokens: 1, totalTokens: 1 },
+    });
+
+    const workflow = buildWorkflow({
+      storyboardScript: [
+        {
+          startSecond: 0,
+          endSecond: 4,
+          visualDescription: '场景 1 中人物 1 对镜讲解新品亮点',
+          actionDescription: '人物 1 手持产品自然展示',
+          narration: '人物1：今天带你看这款新品。',
+          soundEffect: '轻微室内环境底噪',
+          remakeSuggestion: '中近景稳定推进，保留产品细节特写',
+        },
+        {
+          startSecond: 4,
+          endSecond: 8,
+          visualDescription: '场景 2 切到产品桌面特写',
+          actionDescription: '镜头掠过包装和 Logo 细节',
+          narration: '人物1：重点看包装和品牌标识。',
+          soundEffect: '安静室内环境',
+          remakeSuggestion: '切换到桌面俯拍，强调包装纹理',
+        },
+      ],
+      characterSetting: {
+        items: [
+          { label: '人物 1', referenceMode: 'asset', required: true, assetId: imageAsset?.id, characterPrompt: '年轻女主持人' },
+        ],
+      },
+      sceneSetting: {
+        items: [
+          { label: '场景 1', referenceMode: 'prompt', required: true, description: '简洁室内讲解区' },
+          { label: '场景 2', referenceMode: 'prompt', required: true, description: '产品展示桌面' },
+        ],
+      },
+    });
+    workflow.artifacts.voiceSetting = {
+      items: [
+        {
+          label: '人物 1 声音',
+          characterLabel: '人物 1',
+          voice: '女声',
+          voiceStyle: '自然清晰，中速讲解',
+          assetId: audioAsset?.id,
+        },
+      ],
+    };
+
+    const prompts = await defaultVideoRemakeNodeAdapters.generateSeedancePrompts({
+      sessionId: 'session-seedance-wysiwyg',
+      userId: user.id,
+      taskId: 'task-seedance-wysiwyg',
+      workflow,
+      emit: () => undefined,
+    });
+    assert.equal(prompts.length, 1);
+    const generatedPrompt = (prompts[0]?.prompt || {}) as Record<string, unknown>;
+    const mainPrompt = String(generatedPrompt.mainPrompt || '');
+    const referenceMentions = (generatedPrompt.referenceMentions || []) as Array<Record<string, unknown>>;
+
+    assert.match(mainPrompt, /# 生成规则/u);
+    assert.match(mainPrompt, /# 当前分镜/u);
+    assert.doesNotMatch(mainPrompt, /# 本段口播/u);
+    assert.match(mainPrompt, /台词\/旁白/u);
+    assert.match(mainPrompt, /场景 1/u);
+    assert.match(mainPrompt, /场景 2/u);
+    assert.match(mainPrompt, /@图片1/u);
+    assert.match(mainPrompt, /音频参考：人物 1 只能绑定 参考音频1/u);
+    assert.ok(mainPrompt.indexOf('# 素材/音频参考') < mainPrompt.indexOf('# 当前分镜'));
+    assert.doesNotMatch(mainPrompt, /沿用已确认声音设定/u);
+    assert.doesNotMatch(mainPrompt, /使用原声参考/u);
+    assert.doesNotMatch(mainPrompt, /# 人物\s*\n/u);
+    assert.doesNotMatch(mainPrompt, /# 场景\s*\n/u);
+    assert.doesNotMatch(mainPrompt, /# 音频\s*\n/u);
+    assert.doesNotMatch(mainPrompt, /# 已确认设定\s*\n/u);
+    assert.doesNotMatch(mainPrompt, /# 口播与参考音视频边界\s*\n/u);
+    assert.equal(referenceMentions.length, 1);
+    assert.equal(String(referenceMentions[0]?.token || ''), '@图片1');
+
+    workflow.artifacts.seedancePrompts = prompts;
+    const segments = await defaultVideoRemakeNodeAdapters.generateVideoSegments({
+      sessionId: 'session-seedance-wysiwyg',
+      userId: user.id,
+      taskId: 'task-seedance-wysiwyg',
+      workflow,
+      emit: () => undefined,
+    });
+    assert.equal(String((segments[0] as Record<string, unknown>)?.seedancePrompt || ''), mainPrompt);
+
+    const result = await defaultVideoRemakeNodeAdapters.mergeVideo({
+      sessionId: 'session-seedance-wysiwyg',
+      userId: user.id,
+      taskId: 'task-seedance-wysiwyg',
+      workflow: {
+        ...workflow,
+        runtime: {
+          ...workflow.runtime,
+          videoSegments: segments,
+        },
+      },
+      emit: () => undefined,
+    });
+
+    assert.equal(submittedCalls.length, 1);
+    assert.equal(String(submittedCalls[0]?.prompt || ''), mainPrompt);
+    assert.equal(String((result as { renderMode?: string }).renderMode || ''), 'single_seedance');
+  } finally {
+    videoRemakeVideoModelRuntime.callConfiguredVideoModel = originalCallConfigured;
+    videoRemakeVideoModelRuntime.waitForVideoModelCompletion = originalWait;
+    if (previousVideoApiKey === undefined) {
+      delete process.env.VIDEO_MODEL_API_KEY;
+    } else {
+      process.env.VIDEO_MODEL_API_KEY = previousVideoApiKey;
+    }
+    if (previousVideoBaseUrl === undefined) {
+      delete process.env.VIDEO_MODEL_BASE_URL;
+    } else {
+      process.env.VIDEO_MODEL_BASE_URL = previousVideoBaseUrl;
+    }
+    if (previousVideoModelId === undefined) {
+      delete process.env.VIDEO_MODEL_ID;
+    } else {
+      process.env.VIDEO_MODEL_ID = previousVideoModelId;
+    }
+  }
+});

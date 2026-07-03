@@ -5,6 +5,7 @@ import type { VideoRemakeCardMessage, VideoRemakeCardType } from '../../../api/v
 import type { ContentAsset, ContentAssetGroup } from '../../../types';
 import { AppForm } from '../../../components/AppForm';
 import { AssetLibraryAudioWave } from '../../../components/AssetLibraryCard';
+import { MentionRichTextarea, type MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import { AssetSelector, type AssetSelectorKind } from './AssetSelector';
 import {
   asItems,
@@ -12,6 +13,7 @@ import {
   cardTypeLabels,
   fieldBool,
   fieldText,
+  isRecord,
   mediaUrl,
   updateAt,
 } from './videoRemakeCardUtils';
@@ -43,6 +45,15 @@ type AssetSelectorState = {
   selectedAssetId?: string;
   selectedGroupId?: string;
   onSelect: (selection: { assetId?: string; groupId?: string }) => void;
+};
+
+type SeedanceReferenceMention = {
+  assetId?: string;
+  fileUrl?: string;
+  label: string;
+  mimeType?: string;
+  name?: string;
+  token: string;
 };
 
 type EditableCardProps = CardRendererProps & {
@@ -191,21 +202,8 @@ function removeDuplicatedPipPromptSection(text: string) {
     .trim();
 }
 
-function removeRuntimeSeedancePromptSections(text: string) {
-  return [
-    '素材参考',
-    '口播与参考音视频边界',
-    '音频收尾约束',
-    '负面约束',
-    '排队生成画质基准',
-    '视频延长上下文',
-  ].reduce((current, title) => (
-    current.replace(new RegExp(`\\n{2,}#\\s*${title}\\s*\\n[\\s\\S]*?(?=\\n{2,}#\\s|$)`, 'gu'), '')
-  ), text).replace(/\n{3,}/gu, '\n\n').trim();
-}
-
 function editableSeedancePromptText(text: string) {
-  return removeRuntimeSeedancePromptSections(removeDuplicatedPipPromptSection(text));
+  return removeDuplicatedPipPromptSection(text);
 }
 
 function sanitizePipPreviewText(text: string) {
@@ -304,6 +302,72 @@ function resolveAudioCharacterLabel(item: Record<string, unknown>, index: number
     return rawLabel.replace(/\s*声音$/u, '') || rawLabel;
   }
   return `人物 ${index + 1}`;
+}
+
+function seedanceReferenceMentions(prompt: Record<string, unknown>, assets: ContentAsset[]): SeedanceReferenceMention[] {
+  const rawReferenceMentions = prompt.referenceMentions;
+  const explicitItems = Array.isArray(rawReferenceMentions) ? rawReferenceMentions : [];
+  const explicit = explicitItems
+    .map((item): SeedanceReferenceMention | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+      const label = fieldText(item.label);
+      const token = fieldText(item.token) || (label ? `@${label}` : '');
+      if (!label || !token) {
+        return null;
+      }
+      const asset = findSelectedAsset(assets, item.assetId);
+      return {
+        assetId: fieldText(item.assetId),
+        fileUrl: fieldText(item.fileUrl) || asset?.fileUrl || '',
+        label,
+        mimeType: fieldText(item.mimeType) || asset?.mimeType || '',
+        name: fieldText(item.name) || asset?.name || asset?.originalFileName || label,
+        token,
+      };
+    })
+    .filter((item): item is SeedanceReferenceMention => Boolean(item));
+  if (Array.isArray(rawReferenceMentions)) {
+    return explicit;
+  }
+  return assets
+    .filter((asset) => asset.mimeType.startsWith('image/'))
+    .map((asset, index) => ({
+      assetId: asset.id,
+      fileUrl: asset.fileUrl,
+      label: `图片${index + 1}`,
+      mimeType: asset.mimeType,
+      name: asset.name || asset.originalFileName || `图片${index + 1}`,
+      token: `@图片${index + 1}`,
+    }));
+}
+
+function renderSeedancePromptWithReferences(text: string, mentions: SeedanceReferenceMention[]) {
+  const parts = text.split(/(@(?:图片|视频|音频)\d+)/gu);
+  return parts.map((part, index) => {
+    const match = part.match(/^@((?:图片|视频|音频)\d+)$/u);
+    if (!match) {
+      return <span key={`${index}-${part}`}>{part}</span>;
+    }
+    const mention = mentions.find((item) => item.token === part || item.label === match[1]);
+    const previewUrl = mention?.fileUrl ? mediaUrl(mention.fileUrl) : '';
+    return (
+      <span className="remake-seedance-reference-chip" contentEditable={false} data-seedance-token={part} key={`${index}-${part}`}>
+        {mention?.mimeType?.startsWith('image/') && previewUrl ? <img alt={match[1]} src={previewUrl} /> : null}
+        <b>{match[1]}</b>
+      </span>
+    );
+  });
+}
+
+function seedanceMentionOptions(mentions: SeedanceReferenceMention[]): MentionRichTextareaOption[] {
+  return mentions.map((mention) => ({
+    label: mention.label,
+    previewUrl: mention.fileUrl ? mediaUrl(mention.fileUrl) : '',
+    subtitle: mention.name,
+    token: mention.token,
+  }));
 }
 
 function SquareReferencePicker({
@@ -1934,6 +1998,7 @@ function SeedanceCard(props: CardRendererProps) {
         const index = Math.min(activeIndex, segments.length - 1);
         const segment = segments[index] || {};
         const prompt = asRecord(segment.prompt);
+        const mentionOptions = seedanceReferenceMentions(prompt, props.assets);
         const setPrompt = (patch: Record<string, unknown>) => {
           const updatedSegments = updateAt(segments, index, { prompt: { ...prompt, ...patch } });
           setDraft(directSegments.length
@@ -1973,7 +2038,7 @@ function SeedanceCard(props: CardRendererProps) {
                     </div>
                     {previewTime ? <time>{previewTime}</time> : null}
                   </header>
-                  <SeedancePromptPreview text={promptTextValue(previewPrompt)} />
+                  <SeedancePromptPreview mentions={seedanceReferenceMentions(previewPrompt, props.assets)} text={promptTextValue(previewPrompt)} />
                 </section>
               </div>
             </div>
@@ -1998,11 +2063,11 @@ function SeedanceCard(props: CardRendererProps) {
                 </header>
                 <div className="remake-prompt-editor">
                   <label>提示词</label>
-                  <Input.TextArea
-                    autoSize={{ minRows: 12 }}
+                  <MentionRichTextarea
                     disabled={props.disabled}
+                    onChange={(value) => setPrompt({ mainPrompt: value })}
+                    options={seedanceMentionOptions(mentionOptions)}
                     value={mainPrompt}
-                    onChange={(event) => setPrompt({ mainPrompt: event.target.value })}
                   />
                 </div>
               </section>
@@ -2014,14 +2079,14 @@ function SeedanceCard(props: CardRendererProps) {
   );
 }
 
-function SeedancePromptPreview({ text }: { text: string }) {
+function SeedancePromptPreview({ mentions, text }: { mentions: SeedanceReferenceMention[]; text: string }) {
   const value = text.trim();
   if (!value) {
     return <p className="remake-seedance-empty">暂无提示词内容</p>;
   }
   return (
     <div className="remake-seedance-prompt-preview">
-      <p>{value}</p>
+      <p>{renderSeedancePromptWithReferences(value, mentions)}</p>
     </div>
   );
 }

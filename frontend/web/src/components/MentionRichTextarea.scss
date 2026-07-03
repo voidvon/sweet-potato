@@ -1,0 +1,149 @@
+.mention-rich-textarea {
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.78;
+  overflow: hidden;
+  position: relative;
+}
+
+.mention-rich-textarea:focus-within {
+  border-color: #178bff;
+  box-shadow: 0 0 0 2px rgba(23, 139, 255, 0.12);
+}
+
+.mention-rich-textarea.is-disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+.mention-rich-textarea-editor {
+  min-height: inherit;
+  outline: none;
+  overflow: auto;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mention-rich-textarea-editor p {
+  margin: 0;
+}
+
+.mention-rich-textarea-editor p + p {
+  margin-top: 0;
+}
+
+.mention-rich-textarea-placeholder {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font: inherit;
+  left: 14px;
+  line-height: 1.78;
+  padding: 0;
+  position: absolute;
+  top: 12px;
+  z-index: 1;
+}
+
+.mention-rich-textarea-chip {
+  align-items: center;
+  background: #eef4ff;
+  border: 1px solid #b8c7ff;
+  border-radius: 12px;
+  color: #2f3bbd;
+  display: inline-flex;
+  font-weight: 700;
+  line-height: 1;
+  margin: 0 2px;
+  padding: 4px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.mention-rich-textarea-chip img {
+  border-radius: 8px;
+  height: 24px;
+  margin: -2px 6px -2px -4px;
+  object-fit: cover;
+  width: 24px;
+}
+
+.mention-rich-textarea-chip b {
+  color: #2f3bbd;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mention-rich-textarea-menu {
+  background: #ffffff;
+  border: 1px solid #c7d7fe;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  display: grid;
+  gap: 4px;
+  max-height: 260px;
+  min-width: 260px;
+  overflow: auto;
+  padding: 6px;
+  z-index: 2000;
+}
+
+.mention-rich-textarea-menu--empty {
+  color: #667085;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.mention-rich-textarea-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: #1f2937;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 34px auto;
+  padding: 7px;
+  text-align: left;
+  width: 100%;
+}
+
+.mention-rich-textarea-menu button.is-selected,
+.mention-rich-textarea-menu button:hover {
+  background: #eef4ff;
+}
+
+.mention-rich-textarea-menu img,
+.mention-rich-textarea-menu button > span:first-child {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 9px;
+  color: #334155;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  object-fit: cover;
+  width: 34px;
+}
+
+.mention-rich-textarea-option__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mention-rich-textarea-option__body strong {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mention-rich-textarea-option__body small {
+  color: #667085;
+  font-size: 12px;
+}

@@ -1450,6 +1450,32 @@
   white-space: pre-wrap;
 }
 
+.remake-seedance-reference-chip {
+  align-items: center;
+  background: #eef4ff;
+  border: 1px solid #b8c7ff;
+  border-radius: 12px;
+  color: #2f3bbd;
+  display: inline-flex;
+  gap: 6px;
+  margin: 0 2px;
+  padding: 2px 8px 2px 4px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.remake-seedance-reference-chip img {
+  border-radius: 8px;
+  height: 28px;
+  object-fit: cover;
+  width: 28px;
+}
+
+.remake-seedance-reference-chip b {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .remake-seedance-empty {
   color: var(--remake-muted);
   font-size: 13px;
