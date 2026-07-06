@@ -55,8 +55,13 @@ function normalizeLlmBillingSettings(settings: Record<string, unknown>, provider
 
 function normalizeImageBillingSettings(settings: Record<string, unknown>) {
   const billing = isRecord(settings.billing) ? settings.billing : {};
+  const imageGeneration = isRecord(settings.imageGeneration) ? settings.imageGeneration : {};
   return {
     ...settings,
+    imageGeneration: {
+      ...imageGeneration,
+      supportsCustomResolution: imageGeneration.supportsCustomResolution === true,
+    },
     billing: {
       multiplier: Math.max(0, normalizeNumber(billing.multiplier, 1)),
       creditsPerRequest: Math.max(
