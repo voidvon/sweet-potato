@@ -639,7 +639,7 @@ export const contentService = {
       : String(payload.url || '').trim();
     if (!sourceUrl) {
       throw new Error(file
-        ? '本地上传真人素材缺少可公网访问地址。请通过可外网访问的域名访问后端，或正确配置 CONTENT_PUBLIC_BASE_URL 指向当前后端服务的 /files/content 静态文件地址。'
+        ? '本地上传真人素材缺少可公网访问地址。请通过可外网访问的域名访问后端，或正确配置 CONTENT_PUBLIC_BASE_URL 指向当前后端服务的 /files 静态文件地址。'
         : '请上传真人素材文件或填写素材 URL');
     }
     assertHttpAssetUrl(sourceUrl);
@@ -769,7 +769,7 @@ export const contentService = {
       : String(payload.url || '').trim();
     if (!sourceRef) {
       throw new Error(file
-        ? '本地上传虚拟人像缺少可公网访问地址。请通过可外网访问的域名访问后端，或正确配置 CONTENT_PUBLIC_BASE_URL 指向当前后端服务的 /files/content 静态文件地址。'
+        ? '本地上传虚拟人像缺少可公网访问地址。请通过可外网访问的域名访问后端，或正确配置 CONTENT_PUBLIC_BASE_URL 指向当前后端服务的 /files 静态文件地址。'
         : '请上传人物素材文件或填写素材 URL');
     }
     assertHttpAssetUrl(sourceRef);

@@ -18,7 +18,7 @@ import { deleteContentAssetFile } from './content-image-assets.js';
 export const defaultVoiceClonePreviewText = '你好，我是你的专属声音助手，很高兴为你服务。今天天气真不错，适合出门走走。';
 
 export function fileUrlFor(storedFileName: string) {
-  return `/files/content/${encodeURIComponent(storedFileName)}`;
+  return `/files/${encodeURIComponent(storedFileName)}`;
 }
 
 export function absolutizeMaterialUrl(value: unknown) {

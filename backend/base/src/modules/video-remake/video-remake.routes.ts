@@ -10,7 +10,7 @@ import { registerVideoRemakeEventClient } from './video-remake.events.js';
 import { videoRemakeService } from './video-remake.service.js';
 import type { VideoRemakeCardType } from './video-remake.types.js';
 
-const contentFilesDir = path.join(dataDir, 'content-files');
+const contentFilesDir = path.join(dataDir, 'files');
 mkdirSync(contentFilesDir, { recursive: true });
 
 function sanitizeFileName(fileName: string) {
@@ -206,7 +206,7 @@ export function createVideoRemakeRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: `/files/content/${encodeURIComponent(req.file.filename)}`,
+            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
           });
           res.status(201).json(result);
         } catch (error) {
@@ -239,7 +239,7 @@ export function createVideoRemakeRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: `/files/content/${encodeURIComponent(req.file.filename)}`,
+            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
           });
           res.status(201).json(result);
         } catch (error) {

@@ -23,7 +23,7 @@ export function createApp() {
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '20mb' }));
   app.use('/files/skills', express.static(path.join(dataDir, 'skill-files')));
-  app.use('/files/content', express.static(path.join(dataDir, 'content-files')));
+  app.use('/files', express.static(path.join(dataDir, 'files')));
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, service: 'ai-marketing-desktop-server' });

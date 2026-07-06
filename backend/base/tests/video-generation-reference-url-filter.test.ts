@@ -10,8 +10,8 @@ test('collectSeedanceVideoUrls keeps local file urls when CONTENT_PUBLIC_BASE_UR
         videos: [
           {
             id: 'local-video',
-            fileUrl: '/files/content/local-segment.mp4',
-            url: '/files/content/local-segment.mp4',
+            fileUrl: '/files/local-segment.mp4',
+            url: '/files/local-segment.mp4',
             metadata: {},
           },
           {
@@ -29,7 +29,7 @@ test('collectSeedanceVideoUrls keeps local file urls when CONTENT_PUBLIC_BASE_UR
   });
 
   assert.deepEqual(urls, [
-    'http://124.221.146.111:5689/files/content/local-segment.mp4',
+    'http://124.221.146.111:5689/files/local-segment.mp4',
     'https://cdn.example.com/segment-1.mp4',
   ]);
 });
@@ -41,20 +41,20 @@ test('collectSeedanceVideoUrls skips localhost and private network video referen
         videos: [
           {
             id: 'localhost-video',
-            fileUrl: 'http://localhost:111/files/content/local.mp4',
-            url: 'http://localhost:111/files/content/local.mp4',
+            fileUrl: 'http://localhost:111/files/local.mp4',
+            url: 'http://localhost:111/files/local.mp4',
             metadata: {},
           },
           {
             id: 'loopback-video',
-            fileUrl: 'http://127.0.0.1:7072/files/content/local.mp4',
-            url: 'http://127.0.0.1:7072/files/content/local.mp4',
+            fileUrl: 'http://127.0.0.1:7072/files/local.mp4',
+            url: 'http://127.0.0.1:7072/files/local.mp4',
             metadata: {},
           },
           {
             id: 'private-lan-video',
-            fileUrl: 'http://192.168.11.151:7072/files/content/local.mp4',
-            url: 'http://192.168.11.151:7072/files/content/local.mp4',
+            fileUrl: 'http://192.168.11.151:7072/files/local.mp4',
+            url: 'http://192.168.11.151:7072/files/local.mp4',
             metadata: {},
           },
           {

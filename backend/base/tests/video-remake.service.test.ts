@@ -32,11 +32,11 @@ test('video-remake service persists workflow, supports rule patches, resume, and
       mimeType: 'video/mp4',
       fileSize: Buffer.byteLength('video-remake-fixture'),
       filePath,
-      fileUrl: '/files/content/fixture.mp4',
+      fileUrl: '/files/fixture.mp4',
     });
     assert.equal(uploaded.status, 'running');
     assert.ok(uploaded.taskId);
-    assert.equal(uploaded.workflow.runtime.vod?.sourceUrl, '/files/content/fixture.mp4');
+    assert.equal(uploaded.workflow.runtime.vod?.sourceUrl, '/files/fixture.mp4');
 
     const running = await service.run(session.id);
     assert.equal(running.status, 'waiting_edit');

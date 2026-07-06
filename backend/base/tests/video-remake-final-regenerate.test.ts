@@ -78,10 +78,10 @@ test('final video regenerate creates a new generating card immediately', async (
       data: {
         status: 'completed',
         message: '视频生成完成。',
-        videoUrl: '/files/content/final-v1.mp4',
+        videoUrl: '/files/final-v1.mp4',
         versionNumber: 1,
         versionLabel: 'v1',
-        segments: [{ segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/content/segment-v1.mp4' }],
+        segments: [{ segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/segment-v1.mp4' }],
       },
       createdAt: new Date().toISOString(),
     };
@@ -99,7 +99,7 @@ test('final video regenerate creates a new generating card immediately', async (
           provider: 'volcengine-seedance',
           model: 'doubao-seedance-2-0-260128',
           status: 'completed',
-          videoUrl: '/files/content/final-v2.mp4',
+          videoUrl: '/files/final-v2.mp4',
           assetId: 'asset-final-v2',
           renderMode: 'single_seedance',
           segments: [],
@@ -168,25 +168,25 @@ test('final video segment regenerate keeps original card and creates a new segme
       data: {
         status: 'completed',
         message: '视频生成完成。',
-        videoUrl: '/files/content/final-v1.mp4',
+        videoUrl: '/files/final-v1.mp4',
         versionNumber: 1,
         versionLabel: 'v1',
         segments: [
-          { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/content/segment-v1-1.mp4', status: 'completed' },
-          { segmentIndex: 2, prompt: { mainPrompt: '镜头 2' }, seedancePrompt: '镜头 2', videoUrl: '/files/content/segment-v1-2.mp4', status: 'completed' },
+          { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/segment-v1-1.mp4', status: 'completed' },
+          { segmentIndex: 2, prompt: { mainPrompt: '镜头 2' }, seedancePrompt: '镜头 2', videoUrl: '/files/segment-v1-2.mp4', status: 'completed' },
         ],
         generatedSegments: [
-          { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/content/segment-v1-1.mp4', status: 'completed' },
-          { segmentIndex: 2, prompt: { mainPrompt: '镜头 2' }, seedancePrompt: '镜头 2', videoUrl: '/files/content/segment-v1-2.mp4', status: 'completed' },
+          { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/segment-v1-1.mp4', status: 'completed' },
+          { segmentIndex: 2, prompt: { mainPrompt: '镜头 2' }, seedancePrompt: '镜头 2', videoUrl: '/files/segment-v1-2.mp4', status: 'completed' },
         ],
         videos: [
           {
             versionNumber: 1,
             versionLabel: 'v1',
-            videoUrl: '/files/content/final-v1.mp4',
+            videoUrl: '/files/final-v1.mp4',
             segments: [
-              { segmentIndex: 1, videoUrl: '/files/content/segment-v1-1.mp4', status: 'completed' },
-              { segmentIndex: 2, videoUrl: '/files/content/segment-v1-2.mp4', status: 'completed' },
+              { segmentIndex: 1, videoUrl: '/files/segment-v1-1.mp4', status: 'completed' },
+              { segmentIndex: 2, videoUrl: '/files/segment-v1-2.mp4', status: 'completed' },
             ],
           },
         ],
@@ -205,16 +205,16 @@ test('final video segment regenerate keeps original card and creates a new segme
         });
         return {
           status: 'completed',
-          videoUrl: '/files/content/final-v1-segment-2.mp4',
+          videoUrl: '/files/final-v1-segment-2.mp4',
           renderMode: 'segment_regenerated_ffmpeg',
           regeneratedSegmentIndex: 2,
           generatedSegments: [
-            { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/content/segment-v1-1.mp4', status: 'completed' },
-            { segmentIndex: 2, prompt: { mainPrompt: '镜头 2 新版' }, seedancePrompt: '镜头 2 新版', videoUrl: '/files/content/segment-v1-2b.mp4', status: 'completed', regeneratedAt: new Date().toISOString() },
+            { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/segment-v1-1.mp4', status: 'completed' },
+            { segmentIndex: 2, prompt: { mainPrompt: '镜头 2 新版' }, seedancePrompt: '镜头 2 新版', videoUrl: '/files/segment-v1-2b.mp4', status: 'completed', regeneratedAt: new Date().toISOString() },
           ],
           segments: [
-            { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/content/segment-v1-1.mp4', status: 'completed' },
-            { segmentIndex: 2, prompt: { mainPrompt: '镜头 2 新版' }, seedancePrompt: '镜头 2 新版', videoUrl: '/files/content/segment-v1-2b.mp4', status: 'completed', regeneratedAt: new Date().toISOString() },
+            { segmentIndex: 1, prompt: { mainPrompt: '镜头 1' }, seedancePrompt: '镜头 1', videoUrl: '/files/segment-v1-1.mp4', status: 'completed' },
+            { segmentIndex: 2, prompt: { mainPrompt: '镜头 2 新版' }, seedancePrompt: '镜头 2 新版', videoUrl: '/files/segment-v1-2b.mp4', status: 'completed', regeneratedAt: new Date().toISOString() },
           ],
         };
       };
@@ -233,7 +233,7 @@ test('final video segment regenerate keeps original card and creates a new segme
       const originalCard = cardsDuringRegeneration.find((entry) => entry.cardId === completedCard.cardId);
       const regenerationCard = cardsDuringRegeneration.find((entry) => entry.cardId !== completedCard.cardId);
       assert.equal(originalCard?.status, 'confirmed');
-      assert.equal((originalCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
+      assert.equal((originalCard?.data as { videoUrl?: string })?.videoUrl, '/files/final-v1.mp4');
       assert.ok(regenerationCard);
       assert.notEqual(regenerationCard?.cardId, completedCard.cardId);
       assert.equal(regenerationCard?.status, 'pending');
@@ -242,7 +242,7 @@ test('final video segment regenerate keeps original card and creates a new segme
       const draftSegments = (regenerationCard?.data as { segments?: Array<{ status?: string; videoUrl?: string }> })?.segments || [];
       assert.equal(draftSegments.length, 2);
       assert.equal(draftSegments[0]?.status, 'completed');
-      assert.equal(draftSegments[0]?.videoUrl, '/files/content/segment-v1-1.mp4');
+      assert.equal(draftSegments[0]?.videoUrl, '/files/segment-v1-1.mp4');
       assert.equal(draftSegments[1]?.status, 'generating');
       assert.equal(draftSegments[1]?.videoUrl, undefined);
 
@@ -253,9 +253,9 @@ test('final video segment regenerate keeps original card and creates a new segme
       const originalCompletedCard = cardsAfterRegeneration.find((entry) => entry.cardId === completedCard.cardId);
       const regeneratedCompletedCard = cardsAfterRegeneration.find((entry) => entry.cardId !== completedCard.cardId);
       assert.equal(originalCompletedCard?.status, 'confirmed');
-      assert.equal((originalCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1.mp4');
+      assert.equal((originalCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/final-v1.mp4');
       assert.equal(regeneratedCompletedCard?.status, 'confirmed');
-      assert.equal((regeneratedCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/content/final-v1-segment-2.mp4');
+      assert.equal((regeneratedCompletedCard?.data as { videoUrl?: string })?.videoUrl, '/files/final-v1-segment-2.mp4');
     } finally {
       defaultVideoRemakeNodeAdapters.regenerateVideoSegment = originalRegenerateVideoSegment;
       releaseRegenerate?.();
@@ -295,25 +295,25 @@ test('final video regeneration preserves referencePrimerPlan in draft, completed
       data: {
         status: 'completed',
         message: '视频生成完成。',
-        videoUrl: '/files/content/final-primer-v1.mp4',
+        videoUrl: '/files/final-primer-v1.mp4',
         versionNumber: 1,
         versionLabel: 'v1',
         referencePrimerPlan,
         segments: [
-          { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/content/segment-primer-v1-1.mp4' },
-          { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/content/segment-primer-v1-2.mp4' },
-          { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/content/segment-primer-v1-3.mp4' },
+          { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/segment-primer-v1-1.mp4' },
+          { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/segment-primer-v1-2.mp4' },
+          { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/segment-primer-v1-3.mp4' },
         ],
         videos: [
           {
             versionNumber: 1,
             versionLabel: 'v1',
-            videoUrl: '/files/content/final-primer-v1.mp4',
+            videoUrl: '/files/final-primer-v1.mp4',
             referencePrimerPlan,
             segments: [
-              { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/content/segment-primer-v1-1.mp4' },
-              { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/content/segment-primer-v1-2.mp4' },
-              { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/content/segment-primer-v1-3.mp4' },
+              { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/segment-primer-v1-1.mp4' },
+              { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/segment-primer-v1-2.mp4' },
+              { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/segment-primer-v1-3.mp4' },
             ],
           },
         ],
@@ -334,14 +334,14 @@ test('final video regeneration preserves referencePrimerPlan in draft, completed
           provider: 'volcengine-seedance',
           model: 'doubao-seedance-2-0-260128',
           status: 'completed',
-          videoUrl: '/files/content/final-primer-v2.mp4',
+          videoUrl: '/files/final-primer-v2.mp4',
           assetId: 'asset-final-primer-v2',
           renderMode: 'single_seedance',
           referencePrimerPlan,
           segments: [
-            { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/content/segment-primer-v2-1.mp4' },
-            { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/content/segment-primer-v2-2.mp4' },
-            { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/content/segment-primer-v2-3.mp4' },
+            { segmentIndex: 1, prompt: '镜头 1', videoUrl: '/files/segment-primer-v2-1.mp4' },
+            { segmentIndex: 2, prompt: '镜头 2', videoUrl: '/files/segment-primer-v2-2.mp4' },
+            { segmentIndex: 3, prompt: '镜头 3', videoUrl: '/files/segment-primer-v2-3.mp4' },
           ],
         };
       };

@@ -118,6 +118,23 @@ export type SendChatPayload = {
   content: string;
   capabilityContext?: {
     xingtuProfileId?: string | null;
+    imageGeneration?: {
+      modeKey?: string;
+      modeTitle?: string;
+      promptText?: string;
+      promptHint?: string;
+      outputSize?: string;
+      outputCount?: number;
+      aspectRatio?: string;
+      resolution?: string;
+      referenceGroups?: Array<{
+        key: string;
+        label: string;
+        attachmentIds: string[];
+        required?: boolean;
+        maxCount?: number;
+      }>;
+    };
   };
   requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
 };

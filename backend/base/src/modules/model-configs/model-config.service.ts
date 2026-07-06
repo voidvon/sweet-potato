@@ -127,7 +127,7 @@ export function normalizeModelConfig(body: Record<string, unknown>, fallback?: A
     provider,
     model,
     apiKey: String(body.apiKey ?? fallback?.apiKey ?? '').trim(),
-    baseUrl: String(body.baseUrl ?? fallback?.baseUrl ?? '').trim(),
+    baseUrl: String(body.baseUrl ?? fallback?.baseUrl ?? '').trim().replace(/\/+$/, ''),
     temperature: Number(body.temperature ?? fallback?.temperature ?? 0.7),
     settings: normalizedSettings,
     isDefault: Boolean(body.isDefault ?? fallback?.isDefault ?? false),
@@ -177,6 +177,9 @@ function assertLlmBillingSettings(config: AiModelConfig) {
 }
 
 function assertImageBillingSettings(config: AiModelConfig) {
+  if (/\/images\/(edits|generations|variations)$/i.test(config.baseUrl.replace(/\/+$/, ''))) {
+    throw new Error('图片模型 Base URL 请填写 API 根地址，不要填写 /images/edits、/images/generations 或 /images/variations');
+  }
   const settings = isRecord(config.settings) ? config.settings : {};
   const billing = isRecord(settings.billing) ? settings.billing : null;
   if (!billing) {

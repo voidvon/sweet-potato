@@ -35,7 +35,7 @@ export const execFileAsync = promisify(execFile);
 
 export const resourceTypes: ContentResourceType[] = ['digital_human', 'virtual_portrait', 'voice', 'scene', 'product', 'finished_video', 'real_person', 'other'];
 
-export const contentFilesDir = path.join(dataDir, 'content-files');
+export const contentFilesDir = path.join(dataDir, 'files');
 
 export const threeViewImageSize = '2048x2048';
 

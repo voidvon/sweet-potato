@@ -1,1 +1,1 @@
-export { API_BASE_URL, request } from './request';
+export { API_BASE_URL, request, resolveAssetUrl } from './request';

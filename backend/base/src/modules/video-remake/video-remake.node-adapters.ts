@@ -146,7 +146,7 @@ function sleep(ms: number) {
 }
 
 function fileUrlForContentFile(fileName: string) {
-  return `/files/content/${encodeURIComponent(fileName)}`;
+  return `/files/${encodeURIComponent(fileName)}`;
 }
 
 function fileUrlForContentPath(filePath: string) {
@@ -155,10 +155,10 @@ function fileUrlForContentPath(filePath: string) {
 
 function contentFilePathFromUrl(url: unknown) {
   const value = textFrom(url);
-  if (!value.startsWith('/files/content/')) {
+  if (!value.startsWith('/files/')) {
     return '';
   }
-  const fileName = decodeURIComponent(value.slice('/files/content/'.length).split(/[?#]/u)[0] || '');
+  const fileName = decodeURIComponent(value.slice('/files/'.length).split(/[?#]/u)[0] || '');
   if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
     return '';
   }
@@ -272,7 +272,7 @@ function segmentWithLocalFallback(
   input: { taskId: string; segmentIndex: number; traceId: string },
 ) {
   const videoUrl = textFrom(segment.videoUrl || segment.fileUrl || segment.url);
-  if (videoUrl.startsWith('/files/content/')) {
+  if (videoUrl.startsWith('/files/')) {
     return segment;
   }
   const local = findLatestLocalVideoSegment(input.taskId, input.segmentIndex);

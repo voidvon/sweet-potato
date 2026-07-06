@@ -15,6 +15,17 @@ function resolveApiBaseUrl() {
 export const API_BASE_URL = resolveApiBaseUrl();
 let redirectingToLogin = false;
 
+export function resolveAssetUrl(url?: string | null) {
+  const raw = String(url || '').trim();
+  if (!raw) {
+    return '';
+  }
+  if (/^(blob:|data:|https?:\/\/)/i.test(raw)) {
+    return raw;
+  }
+  return `${API_BASE_URL}${raw.startsWith('/') ? raw : `/${raw}`}`;
+}
+
 export type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | null;
   showPageLoading?: boolean;

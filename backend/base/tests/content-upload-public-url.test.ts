@@ -21,8 +21,8 @@ test('uploaded file payload uses configured public base url when present', async
     path: '/tmp/1718528455000-asset.jpeg',
   } as Express.Multer.File, publicBaseUrl);
 
-  assert.equal(payload.fileUrl, '/files/content/1718528455000-asset.jpeg');
-  assert.equal(payload.publicFileUrl, 'http://124.221.146.111:5689/files/content/1718528455000-asset.jpeg');
+  assert.equal(payload.fileUrl, '/files/1718528455000-asset.jpeg');
+  assert.equal(payload.publicFileUrl, 'http://124.221.146.111:5689/files/1718528455000-asset.jpeg');
   assert.equal(payload.originalFileName, '头像.jpeg');
 });
 

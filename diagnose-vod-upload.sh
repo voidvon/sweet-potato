@@ -48,9 +48,9 @@ ssh "$SSH_TARGET" "
 
   echo
   echo '==> 共享目录检查'
-  \$COMPOSE_CMD exec -T base sh -lc 'pwd; ls -ld /app/data /app/data/content-files /app/videodata 2>/dev/null || true; find /app/data/content-files -maxdepth 2 -type f 2>/dev/null | tail -20' 2>&1 || true
+  \$COMPOSE_CMD exec -T base sh -lc 'pwd; ls -ld /app/data /app/data/files /app/videodata 2>/dev/null || true; find /app/data/files -maxdepth 2 -type f 2>/dev/null | tail -20' 2>&1 || true
   echo
-  \$COMPOSE_CMD exec -T ai-worker sh -lc 'pwd; ls -ld /app/data /app/data/content-files /app/videodata 2>/dev/null || true; find /app/data/content-files -maxdepth 2 -type f 2>/dev/null | tail -20' 2>&1 || true
+  \$COMPOSE_CMD exec -T ai-worker sh -lc 'pwd; ls -ld /app/data /app/data/files /app/videodata 2>/dev/null || true; find /app/data/files -maxdepth 2 -type f 2>/dev/null | tail -20' 2>&1 || true
 
   echo
   echo '==> base 最近 VOD 上传日志'

@@ -3,6 +3,7 @@ import { CopyOutlined, DownCircleOutlined, EditOutlined, FileOutlined } from '@a
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ChatMessage } from '../../../types';
+import { resolveAssetUrl } from '../../../api/request';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
 import './ChatMessageList.scss';
 
@@ -166,12 +167,12 @@ export function ChatMessageList({
                             alt={attachment.name}
                             className="chat-message-image"
                             key={attachment.id}
-                            src={attachment.url}
+                            src={resolveAssetUrl(attachment.url)}
                           />
                         ) : (
                           <a
                             className="chat-message-attachment file"
-                            href={attachment.url}
+                            href={resolveAssetUrl(attachment.url)}
                             key={attachment.id}
                             rel="noreferrer"
                             target="_blank"

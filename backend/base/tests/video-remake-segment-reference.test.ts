@@ -113,7 +113,7 @@ function createCardData() {
   return {
     versionNumber: 1,
     versionLabel: 'v1',
-    videoUrl: '/files/content/final-v1.mp4',
+    videoUrl: '/files/final-v1.mp4',
     seedancePrompts: [
       {
         segmentId: 'segment_1',
@@ -174,7 +174,7 @@ function createCardData() {
       {
         versionNumber: 1,
         versionLabel: 'v1',
-        videoUrl: '/files/content/final-v1.mp4',
+        videoUrl: '/files/final-v1.mp4',
         segments: [
           { segmentIndex: 1, videoUrl: 'https://cdn.example.com/segment-1.mp4', status: 'completed' },
           { segmentIndex: 2, videoUrl: 'https://cdn.example.com/segment-2.mp4', status: 'completed' },
@@ -347,7 +347,7 @@ test('segment regeneration falls back to legacy singular referencePrimer when no
             seconds: 4,
             prompt: { mainPrompt: '分段1提示词', systemPrompt: '# 生成规则', negativePrompt: '' },
             seedancePrompt: '分段1提示词',
-            videoUrl: '/files/content/segment-1.mp4',
+            videoUrl: '/files/segment-1.mp4',
             status: 'completed',
           },
         ],

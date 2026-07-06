@@ -14,7 +14,7 @@ import { contentService } from './content.service.js';
 import type { ContentResourceType } from './content.types.js';
 import type { UserRole } from '../users/user.types.js';
 
-const contentFilesDir = path.join(dataDir, 'content-files');
+const contentFilesDir = path.join(dataDir, 'files');
 mkdirSync(contentFilesDir, { recursive: true });
 
 function listContentPermissionCodes() {
@@ -141,7 +141,7 @@ export function requestPublicBaseUrl(req: Pick<Request, 'headers'>) {
 }
 
 export function uploadedFilePayloadFromMulterFile(file: Express.Multer.File, publicBaseUrl = '') {
-  const fileUrl = `/files/content/${encodeURIComponent(file.filename)}`;
+  const fileUrl = `/files/${encodeURIComponent(file.filename)}`;
   return {
     originalFileName: decodeUploadFileName(file.originalname),
     storedFileName: file.filename,
@@ -536,7 +536,7 @@ export function createContentRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: `/files/content/${encodeURIComponent(req.file.filename)}`,
+            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
             metadata: parseMetadata(req.body.metadata),
           });
           res.status(201).json(asset);
