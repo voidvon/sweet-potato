@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { access, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import { z } from 'zod';
 import { contentFilesDir } from '../../content/internals/content-common.js';
 import {
   extensionForMimeType,
@@ -10,6 +12,7 @@ import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
 import type { ChatCapabilityExecutionInput } from '../chat-capability.types.js';
 import type { ChatAttachment } from '../chat.types.js';
 import type { AiModelConfig } from '../../model-configs/model-config.types.js';
+import { askConfiguredModelWithMessages } from '../chat-completion.service.js';
 import {
   resolveImageGenerationProviderAdapter,
   type ImageGenerationProviderResult,
@@ -25,6 +28,7 @@ type ImageGenerationPreparedInput = {
   requestedResolution?: string;
   prompt: string;
   referenceAssets: ImageGenerationReferenceAsset[];
+  referenceDecision?: ImageGenerationReferenceDecision;
   sourceIdPrefix: string;
 };
 
@@ -65,6 +69,14 @@ type ImageGenerationOutputConfig = {
   defaultResolution: ImageGenerationResolutionKey;
   maxLongEdgeByResolution: Record<ImageGenerationResolutionKey, number>;
 };
+
+const imageGenerationReferenceDecisionSchema = z.object({
+  intent: z.enum(['new_image', 'edit_latest_image']),
+  useLatestGeneratedImage: z.boolean(),
+  reason: z.string(),
+});
+
+type ImageGenerationReferenceDecision = z.infer<typeof imageGenerationReferenceDecisionSchema>;
 
 const defaultOutputConfig: ImageGenerationOutputConfig = {
   allowedOutputCounts: [1, 2, 3, 4],
@@ -234,9 +246,31 @@ function safeImageName(value: string, fallback: string) {
   return (value || fallback).replace(/[^\w.-]+/g, '-').slice(0, 120) || fallback;
 }
 
+function localContentFilePathFromUrl(value: string) {
+  const normalized = cleanText(value);
+  if (!normalized.startsWith('/files/')) {
+    return null;
+  }
+  const fileName = decodeURIComponent(normalized.slice('/files/'.length).split(/[?#]/u)[0] || '');
+  if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
+    return null;
+  }
+  return path.join(contentFilesDir, fileName);
+}
+
 async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
-  const parsed = dataUrlToBuffer(attachment.url);
   const originalFileName = safeImageName(attachment.name, 'reference.png');
+  const localFilePath = localContentFilePathFromUrl(attachment.url);
+  if (localFilePath) {
+    await access(localFilePath);
+    return {
+      filePath: localFilePath,
+      mimeType: attachment.type || 'image/png',
+      originalFileName,
+    };
+  }
+
+  const parsed = dataUrlToBuffer(attachment.url);
   const extension = extensionForMimeType(parsed.mimeType);
   const storedFileName = `chat-image-reference-${randomBytes(8).toString('hex')}.${extension}`;
   const filePath = path.join(contentFilesDir, storedFileName);
@@ -246,6 +280,21 @@ async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
     mimeType: parsed.mimeType,
     originalFileName,
   };
+}
+
+function latestGeneratedImageAttachment(input: ChatCapabilityExecutionInput) {
+  for (const message of [...input.history].reverse()) {
+    if (message.role !== 'assistant') {
+      continue;
+    }
+    const imageAttachment = (message.attachments || [])
+      .filter((attachment) => attachment.kind === 'image' && attachment.url && attachment.url.startsWith('/files/'))
+      .at(-1);
+    if (imageAttachment) {
+      return imageAttachment;
+    }
+  }
+  return null;
 }
 
 function cleanText(value: string | undefined | null) {
@@ -309,11 +358,59 @@ function referenceAttachmentsByContext(
   ];
 }
 
+async function decideImageGenerationReference(input: {
+  executionInput: ChatCapabilityExecutionInput;
+  modeSchema: ImageGenerationModeSchema;
+  userPrompt: string;
+  latestGeneratedImage?: ChatAttachment | null;
+}) {
+  if (input.modeSchema.key !== 'dialog' || !input.latestGeneratedImage) {
+    return null;
+  }
+
+  const parser = StructuredOutputParser.fromZodSchema(imageGenerationReferenceDecisionSchema);
+  const recentHistory = input.executionInput.history.slice(-8).map((message) => ({
+    role: message.role,
+    content: cleanText(message.content).slice(0, 500),
+    imageCount: (message.attachments || []).filter((attachment) => attachment.kind === 'image').length,
+  }));
+  const response = await askConfiguredModelWithMessages(input.executionInput.modelConfig, [
+    {
+      role: 'system',
+      content: [
+        'You are an image-generation orchestration agent.',
+        'Decide whether the current user request should create a completely new image or edit the latest generated image in this conversation.',
+        'Use semantic understanding and conversation context. Do not rely on hard-coded keywords or any single language.',
+        'Choose edit_latest_image only when the user is referring to, modifying, improving, continuing, or asking about the existing generated image.',
+        'Choose new_image when the user gives a standalone image request or starts a different scene, subject, or concept.',
+        parser.getFormatInstructions(),
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: JSON.stringify({
+        mode: input.modeSchema.title,
+        currentUserRequest: input.userPrompt,
+        recentConversation: recentHistory,
+        latestGeneratedImage: {
+          name: input.latestGeneratedImage.name,
+          type: input.latestGeneratedImage.type,
+        },
+      }),
+    },
+  ], { temperature: 0 });
+  const decision = await parser.parse(response);
+  return decision.useLatestGeneratedImage && decision.intent === 'edit_latest_image'
+    ? decision
+    : null;
+}
+
 function buildImageGenerationPrompt(
   input: ChatCapabilityExecutionInput,
   modeSchema: ImageGenerationModeSchema,
   groups: ResolvedImageGenerationReferenceGroup[],
   options?: {
+    referenceDecision?: ImageGenerationReferenceDecision | null;
     usePromptAspectRatio?: boolean;
   },
 ) {
@@ -332,9 +429,13 @@ function buildImageGenerationPrompt(
     .filter((group) => group.attachmentIds.length)
     .map((group) => `${group.label}：${group.attachmentIds.length} 张`)
     .join('；');
+  const referenceDecisionSummary = options?.referenceDecision
+    ? '连续对话约束：基于上一张生成图进行修改，尽量保持原图主体、构图、身份特征和整体风格，只改变用户本轮明确要求调整的部分。'
+    : '';
   const parts = [
     modeTitle ? `当前生图模式：${modeTitle}` : '',
     promptHint ? `业务要求：${promptHint}` : '',
+    referenceDecisionSummary,
     outputFormatSummary ? `业务输出：${outputFormatSummary}` : '',
     aspectRatioSummary,
     userPrompt ? `用户补充：${userPrompt}` : '',
@@ -459,7 +560,16 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
   }
   const groups = referenceGroupsBySchema(input, modeSchema);
   const supportsCustomResolution = imageModelSupportsCustomResolution(modelConfig);
+  const imageAttachments = referenceAttachmentsByContext(input, groups);
+  const latestGeneratedImage = imageAttachments.length ? null : latestGeneratedImageAttachment(input);
+  const referenceDecision = await decideImageGenerationReference({
+    executionInput: input,
+    modeSchema,
+    userPrompt,
+    latestGeneratedImage,
+  });
   const prompt = buildImageGenerationPrompt(input, modeSchema, groups, {
+    referenceDecision,
     usePromptAspectRatio: !supportsCustomResolution,
   });
   if (!prompt) {
@@ -468,9 +578,11 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
 
   const outputCount = outputCountOf(input, modeSchema);
   const normalizedOutput = normalizeOutputSize(input, modeSchema, modelConfig);
-  const imageAttachments = referenceAttachmentsByContext(input, groups);
-  const referenceAssets = imageAttachments.length
-    ? await Promise.all(imageAttachments.map(chatAttachmentToReferenceAsset))
+  const effectiveReferenceAttachments = referenceDecision && latestGeneratedImage
+    ? [latestGeneratedImage]
+    : imageAttachments;
+  const referenceAssets = effectiveReferenceAttachments.length
+    ? await Promise.all(effectiveReferenceAttachments.map(chatAttachmentToReferenceAsset))
     : [];
   const sourceIdPrefix = input.conversation?.id || `chat-image-${Date.now()}`;
   return {
@@ -482,6 +594,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     requestedResolution: normalizedOutput.resolution,
     prompt,
     referenceAssets,
+    referenceDecision: referenceDecision || undefined,
     sourceIdPrefix,
   };
 }
@@ -502,6 +615,7 @@ async function generateImageItems(input: {
     outputSize: prepared.outputSize,
     prompt: prepared.prompt,
     referenceAssets: prepared.referenceAssets,
+    referenceDecision: prepared.referenceDecision?.intent,
     sourceIdPrefix: prepared.sourceIdPrefix,
     userId,
   });

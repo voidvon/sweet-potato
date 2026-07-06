@@ -26,6 +26,7 @@ export type ImageGenerationProviderRequest = {
   outputSize?: string;
   prompt: string;
   referenceAssets: ImageGenerationReferenceAsset[];
+  referenceDecision?: string;
   sourceIdPrefix: string;
   userId: string;
 };
@@ -188,6 +189,7 @@ const image2ProviderAdapter: ImageGenerationProviderAdapter = {
           promptLength: input.prompt.length,
           referenceAssetCount: input.referenceAssets.length,
           requestMode: input.referenceAssets.length ? 'image2_multipart_edits' : 'image2_generations',
+          referenceDecision: input.referenceDecision,
           size: input.outputSize,
           quality,
           background,
