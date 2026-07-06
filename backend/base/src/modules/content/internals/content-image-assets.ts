@@ -56,12 +56,26 @@ function requestedImageSize(config: { provider?: string; settings?: Record<strin
 }
 
 export async function parseGeneratedImageResponse(response: Response, config: { model: string }): Promise<GeneratedImage> {
+  const contentType = response.headers.get('content-type') || '';
+  if (response.ok && contentType.toLowerCase().startsWith('image/')) {
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mimeType: contentType,
+      source: 'binary',
+      model: config.model,
+    };
+  }
+
   const text = await response.text();
   let data: unknown = {};
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error('图片模型返回了无法解析的响应');
+    const preview = text.replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!response.ok) {
+      throw new Error(preview || `图片模型请求失败：${response.status}`);
+    }
+    throw new Error(preview ? `图片模型返回了无法解析的响应：${preview}` : '图片模型返回了无法解析的响应');
   }
   if (!response.ok) {
     const message = (data as { error?: { message?: string }; message?: string })?.error?.message
