@@ -2104,7 +2104,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
           <div className="viral-workbench-start-shell">
             <ViralWorkbenchStartPanel
               activeMode={startMode}
-              description="粘贴爆款视频链接，AI智能解析视频结构，一键复刻生成同款爆款视频"
+              description="上传爆款视频，AI智能解析视频结构，一键复刻生成同款爆款视频"
               featureItems={[
                 <><Link2 size={15} />智能解析视频结构</>,
                 <><Users size={15} />AI角色专家团队协作</>,
