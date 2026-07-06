@@ -59,6 +59,7 @@ type ClawModeConfig = {
   Icon: LucideIcon;
   inputPlaceholder?: string;
   key: ClawModeKey;
+  outputConfig?: ClawModeOutputConfig;
   promptHint?: string;
   referenceGroups: ClawReferenceGroupConfig[];
   requiresPrompt?: boolean;
@@ -69,11 +70,23 @@ type ClawModeConfig = {
 type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount';
 type ClawAspectRatioKey = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
 type ClawResolutionKey = '2K' | '4K';
+type ClawModeOutputConfig = {
+  allowedOutputCounts: number[];
+  allowedResolutions: ClawResolutionKey[];
+  defaultOutputCount: number;
+  defaultResolution: ClawResolutionKey;
+};
 
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const noGenerationToolbarControls: ClawToolbarControl[] = [];
 const defaultOptionalPlaceholder = '补充要求（选填），例如：调整光线、风格、姿态…';
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
+const defaultModeOutputConfig: ClawModeOutputConfig = {
+  allowedOutputCounts: [1, 2, 3, 4],
+  allowedResolutions: ['2K', '4K'],
+  defaultOutputCount: 1,
+  defaultResolution: '2K',
+};
 
 const clawModeConfigs: ClawModeConfig[] = [
   {
@@ -82,6 +95,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '多图对话',
     Icon: MessageCircle,
     inputPlaceholder: '描述你要的画面，可上传参考图，输入 @ 引用图片。',
+    outputConfig: defaultModeOutputConfig,
     referenceGroups: [{ key: 'reference', label: '参考图', maxCount: 8 }],
     requiresPrompt: true,
   },
@@ -91,6 +105,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '商品详情',
     Icon: Images,
     inputPlaceholder: defaultOptionalPlaceholder,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页',
     referenceGroups: [
       { key: 'product', label: '产品图', maxCount: 3, required: true },
@@ -103,6 +118,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '一键试穿',
     Icon: Shirt,
     inputPlaceholder: defaultOptionalPlaceholder,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '让 图一 的模特穿上 图二 的衣服，AI 自动出图。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
@@ -114,6 +130,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     title: '模特三视图',
     description: '多角度展示',
     Icon: Layers,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '为 图一 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
@@ -127,6 +144,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     title: '姿势参考',
     description: '参考姿态',
     Icon: Scan,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '让 图一 的主体摆出 图二 的姿势。',
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
@@ -138,6 +156,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     title: '高清放大',
     description: '提分辨率',
     Icon: Maximize2,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '把 图一 放大变清晰。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
   },
@@ -216,6 +235,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '优化细节',
     Icon: Zap,
     inputPlaceholder: defaultOptionalPlaceholder,
+    outputConfig: defaultModeOutputConfig,
     promptHint: '在 图一 涂抹位置上补强、修复或替换：',
     referenceGroups: [{ key: 'base', label: '基础图', maxCount: 1, required: true }],
   },
@@ -242,7 +262,6 @@ const clawModeConfigs: ClawModeConfig[] = [
 
 const featuredModeKeys: ClawModeKey[] = ['outfit', 'dialog', 'upscale', 'background', 'redraw'];
 const aspectRatioOptions: ClawAspectRatioKey[] = ['auto', '21:9', '16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16'];
-const resolutionOptions: ClawResolutionKey[] = ['2K', '4K'];
 const outputSizeMap: Record<ClawResolutionKey, Record<ClawAspectRatioKey, string>> = {
   '2K': {
     auto: '2048 x 2048',
@@ -297,6 +316,16 @@ function imageModelValue(config: ModelConfig) {
   return config.id || `${config.provider}::${config.model}`;
 }
 
+function imageModelSupportsCustomResolution(config: ModelConfig | undefined) {
+  const settings = config?.settings && typeof config.settings === 'object'
+    ? config.settings as Record<string, unknown>
+    : {};
+  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+  return imageGeneration.supportsCustomResolution === true || settings.supportsCustomResolution === true;
+}
+
 export function ClawDialogComposer({
   attachments,
   input,
@@ -328,6 +357,7 @@ export function ClawDialogComposer({
   const showImageModelControl = selectedToolbarControls.includes('model');
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount');
+  const selectedOutputConfig = selectedMode.outputConfig ?? defaultModeOutputConfig;
   const maxReferenceAttachmentCount = useMemo(() => {
     if (selectedMode.referenceGroups.some((group) => !group.maxCount)) {
       return undefined;
@@ -442,6 +472,12 @@ export function ClawDialogComposer({
     () => selectableImageModels.find((item) => item.value === selectedImageModelValue) || selectableImageModels[0],
     [selectableImageModels, selectedImageModelValue],
   );
+  const selectedRawImageConfig = useMemo(
+    () => imageConfigs.find((item) => imageModelValue(item) === selectedImageModelValue)
+      || selectedImageModel?.config,
+    [imageConfigs, selectedImageModel?.config, selectedImageModelValue],
+  );
+  const supportsCustomResolution = imageModelSupportsCustomResolution(selectedRawImageConfig);
 
   const imageModelMenuItems = selectableImageModels.length
     ? selectableImageModels.map((item) => ({
@@ -450,7 +486,22 @@ export function ClawDialogComposer({
       disabled: false,
     }))
     : [{ key: 'empty', label: '请先配置图片模型', disabled: true }];
+  const selectableResolutions = selectedOutputConfig.allowedResolutions;
+  const selectableOutputCounts = selectedOutputConfig.allowedOutputCounts;
   const outputSizeLabel = outputSizeMap[selectedResolution][selectedAspectRatio];
+
+  useEffect(() => {
+    if (!selectableResolutions.includes(selectedResolution)) {
+      setSelectedResolution(selectedOutputConfig.defaultResolution);
+    }
+  }, [selectedOutputConfig.defaultResolution, selectedResolution, selectableResolutions]);
+
+  useEffect(() => {
+    if (!selectableOutputCounts.includes(selectedOutputCount)) {
+      setSelectedOutputCount(selectedOutputConfig.defaultOutputCount);
+    }
+  }, [selectedOutputConfig.defaultOutputCount, selectedOutputCount, selectableOutputCounts]);
+
   const outputSizePanel = (
     <div className="claw-size-panel">
       <section className="claw-size-panel-section">
@@ -469,25 +520,29 @@ export function ClawDialogComposer({
           ))}
         </div>
       </section>
-      <section className="claw-size-panel-section">
-        <h3>选择分辨率</h3>
-        <div className="claw-resolution-grid">
-          {resolutionOptions.map((resolution) => (
-            <button
-              className={`claw-resolution-option${resolution === selectedResolution ? ' selected' : ''}`}
-              key={resolution}
-              onClick={() => setSelectedResolution(resolution)}
-              type="button"
-            >
-              {resolution}
-            </button>
-          ))}
-        </div>
-      </section>
-      <div className="claw-canvas-size-row">
-        <span>画布尺寸</span>
-        <strong>{outputSizeLabel}</strong>
-      </div>
+      {supportsCustomResolution ? (
+        <>
+          <section className="claw-size-panel-section">
+            <h3>选择分辨率</h3>
+            <div className="claw-resolution-grid">
+              {selectableResolutions.map((resolution) => (
+                <button
+                  className={`claw-resolution-option${resolution === selectedResolution ? ' selected' : ''}`}
+                  key={resolution}
+                  onClick={() => setSelectedResolution(resolution)}
+                  type="button"
+                >
+                  {resolution}
+                </button>
+              ))}
+            </div>
+          </section>
+          <div className="claw-canvas-size-row">
+            <span>画布尺寸</span>
+            <strong>{outputSizeLabel}</strong>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 
@@ -505,10 +560,10 @@ export function ClawDialogComposer({
             modeTitle: selectedMode.title,
             promptText: input.trim(),
             promptHint: selectedMode.promptHint,
-            outputSize: outputSizeLabel,
+            outputSize: supportsCustomResolution ? outputSizeLabel : undefined,
             outputCount: selectedOutputCount,
             aspectRatio: selectedAspectRatio,
-            resolution: selectedResolution,
+            resolution: supportsCustomResolution ? selectedResolution : undefined,
             referenceGroups: selectedMode.referenceGroups.map((group) => ({
               key: group.key,
               label: group.label,
@@ -631,8 +686,12 @@ export function ClawDialogComposer({
               >
                 <Button className="claw-option-button" icon={<Scan size={12} />}>
                   {selectedAspectRatio}
-                  <span className="claw-option-divider" />
-                  {selectedResolution}
+                  {supportsCustomResolution ? (
+                    <>
+                      <span className="claw-option-divider" />
+                      {selectedResolution}
+                    </>
+                  ) : null}
                   <ChevronDown size={11} />
                 </Button>
               </Popover>
@@ -640,7 +699,7 @@ export function ClawDialogComposer({
             {showOutputCountControl ? (
               <Dropdown
                 menu={{
-                  items: [{ key: '1', label: '1 张' }, { key: '2', label: '2 张' }, { key: '3', label: '3 张' }, { key: '4', label: '4 张' }],
+                  items: selectableOutputCounts.map((count) => ({ key: String(count), label: `${count} 张` })),
                   onClick: ({ key }) => setSelectedOutputCount(Number(key) || 1),
                   selectedKeys: [String(selectedOutputCount)],
                 }}

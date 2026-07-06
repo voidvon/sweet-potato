@@ -22,6 +22,7 @@ type ImageGenerationPreparedInput = {
   modeKey: string;
   outputCount: number;
   outputSize?: string;
+  requestedResolution?: string;
   prompt: string;
   referenceAssets: ImageGenerationReferenceAsset[];
   sourceIdPrefix: string;
@@ -37,6 +38,7 @@ type ImageGenerationModeReferenceGroup = {
 type ImageGenerationModeSchema = {
   generationOptions?: ImageGenerationModeOptions;
   key: string;
+  outputConfig?: ImageGenerationOutputConfig;
   promptHint?: string;
   referenceGroups: ImageGenerationModeReferenceGroup[];
   requiresPrompt?: boolean;
@@ -54,16 +56,39 @@ type ImageGenerationModeOptions = {
   businessOutputFormats?: string[];
 };
 
+type ImageGenerationResolutionKey = '2K' | '4K';
+
+type ImageGenerationOutputConfig = {
+  allowedOutputCounts: number[];
+  allowedResolutions: ImageGenerationResolutionKey[];
+  defaultOutputCount: number;
+  defaultResolution: ImageGenerationResolutionKey;
+  maxLongEdgeByResolution: Record<ImageGenerationResolutionKey, number>;
+};
+
+const defaultOutputConfig: ImageGenerationOutputConfig = {
+  allowedOutputCounts: [1, 2, 3, 4],
+  allowedResolutions: ['2K', '4K'],
+  defaultOutputCount: 1,
+  defaultResolution: '2K',
+  maxLongEdgeByResolution: {
+    '2K': 2048,
+    '4K': 4096,
+  },
+};
+
 const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   dialog: {
     key: 'dialog',
     title: '对话生图',
+    outputConfig: defaultOutputConfig,
     referenceGroups: [{ key: 'reference', label: '参考图', maxCount: 8 }],
     requiresPrompt: true,
   },
   detail: {
     key: 'detail',
     title: '详情图生成',
+    outputConfig: defaultOutputConfig,
     promptHint: '描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页',
     referenceGroups: [
       { key: 'product', label: '产品图', maxCount: 3, required: true },
@@ -73,6 +98,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   outfit: {
     key: 'outfit',
     title: '换装',
+    outputConfig: defaultOutputConfig,
     promptHint: '让 图一 的模特穿上 图二 的衣服，AI 自动出图。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
@@ -82,6 +108,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   'model-views': {
     key: 'model-views',
     title: '模特三视图',
+    outputConfig: defaultOutputConfig,
     promptHint: '为 图一 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
@@ -93,6 +120,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   'pose-reference': {
     key: 'pose-reference',
     title: '姿势参考',
+    outputConfig: defaultOutputConfig,
     promptHint: '让 图一 的主体摆出 图二 的姿势。',
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
@@ -102,6 +130,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   upscale: {
     key: 'upscale',
     title: '高清放大',
+    outputConfig: defaultOutputConfig,
     promptHint: '把 图一 放大变清晰。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
   },
@@ -164,6 +193,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   'detail-enhance': {
     key: 'detail-enhance',
     title: '细节增强',
+    outputConfig: defaultOutputConfig,
     promptHint: '在 图一 涂抹位置上补强、修复或替换：',
     referenceGroups: [{ key: 'base', label: '基础图', maxCount: 1, required: true }],
   },
@@ -227,6 +257,16 @@ function modeSchemaOf(input: ChatCapabilityExecutionInput) {
   return imageGenerationModeSchemas[modeKey] || imageGenerationModeSchemas.dialog;
 }
 
+function imageModelSupportsCustomResolution(modelConfig: AiModelConfig) {
+  const settings = modelConfig.settings && typeof modelConfig.settings === 'object'
+    ? modelConfig.settings
+    : {};
+  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+  return imageGeneration.supportsCustomResolution === true;
+}
+
 function referenceGroupsBySchema(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema) {
   const imageAttachments = input.attachments.filter((attachment) => attachment.kind === 'image' && attachment.url);
   const contextGroups = input.capabilityContext?.imageGeneration?.referenceGroups || [];
@@ -273,13 +313,20 @@ function buildImageGenerationPrompt(
   input: ChatCapabilityExecutionInput,
   modeSchema: ImageGenerationModeSchema,
   groups: ResolvedImageGenerationReferenceGroup[],
+  options?: {
+    usePromptAspectRatio?: boolean;
+  },
 ) {
   const context = input.capabilityContext?.imageGeneration;
   const modeTitle = cleanText(context?.modeTitle) || modeSchema.title;
   const userPrompt = cleanText(context?.promptText || input.content);
   const promptHint = cleanText(context?.promptHint) || cleanText(modeSchema.promptHint);
+  const aspectRatio = cleanText(context?.aspectRatio);
   const outputFormatSummary = modeSchema.generationOptions?.businessOutputFormats?.length
     ? `输出格式：${modeSchema.generationOptions.businessOutputFormats.join(' + ')}`
+    : '';
+  const aspectRatioSummary = options?.usePromptAspectRatio && aspectRatio && aspectRatio !== 'auto'
+    ? `画面比例：尽量按照 ${aspectRatio} 构图；最终画面应明显呈现 ${aspectRatio} 的宽高比例，不要使用默认横图或方图构图。`
     : '';
   const groupSummary = groups
     .filter((group) => group.attachmentIds.length)
@@ -289,20 +336,101 @@ function buildImageGenerationPrompt(
     modeTitle ? `当前生图模式：${modeTitle}` : '',
     promptHint ? `业务要求：${promptHint}` : '',
     outputFormatSummary ? `业务输出：${outputFormatSummary}` : '',
+    aspectRatioSummary,
     userPrompt ? `用户补充：${userPrompt}` : '',
     groupSummary ? `参考图分组：${groupSummary}` : '',
   ].filter(Boolean);
   return parts.join('\n');
 }
 
-function outputCountOf(input: ChatCapabilityExecutionInput) {
-  const outputCount = Number(input.capabilityContext?.imageGeneration?.outputCount || 1);
-  return Number.isFinite(outputCount) ? Math.max(1, Math.min(4, Math.floor(outputCount))) : 1;
+function imageGenerationOutputConfigOf(modeSchema: ImageGenerationModeSchema) {
+  return modeSchema.outputConfig || defaultOutputConfig;
 }
 
-function outputSizeOf(input: ChatCapabilityExecutionInput) {
-  const outputSize = cleanText(input.capabilityContext?.imageGeneration?.outputSize);
-  return outputSize ? outputSize.replace(/\s*x\s*/i, 'x') : undefined;
+function outputCountOf(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema) {
+  const outputConfig = imageGenerationOutputConfigOf(modeSchema);
+  const requestedCount = Number(input.capabilityContext?.imageGeneration?.outputCount);
+  if (!Number.isFinite(requestedCount)) {
+    return outputConfig.defaultOutputCount;
+  }
+  const normalizedCount = Math.max(1, Math.floor(requestedCount));
+  return outputConfig.allowedOutputCounts.includes(normalizedCount)
+    ? normalizedCount
+    : outputConfig.defaultOutputCount;
+}
+
+function parseOutputSize(value: string | undefined) {
+  const normalized = cleanText(value).replace(/\s*x\s*/gi, 'x');
+  if (!normalized) {
+    return null;
+  }
+  const match = /^(\d{2,5})x(\d{2,5})$/i.exec(normalized);
+  if (!match) {
+    return null;
+  }
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return {
+    width,
+    height,
+  };
+}
+
+function gcd(a: number, b: number): number {
+  let left = Math.abs(a);
+  let right = Math.abs(b);
+  while (right) {
+    const next = left % right;
+    left = right;
+    right = next;
+  }
+  return left || 1;
+}
+
+function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema, modelConfig: AiModelConfig) {
+  if (!imageModelSupportsCustomResolution(modelConfig)) {
+    return {
+      outputSize: undefined,
+      resolution: undefined,
+    };
+  }
+  const outputConfig = imageGenerationOutputConfigOf(modeSchema);
+  const requestedResolution = cleanText(input.capabilityContext?.imageGeneration?.resolution) as ImageGenerationResolutionKey | '';
+  const resolution = outputConfig.allowedResolutions.includes(requestedResolution as ImageGenerationResolutionKey)
+    ? requestedResolution as ImageGenerationResolutionKey
+    : outputConfig.defaultResolution;
+  const parsedSize = parseOutputSize(input.capabilityContext?.imageGeneration?.outputSize);
+  if (!parsedSize) {
+    return {
+      outputSize: undefined,
+      resolution,
+    };
+  }
+  const limit = outputConfig.maxLongEdgeByResolution[resolution];
+  const longEdge = Math.max(parsedSize.width, parsedSize.height);
+  if (!Number.isFinite(limit) || limit <= 0 || longEdge <= 0) {
+    return {
+      outputSize: `${parsedSize.width}x${parsedSize.height}`,
+      resolution,
+    };
+  }
+  const scale = Math.min(1, limit / longEdge);
+  let width = Math.max(1, Math.round(parsedSize.width * scale));
+  let height = Math.max(1, Math.round(parsedSize.height * scale));
+  const divisor = gcd(width, height);
+  const ratioWidth = Math.max(1, Math.round(width / divisor));
+  const ratioHeight = Math.max(1, Math.round(height / divisor));
+  const snappedWidth = Math.max(1, ratioWidth * Math.max(1, Math.round(width / ratioWidth)));
+  const snappedHeight = Math.max(1, ratioHeight * Math.max(1, Math.round(height / ratioHeight)));
+  width = Math.min(limit, snappedWidth);
+  height = Math.min(limit, snappedHeight);
+  return {
+    outputSize: `${width}x${height}`,
+    resolution,
+  };
 }
 
 function assertImageModelReady(input: ChatCapabilityExecutionInput) {
@@ -330,13 +458,16 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     throw new Error('请输入生图提示词');
   }
   const groups = referenceGroupsBySchema(input, modeSchema);
-  const prompt = buildImageGenerationPrompt(input, modeSchema, groups);
+  const supportsCustomResolution = imageModelSupportsCustomResolution(modelConfig);
+  const prompt = buildImageGenerationPrompt(input, modeSchema, groups, {
+    usePromptAspectRatio: !supportsCustomResolution,
+  });
   if (!prompt) {
     throw new Error('图片生成提示词为空');
   }
 
-  const outputCount = outputCountOf(input);
-  const outputSize = outputSizeOf(input);
+  const outputCount = outputCountOf(input, modeSchema);
+  const normalizedOutput = normalizeOutputSize(input, modeSchema, modelConfig);
   const imageAttachments = referenceAttachmentsByContext(input, groups);
   const referenceAssets = imageAttachments.length
     ? await Promise.all(imageAttachments.map(chatAttachmentToReferenceAsset))
@@ -347,7 +478,8 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     modelConfig,
     modeKey: modeSchema.key,
     outputCount,
-    outputSize,
+    outputSize: normalizedOutput.outputSize,
+    requestedResolution: normalizedOutput.resolution,
     prompt,
     referenceAssets,
     sourceIdPrefix,

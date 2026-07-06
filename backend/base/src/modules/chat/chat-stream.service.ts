@@ -118,7 +118,7 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
     promptText: stringValue(source.promptText, 4000),
     promptHint: stringValue(source.promptHint, 4000),
     outputSize: stringValue(source.outputSize, 40),
-    outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.min(4, Math.floor(outputCount))) : undefined,
+    outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.floor(outputCount)) : undefined,
     aspectRatio: stringValue(source.aspectRatio, 20),
     resolution: stringValue(source.resolution, 20),
     referenceGroups: parseImageGenerationReferenceGroups(source.referenceGroups),

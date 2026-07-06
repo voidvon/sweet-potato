@@ -252,10 +252,15 @@ function imageGenerationSettingsOf(record: ModelConfig | null) {
     : {};
 }
 
+function imageGenerationSupportsCustomResolutionOf(record: ModelConfig | null) {
+  return imageGenerationSettingsOf(record).supportsCustomResolution === true;
+}
+
 function imageGenerationSummary(record: ModelConfig) {
   const settings = imageGenerationSettingsOf(record);
   const items = [
     typeof settings.quality === 'string' && settings.quality ? `质量 ${settings.quality}` : '',
+    imageGenerationSupportsCustomResolutionOf(record) ? '支持自定义分辨率' : '固定分辨率',
   ].filter(Boolean);
   return items.join('，') || '默认参数';
 }
@@ -316,6 +321,7 @@ function normalizedSettingsForForm(record: ModelConfig | null, activeType: Model
         imageGeneration: {
           ...imageGenerationSettingsOf(record),
           adapter: imageGenerationAdapterOf(record),
+          supportsCustomResolution: imageGenerationSupportsCustomResolutionOf(record),
         },
       }
       : {}),
@@ -799,6 +805,13 @@ function ModelFormModal({
                   name={['settings', 'imageGeneration', 'quality']}
                 >
                   <Select options={imageGenerationQualityOptions} />
+                </Form.Item>
+                <Form.Item
+                  className="full-span"
+                  name={['settings', 'imageGeneration', 'supportsCustomResolution']}
+                  valuePropName="checked"
+                >
+                  <Checkbox>支持自定义分辨率</Checkbox>
                 </Form.Item>
                 <Form.Item
                   label="模型消耗倍率"
