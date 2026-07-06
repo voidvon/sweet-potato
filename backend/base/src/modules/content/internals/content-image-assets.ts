@@ -221,11 +221,11 @@ export async function editImageWithConfiguredModel(input: {
       form.set('n', '1');
       form.set('size', size);
       form.set('response_format', 'b64_json');
-      await Promise.all(input.referenceAssets.slice(0, 6).map(async (asset) => {
+      for (const asset of input.referenceAssets.slice(0, 6)) {
         const bytes = await readFile(asset.filePath);
         const blob = new Blob([bytes], { type: asset.mimeType || 'image/png' });
         form.append('image', blob, asset.originalFileName || 'reference.png');
-      }));
+      }
       const response = await fetch(imageEditsUrl(config.baseUrl), {
         method: 'POST',
         signal,

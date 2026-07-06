@@ -160,10 +160,12 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     outputCountStrategy: 'fixedOne',
     promptHint: '让 图一 的主体摆出 图二 的姿势。',
     generationPrompt: [
-      '以图一中的主体为准，保持主体身份、外观、服装、材质、颜色、背景风格和整体视觉特征。',
-      '参考图二中的姿势、肢体动作、身体朝向和动态节奏，让图一主体自然摆出相同或高度一致的姿态。',
+      '第一张参考图是主体图，只用于提供需要被保留的主体身份、外观、服装、材质、颜色和整体视觉特征。',
+      '第二张及后续参考图是姿势图，只用于提供姿势、肢体动作、身体朝向、动态节奏和重心参考。',
+      '最终结果必须是第一张参考图中的主体摆出第二张参考图中的姿势。',
+      '不要把第二张参考图中的主体身份、外观、服装或背景迁移到最终结果中。',
       '姿势变化需要符合人体或主体结构，比例正确，重心自然，边缘干净。',
-      '不要改变主体身份，不要替换服装，不要生成多余人物或错误肢体。',
+      '不要改变第一张主体的身份，不要替换服装，不要生成多余人物或错误肢体。',
     ].join(''),
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
@@ -464,6 +466,21 @@ function referenceAttachmentsByContext(
   ];
 }
 
+function imageSequenceLabel(index: number) {
+  const labels = ['图一', '图二', '图三', '图四', '图五', '图六', '图七', '图八'];
+  return labels[index] || `图${index + 1}`;
+}
+
+function referenceImageSequenceSummary(groups: ResolvedImageGenerationReferenceGroup[]) {
+  let index = 0;
+  const parts = groups.flatMap((group) => group.attachmentIds.map(() => {
+    const label = imageSequenceLabel(index);
+    index += 1;
+    return `${label}=${group.label}`;
+  }));
+  return parts.join('；');
+}
+
 async function decideImageGenerationReference(input: {
   executionInput: ChatCapabilityExecutionInput;
   modeSchema: ImageGenerationModeSchema;
@@ -535,6 +552,7 @@ function buildImageGenerationPrompt(
     .filter((group) => group.attachmentIds.length)
     .map((group) => `${group.label}：${group.attachmentIds.length} 张`)
     .join('；');
+  const referenceSequenceSummary = referenceImageSequenceSummary(groups);
   const referenceDecisionSummary = options?.referenceDecision
     ? '连续对话约束：基于上一张生成图进行修改，尽量保持原图主体、构图、身份特征和整体风格，只改变用户本轮明确要求调整的部分。'
     : '';
@@ -546,6 +564,7 @@ function buildImageGenerationPrompt(
     aspectRatioSummary,
     userPrompt ? `用户补充：${userPrompt}` : '',
     groupSummary ? `参考图分组：${groupSummary}` : '',
+    referenceSequenceSummary ? `参考图顺序：${referenceSequenceSummary}` : '',
   ].filter(Boolean);
   return parts.join('\n');
 }

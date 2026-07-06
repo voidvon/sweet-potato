@@ -130,11 +130,11 @@ const image2ProviderAdapter: ImageGenerationProviderAdapter = {
           if (outputCompression !== undefined) {
             form.set('output_compression', String(outputCompression));
           }
-          await Promise.all(input.referenceAssets.map(async (asset) => {
+          for (const asset of input.referenceAssets) {
             const bytes = await readFile(asset.filePath);
             const blob = new Blob([bytes], { type: asset.mimeType || 'image/png' });
             form.append('image[]', blob, asset.originalFileName || 'reference.png');
-          }));
+          }
           const response = await fetch(imageEditsUrl(config.baseUrl), {
             method: 'POST',
             signal,
