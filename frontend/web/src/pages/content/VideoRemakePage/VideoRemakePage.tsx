@@ -634,6 +634,8 @@ function MessageItem({
   onRetryExpert,
   onUploadPipImage,
   onUploadReferenceImage,
+  cardDrafts,
+  onCardDraftChange,
   videoAspectRatio,
   videoDurationSeconds,
 }: {
@@ -656,6 +658,8 @@ function MessageItem({
   onRetryExpert: (card: VideoRemakeCardMessage) => Promise<void>;
   onUploadPipImage: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
   onUploadReferenceImage: (kind: 'scene' | 'product', file: File) => Promise<ContentAsset>;
+  cardDrafts: Record<string, unknown>;
+  onCardDraftChange: (card: VideoRemakeCardMessage, value: unknown | ((current: unknown) => unknown)) => void;
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
 }) {
@@ -722,9 +726,11 @@ function MessageItem({
             groups,
             card: item,
             disabled: cardDisabled,
+            draft: Object.prototype.hasOwnProperty.call(cardDrafts, item.cardId) ? cardDrafts[item.cardId] : item.data,
             onEnsureAssets,
             onCancel: () => onCancelCard(item),
             onConfirm: (data) => onConfirmCard(item, data),
+            onDraftChange: (value) => onCardDraftChange(item, value),
             onEdit: () => onEditCard(item),
             onRegenerate: (instruction) => onRegenerateCard(item, instruction),
             onRegenerateFinalSegment: (segmentIndex, prompt) => onRegenerateFinalSegment(item, segmentIndex, prompt),
@@ -816,6 +822,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   const [workingSessionId, setWorkingSessionId] = useState('');
   const [syncingSessionId, setSyncingSessionId] = useState('');
   const [highlightCardId, setHighlightCardId] = useState('');
+  const [cardDrafts, setCardDrafts] = useState<Record<string, unknown>>({});
   const activeSessionRef = useRef<VideoRemakeSession | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -875,6 +882,23 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   const selectActiveSession = useCallback((session: VideoRemakeSession | null, options?: { syncUrl?: boolean }) => {
     activeSessionRef.current = session;
     setActiveSession(session);
+    setCardDrafts((current) => {
+      if (!session) {
+        return {};
+      }
+      const validCardIds = new Set(
+        session.messages
+          .filter((item): item is VideoRemakeCardMessage => item.type === 'card' && item.status === 'editing')
+          .map((item) => item.cardId),
+      );
+      const next: Record<string, unknown> = {};
+      for (const [cardId, draft] of Object.entries(current)) {
+        if (validCardIds.has(cardId)) {
+          next[cardId] = draft;
+        }
+      }
+      return next;
+    });
     if (session) {
       setShowStartPanel(false);
     }
@@ -990,6 +1014,24 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     selectActiveSession(session);
     setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
   }, [selectActiveSession]);
+  const clearCardDraft = (cardId: string) => {
+    setCardDrafts((current) => {
+      if (!Object.prototype.hasOwnProperty.call(current, cardId)) {
+        return current;
+      }
+      const { [cardId]: _removed, ...rest } = current;
+      return rest;
+    });
+  };
+  const handleCardDraftChange = (card: VideoRemakeCardMessage, value: unknown | ((current: unknown) => unknown)) => {
+    setCardDrafts((current) => {
+      const previous = Object.prototype.hasOwnProperty.call(current, card.cardId) ? current[card.cardId] : card.data;
+      const nextDraft = typeof value === 'function'
+        ? (value as (current: unknown) => unknown)(previous)
+        : value;
+      return { ...current, [card.cardId]: nextDraft };
+    });
+  };
   const updateActiveSession = (updater: (current: VideoRemakeSession | null) => VideoRemakeSession | null) => {
     setActiveSession((current) => {
       const next = updater(current);
@@ -1624,6 +1666,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
           data,
           mode: saveOnly ? 'save_only' : 'confirm',
         });
+        clearCardDraft(card.cardId);
         selectActiveSession(session);
         setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
         await loadData({ silent: true });
@@ -1647,6 +1690,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
         cardType: card.cardType,
         data,
       });
+      clearCardDraft(card.cardId);
       selectActiveSession(session);
       setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
       await loadData({ silent: true });
@@ -1667,6 +1711,7 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     startSessionWorking(sessionId);
     try {
       const session = await cancelVideoRemakeCard(sessionId, card.cardId, { userId: currentUser.id });
+      clearCardDraft(card.cardId);
       selectActiveSession(session);
       await loadData({ silent: true });
     } catch (error) {
@@ -1690,6 +1735,14 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     startSessionWorking(sessionId);
     try {
       const session = await editVideoRemakeCard(sessionId, card.cardId, { userId: currentUser.id });
+      const editingCard = session.messages.find((item): item is VideoRemakeCardMessage => (
+        item.type === 'card'
+        && item.cardId === card.cardId
+        && item.status === 'editing'
+      ));
+      if (editingCard) {
+        handleCardDraftChange(editingCard, editingCard.data);
+      }
       selectActiveSession(session);
       setSessions((items) => items.map((item) => (item.id === session.id ? { ...item, ...session } : item)));
       await loadData({ silent: true });
@@ -2173,11 +2226,13 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
                   <MessageItem
                     active={item.type === 'card' && item.cardId === highlightCardId}
                     assets={assets}
+                    cardDrafts={cardDrafts}
                     disabled={activeSessionWorking}
                     groups={groups}
                     item={item}
                     key={item.id}
                     messages={activeMessages}
+                    onCardDraftChange={handleCardDraftChange}
                     onCancelCard={handleCancelCard}
                     onConfirmCard={handleConfirmCard}
                     onEditCard={handleEditCard}

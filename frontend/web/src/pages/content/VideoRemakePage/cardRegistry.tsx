@@ -24,9 +24,11 @@ type CardRendererContext = {
   disabled?: boolean;
   syncing?: boolean;
   active?: boolean;
+  draft?: unknown;
   onEnsureAssets?: () => Promise<void>;
   onConfirm: (data: unknown) => Promise<void>;
   onCancel: () => Promise<void>;
+  onDraftChange?: Dispatch<SetStateAction<unknown>>;
   onEdit: () => Promise<void>;
   onRegenerate?: (instruction?: string) => Promise<void>;
   onRegenerateFinalSegment?: (segmentIndex: number, prompt?: string) => Promise<void>;
@@ -623,16 +625,28 @@ function EditableCard({
   onConfirm,
   onCancel,
   onEdit,
+  draft: controlledDraft,
+  onDraftChange,
   children,
 }: EditableCardProps) {
-  const [draft, setDraft] = useState<unknown>(card.data);
+  const [localDraft, setLocalDraft] = useState<unknown>(card.data);
   const [selector, setSelector] = useState<AssetSelectorState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const draft = onDraftChange ? controlledDraft : localDraft;
+  const setDraft: Dispatch<SetStateAction<unknown>> = (value) => {
+    if (onDraftChange) {
+      onDraftChange(value);
+      return;
+    }
+    setLocalDraft(value);
+  };
 
   useEffect(() => {
-    setDraft(card.data);
+    if (!onDraftChange) {
+      setLocalDraft(card.data);
+    }
     setSelector(null);
-  }, [card.cardId, card.data]);
+  }, [card.cardId, card.data, onDraftChange]);
 
   const draftRecord = asRecord(draft);
   const hasEditableSeedanceDraft = card.cardType === 'seedance_prompt'
