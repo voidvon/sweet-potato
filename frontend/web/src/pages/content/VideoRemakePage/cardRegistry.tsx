@@ -33,6 +33,8 @@ type CardRendererContext = {
   onRegenerateFinalSegments?: (segments: FinalSegmentRegenerationInput[]) => Promise<void>;
   onSyncProgress?: () => Promise<void>;
   onUploadPipImage?: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
+  onUploadReferenceImage?: (kind: 'scene' | 'product', file: File) => Promise<ContentAsset>;
+  videoAspectRatio?: string;
   videoDurationSeconds?: number;
 };
 
@@ -44,8 +46,10 @@ type AssetSelectorState = {
   kind: AssetSelectorKind;
   title: string;
   selectedAssetId?: string;
+  selectedAssetIds?: string[];
   selectedGroupId?: string;
-  onSelect: (selection: { assetId?: string; groupId?: string }) => void;
+  maxSelection?: number;
+  onSelect: (selection: { assetId?: string; assetIds?: string[]; groupId?: string }) => void;
 };
 
 type FinalSegmentQueueItem = {
@@ -256,6 +260,24 @@ function findSelectedAsset(assets: ContentAsset[], id: unknown) {
   return assetId ? assets.find((asset) => asset.id === assetId) : undefined;
 }
 
+function findSelectedAssets(assets: ContentAsset[], ids: unknown) {
+  const values = Array.isArray(ids) ? ids.map((item) => fieldText(item)).filter(Boolean) : [];
+  return values
+    .map((id) => assets.find((asset) => asset.id === id))
+    .filter((asset): asset is ContentAsset => Boolean(asset));
+}
+
+function selectedAssetIdsFromItem(item: Record<string, unknown>) {
+  const values = Array.isArray(item.assetIds)
+    ? item.assetIds.map((entry) => fieldText(entry)).filter(Boolean)
+    : [];
+  if (values.length) {
+    return Array.from(new Set(values)).slice(0, 9);
+  }
+  const fallback = fieldText(item.assetId).trim();
+  return fallback ? [fallback] : [];
+}
+
 function findSelectedGroup(groups: ContentAssetGroup[], id: unknown) {
   const groupId = fieldText(id);
   return groupId ? groups.find((group) => group.id === groupId) : undefined;
@@ -413,6 +435,7 @@ function SquareReferencePicker({
   onClear,
   onEnsureAssets,
   onSelect,
+  onUpload,
   pickText,
   preferAudioPreview = false,
   selectorKind,
@@ -426,6 +449,7 @@ function SquareReferencePicker({
   onClear?: () => void;
   onEnsureAssets?: () => Promise<void>;
   onSelect: (selection: { assetId?: string; groupId?: string }) => void;
+  onUpload?: (file: File) => Promise<void>;
   pickText: string;
   preferAudioPreview?: boolean;
   selectorKind: AssetSelectorKind;
@@ -546,6 +570,7 @@ function SquareReferencePicker({
           onSelect(selection);
           setSelectorOpen(false);
         }}
+        onUpload={onUpload}
         open={selectorOpen}
         selectedAssetId={asset?.id}
         selectedGroupId={group?.id}
@@ -677,6 +702,7 @@ function EditableCard({
           assets={assets}
           groups={groups}
           kind={selector.kind}
+          maxSelection={selector.maxSelection}
           onCancel={() => setSelector(null)}
           onSelect={(selection) => {
             selector.onSelect(selection);
@@ -684,6 +710,7 @@ function EditableCard({
           }}
           open
           selectedAssetId={selector.selectedAssetId}
+          selectedAssetIds={selector.selectedAssetIds}
           selectedGroupId={selector.selectedGroupId}
           title={selector.title}
         />
@@ -1372,7 +1399,7 @@ function SceneCard(props: CardRendererProps) {
     setActiveIndex(0);
   }, [props.card.cardId]);
   useEffect(() => {
-    if (props.card.status === 'editing' && (JSON.stringify(props.card.data).includes('groupId') || JSON.stringify(props.card.data).includes('assetId'))) {
+    if (props.card.status === 'editing' && (JSON.stringify(props.card.data).includes('groupId') || JSON.stringify(props.card.data).includes('assetId') || JSON.stringify(props.card.data).includes('assetIds'))) {
       void props.onEnsureAssets?.();
     }
   }, [props.card.data, props.card.status, props.onEnsureAssets]);
@@ -1385,7 +1412,9 @@ function SceneCard(props: CardRendererProps) {
         const index = Math.min(activeIndex, items.length - 1);
         const item = items[index] || {};
         const mode = fieldText(item.referenceMode) || 'prompt';
-        const hasSelectedAssetReference = Boolean(fieldText(item.assetId) || fieldText(item.groupId));
+        const selectedAssetIds = selectedAssetIdsFromItem(item);
+        const selectedAssets = findSelectedAssets(props.assets, selectedAssetIds);
+        const hasSelectedAssetReference = selectedAssetIds.length > 0 || Boolean(fieldText(item.groupId));
         const setItem = (patch: Record<string, unknown>) => setDraft({ ...data, items: updateAt(items, index, patch) });
         const addItem = () => {
           const nextItems = [...items, { label: `场景 ${items.length + 1}`, required: true, referenceMode: 'prompt', manuallyAdded: true }];
@@ -1446,25 +1475,36 @@ function SceneCard(props: CardRendererProps) {
                       value={mode}
                       onChange={(event) => setItem({
                         referenceMode: event.target.value,
-                        groupId: event.target.value === 'prompt' ? '' : item.groupId,
+                        groupId: event.target.value === 'prompt' ? '' : (selectedAssetIds.length ? '' : item.groupId),
                         assetId: event.target.value === 'prompt' ? '' : item.assetId,
+                        assetIds: event.target.value === 'prompt' ? [] : selectedAssetIds,
                       })}
                     />
                   </AppForm.Item>
                   {mode === 'asset' ? (
                     <AppForm.Item label="场景素材">
                       <SquareReferencePicker
-                        asset={findSelectedAsset(props.assets, item.assetId)}
+                        asset={selectedAssets[0]}
                         assets={props.assets}
                         emptyText="点击选择场景素材"
-                        group={findSelectedGroup(props.groups, item.groupId)}
-                        groups={props.groups}
-                        onClear={hasSelectedAssetReference ? () => setItem({ groupId: '', assetId: '' }) : undefined}
+                        group={undefined}
+                        groups={[]}
                         onEnsureAssets={props.onEnsureAssets}
-                        onSelect={(selection) => setItem({ groupId: selection.groupId || '', assetId: selection.assetId || '' })}
-                        pickText="选择场景素材"
-                        selectorKind="scene_group"
-                        selectorTitle="选择场景分组"
+                        onClear={hasSelectedAssetReference ? () => setItem({ groupId: '', assetId: '', assetIds: [] }) : undefined}
+                        onSelect={(selection) => {
+                          const nextId = fieldText(selection.assetId);
+                          setItem({ groupId: '', assetId: nextId, assetIds: nextId ? [nextId] : [] });
+                        }}
+                        onUpload={props.onUploadReferenceImage ? async (file) => {
+                          const asset = await props.onUploadReferenceImage?.('scene', file);
+                          if (!asset) {
+                            return;
+                          }
+                          setItem({ groupId: '', assetId: asset.id, assetIds: [asset.id] });
+                        } : undefined}
+                        pickText="选择素材"
+                        selectorKind="scene_asset"
+                        selectorTitle="选择场景素材"
                       />
                     </AppForm.Item>
                   ) : null}
@@ -1487,7 +1527,7 @@ function ProductCard(props: CardRendererProps) {
     setActiveIndex(0);
   }, [props.card.cardId]);
   useEffect(() => {
-    if (props.card.status === 'editing' && (JSON.stringify(props.card.data).includes('groupId') || JSON.stringify(props.card.data).includes('assetId'))) {
+    if (props.card.status === 'editing' && (JSON.stringify(props.card.data).includes('groupId') || JSON.stringify(props.card.data).includes('assetId') || JSON.stringify(props.card.data).includes('assetIds'))) {
       void props.onEnsureAssets?.();
     }
   }, [props.card.data, props.card.status, props.onEnsureAssets]);
@@ -1510,6 +1550,8 @@ function ProductCard(props: CardRendererProps) {
         const index = Math.min(activeIndex, items.length - 1);
         const item = items[index] || {};
         const mode = fieldText(item.referenceMode) || fieldText(data.referenceMode) || 'prompt';
+        const selectedAssetIds = selectedAssetIdsFromItem(item);
+        const selectedAssets = findSelectedAssets(props.assets, selectedAssetIds);
         const noProduct = fieldBool(item.noProduct) || fieldBool(data.noProduct) || !hasProductData;
         const setItem = (patch: Record<string, unknown>) => {
           if (rawItems.length) {
@@ -1545,7 +1587,7 @@ function ProductCard(props: CardRendererProps) {
                   ['当前', fieldText(item.label) || `产品 ${index + 1}`],
                   ['是否需要产品', fieldBool(item.noProduct) ? '不需要' : '需要'],
                   ['参考方式', (fieldText(item.referenceMode) || mode) === 'asset' ? '参考素材' : '参考提示词'],
-                  ['产品素材', fieldText(item.groupId) ? '已选择产品组' : fieldText(item.assetId) ? '已选择产品素材' : undefined],
+                  ['产品素材', selectedAssetIds.length ? '已选择产品素材' : fieldText(item.groupId) ? '已选择产品组' : undefined],
                   ['产品描述', cleanReferencePromptText(item.description)],
                   ['展示方式', cleanReferencePromptText(item.presentation)],
                 ])}
@@ -1576,32 +1618,41 @@ function ProductCard(props: CardRendererProps) {
                   <Radio.Group
                     options={[{ label: '参考素材', value: 'asset' }, { label: '参考提示词', value: 'prompt' }]}
                     value={mode}
-                    onChange={(event) => setItem({ referenceMode: event.target.value, groupId: event.target.value === 'prompt' ? '' : item.groupId })}
+                    onChange={(event) => setItem({
+                      referenceMode: event.target.value,
+                      groupId: event.target.value === 'prompt' ? '' : (selectedAssetIds.length ? '' : item.groupId),
+                      assetId: event.target.value === 'prompt' ? '' : item.assetId,
+                      assetIds: event.target.value === 'prompt' ? [] : selectedAssetIds,
+                    })}
                   />
                 </label>
                 {mode === 'asset' ? (
                   <label>
                     产品素材
                     <div className="remake-asset-field">
-                      <SelectedReference
-                        asset={findSelectedAsset(props.assets, item.assetId)}
-                        emptyText="未选择产品素材"
-                        group={findSelectedGroup(props.groups, item.groupId)}
+                      <SquareReferencePicker
+                        asset={selectedAssets[0]}
+                        assets={props.assets}
+                        emptyText="点击选择产品素材"
+                        group={undefined}
+                        groups={[]}
+                        onEnsureAssets={props.onEnsureAssets}
+                        onClear={selectedAssetIds.length || fieldText(item.groupId) ? () => setItem({ groupId: '', assetId: '', assetIds: [] }) : undefined}
+                        onSelect={(selection) => {
+                          const nextId = fieldText(selection.assetId);
+                          setItem({ groupId: '', assetId: nextId, assetIds: nextId ? [nextId] : [] });
+                        }}
+                        onUpload={props.onUploadReferenceImage ? async (file) => {
+                          const asset = await props.onUploadReferenceImage?.('product', file);
+                          if (!asset) {
+                            return;
+                          }
+                          setItem({ groupId: '', assetId: asset.id, assetIds: [asset.id] });
+                        } : undefined}
+                        pickText="选择素材"
+                        selectorKind="product_asset"
+                        selectorTitle="选择产品素材"
                       />
-                      <div className="remake-asset-actions">
-                        {fieldText(item.groupId) || fieldText(item.assetId) ? <Button size="small" onClick={() => setItem({ groupId: '', assetId: '' })}>清除</Button> : null}
-                        <Button
-                          size="small"
-                          onClick={() => setSelector({
-                            kind: 'product_group',
-                            title: '选择产品分组',
-                            selectedGroupId: fieldText(item.groupId) || undefined,
-                            onSelect: (selection) => setItem({ groupId: selection.groupId || '', assetId: '' }),
-                          })}
-                        >
-                          选择产品
-                        </Button>
-                      </div>
                     </div>
                   </label>
                 ) : null}
@@ -2028,10 +2079,8 @@ function SeedanceCard(props: CardRendererProps) {
         ];
         const segments = directSegments.length ? directSegments : wrappedSegments.length ? wrappedSegments : fallbackSegments;
         if (!segments.length) {
-          return <Alert message="Seedance 提示词生成中，请稍后。" showIcon type="info" />;
+          return <Alert message="提示词生成中，请稍后。" showIcon type="info" />;
         }
-        const seedanceVersionLabel = fieldText(segments[0]?.seedanceVersionLabel)
-          || (fieldText(segments[0]?.seedanceVersionNumber) ? `v${fieldText(segments[0]?.seedanceVersionNumber)}` : '');
         const index = Math.min(activeIndex, segments.length - 1);
         const segment = segments[index] || {};
         const prompt = asRecord(segment.prompt);
@@ -2047,8 +2096,9 @@ function SeedanceCard(props: CardRendererProps) {
                 : { ...draftRecord, previousData: updatedSegments });
         };
         const mainPrompt = promptTextValue(prompt);
+        const videoAspectRatio = fieldText(props.videoAspectRatio) || '9:16';
         const overview = [
-          ['视频比例', '9:16'],
+          ['视频比例', videoAspectRatio],
           ['总时长', totalDurationText(segments)],
           ['分段数量', `${segments.length}`],
           ['单段限制', maxSegmentDurationText(segments)],
@@ -2062,7 +2112,6 @@ function SeedanceCard(props: CardRendererProps) {
           return (
             <div className="remake-seedance">
               <div className="remake-seedance-overview">
-                {seedanceVersionLabel ? <p><span>提示词版本</span><strong>{seedanceVersionLabel}</strong></p> : null}
                 {overview.map(([label, value]) => <p key={label}><span>{label}</span><strong>{value}</strong></p>)}
               </div>
               {renderItemTabs(segments.map((item, itemIndex) => ({ ...item, label: `分段 ${itemIndex + 1}` })), previewIndex, setActiveIndex, '分段')}
@@ -2085,7 +2134,6 @@ function SeedanceCard(props: CardRendererProps) {
         return (
           <div className="remake-card-fields remake-seedance">
             <div className="remake-seedance-overview">
-              {seedanceVersionLabel ? <p><span>提示词版本</span><strong>{seedanceVersionLabel}</strong></p> : null}
               {overview.map(([label, value]) => <p key={label}><span>{label}</span><strong>{value}</strong></p>)}
             </div>
             {renderItemTabs(segments.map((item, itemIndex) => ({ ...item, label: `分段 ${itemIndex + 1}` })), index, setActiveIndex, '分段')}

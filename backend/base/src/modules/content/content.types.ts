@@ -233,7 +233,7 @@ export type UpdateAssetGroupPayload = {
 
 export type CreateAssetPayload = {
   userId: string;
-  groupId: string;
+  groupId?: string;
   resourceType: ContentResourceType;
   name: string;
   description?: string;

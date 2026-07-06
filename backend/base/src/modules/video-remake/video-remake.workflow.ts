@@ -33,7 +33,7 @@ export const cardTitles: Record<VideoRemakeCardType, string> = {
   voice_audio_setting: '人声/音频',
   script_content: '口播内容',
   storyboard_script: '分镜脚本',
-  seedance_prompt: 'Seedance 提示词',
+  seedance_prompt: '提示词',
   generation_progress: '视频解析',
   director_normalize: '视频导演',
   llm_thinking: '大模型思考',

@@ -135,6 +135,7 @@ export type ViralDirectorData = {
     atmosphere: string;
     visualStyle: string;
     assetId?: string;
+    assetIds?: string[];
     groupId?: string;
     required?: boolean;
     referenceMode?: 'asset' | 'prompt';
@@ -144,6 +145,7 @@ export type ViralDirectorData = {
     description: string;
     presentation: string;
     assetId?: string;
+    assetIds?: string[];
     groupId?: string;
     noProduct?: boolean;
     referenceMode?: 'asset' | 'prompt';
@@ -159,6 +161,9 @@ export type ViralDirectorData = {
       endSecond?: number;
       spokenCue?: string;
       keywords?: string[];
+      assetId?: string;
+      assetIds?: string[];
+      groupId?: string;
       noProduct?: boolean;
       referenceMode?: 'asset' | 'prompt';
     }>;
@@ -219,6 +224,7 @@ export type ViralDirectorScene = {
   spokenCue?: string;
   keywords?: string[];
   assetId?: string;
+  assetIds?: string[];
   groupId?: string;
   required?: boolean;
   referenceMode?: 'asset' | 'prompt';
@@ -247,6 +253,43 @@ export type ViralDirectorPipItem = {
 export const viralDirectorSteps: ViralDirectorStep[] = ['basic', 'character', 'scene', 'product', 'pip', 'audio', 'part', 'storyboard', 'final'];
 
 export const videoExpertPendingSource = 'video_expert_pending';
+
+function hasAssetIds(value: unknown) {
+  return Array.isArray(value) && value.some((entry) => stringValue(entry));
+}
+
+function prioritizedReferenceAssetIds(assetIds: unknown, assetId: unknown) {
+  const explicitIds = Array.isArray(assetIds)
+    ? Array.from(new Set(assetIds.map((entry) => stringValue(entry)).filter(Boolean)))
+    : [];
+  if (explicitIds.length) {
+    return explicitIds;
+  }
+  const fallbackId = stringValue(assetId);
+  return fallbackId ? [fallbackId] : [];
+}
+
+function shouldExpandReferenceGroup(assetIds: unknown, assetId: unknown, groupId: unknown) {
+  return prioritizedReferenceAssetIds(assetIds, assetId).length === 0 && Boolean(stringValue(groupId));
+}
+
+function sceneHasReference(scene: Pick<ViralDirectorScene, 'assetId' | 'assetIds' | 'groupId'>) {
+  return hasAssetIds(scene.assetIds) || Boolean(scene.assetId || scene.groupId);
+}
+
+function productHasReference(product: Pick<ViralDirectorData['product'], 'assetId' | 'assetIds' | 'groupId'>) {
+  return hasAssetIds(product.assetIds) || Boolean(product.assetId || product.groupId);
+}
+
+function seedanceAssetReferenceLabelsForIds(
+  assetIds: string[] | undefined,
+  references: {
+    referenceImageIds: string[];
+    referenceVideoIds: string[];
+  },
+) {
+  return uniqueReferenceLabels((assetIds || []).flatMap((assetId) => seedanceAssetReferenceLabels(assetId, references)));
+}
 
 export async function uploadLocalVideoToVodWithWorker(input: {
   filePath: string;
@@ -1190,7 +1233,7 @@ export function fallbackTimedStoryboard(input: { director: ViralDirectorData; ta
       if (item.description) {
         return `${label}：${item.description}`;
       }
-      if (item.assetId || item.groupId) {
+      if (sceneHasReference(item)) {
         return `${label}：使用已确认场景素材/场景组`;
       }
       return '';
@@ -1714,8 +1757,8 @@ export async function buildTimedStoryboardForDirector(input: {
       composition: item.composition,
       camera: item.camera,
       atmosphere: item.atmosphere,
-      referenceMode: item.referenceMode || (item.assetId || item.groupId ? 'asset' : 'prompt'),
-      hasReference: Boolean(item.assetId || item.groupId),
+      referenceMode: item.referenceMode || (sceneHasReference(item) ? 'asset' : 'prompt'),
+      hasReference: sceneHasReference(item),
       required: item.required !== false,
     })),
     audio: directorAudioItems(input.director).map((item, index) => ({
@@ -2320,6 +2363,7 @@ export function normalizeDirectorSceneItems(scene: Record<string, unknown>): Vir
   const items: ViralDirectorScene[] = rawItems.filter(isRecord).map((rawItem, index) => {
     const wrapped = unwrapLabeledEntity(rawItem);
     const item = wrapped.record;
+    const assetIds = stringArrayValue(item.assetIds);
     return {
       label: wrapped.label || stringValue(item.label) || stringValue(item.name) || `场景 ${index + 1}`,
       description: mergedDirectorSceneDescription(item) || formatEntityDescription(item, ['label', 'name', 'required', 'referenceMode', 'assetId', 'groupId', 'sceneGroupId', '场景描述', '场景说明', '环境描述', '开始秒', '结束秒', 'startSecond', 'endSecond', 'start', 'end']),
@@ -2334,13 +2378,14 @@ export function normalizeDirectorSceneItems(scene: Record<string, unknown>): Vir
       spokenCue: firstStringValue(item, ['spokenCue', 'narrationCue', 'speechCue', 'cue', '口播线索', '对应口播', '语境线索', '口播']),
       keywords: stringArrayValue(item.keywords || item.keyword || item['关键词']),
       assetId: stringValue(item.assetId) || undefined,
+      assetIds: assetIds.length ? assetIds : undefined,
       groupId: stringValue(item.groupId) || stringValue(item.sceneGroupId) || undefined,
       required: item.required !== false,
-      referenceMode: item.referenceMode === 'asset' ? 'asset' : item.referenceMode === 'prompt' ? 'prompt' : (stringValue(item.assetId) || stringValue(item.groupId) || stringValue(item.sceneGroupId)) ? 'asset' : 'prompt',
+      referenceMode: item.referenceMode === 'asset' ? 'asset' : item.referenceMode === 'prompt' ? 'prompt' : (assetIds.length || stringValue(item.assetId) || stringValue(item.groupId) || stringValue(item.sceneGroupId)) ? 'asset' : 'prompt',
     };
   });
   return items.flatMap((item) => {
-    if (item.assetId || item.groupId || item.referenceMode === 'asset') {
+    if (sceneHasReference(item) || item.referenceMode === 'asset') {
       return [item];
     }
     const parts = splitMergedIndexedEntityText([
@@ -2504,18 +2549,20 @@ export function normalizeViralDirectorData(
       atmosphere: stringValue(scene.atmosphere),
       visualStyle: stringValue(scene.visualStyle),
       assetId: stringValue(scene.assetId) || undefined,
+      assetIds: stringArrayValue(scene.assetIds),
       groupId: stringValue(scene.groupId) || stringValue(scene.sceneGroupId) || undefined,
       required: scene.required !== false,
-      referenceMode: scene.referenceMode === 'asset' ? 'asset' : scene.referenceMode === 'prompt' ? 'prompt' : (stringValue(scene.assetId) || stringValue(scene.groupId) || stringValue(scene.sceneGroupId)) ? 'asset' : 'prompt',
+      referenceMode: scene.referenceMode === 'asset' ? 'asset' : scene.referenceMode === 'prompt' ? 'prompt' : (stringArrayValue(scene.assetIds).length || stringValue(scene.assetId) || stringValue(scene.groupId) || stringValue(scene.sceneGroupId)) ? 'asset' : 'prompt',
       items: sceneItems,
     },
     product: {
       description: stringValue(product.description),
       presentation: stringValue(product.presentation),
       assetId: stringValue(product.assetId) || undefined,
+      assetIds: stringArrayValue(product.assetIds),
       groupId: stringValue(product.groupId) || stringValue(product.productGroupId) || undefined,
       noProduct: product.noProduct === true,
-      referenceMode: product.referenceMode === 'asset' ? 'asset' : product.referenceMode === 'prompt' ? 'prompt' : (stringValue(product.assetId) || stringValue(product.groupId) || stringValue(product.productGroupId)) ? 'asset' : 'prompt',
+      referenceMode: product.referenceMode === 'asset' ? 'asset' : product.referenceMode === 'prompt' ? 'prompt' : (stringArrayValue(product.assetIds).length || stringValue(product.assetId) || stringValue(product.groupId) || stringValue(product.productGroupId)) ? 'asset' : 'prompt',
       items: Array.isArray(product.items)
         ? product.items.filter(isRecord).map((item, index) => ({
           label: stringValue(item.label) || stringValue(item.name) || `产品 ${index + 1}`,
@@ -2529,8 +2576,11 @@ export function normalizeViralDirectorData(
           endSecond: firstNumberValue(item, ['endSecond', 'end', 'endTime', '结束时间', '结束秒']),
           spokenCue: firstStringValue(item, ['spokenCue', 'narrationCue', 'speechCue', 'cue', '口播线索', '对应口播', '语境线索']),
           keywords: stringArrayValue(item.keywords || item.keyword || item['关键词']),
+          assetId: stringValue(item.assetId) || undefined,
+          assetIds: stringArrayValue(item.assetIds),
+          groupId: stringValue(item.groupId) || stringValue(item.productGroupId) || undefined,
           noProduct: item.noProduct === true,
-          referenceMode: item.referenceMode === 'asset' ? 'asset' : 'prompt',
+          referenceMode: item.referenceMode === 'asset' ? 'asset' : (stringArrayValue(item.assetIds).length || stringValue(item.assetId) || stringValue(item.groupId) || stringValue(item.productGroupId)) ? 'asset' : 'prompt',
         }))
         : undefined,
     },
@@ -2637,10 +2687,10 @@ export function directorStepIsOptionalEmpty(step: ViralDirectorStep, data: Viral
     return directorCharacterItems(data).every((item) => item.required !== false && !item.appearance && !item.characterPrompt && !item.gesture && !item.expression && !item.assetId);
   }
   if (step === 'scene') {
-    return directorSceneItems(data).every((item) => item.required !== false && !item.description && !item.assetId && !item.groupId);
+    return directorSceneItems(data).every((item) => item.required !== false && !item.description && !sceneHasReference(item));
   }
   if (step === 'product') {
-    return !data.product.noProduct && !data.product.description && !data.product.presentation && !data.product.assetId && !data.product.groupId;
+    return !data.product.noProduct && !data.product.description && !data.product.presentation && !productHasReference(data.product);
   }
   if (step === 'pip') {
     return !directorPipItems(data).length;
@@ -2730,15 +2780,16 @@ function confirmedCharacterStoryboardRules(input: { director: ViralDirectorData;
 }
 
 function sceneReferenceName(item: ViralDirectorScene, userId: string) {
-  if (item.groupId) {
+  const assetIds = prioritizedReferenceAssetIds(item.assetIds, item.assetId);
+  if (!assetIds.length && item.groupId) {
     const group = contentRepository.findGroup(item.groupId);
     if (group && group.userId === userId && group.resourceType === 'scene') {
       return `用户已选择的场景组「${group.name}」`;
     }
     return '用户已选择的场景组';
   }
-  if (item.assetId) {
-    const asset = contentRepository.findAsset(item.assetId);
+  if (assetIds[0]) {
+    const asset = contentRepository.findAsset(assetIds[0]);
     if (asset && asset.userId === userId) {
       return `用户已选择的场景素材「${asset.name}」`;
     }
@@ -2754,7 +2805,7 @@ function confirmedSceneStoryboardRules(input: { director: ViralDirectorData; use
   }
   return requiredScenes.map((item, index) => {
     const label = item.label || `场景 ${index + 1}`;
-    const mode = item.referenceMode || (item.assetId || item.groupId ? 'asset' : 'prompt');
+    const mode = item.referenceMode || (sceneHasReference(item) ? 'asset' : 'prompt');
     if (mode === 'asset') {
       const referenceName = sceneReferenceName(item, input.userId);
       const description = sceneDetailSummary(item) ? `补充场景细化：\n${sceneDetailSummary(item)}` : '';
@@ -2783,9 +2834,10 @@ export function directorSceneItems(data: ViralDirectorData): ViralDirectorScene[
     camera: data.scene.camera,
     atmosphere: data.scene.atmosphere,
     assetId: data.scene.assetId,
+    assetIds: data.scene.assetIds,
     groupId: data.scene.groupId,
     required: data.scene.required !== false,
-    referenceMode: data.scene.referenceMode || (data.scene.assetId || data.scene.groupId ? 'asset' : 'prompt'),
+    referenceMode: data.scene.referenceMode || (sceneHasReference(data.scene) ? 'asset' : 'prompt'),
   }];
 }
 
@@ -2828,9 +2880,10 @@ export function primaryDirectorScene(items: ViralDirectorScene[]) {
     atmosphere: first.atmosphere || '',
     visualStyle: '',
     assetId: first.assetId,
+    assetIds: first.assetIds,
     groupId: first.groupId,
     required: first.required !== false,
-    referenceMode: first.referenceMode || (first.assetId || first.groupId ? 'asset' : 'prompt'),
+    referenceMode: first.referenceMode || (sceneHasReference(first) ? 'asset' : 'prompt'),
     items,
   };
 }
@@ -2892,9 +2945,10 @@ export function mergeDirectorStepValue(data: ViralDirectorData, step: ViralDirec
         atmosphere: stringValue(patch.atmosphere),
         visualStyle: stringValue(patch.visualStyle),
         assetId: stringValue(patch.assetId) || undefined,
+        assetIds: stringArrayValue(patch.assetIds),
         groupId: stringValue(patch.groupId) || stringValue(patch.sceneGroupId) || undefined,
         required: patch.required !== false,
-        referenceMode: patch.referenceMode === 'asset' ? 'asset' : patch.referenceMode === 'prompt' ? 'prompt' : (stringValue(patch.assetId) || stringValue(patch.groupId) || stringValue(patch.sceneGroupId)) ? 'asset' : 'prompt',
+        referenceMode: patch.referenceMode === 'asset' ? 'asset' : patch.referenceMode === 'prompt' ? 'prompt' : (stringArrayValue(patch.assetIds).length || stringValue(patch.assetId) || stringValue(patch.groupId) || stringValue(patch.sceneGroupId)) ? 'asset' : 'prompt',
         items: undefined,
       };
   } else if (step === 'product') {
@@ -2902,9 +2956,10 @@ export function mergeDirectorStepValue(data: ViralDirectorData, step: ViralDirec
       description: stringValue(patch.description),
       presentation: stringValue(patch.presentation),
       assetId: stringValue(patch.assetId) || undefined,
+      assetIds: stringArrayValue(patch.assetIds),
       groupId: stringValue(patch.groupId) || stringValue(patch.productGroupId) || undefined,
       noProduct: patch.noProduct === true,
-      referenceMode: patch.referenceMode === 'asset' ? 'asset' : patch.referenceMode === 'prompt' ? 'prompt' : (stringValue(patch.assetId) || stringValue(patch.groupId) || stringValue(patch.productGroupId)) ? 'asset' : 'prompt',
+      referenceMode: patch.referenceMode === 'asset' ? 'asset' : patch.referenceMode === 'prompt' ? 'prompt' : (stringArrayValue(patch.assetIds).length || stringValue(patch.assetId) || stringValue(patch.groupId) || stringValue(patch.productGroupId)) ? 'asset' : 'prompt',
     };
   } else if (step === 'pip') {
     const items = normalizeDirectorPipItems(patch);
@@ -3071,15 +3126,19 @@ export function directorAssetReferences(input: { userId: string; director: Viral
     .filter((item) => item.required !== false && (item.referenceMode || (item.assetId ? 'asset' : 'prompt')) === 'asset')
     .forEach((item) => addAsset(item.assetId, 'image'));
   directorSceneItems(input.director).filter((item) => (
-    item.required !== false && (item.referenceMode || (item.assetId || item.groupId ? 'asset' : 'prompt')) === 'asset'
+    item.required !== false && (item.referenceMode || ((item.assetIds?.length || 0) > 0 || item.assetId || item.groupId ? 'asset' : 'prompt')) === 'asset'
   )).forEach((item) => {
-    addAsset(item.assetId, 'image');
-    addSceneGroup(item.groupId);
+    prioritizedReferenceAssetIds(item.assetIds, item.assetId).forEach((assetId) => addAsset(assetId, 'image'));
+    if (shouldExpandReferenceGroup(item.assetIds, item.assetId, item.groupId)) {
+      addSceneGroup(item.groupId);
+    }
   });
-  const productReferenceMode = input.director.product.referenceMode || (input.director.product.assetId || input.director.product.groupId ? 'asset' : 'prompt');
+  const productReferenceMode = input.director.product.referenceMode || ((input.director.product.assetIds?.length || 0) > 0 || input.director.product.assetId || input.director.product.groupId ? 'asset' : 'prompt');
   if (!input.director.product.noProduct && productReferenceMode === 'asset') {
-    addAsset(input.director.product.assetId, 'image');
-    addProductGroup(input.director.product.groupId);
+    prioritizedReferenceAssetIds(input.director.product.assetIds, input.director.product.assetId).forEach((assetId) => addAsset(assetId, 'image'));
+    if (shouldExpandReferenceGroup(input.director.product.assetIds, input.director.product.assetId, input.director.product.groupId)) {
+      addProductGroup(input.director.product.groupId);
+    }
   }
   directorPipItems(input.director)
     .filter((item) => item.required !== false && (item.referenceMode || (item.replacementAssetId ? 'asset' : 'prompt')) === 'asset')
@@ -3207,17 +3266,18 @@ function buildViralSeedancePromptParts(input: {
     requiredScenes.map((item, index) => [
       `${item.label || `场景 ${index + 1}`}：`,
       (() => {
-        if ((item.referenceMode || (item.assetId || item.groupId ? 'asset' : 'prompt')) !== 'asset') {
+        if ((item.referenceMode || (sceneHasReference(item) ? 'asset' : 'prompt')) !== 'asset') {
           return sceneDetailSummary(item) || `场景描述：${item.description || '优先还原原视频中的环境空间、前中后景、灯光氛围、镜头距离与背景层次。'}`;
         }
+        const selectedAssetIds = prioritizedReferenceAssetIds(item.assetIds, item.assetId);
         const labels = uniqueReferenceLabels([
-          ...seedanceAssetReferenceLabels(item.assetId, input.references),
-          ...seedanceGroupReferenceLabels({
+          ...seedanceAssetReferenceLabelsForIds(selectedAssetIds, input.references),
+          ...(shouldExpandReferenceGroup(item.assetIds, item.assetId, item.groupId) ? seedanceGroupReferenceLabels({
             userId: input.userId,
             groupId: item.groupId,
             resourceType: 'scene',
             references: input.references,
-          }),
+          }) : []),
         ]);
         const materialRule = labels.length
           ? `场景环境只以${formatSeedanceReferenceLabels(labels)}中的场景为准；如果镜头脚本里出现与参考场景不一致的旧场景描述，必须忽略旧场景描述。`
@@ -3228,24 +3288,25 @@ function buildViralSeedancePromptParts(input: {
     ].filter(Boolean).join('\n')).join('\n\n'),
     skippedScenePrompt,
   ].filter(Boolean).join('\n\n') || '不需要固定场景设定。';
-  const hasProductPrompt = Boolean(d.product.description.trim() || d.product.presentation.trim() || d.product.assetId || d.product.groupId);
+  const hasProductPrompt = Boolean(d.product.description.trim() || d.product.presentation.trim() || productHasReference(d.product));
   const productPrompt = d.product.noProduct || !hasProductPrompt
     ? '不需要产品展示，不要强行加入商品、包装或产品特写。'
     : (() => {
-      if ((d.product.referenceMode || (d.product.assetId || d.product.groupId ? 'asset' : 'prompt')) !== 'asset') {
+      if ((d.product.referenceMode || (productHasReference(d.product) ? 'asset' : 'prompt')) !== 'asset') {
         return [
           `产品描述：${d.product.description || '根据原视频产品信息组织画面'}`,
           `展示方式：${d.product.presentation || '通过近景、手部动作和对比镜头展示重点卖点'}`,
         ].filter(Boolean).join('\n');
       }
+      const selectedAssetIds = prioritizedReferenceAssetIds(d.product.assetIds, d.product.assetId);
       const labels = uniqueReferenceLabels([
-        ...seedanceAssetReferenceLabels(d.product.assetId, input.references),
-        ...seedanceGroupReferenceLabels({
+        ...seedanceAssetReferenceLabelsForIds(selectedAssetIds, input.references),
+        ...(shouldExpandReferenceGroup(d.product.assetIds, d.product.assetId, d.product.groupId) ? seedanceGroupReferenceLabels({
           userId: input.userId,
           groupId: d.product.groupId,
           resourceType: 'product',
           references: input.references,
-        }),
+        }) : []),
       ]);
       return labels.length
         ? `产品外观只以${formatSeedanceReferenceLabels(labels)}中的产品为准，不使用产品提示词。`

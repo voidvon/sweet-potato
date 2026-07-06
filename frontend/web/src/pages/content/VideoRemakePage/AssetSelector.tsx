@@ -1,4 +1,4 @@
-import { Modal } from 'antd';
+import { Button, Modal, Upload, message } from 'antd';
 import { CheckCircle2, FileVideo, Image as ImageIcon, Layers3 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AssetLibraryCard } from '../../../components/AssetLibraryCard';
@@ -23,10 +23,13 @@ type AssetSelectorProps = {
   kind: AssetSelectorKind;
   open: boolean;
   selectedAssetId?: string;
+  selectedAssetIds?: string[];
   selectedGroupId?: string;
+  maxSelection?: number;
   title: string;
   onCancel: () => void;
-  onSelect: (selection: { assetId?: string; groupId?: string }) => void;
+  onSelect: (selection: { assetId?: string; assetIds?: string[]; groupId?: string }) => void;
+  onUpload?: (file: File) => Promise<void>;
 };
 
 function pickAssets(kind: AssetSelectorKind, assets: ContentAsset[]) {
@@ -60,7 +63,7 @@ function pickGroups(kind: AssetSelectorKind, groups: ContentAssetGroup[]) {
     return visibleGroups.filter((group) => group.resourceType === 'product' || group.resourceType === 'other');
   }
   if (kind === 'voice_group') {
-    return visibleGroups.filter((group) => group.resourceType === 'voice' || group.resourceType === 'other');
+    return visibleGroups.filter((group) => group.resourceType === 'voice');
   }
   return visibleGroups;
 }
@@ -74,6 +77,20 @@ function assetIcon(asset: ContentAsset) {
 
 function groupPreviewAsset(group: ContentAssetGroup, assets: ContentAsset[]) {
   return group.coverAssets?.[0] || assets.find((asset) => asset.groupId === group.id);
+}
+
+function groupAudioPreviewAsset(group: ContentAssetGroup, assets: ContentAsset[]) {
+  return group.coverAssets?.find((asset) => asset.mimeType.startsWith('audio/'))
+    || assets.find((asset) => asset.groupId === group.id && asset.mimeType.startsWith('audio/'));
+}
+
+function groupSelectableAssetCount(kind: AssetSelectorKind, group: ContentAssetGroup, assets: ContentAsset[]) {
+  if (kind === 'voice_group') {
+    return assets.filter((asset) => asset.groupId === group.id && asset.mimeType.startsWith('audio/')).length
+      || group.coverAssets?.filter((asset) => asset.mimeType.startsWith('audio/')).length
+      || 0;
+  }
+  return groupAssetCount(group, assets);
 }
 
 function assetPreview(asset: ContentAsset, fallback?: ReactNode) {
@@ -96,7 +113,7 @@ function audioSource(asset?: ContentAsset) {
 }
 
 function groupStatus(kind: AssetSelectorKind, group: ContentAssetGroup, assets: ContentAsset[]) {
-  const count = groupAssetCount(group, assets);
+  const count = groupSelectableAssetCount(kind, group, assets);
   if (kind === 'voice_group') {
     return count ? '已上传样本，待克隆音色' : '待上传音频样本';
   }
@@ -115,14 +132,18 @@ export function AssetSelector({
   kind,
   open,
   selectedAssetId,
+  selectedAssetIds,
   selectedGroupId,
+  maxSelection,
   title,
   onCancel,
   onSelect,
+  onUpload,
 }: AssetSelectorProps) {
   const availableAssets = pickAssets(kind, assets);
   const availableGroups = pickGroups(kind, groups);
   const useGroupMode = kind.endsWith('_group');
+  const selectedAssetIdSet = new Set((selectedAssetIds || []).filter(Boolean));
 
   return (
     <Modal
@@ -132,10 +153,28 @@ export function AssetSelector({
       title={title}
       width={820}
     >
+      {onUpload ? (
+        <div className="remake-selector-toolbar">
+          <Upload
+            accept="image/*"
+            beforeUpload={(file) => {
+              if (!file.type.startsWith('image/')) {
+                message.warning('仅支持上传图片');
+                return Upload.LIST_IGNORE;
+              }
+              void onUpload(file as File);
+              return Upload.LIST_IGNORE;
+            }}
+            showUploadList={false}
+          >
+            <Button size="small" type="default">自定义上传</Button>
+          </Upload>
+        </div>
+      ) : null}
       <div className="remake-selector-grid">
         {useGroupMode ? availableGroups.map((group) => {
           const active = group.id === selectedGroupId;
-          const previewAsset = groupPreviewAsset(group, assets);
+          const previewAsset = kind === 'voice_group' ? groupAudioPreviewAsset(group, assets) : groupPreviewAsset(group, assets);
           return (
             <AssetLibraryCard
               audioSrc={audioSource(previewAsset)}
@@ -143,7 +182,7 @@ export function AssetSelector({
               className={`remake-selector-library-card ${active ? 'active' : ''}`}
               displayMode="compact"
               key={group.id}
-              meta={`${groupAssetCount(group, assets)} 个素材 · 更新于 ${formatDate(group.updatedAt)}`}
+              meta={`${groupSelectableAssetCount(kind, group, assets)} 个素材 · 更新于 ${formatDate(group.updatedAt)}`}
               onClick={() => onSelect({ groupId: group.id })}
               preview={audioSource(previewAsset) ? undefined : previewAsset ? assetPreview(previewAsset, <Layers3 size={18} />) : <div className="remake-selector-audio"><Layers3 size={18} /></div>}
               previewClassName="material-preview"
@@ -153,7 +192,7 @@ export function AssetSelector({
             />
           );
         }) : availableAssets.map((asset) => {
-          const active = asset.id === selectedAssetId;
+          const active = selectedAssetIdSet.size ? selectedAssetIdSet.has(asset.id) : asset.id === selectedAssetId;
           return (
             <AssetLibraryCard
               audioSrc={audioSource(asset)}
@@ -162,7 +201,16 @@ export function AssetSelector({
               displayMode="compact"
               key={asset.id}
               meta={formatDate(asset.updatedAt)}
-              onClick={() => onSelect({ assetId: asset.id, groupId: asset.groupId })}
+              onClick={() => {
+                if (!selectedAssetIds) {
+                  onSelect({ assetId: asset.id });
+                  return;
+                }
+                const nextIds = active
+                  ? selectedAssetIds.filter((id) => id !== asset.id)
+                  : [...selectedAssetIds, asset.id].slice(0, maxSelection || 9);
+                onSelect({ assetIds: nextIds });
+              }}
               preview={audioSource(asset) ? undefined : assetPreview(asset)}
               previewClassName="material-preview"
               status={active ? <span className="remake-selector-checkline"><CheckCircle2 size={14} />已选择</span> : undefined}

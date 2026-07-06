@@ -2478,6 +2478,8 @@ function segmentRegenerationReferenceVideo(input: {
 
 function itemHasConcreteAssetReference(item: Record<string, unknown>) {
   return Boolean(
+    (Array.isArray(item.assetIds) && item.assetIds.some((assetId) => textFrom(assetId)))
+    ||
     textFrom(item.assetId || item.materialId || item.replacementAssetId || item.voiceAssetId)
     || textFrom(item.groupId || item.materialGroupId || item.replacementGroupId || item.voiceGroupId)
     || isRecord(item.asset)
@@ -2554,8 +2556,20 @@ function referencePrimerPromptConstraint(gaps: ReferencePrimerGap[]) {
   ].join('\n');
 }
 
+function preferredReferenceAssetIds(item: Record<string, unknown>) {
+  const assetIds = Array.isArray(item.assetIds)
+    ? Array.from(new Set(item.assetIds.map((assetId) => textFrom(assetId)).filter(Boolean)))
+    : [];
+  if (assetIds.length) {
+    return assetIds;
+  }
+  const fallbackAssetId = textFrom(item.assetId || item.materialId || item.replacementAssetId || item.voiceAssetId);
+  return fallbackAssetId ? [fallbackAssetId] : [];
+}
+
 function settingItemReferenceLabels(userId: string, item: Record<string, unknown>, references: SeedanceReferenceIds) {
-  const groupLabels = [
+  const resolvedAssetIds = preferredReferenceAssetIds(item);
+  const groupLabels = resolvedAssetIds.length ? [] : [
     item.groupId,
     item.materialGroupId,
     item.replacementGroupId,
@@ -2574,9 +2588,7 @@ function settingItemReferenceLabels(userId: string, item: Record<string, unknown
       .flatMap((asset) => seedanceAssetReferenceLabels(asset.id, references));
   });
   return uniqueReferenceLabels([
-    ...seedanceAssetReferenceLabels(textFrom(item.assetId || item.materialId), references),
-    ...seedanceAssetReferenceLabels(textFrom(item.replacementAssetId), references),
-    ...seedanceAssetReferenceLabels(textFrom(item.voiceAssetId), references),
+    ...resolvedAssetIds.flatMap((assetId) => seedanceAssetReferenceLabels(assetId, references)),
     ...seedanceAssetReferenceLabels(textFrom(isRecord(item.asset) ? item.asset.id || item.asset.assetId : undefined), references),
     ...seedanceAssetReferenceLabels(textFrom(isRecord(item.material) ? item.material.id || item.material.assetId : undefined), references),
     ...groupLabels,
@@ -4553,14 +4565,20 @@ function collectMaterialReferences(workflow: VideoRemakeWorkflowState) {
     addMediaId(item.material, imageIds);
   });
   enabledSceneItems(sceneSetting(workflow)).forEach((item) => {
-    addId(imageIds, item.assetId || item.materialId || item.replacementAssetId);
-    addGroupId(item.groupId || item.materialGroupId || item.replacementGroupId);
+    const explicitAssetIds = preferredReferenceAssetIds(item);
+    explicitAssetIds.forEach((assetId) => addId(imageIds, assetId));
+    if (!explicitAssetIds.length) {
+      addGroupId(item.groupId || item.materialGroupId || item.replacementGroupId);
+    }
     addMediaId(item.asset, imageIds);
     addMediaId(item.material, imageIds);
   });
   enabledProductItems(productSetting(workflow)).forEach((item) => {
-    addId(imageIds, item.assetId || item.materialId || item.replacementAssetId);
-    addGroupId(item.groupId || item.materialGroupId || item.replacementGroupId);
+    const explicitAssetIds = preferredReferenceAssetIds(item);
+    explicitAssetIds.forEach((assetId) => addId(imageIds, assetId));
+    if (!explicitAssetIds.length) {
+      addGroupId(item.groupId || item.materialGroupId || item.replacementGroupId);
+    }
     addMediaId(item.asset, imageIds);
     addMediaId(item.material, imageIds);
   });
@@ -4591,13 +4609,19 @@ function collectMaterialReferences(workflow: VideoRemakeWorkflowState) {
     }
     if (Array.isArray(visual.scenes)) {
       visual.scenes.filter(isRecord).forEach((scene) => {
-        addId(imageIds, scene.assetId);
-        addGroupId(scene.groupId);
+        const explicitAssetIds = preferredReferenceAssetIds(scene);
+        explicitAssetIds.forEach((assetId) => addId(imageIds, assetId));
+        if (!explicitAssetIds.length) {
+          addGroupId(scene.groupId);
+        }
       });
     }
     if (isRecord(visual.product)) {
-      addId(imageIds, visual.product.assetId);
-      addGroupId(visual.product.groupId);
+      const explicitAssetIds = preferredReferenceAssetIds(visual.product);
+      explicitAssetIds.forEach((assetId) => addId(imageIds, assetId));
+      if (!explicitAssetIds.length) {
+        addGroupId(visual.product.groupId);
+      }
     }
     // 收集 pip 中的素材组引用
     if (Array.isArray(pip.items)) {

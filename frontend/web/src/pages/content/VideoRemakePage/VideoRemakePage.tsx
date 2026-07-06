@@ -30,7 +30,7 @@ import {
   type VideoRemakeSession,
   type VideoRemakeSessionSummary,
 } from '../../../api/video-remake';
-import { listContentAssetGroups, listContentAssets } from '../../../api/content';
+import { listContentAssetGroups, listContentAssets, uploadContentAsset } from '../../../api/content';
 import { API_BASE_URL } from '../../../api/request';
 import type { ContentAsset, ContentAssetGroup, User } from '../../../types';
 import { renderVideoRemakeCard } from './cardRegistry';
@@ -106,6 +106,7 @@ function strictNumberInputValue(value: unknown) {
 
 function validateCardBeforeConfirm(card: VideoRemakeCardMessage, data: unknown) {
   const items = asItems(asRecord(data).items);
+  const hasAssetIds = (item: Record<string, unknown>) => Array.isArray(item.assetIds) && item.assetIds.some((entry) => fieldText(entry).trim());
   if (card.cardType === 'character_setting') {
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index];
@@ -113,7 +114,8 @@ function validateCardBeforeConfirm(card: VideoRemakeCardMessage, data: unknown) 
         continue;
       }
       const hasReference = Boolean(
-        fieldText(item.assetId).trim()
+        hasAssetIds(item)
+        || fieldText(item.assetId).trim()
         || fieldText(item.groupId).trim()
         || fieldText(item.materialId).trim()
         || fieldText(item.materialGroupId).trim()
@@ -122,6 +124,26 @@ function validateCardBeforeConfirm(card: VideoRemakeCardMessage, data: unknown) 
       );
       if (!hasReference) {
         return `${fieldText(item.label).trim() || `人物 ${index + 1}`} 已选择“参考素材”，请先选择人物素材后再确认。`;
+      }
+    }
+  }
+  if (card.cardType === 'scene_setting' || card.cardType === 'product_setting') {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item.required === false || fieldText(item.referenceMode) !== 'asset') {
+        continue;
+      }
+      if (card.cardType === 'product_setting' && fieldBool(item.noProduct)) {
+        continue;
+      }
+      const hasReference = Boolean(
+        hasAssetIds(item)
+        || fieldText(item.assetId).trim()
+        || fieldText(item.groupId).trim(),
+      );
+      if (!hasReference) {
+        const label = fieldText(item.label).trim() || `${card.cardType === 'scene_setting' ? '场景' : '产品'} ${index + 1}`;
+        return `${label} 已选择“参考素材”，请先选择素材后再确认。`;
       }
     }
   }
@@ -282,11 +304,7 @@ function cardDisplayTitle(card: VideoRemakeCardMessage) {
     return versionLabel ? `最终视频 ${versionLabel}` : card.title;
   }
   if (card.cardType === 'seedance_prompt') {
-    const items = asItems(card.data);
-    const data = items[0] || asRecord(card.data);
-    const versionLabel = fieldText(data.seedanceVersionLabel || data.versionLabel || data.version)
-      || (fieldText(data.seedanceVersionNumber || data.versionNumber) ? `v${fieldText(data.seedanceVersionNumber || data.versionNumber)}` : '');
-    return versionLabel ? `Seedance 提示词 ${versionLabel}` : card.title;
+    return '提示词';
   }
   return card.title;
 }
@@ -615,6 +633,8 @@ function MessageItem({
   syncing,
   onRetryExpert,
   onUploadPipImage,
+  onUploadReferenceImage,
+  videoAspectRatio,
   videoDurationSeconds,
 }: {
   item: VideoRemakeChatMessage;
@@ -635,6 +655,8 @@ function MessageItem({
   syncing?: boolean;
   onRetryExpert: (card: VideoRemakeCardMessage) => Promise<void>;
   onUploadPipImage: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
+  onUploadReferenceImage: (kind: 'scene' | 'product', file: File) => Promise<ContentAsset>;
+  videoAspectRatio?: string;
   videoDurationSeconds?: number;
 }) {
   if (item.type === 'text') {
@@ -710,6 +732,8 @@ function MessageItem({
             onSyncProgress: ['generation_progress', 'final_video'].includes(item.cardType) ? onSyncSession : undefined,
             syncing,
             onUploadPipImage,
+            onUploadReferenceImage,
+            videoAspectRatio,
             videoDurationSeconds,
           })}
         </div>
@@ -1048,8 +1072,8 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     });
   }, [processingSessionCount]);
 
-  const ensureAssetsLoaded = useCallback(async () => {
-    if (assetsLoadedRef.current) {
+  const ensureAssetsLoaded = useCallback(async (force = false) => {
+    if (assetsLoadedRef.current && !force) {
       return;
     }
     try {
@@ -1063,6 +1087,22 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
       message.warning(error instanceof Error ? error.message : '素材库加载失败');
     }
   }, [currentUser.id]);
+
+  const handleUploadReferenceImage = useCallback(async (kind: 'scene' | 'product', file: File) => {
+    const asset = await uploadContentAsset({
+      file,
+      userId: currentUser.id,
+      resourceType: kind,
+      name: file.name,
+      metadata: {
+        source: 'local_upload',
+        uploadedFrom: 'video_remake',
+      },
+    });
+    assetsLoadedRef.current = false;
+    await ensureAssetsLoaded(true);
+    return asset;
+  }, [currentUser.id, ensureAssetsLoaded]);
 
   const loadData = useCallback(async (options?: { silent?: boolean; force?: boolean }) => {
     const requestId = loadDataRequestRef.current + 1;
@@ -1302,6 +1342,13 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
     const videoBasicInfo = asRecord(artifacts.videoBasicInfo || activeSession?.artifacts?.video_basic_info);
     const duration = Number(videoBasicInfo.durationSeconds || 0);
     return Number.isFinite(duration) && duration > 0 ? duration : undefined;
+  }, [activeSession]);
+
+  const currentVideoAspectRatio = useMemo(() => {
+    const workflow = asRecord(activeSession?.workflow);
+    const artifacts = asRecord(workflow.artifacts);
+    const videoBasicInfo = asRecord(artifacts.videoBasicInfo || activeSession?.artifacts?.video_basic_info);
+    return fieldText(videoBasicInfo.aspectRatio);
   }, [activeSession]);
 
   const handleNewSession = async () => {
@@ -2143,6 +2190,8 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
                     syncing={activeSessionSyncing}
                     onRetryExpert={handleRetryExpert}
                     onUploadPipImage={handleUploadPipImage}
+                    onUploadReferenceImage={handleUploadReferenceImage}
+                    videoAspectRatio={currentVideoAspectRatio}
                     videoDurationSeconds={currentVideoDurationSeconds}
                   />
                 ))}

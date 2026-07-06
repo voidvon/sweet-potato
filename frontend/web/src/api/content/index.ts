@@ -149,7 +149,7 @@ export function listContentAssets(input: { userId: string; groupId?: string; res
 export function uploadContentAsset(payload: {
   file: File;
   userId: string;
-  groupId: string;
+  groupId?: string;
   resourceType: ContentAssetResourceType;
   name: string;
   description?: string;
@@ -158,7 +158,9 @@ export function uploadContentAsset(payload: {
   const { userId: _userId, ...requestPayload } = payload;
   const formData = new FormData();
   formData.set('file', requestPayload.file);
-  formData.set('groupId', requestPayload.groupId);
+  if (requestPayload.groupId) {
+    formData.set('groupId', requestPayload.groupId);
+  }
   formData.set('resourceType', requestPayload.resourceType);
   formData.set('name', requestPayload.name);
   formData.set('description', requestPayload.description || '');

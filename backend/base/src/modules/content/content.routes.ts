@@ -527,7 +527,7 @@ export function createContentRouter() {
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const asset = contentService.createAsset({
             userId: getCurrentUserId(req),
-            groupId: String(req.body.groupId || ''),
+            groupId: req.body.groupId ? String(req.body.groupId || '') : undefined,
             resourceType,
             name: String(req.body.name || originalFileName),
             description: String(req.body.description || ''),

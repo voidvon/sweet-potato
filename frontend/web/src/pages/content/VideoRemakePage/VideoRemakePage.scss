@@ -1285,6 +1285,12 @@
   white-space: nowrap;
 }
 
+.remake-selector-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .remake-asset-actions {
   align-items: center;
   display: flex;
