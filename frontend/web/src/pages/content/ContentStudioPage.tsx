@@ -13,6 +13,7 @@ const VideoCreatePage = lazy(() => import('./VideoCreatePage').then((m) => ({ de
 const DigitalHumanAssetsPage = lazy(() => import('./assets/DigitalHumanAssetsPage').then((m) => ({ default: m.DigitalHumanAssetsPage })));
 const RealPersonAssetsPage = lazy(() => import('./assets/RealPersonAssetsPage').then((m) => ({ default: m.RealPersonAssetsPage })));
 const SceneAssetsPage = lazy(() => import('./assets/SceneAssetsPage').then((m) => ({ default: m.SceneAssetsPage })));
+const ProductAssetsPage = lazy(() => import('./assets/ProductAssetsPage').then((m) => ({ default: m.ProductAssetsPage })));
 const VoiceAssetsPage = lazy(() => import('./assets/VoiceAssetsPage').then((m) => ({ default: m.VoiceAssetsPage })));
 
 type ContentStudioPageProps = {
@@ -21,7 +22,6 @@ type ContentStudioPageProps = {
 };
 
 const moduleResourceType: Partial<Record<CreativeModuleCode, ContentResourceType>> = {
-  product_assets: 'product',
   finished_assets: 'finished_video',
 };
 
@@ -52,6 +52,8 @@ export function ContentStudioPage({ currentUser, moduleCode: moduleCodeProp }: C
     page = <VoiceAssetsPage currentUser={currentUser} />;
   } else if (code === 'scene_library') {
     page = <SceneAssetsPage currentUser={currentUser} />;
+  } else if (code === 'product_assets') {
+    page = <ProductAssetsPage currentUser={currentUser} />;
   } else {
     const resourceType = code ? moduleResourceType[code] : undefined;
     if (resourceType) {

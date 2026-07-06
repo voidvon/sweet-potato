@@ -202,6 +202,14 @@ function isUserUploadedVirtualPortraitAsset(asset: ContentAsset) {
     && stringMetadataField(asset.metadata, 'syncPolicy') === 'user_uploaded_remote_mirror';
 }
 
+function shouldUseImplicitDefaultGroup(resourceType: ContentResourceType) {
+  return resourceType === 'scene' || resourceType === 'product';
+}
+
+function implicitDefaultGroupName(resourceType: ContentResourceType) {
+  return resourceType === 'scene' ? '场景素材' : '产品素材';
+}
+
 async function deleteLocalVirtualPortraitAsset(asset: ContentAsset) {
   contentRepository.deleteAsset(asset.id);
   if (asset.filePath && existsSync(asset.filePath)) {
@@ -1002,6 +1010,28 @@ export const contentService = {
   },
 
   createAsset(payload: CreateAssetPayload) {
+    if (!payload.groupId && shouldUseImplicitDefaultGroup(payload.resourceType)) {
+      const existingGroup = contentRepository
+        .listGroups({ userId: payload.userId, resourceType: payload.resourceType })
+        .find((group) => group.metadata?.systemDefault === true || group.name === implicitDefaultGroupName(payload.resourceType));
+      const targetGroup = existingGroup || contentRepository.createGroup({
+        userId: payload.userId,
+        resourceType: payload.resourceType,
+        name: implicitDefaultGroupName(payload.resourceType),
+        metadata: {
+          systemDefault: true,
+          hiddenFromGroupUi: true,
+          source: 'local_upload',
+        },
+      });
+      if (!targetGroup) {
+        throw new Error('默认素材库创建失败');
+      }
+      return createContentAssetRecord({
+        ...payload,
+        groupId: targetGroup.id,
+      });
+    }
     return createContentAssetRecord(payload);
   },
 

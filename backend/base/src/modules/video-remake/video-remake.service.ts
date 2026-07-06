@@ -1814,8 +1814,12 @@ function normalizeSceneSettingData(data: unknown) {
         scenePrompt: _scenePrompt,
         ...rest
       } = item;
+      const assetIds = Array.isArray(item.assetIds) ? item.assetIds.filter((entry) => fieldText(entry).trim()) : undefined;
       return {
         ...rest,
+        assetId: assetIds?.[0] ? fieldText(assetIds[0]) : fieldText(item.assetId),
+        assetIds,
+        groupId: assetIds?.length ? undefined : item.groupId,
         description,
       };
     }),
@@ -1826,15 +1830,21 @@ function normalizeProductSettingData(data: unknown) {
   if (!isRecord(data)) {
     return data;
   }
-  const cleanItem = (item: Record<string, unknown>) => ({
-    ...item,
-    description: cleanReferencePromptText(item.description),
-    presentation: cleanReferencePromptText(item.presentation),
-    productType: cleanReferencePromptText(item.productType),
-    feature: cleanReferencePromptText(item.feature),
-    brand: cleanReferencePromptText(item.brand),
-    model: cleanReferencePromptText(item.model),
-  });
+  const cleanItem = (item: Record<string, unknown>) => {
+    const assetIds = Array.isArray(item.assetIds) ? item.assetIds.filter((entry) => fieldText(entry).trim()) : undefined;
+    return {
+      ...item,
+      assetId: assetIds?.[0] ? fieldText(assetIds[0]) : fieldText(item.assetId),
+      assetIds,
+      groupId: assetIds?.length ? undefined : item.groupId,
+      description: cleanReferencePromptText(item.description),
+      presentation: cleanReferencePromptText(item.presentation),
+      productType: cleanReferencePromptText(item.productType),
+      feature: cleanReferencePromptText(item.feature),
+      brand: cleanReferencePromptText(item.brand),
+      model: cleanReferencePromptText(item.model),
+    };
+  };
   const rawItems = Array.isArray(data.items) ? data.items.filter(isRecord) : [];
   if (rawItems.length) {
     return {
@@ -2926,6 +2936,7 @@ function isCardSatisfied(session: VideoRemakeSession, cardType: VideoRemakeCardT
 
 function hasProductSetting(value: unknown) {
   const data = isRecord(value) ? value : {};
+  const hasAssetIds = (item: Record<string, unknown>) => Array.isArray(item.assetIds) && item.assetIds.some((entry) => fieldText(entry).trim());
   if (Boolean(data.noProduct)) {
     return false;
   }
@@ -2936,6 +2947,7 @@ function hasProductSetting(value: unknown) {
       && Boolean(
         cleanReferencePromptText(item.description)
         || cleanReferencePromptText(item.presentation)
+        || hasAssetIds(item)
         || fieldText(item.assetId).trim()
         || fieldText(item.groupId).trim()
       )
@@ -2944,6 +2956,7 @@ function hasProductSetting(value: unknown) {
   return Boolean(
     cleanReferencePromptText(data.description)
     || cleanReferencePromptText(data.presentation)
+    || hasAssetIds(data)
     || fieldText(data.assetId).trim()
     || fieldText(data.groupId).trim()
   );
@@ -3043,7 +3056,7 @@ async function continueAfterConfirmation(
       : [];
     const seedanceVersionNumber = seedancePromptVersionNumber(seedancePrompts);
     const finalVideoDraft = withFinalVideoVersion(session, {
-      message: 'Seedance 分段已准备好，确认后开始生成视频。',
+      message: '分段已准备好，确认后开始生成视频。',
       generationMode: 'parallel',
       segments,
       seedancePrompts,

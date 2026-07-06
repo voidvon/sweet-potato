@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Image, Input, Modal, Popconfirm, message } from 'antd';
+import { Button, Image, Input, Modal, Pagination, Popconfirm, message } from 'antd';
 import { Clapperboard, LoaderCircle, Plus, Search, Trash2 } from 'lucide-react';
 import {
   createContentAssetGroup,
@@ -17,12 +17,14 @@ import { withAuthToken } from '../../utils/session';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload';
 import type { ImagePreview } from './assets/AssetImageUpload';
+import { useCardGridPageSize } from './assets/useCardGridPageSize';
 import './assets/AssetLibraryPages.scss';
 
 type ContentResourceLibraryPageProps = {
   currentUser: User;
   resourceType: ContentResourceType;
   resourceOverride?: Partial<ResourceCopy>;
+  singleDefaultGroup?: boolean;
 };
 
 type ResourceCopy = {
@@ -341,10 +343,21 @@ function PendingAssetGrid({ files, onAdd, onRemove }: { files: File[]; onAdd: ()
   );
 }
 
-export function ContentResourceLibraryPage({ currentUser, resourceType, resourceOverride }: ContentResourceLibraryPageProps) {
+export function ContentResourceLibraryPage({
+  currentUser,
+  resourceType,
+  resourceOverride,
+  singleDefaultGroup = false,
+}: ContentResourceLibraryPageProps) {
   const copy = { ...resourceCopy[resourceType], ...resourceOverride };
   const createFilesRef = useRef<HTMLInputElement | null>(null);
   const groupFilesRef = useRef<HTMLInputElement | null>(null);
+  const singleLibraryFilesRef = useRef<HTMLInputElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const { pageSize: singleLibraryPageSize } = useCardGridPageSize({
+    containerRef: gridRef,
+    extraItems: 1,
+  });
   const [groups, setGroups] = useState<ContentAssetGroup[]>([]);
   const [assets, setAssets] = useState<ContentAsset[]>([]);
   const [activeGroup, setActiveGroup] = useState<ContentAssetGroup | null>(null);
@@ -359,6 +372,7 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
+  const [singleLibraryPage, setSingleLibraryPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState('');
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const hasKeyword = searchKeyword.trim().length > 0;
@@ -418,6 +432,40 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
     return assets.filter((asset) => asset.name.toLowerCase().includes(keyword));
   }, [assets, searchKeyword]);
 
+  const defaultGroup = useMemo(() => {
+    if (!singleDefaultGroup) {
+      return null;
+    }
+    return groups.find((group) => group.metadata?.systemDefault === true)
+      || groups.find((group) => group.metadata?.hiddenFromGroupUi === true)
+      || groups.find((group) => group.name === copy.defaultGroup)
+      || null;
+  }, [copy.defaultGroup, groups, singleDefaultGroup]);
+
+  const singleLibraryCardAssets = useMemo(
+    () => (singleDefaultGroup ? filteredAssets : []),
+    [filteredAssets, singleDefaultGroup],
+  );
+  const singleLibraryPagedAssets = useMemo(() => {
+    const start = (singleLibraryPage - 1) * singleLibraryPageSize;
+    return singleLibraryCardAssets.slice(start, start + singleLibraryPageSize);
+  }, [singleLibraryCardAssets, singleLibraryPage, singleLibraryPageSize]);
+  const singleLibraryDetailAssets = useMemo(
+    () => (singleDefaultGroup ? assets : activeGroupAssets),
+    [activeGroupAssets, assets, singleDefaultGroup],
+  );
+
+  useEffect(() => {
+    if (!singleDefaultGroup) {
+      return;
+    }
+    const maxPage = Math.max(1, Math.ceil(singleLibraryCardAssets.length / singleLibraryPageSize));
+    setSingleLibraryPage((current) => Math.min(current, maxPage));
+  }, [singleDefaultGroup, singleLibraryCardAssets.length, singleLibraryPageSize]);
+
+  useEffect(() => {
+    setSingleLibraryPage(1);
+  }, [searchKeyword, singleDefaultGroup]);
   const assetCountByGroupId = useMemo(() => {
     const map = new Map<string, number>();
     for (const asset of assets) {
@@ -455,6 +503,14 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
     setGroupModalOpen(true);
   }
 
+  function openCreateEntry() {
+    if (singleDefaultGroup) {
+      singleLibraryFilesRef.current?.click();
+      return;
+    }
+    setCreateModalOpen(true);
+  }
+
   async function uploadFilesToGroup(groupId: string, files: File[]) {
     await Promise.all(files.map((file) => uploadContentAsset({
       file,
@@ -465,7 +521,36 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
     })));
   }
 
+  async function uploadFilesToSingleLibrary(files: File[]) {
+    await Promise.all(files.map((file) => uploadContentAsset({
+      file,
+      userId: currentUser.id,
+      groupId: defaultGroup?.id,
+      resourceType,
+      name: file.name,
+    })));
+  }
+
   async function handleCreateGroupWithAssets() {
+    if (singleDefaultGroup) {
+      if (!pendingCreateFiles.length) {
+        message.warning(`请先${copy.uploadTitle}`);
+        return;
+      }
+      try {
+        setIsUploading(true);
+        await uploadFilesToSingleLibrary(pendingCreateFiles);
+        setPendingCreateFiles([]);
+        setCreateModalOpen(false);
+        await loadData();
+        message.success('素材已上传');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '素材上传失败');
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
     const name = groupName.trim();
     if (!name) {
       message.warning('请输入分组名称');
@@ -489,6 +574,42 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
       message.success('分组已创建');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '分组创建失败');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function handleUploadToSingleLibrary() {
+    if (!pendingGroupFiles.length) {
+      return;
+    }
+    try {
+      setIsUploading(true);
+      await uploadFilesToSingleLibrary(pendingGroupFiles);
+      setPendingGroupFiles([]);
+      await loadData();
+      message.success('素材已上传');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '素材上传失败');
+    } finally {
+      setIsUploading(false);
+      if (groupFilesRef.current) {
+        groupFilesRef.current.value = '';
+      }
+    }
+  }
+
+  async function handleUploadFilesToSingleLibrary(files: File[]) {
+    if (!files.length) {
+      return;
+    }
+    try {
+      setIsUploading(true);
+      await uploadFilesToSingleLibrary(files);
+      await loadData();
+      message.success('素材已上传');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '素材上传失败');
     } finally {
       setIsUploading(false);
     }
@@ -590,6 +711,17 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
     setPreviewAsset(null);
   }
 
+  function openAssetPreview(asset: ContentAsset) {
+    if (asset.mimeType.startsWith('image/')) {
+      setPreviewImage({
+        name: asset.name,
+        src: fileUrl(asset),
+      });
+      return;
+    }
+    setPreviewAsset(asset);
+  }
+
   if (resourceType === 'finished_video') {
     return (
       <ContentStudioLayout>
@@ -678,23 +810,57 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />
-          <Button icon={<Plus size={16} />} onClick={() => setCreateModalOpen(true)} type="primary">
+          <Button icon={<Plus size={16} />} loading={singleDefaultGroup && isUploading} onClick={openCreateEntry} type="primary">
             {copy.addTitle}
           </Button>
+          {singleDefaultGroup && (
+            <input
+              accept={copy.accept}
+              hidden
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files || []);
+                event.target.value = '';
+                void handleUploadFilesToSingleLibrary(files);
+              }}
+              ref={singleLibraryFilesRef}
+              type="file"
+            />
+          )}
         </div>
 
         <div className="voice-board-content">
-          <div className="material-grid voice-board-grid">
+          <div className={`material-grid voice-board-grid${singleDefaultGroup ? ' single-library-asset-grid' : ''}`} ref={gridRef}>
             {!isLoadingLibrary && (
               <AssetLibraryCreateCard
                 description={copy.addHint}
                 icon={<Plus size={30} />}
-                onClick={() => setCreateModalOpen(true)}
+                onClick={openCreateEntry}
                 title={copy.addTitle}
               />
             )}
 
-            {isLoadingLibrary ? <AssetLibrarySkeletonCards count={1} /> : filteredGroups.map((group) => {
+            {isLoadingLibrary ? <AssetLibrarySkeletonCards count={1} /> : singleDefaultGroup ? (
+              singleLibraryPagedAssets.map((asset) => (
+                <article className="material-card single-library-asset-card" key={asset.id}>
+                  <button className="material-preview" onClick={() => openAssetPreview(asset)} type="button">
+                    {previewFor(asset, copy.icon)}
+                  </button>
+                  <div className="material-info">
+                    <div className="material-name" title={asset.name}>{asset.name}</div>
+                    <div className="material-meta">上传于 {formatDate(asset.createdAt)}</div>
+                    <Popconfirm
+                      cancelText="取消"
+                      okText="删除"
+                      onConfirm={() => void handleDeleteAsset(asset.id)}
+                      title="确认删除这个素材吗？"
+                    >
+                      <Button danger icon={<Trash2 size={14} />} size="small" type="text">删除</Button>
+                    </Popconfirm>
+                  </div>
+                </article>
+              ))
+            ) : filteredGroups.map((group) => {
               const groupAssetsForPreview = assets.filter((asset) => asset.groupId === group.id);
               const cover = groupAssetsForPreview[0];
               return (
@@ -713,18 +879,27 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
                 />
               );
             })}
-            {!isLoadingLibrary && !filteredGroups.length && (
+            {!isLoadingLibrary && ((singleDefaultGroup && !singleLibraryCardAssets.length) || (!singleDefaultGroup && !filteredGroups.length)) && (
               <AssetLibraryPlaceholderCard
                 icon={<Search size={30} />}
                 title={hasKeyword ? `暂无匹配${copy.pageTitle}` : `暂无${copy.pageTitle}`}
-                description={hasKeyword ? '调整搜索条件，或新增一个素材分组。' : copy.emptyGroups}
+                description={hasKeyword ? '调整搜索条件，或上传新的素材。' : copy.emptyGroups}
               />
             )}
           </div>
         </div>
 
         <div className="voice-board-pagination">
-          <span>共 {groups.length} 条</span>
+          <span>共 {singleDefaultGroup ? singleLibraryCardAssets.length : groups.length} 条</span>
+          {singleDefaultGroup && (
+            <Pagination
+              current={singleLibraryPage}
+              onChange={setSingleLibraryPage}
+              pageSize={singleLibraryPageSize}
+              showSizeChanger={false}
+              total={singleLibraryCardAssets.length}
+            />
+          )}
         </div>
       </section>
 
@@ -737,11 +912,13 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
         title={copy.addTitle}
       >
         <div className="material-modal-form">
-          <label>
-            <span>{copy.nameLabel}</span>
-            <Input onChange={(event) => setGroupName(event.target.value)} onPressEnter={() => void handleCreateGroupWithAssets()} placeholder={copy.namePlaceholder} value={groupName} />
-          </label>
-          {resourceType === 'product' ? (
+          {!singleDefaultGroup ? (
+            <label>
+              <span>{copy.nameLabel}</span>
+              <Input onChange={(event) => setGroupName(event.target.value)} onPressEnter={() => void handleCreateGroupWithAssets()} placeholder={copy.namePlaceholder} value={groupName} />
+            </label>
+          ) : null}
+          {resourceType === 'product' || singleDefaultGroup ? (
             <PendingImageUpload files={pendingCreateFiles} onChange={setPendingCreateFiles} onPreviewFile={setPreviewImage} />
           ) : (
             <>
@@ -760,34 +937,44 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
         footer={null}
         onCancel={() => setGroupModalOpen(false)}
         open={groupModalOpen}
-        title={activeGroup?.name || '素材分组'}
+        title={singleDefaultGroup ? copy.pageTitle : activeGroup?.name || '素材分组'}
         width={980}
       >
-        {activeGroup && (
+        {(singleDefaultGroup || activeGroup) && (
           <div className="material-group-detail">
-            <div className="material-group-editor">
-              <Input onChange={(event) => setEditingGroupName(event.target.value)} value={editingGroupName} />
-              <Button onClick={() => void handleRenameGroup()} type="primary">保存名称</Button>
-              {resourceType !== 'product' && (
-                <>
-                  <Button onClick={() => groupFilesRef.current?.click()}>{copy.detailUploadText}</Button>
-                  <Button disabled={!pendingGroupFiles.length} loading={isUploading} onClick={() => void handleUploadToActiveGroup()} type="primary">
-                    {copy.detailAddText} {pendingGroupFiles.length || ''}
-                  </Button>
-                </>
-              )}
-              <Button danger loading={isDeletingGroup} onClick={() => void handleDeleteGroup()}>删除{copy.defaultGroup}</Button>
-              {resourceType !== 'product' && (
+            {!singleDefaultGroup ? (
+              <div className="material-group-editor">
+                <Input onChange={(event) => setEditingGroupName(event.target.value)} value={editingGroupName} />
+                <Button onClick={() => void handleRenameGroup()} type="primary">保存名称</Button>
+                {resourceType !== 'product' && (
+                  <>
+                    <Button onClick={() => groupFilesRef.current?.click()}>{copy.detailUploadText}</Button>
+                    <Button disabled={!pendingGroupFiles.length} loading={isUploading} onClick={() => void handleUploadToActiveGroup()} type="primary">
+                      {copy.detailAddText} {pendingGroupFiles.length || ''}
+                    </Button>
+                  </>
+                )}
+                <Button danger loading={isDeletingGroup} onClick={() => void handleDeleteGroup()}>删除{copy.defaultGroup}</Button>
+                {resourceType !== 'product' && (
+                  <input accept={copy.accept} hidden multiple onChange={(event) => setPendingGroupFiles(Array.from(event.target.files || []))} ref={groupFilesRef} type="file" />
+                )}
+              </div>
+            ) : resourceType !== 'product' ? (
+              <div className="material-group-editor">
+                <Button onClick={() => groupFilesRef.current?.click()}>{copy.detailUploadText}</Button>
+                <Button disabled={!pendingGroupFiles.length} loading={isUploading} onClick={() => void handleUploadToSingleLibrary()} type="primary">
+                  {copy.detailAddText} {pendingGroupFiles.length || ''}
+                </Button>
                 <input accept={copy.accept} hidden multiple onChange={(event) => setPendingGroupFiles(Array.from(event.target.files || []))} ref={groupFilesRef} type="file" />
-              )}
-            </div>
+              </div>
+            ) : null}
             {resourceType === 'product' ? (
               <DetailImageUpload
-                assets={activeGroupAssets}
+                assets={singleLibraryDetailAssets}
                 isUploading={isUploading}
                 onPreviewImage={setPreviewImage}
                 onRemoveAsset={(asset) => void handleDeleteAsset(asset.id)}
-                onUploadFiles={(files) => void handleUploadFilesToActiveGroup(files)}
+                onUploadFiles={(files) => void (singleDefaultGroup ? handleUploadFilesToSingleLibrary(files) : handleUploadFilesToActiveGroup(files))}
               />
             ) : pendingGroupFiles.length ? (
               <PendingAssetGrid
@@ -798,9 +985,15 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
             ) : null}
             {resourceType !== 'product' && (
               <div className="material-grid material-grid-compact">
-                {activeGroupAssets.length ? activeGroupAssets.map((asset) => (
+                {singleDefaultGroup ? (
+                  <div className="scene-management-summary">
+                    <strong>{singleLibraryDetailAssets.length} {copy.assetUnit}</strong>
+                    <span>{copy.pageDescription}</span>
+                  </div>
+                ) : null}
+                {singleLibraryDetailAssets.length ? singleLibraryDetailAssets.map((asset) => (
                   <article className="material-card" key={asset.id}>
-                    <button className="material-preview" onClick={() => setPreviewAsset(asset)} type="button">{previewFor(asset, copy.icon)}</button>
+                    <button className="material-preview" onClick={() => openAssetPreview(asset)} type="button">{previewFor(asset, copy.icon)}</button>
                     <div className="material-info">
                       <div className="material-name">{asset.name}</div>
                       <div className="material-meta">上传于 {formatDate(asset.createdAt)}</div>
@@ -817,7 +1010,6 @@ export function ContentResourceLibraryPage({ currentUser, resourceType, resource
       <Modal footer={null} onCancel={closePreviewAsset} open={Boolean(previewAsset)} title={previewAsset?.name || '素材预览'} width={760}>
         {previewAsset && (
           <div className="asset-detail">
-            {previewAsset.mimeType.startsWith('image/') && <img alt={previewAsset.name} src={fileUrl(previewAsset)} />}
             {previewAsset.mimeType.startsWith('video/') && <video controls ref={previewVideoRef} src={fileUrl(previewAsset)} />}
             {previewAsset.mimeType.startsWith('audio/') && <audio controls src={fileUrl(previewAsset)} />}
             <p><strong>文件名：</strong>{previewAsset.originalFileName}</p>

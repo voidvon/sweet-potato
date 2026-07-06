@@ -1022,6 +1022,34 @@
   width: 220px;
 }
 
+.single-library-asset-grid .material-card {
+  cursor: default;
+}
+
+.single-library-asset-card .material-preview {
+  border: 0;
+  cursor: zoom-in;
+  padding: 0;
+  width: 100%;
+}
+
+.single-library-asset-card .material-info {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.single-library-asset-card .material-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.single-library-asset-card .ant-btn {
+  justify-self: flex-start;
+  padding-inline: 0;
+}
+
 .finished-video-card--completed .asset-library-card__preview {
   flex-basis: 132px;
   height: 132px;

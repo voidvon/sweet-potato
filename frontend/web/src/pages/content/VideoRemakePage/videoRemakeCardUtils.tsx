@@ -14,7 +14,7 @@ export const cardTypeLabels: Record<VideoRemakeCardType, string> = {
   voice_audio_setting: '人声/音频',
   script_content: '口播内容',
   storyboard_script: '分镜脚本',
-  seedance_prompt: 'Seedance 提示词',
+  seedance_prompt: '提示词',
   generation_progress: '视频解析',
   director_normalize: '视频导演',
   llm_thinking: '大模型思考',
@@ -131,12 +131,38 @@ export function characterAssetSourceLabel(asset: ContentAsset) {
   return '';
 }
 
+function metadataText(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function isInternalGeneratedReferenceAsset(asset: ContentAsset) {
+  const source = metadataText(asset, 'source');
+  const kind = metadataText(asset, 'kind');
+  const generatedBy = metadataText(asset, 'generatedBy');
+  const mode = metadataText(asset, 'mode');
+  const marker = `${source} ${kind} ${generatedBy} ${mode}`.toLowerCase();
+  return marker.includes('video_remake_')
+    || marker.includes('reference_primer')
+    || marker.includes('generated_reference')
+    || marker.includes('reference_image')
+    || generatedBy === 'image_model';
+}
+
 export function selectableSceneAssets(assets: ContentAsset[]) {
-  return assets.filter((asset) => (asset.resourceType === 'scene' || asset.resourceType === 'other') && (asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/')));
+  return assets.filter((asset) => (
+    (asset.resourceType === 'scene' || asset.resourceType === 'other')
+    && (asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/'))
+    && !isInternalGeneratedReferenceAsset(asset)
+  ));
 }
 
 export function selectableProductAssets(assets: ContentAsset[]) {
-  return assets.filter((asset) => (asset.resourceType === 'product' || asset.resourceType === 'other') && (asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/')));
+  return assets.filter((asset) => (
+    (asset.resourceType === 'product' || asset.resourceType === 'other')
+    && (asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/'))
+    && !isInternalGeneratedReferenceAsset(asset)
+  ));
 }
 
 export function selectableVoiceAssets(assets: ContentAsset[]) {
