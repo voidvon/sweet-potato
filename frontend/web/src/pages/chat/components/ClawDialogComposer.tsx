@@ -627,6 +627,7 @@ export function ClawDialogComposer({
         ...Object.fromEntries(nextAttachments.map((attachment) => [attachment.id, group.key])),
       }));
     }
+    return nextAttachments;
   }
 
   function handleRemoveReference(attachmentId: string) {

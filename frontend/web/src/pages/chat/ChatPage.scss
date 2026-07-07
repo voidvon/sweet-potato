@@ -5,10 +5,7 @@
   --chat-border: #dfe4ea;
   --chat-text: #101828;
   --chat-muted: #667085;
-  background:
-    radial-gradient(circle at top left, rgba(43, 127, 255, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.06), transparent 26%),
-    var(--chat-bg);
+  background: white;
   color: var(--chat-text);
   display: flex;
   flex: 1 1 auto;

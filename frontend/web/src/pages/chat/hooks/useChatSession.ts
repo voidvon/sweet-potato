@@ -4,10 +4,12 @@ import { useSearchParams } from 'react-router-dom';
 import {
   clearChatConversationMessages,
   deleteChatConversation,
+  deleteChatMessage,
   getChatConversation,
   listChatConversations,
   renameChatConversation,
   streamChatMessage,
+  uploadChatAttachment,
 } from '../../../api/chat';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
@@ -40,15 +42,6 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
 
 const maxAttachmentCount = 6;
 const maxAttachmentBytes = 3 * 1024 * 1024;
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('附件读取失败'));
-    reader.readAsDataURL(file);
-  });
-}
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
@@ -345,14 +338,7 @@ export function useChatSession() {
     });
 
     try {
-      const nextAttachments = await Promise.all(acceptedFiles.map(async (file) => ({
-        id: `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`,
-        kind: file.type.startsWith('image/') ? 'image' as const : 'file' as const,
-        name: file.name,
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        url: await readFileAsDataUrl(file),
-      })));
+      const nextAttachments = await Promise.all(acceptedFiles.map((file) => uploadChatAttachment(file)));
       setAttachments((items) => [...items, ...nextAttachments]);
       return nextAttachments;
     } catch (error) {
@@ -430,6 +416,9 @@ export function useChatSession() {
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
+    const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
+    const requestedCapabilities = override?.requestedCapabilities || capabilityPayload.requestedCapabilities;
+    const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
     setSending(true);
     setUserHasScrolledUp(false);
     const abortController = new AbortController();
@@ -449,6 +438,7 @@ export function useChatSession() {
       conversationId: activeConversationId || 'pending',
       role: 'assistant',
       content: '',
+      capability: isImageGenerationRequest ? 'image_generation' : undefined,
       reasoningContent: '',
       agentId: activeAgent.id,
       createdAt: new Date(Date.now() + 1).toISOString(),
@@ -474,7 +464,6 @@ export function useChatSession() {
     scrollToBottom(true);
 
     try {
-      const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
       await streamChatMessage(
         {
           userId: currentUser.id,
@@ -489,7 +478,7 @@ export function useChatSession() {
             ...(override?.capabilityContext || {}),
           },
           imageModelConfigId: override?.imageModelConfigId || null,
-          requestedCapabilities: override?.requestedCapabilities || capabilityPayload.requestedCapabilities,
+          requestedCapabilities,
         },
         (event) => {
           if (event.type === 'conversation') {
@@ -598,6 +587,25 @@ export function useChatSession() {
     });
   }, [sendMessage]);
 
+  const removeMessage = useCallback(async (messageItem: ChatMessage) => {
+    if (!messageItem.conversationId || messageItem.conversationId === 'pending') {
+      setMessages((items) => items.filter((item) => item.id !== messageItem.id));
+      return;
+    }
+    const result = await deleteChatMessage(messageItem.conversationId, messageItem.id);
+    setMessages(result.messages);
+    await refreshConversations();
+  }, [refreshConversations]);
+
+  const regenerateImageMessage = useCallback(async (content: string, messageAttachments: ChatAttachment[]) => {
+    await sendMessage({
+      content,
+      attachments: messageAttachments,
+      clearComposer: false,
+      requestedCapabilities: ['image_generation'],
+    });
+  }, [sendMessage]);
+
   const stopSending = useCallback(() => {
     streamAbortControllerRef.current?.abort();
   }, []);
@@ -618,11 +626,13 @@ export function useChatSession() {
     messages,
     openConversation,
     removeAttachment,
+    removeMessage,
     removeConversation,
     scrollContainerRef,
     scrollToBottom,
     sendCurrentMessage,
     sendPresetMessage,
+    regenerateImageMessage,
     sending,
     setInput,
     showWelcome: !isResolvingConversation && !conversationOverlayLoading && !activeConversationId && messages.length === 0,

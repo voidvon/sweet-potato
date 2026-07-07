@@ -19,7 +19,7 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider locale={zhCN} modal={{ centered: true }}>
       <App />
     </ConfigProvider>
   </React.StrictMode>,

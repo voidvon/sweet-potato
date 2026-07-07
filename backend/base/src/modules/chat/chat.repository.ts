@@ -151,6 +151,13 @@ export const chatRepository = {
     `).run(conversationId, createdAt);
   },
 
+  deleteMessage(conversationId: string, messageId: string) {
+    db.prepare(`
+      DELETE FROM chat_messages
+      WHERE conversation_id = ? AND id = ?
+    `).run(conversationId, messageId);
+  },
+
   replaceMessageContent(input: {
     id: string;
     content: string;

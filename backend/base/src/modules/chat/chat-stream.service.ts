@@ -344,7 +344,11 @@ export function createChatStreamExecutor() {
     }
 
     const capabilityInvocation = resolveChatCapabilityInvocation(content, requestedCapabilities);
-    const imageModelConfig = imageModelConfigId ? modelConfigRepository.find(imageModelConfigId) : undefined;
+    const imageModelConfig = imageModelConfigId
+      ? modelConfigRepository.find(imageModelConfigId)
+      : capabilityInvocation?.capability === 'image_generation'
+        ? modelConfigRepository.list('image').find((item) => Boolean(item.isDefault)) || modelConfigRepository.list('image')[0]
+        : undefined;
     if (capabilityInvocation?.capability === 'image_generation' && !imageModelConfig) {
       sink.send({ type: 'error', message: '请选择可用的图片模型' });
       sink.end();

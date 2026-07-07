@@ -72,6 +72,7 @@ export type ChatMessage = {
   conversationId: string;
   role: 'user' | 'assistant';
   content: string;
+  capability?: 'xingtu_creator_search' | 'image_generation';
   reasoningContent?: string | null;
   actions?: ChatMessageAction[];
   agentId: string;

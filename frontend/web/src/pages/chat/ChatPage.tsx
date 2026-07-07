@@ -84,6 +84,8 @@ export function ChatPage() {
               hasStreamingAssistant={chat.hasStreamingAssistant}
               messages={chat.messages}
               onActionClick={(content) => void chat.sendPresetMessage(content)}
+              onDeleteMessage={(messageItem) => void chat.removeMessage(messageItem)}
+              onRegenerateImage={(content, attachments) => void chat.regenerateImageMessage(content, attachments)}
               onUpdateUserMessage={(messageId, content) => void chat.updateUserMessage(messageId, content)}
               onScroll={chat.handleChatScroll}
               onScrollToBottom={() => chat.scrollToBottom(true)}

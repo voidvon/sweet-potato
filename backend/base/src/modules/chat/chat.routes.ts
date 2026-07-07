@@ -1,6 +1,11 @@
 import { randomBytes } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import { Router } from 'express';
+import multer from 'multer';
 import type { Request } from 'express';
+import { contentUploadLimitBytes } from '../../config/env.js';
+import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { agentRepository } from '../agents/agent.repository.js';
@@ -18,6 +23,41 @@ import {
 } from './chat-stream.service.js';
 import type { ChatConversation, ChatMessage } from './chat.types.js';
 
+const chatFilesDir = path.join(dataDir, 'files');
+mkdirSync(chatFilesDir, { recursive: true });
+
+function sanitizeFileName(fileName: string) {
+  const parsed = path.parse(fileName);
+  const base = parsed.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'attachment';
+  const ext = parsed.ext.replace(/[^\w.]+/g, '');
+  return `${base}${ext}`;
+}
+
+function decodeUploadFileName(fileName: string) {
+  if (!fileName) {
+    return fileName;
+  }
+  const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
+  if (decoded && decoded !== fileName && /[\u4e00-\u9fff]/.test(decoded) && /[ÃÂÄÅæéèç]/.test(fileName)) {
+    return decoded;
+  }
+  return fileName;
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination(_req, _file, callback) {
+      callback(null, chatFilesDir);
+    },
+    filename(_req, file, callback) {
+      callback(null, `${Date.now()}-${randomBytes(6).toString('hex')}-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+    },
+  }),
+  limits: {
+    fileSize: contentUploadLimitBytes,
+  },
+});
+
 function getCurrentUserId(req: Request) {
   return req.auth?.userId || req.auth?.user?.id || '';
 }
@@ -31,6 +71,29 @@ export function createChatRouter() {
   const router = Router();
 
   router.use(requirePermission('web.module.chat'));
+
+  router.post('/attachments/upload', (req, res) => {
+    upload.single('file')(req, res, (uploadError) => {
+      if (uploadError) {
+        sendError(res, 400, uploadError instanceof Error ? uploadError.message : '附件上传失败');
+        return;
+      }
+      if (!req.file) {
+        sendError(res, 400, '请选择要上传的附件');
+        return;
+      }
+
+      const originalFileName = decodeUploadFileName(req.file.originalname);
+      res.status(201).json({
+        id: `${Date.now()}-${randomBytes(8).toString('hex')}`,
+        name: originalFileName,
+        type: req.file.mimetype || 'application/octet-stream',
+        size: req.file.size,
+        kind: (req.file.mimetype || '').startsWith('image/') ? 'image' : 'file',
+        url: `/files/${encodeURIComponent(req.file.filename)}`,
+      });
+    });
+  });
 
   router.get('/conversations', (req, res) => {
     const userId = getCurrentUserId(req);
@@ -138,6 +201,32 @@ export function createChatRouter() {
     });
   });
 
+  router.delete('/conversations/:conversationId/messages/:messageId', (req, res) => {
+    const currentUserId = getCurrentUserId(req);
+    const conversation = chatRepository.findConversation(req.params.conversationId);
+    if (!conversation) {
+      sendError(res, 404, '对话不存在');
+      return;
+    }
+
+    if (conversation.userId !== currentUserId) {
+      sendError(res, 403, '无权修改该对话');
+      return;
+    }
+
+    const targetMessage = chatRepository.findMessage(req.params.messageId);
+    if (!targetMessage || targetMessage.conversationId !== conversation.id) {
+      sendError(res, 404, '消息不存在');
+      return;
+    }
+
+    chatRepository.deleteMessage(conversation.id, targetMessage.id);
+    res.json({
+      conversation,
+      messages: chatRepository.listMessages(conversation.id),
+    });
+  });
+
   router.post('/messages', async (req, res) => {
     const userId = getCurrentUserId(req);
     const content = String(req.body.content || '').trim();
@@ -184,7 +273,11 @@ export function createChatRouter() {
     }
 
     const capabilityInvocation = resolveChatCapabilityInvocation(content, requestedCapabilities);
-    const imageModelConfig = imageModelConfigId ? modelConfigRepository.find(imageModelConfigId) : undefined;
+    const imageModelConfig = imageModelConfigId
+      ? modelConfigRepository.find(imageModelConfigId)
+      : capabilityInvocation?.capability === 'image_generation'
+        ? modelConfigRepository.list('image').find((item) => Boolean(item.isDefault)) || modelConfigRepository.list('image')[0]
+        : undefined;
     if (capabilityInvocation?.capability === 'image_generation' && !imageModelConfig) {
       sendError(res, 400, '请选择可用的图片模型');
       return;
