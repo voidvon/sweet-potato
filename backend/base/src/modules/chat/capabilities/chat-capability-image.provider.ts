@@ -10,6 +10,7 @@ export const imageGenerationChatCapabilityHandler: ChatCapabilityHandler = {
       capability: 'image_generation',
       assistantContent: result.assistantContent,
       assistantAttachments: result.assistantAttachments,
+      imageGenerationFailures: result.imageGenerationFailures,
       metadata: {
         previewText: '已生成图片',
       },

@@ -15,6 +15,7 @@ enum Api {
   conversationDetail = '/api/chat/conversations/:conversationId',
   conversationMessage = '/api/chat/conversations/:conversationId/messages/:messageId',
   conversationMessages = '/api/chat/conversations/:conversationId/messages',
+  messages = '/api/chat/messages',
   streamMessageWs = '/api/chat/messages/ws',
 }
 
@@ -78,6 +79,13 @@ export function uploadChatAttachment(file: File) {
   return request<ChatAttachment>(Api.attachmentUpload, {
     method: 'POST',
     body: formData,
+  });
+}
+
+export function createChatMessage(payload: SendChatPayload) {
+  return request<ChatConversationDetail>(Api.messages, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

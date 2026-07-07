@@ -1,5 +1,5 @@
-import { Button, Dropdown, Image, Modal, message } from 'antd';
-import { CopyOutlined, DeleteOutlined, DownCircleOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Image, Modal, Tooltip, message } from 'antd';
+import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownCircleOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ChevronRight } from 'lucide-react';
 import { Children, cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '../../../types';
@@ -13,7 +13,7 @@ type ChatMessageListProps = {
   messages: ChatMessage[];
   onActionClick: (content: string) => void;
   onDeleteMessage: (message: ChatMessage) => void;
-  onRegenerateImage: (content: string, attachments: ChatAttachment[]) => void;
+  onRegenerateImage: (message: ChatMessage) => void;
   onUpdateUserMessage: (messageId: string, content: string) => void;
   onScroll: () => void;
   onScrollToBottom: () => void;
@@ -228,7 +228,7 @@ export function ChatMessageList({
       okText: '再次生成',
       cancelText: '取消',
       onOk() {
-        onRegenerateImage(previousUserMessage.content, previousUserMessage.attachments || []);
+        onRegenerateImage(previousUserMessage);
       },
     });
   }
@@ -257,15 +257,44 @@ export function ChatMessageList({
           const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
           const imageAttachments = item.attachments?.filter((attachment) => attachment.kind === 'image') || [];
           const fileAttachments = item.attachments?.filter((attachment) => attachment.kind !== 'image') || [];
+          const imageGenerationFailures = item.imageGenerationFailures || [];
+          const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
+          const previousImageGenerationContext = previousUserMessage?.capabilityContext?.imageGeneration;
           const isImageGenerationAssistant = item.role === 'assistant'
-            && (item.capability === 'image_generation' || imageAttachments.some(isGeneratedImageAttachment));
-          const isImageGenerationPending = isImageGenerationAssistant && item.isCompleted === false && !imageAttachments.length;
-          const imageGenerationLayoutClass = imageAttachments.length === 1
+            && (
+              item.capability === 'image_generation'
+              || Boolean(item.generationJobId)
+              || item.imageGenerationExpectedCount !== undefined
+              || imageAttachments.some(isGeneratedImageAttachment)
+              || imageGenerationFailures.length > 0
+              || Boolean(previousImageGenerationContext && item.isCompleted === false)
+            );
+          const isImageGenerationLoading = isImageGenerationAssistant && item.isCompleted === false;
+          const imageGenerationFailureBySlot = new Map(imageGenerationFailures.map((failure) => [failure.slotIndex, failure]));
+          const isLegacyImageGenerationFailed = isImageGenerationAssistant
+            && item.isCompleted !== false
+            && answerContent.startsWith('图片生成失败');
+          const isImageGenerationFailed = isLegacyImageGenerationFailed || imageGenerationFailures.length > 0;
+          const imageGenerationSlotCount = isImageGenerationLoading
+            ? Math.max(1, item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0, imageAttachments.length)
+            : isImageGenerationFailed
+              ? Math.max(
+                1,
+                item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0,
+                imageAttachments.length,
+                ...imageGenerationFailures.map((failure) => failure.slotIndex + 1),
+              )
+              : imageAttachments.length;
+          const imageGenerationLayoutClass = imageGenerationSlotCount === 1
             ? 'single'
-            : imageAttachments.length === 4
+            : imageGenerationSlotCount === 2
+              ? 'double'
+              : imageGenerationSlotCount === 4
               ? 'quad'
               : 'multi';
-          const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
+          const imageGenerationAttachmentsBySlot = new Map(
+            imageAttachments.map((attachment, index) => [attachment.imageGenerationSlotIndex ?? index, attachment]),
+          );
           const attachmentList = Boolean(item.attachments?.length) ? (
             <div className={`chat-message-attachments ${item.role}`}>
               {item.role === 'user' && imageAttachments.length ? renderUserImageStack(imageAttachments) : null}
@@ -284,12 +313,7 @@ export function ChatMessageList({
           if (isImageGenerationAssistant) {
             return (
               <div className="chat-message-shell assistant image-generation" key={item.id}>
-                {isImageGenerationPending ? (
-                  <div className="chat-image-generation-loading">
-                    <span />
-                    <span>生成中...</span>
-                  </div>
-                ) : (
+                {imageGenerationSlotCount ? (
                   <>
                     <Image.PreviewGroup
                       preview={{
@@ -297,17 +321,32 @@ export function ChatMessageList({
                       }}
                     >
                       <div className={`chat-image-generation-grid ${imageGenerationLayoutClass}`}>
-                        {imageAttachments.map((attachment) => (
-                          <div className="chat-image-generation-cell" key={attachment.id}>
-                            <Image
-                              alt={attachment.name}
-                              className="chat-image-generation-image"
-                              height="100%"
-                              src={resolveAssetUrl(attachment.url)}
-                              width="100%"
-                            />
-                          </div>
-                        ))}
+                        {Array.from({ length: imageGenerationSlotCount }, (_, index) => {
+                          const attachment = imageGenerationAttachmentsBySlot.get(index);
+                          const failure = imageGenerationFailureBySlot.get(index);
+                          return attachment ? (
+                            <div className="chat-image-generation-cell" key={attachment.id}>
+                              <Image
+                                alt={attachment.name}
+                                className="chat-image-generation-image"
+                                height="100%"
+                                src={resolveAssetUrl(attachment.url)}
+                                width="100%"
+                              />
+                            </div>
+                          ) : failure || isLegacyImageGenerationFailed ? (
+                            <div className="chat-image-generation-cell failed" key={`failed-${index}`}>
+                              <Tooltip title={failure?.message || answerContent || '图片生成失败'}>
+                                <CloseCircleOutlined className="chat-image-generation-failed-icon" />
+                              </Tooltip>
+                              <span>生成失败</span>
+                            </div>
+                          ) : (
+                            <div className="chat-image-generation-cell loading" key={`loading-${index}`}>
+                              <span />
+                            </div>
+                          );
+                        })}
                       </div>
                     </Image.PreviewGroup>
                     <div className="chat-image-generation-actions">
@@ -329,6 +368,7 @@ export function ChatMessageList({
                               key: 'download',
                               icon: <DownloadOutlined />,
                               label: '下载',
+                              disabled: !imageAttachments.length,
                               onClick: () => downloadGeneratedImages(imageAttachments),
                             },
                             {
@@ -351,6 +391,25 @@ export function ChatMessageList({
                           variant="filled"
                         />
                       </Dropdown>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="chat-image-generation-error">
+                      {answerContent || '图片生成失败'}
+                    </div>
+                    <div className="chat-image-generation-actions">
+                      <Button
+                        className="chat-image-generation-action"
+                        color="default"
+                        disabled={sending || !previousUserMessage}
+                        icon={<ReloadOutlined />}
+                        onClick={() => confirmRegenerateImage(previousUserMessage)}
+                        size="small"
+                        variant="filled"
+                      >
+                        再次生成
+                      </Button>
                     </div>
                   </>
                 )}

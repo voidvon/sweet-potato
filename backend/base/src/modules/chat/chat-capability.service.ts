@@ -62,5 +62,6 @@ export async function dispatchChatCapability(input: ChatCapabilityExecutionInput
     attachments: input.attachments,
     capabilityContext: input.capabilityContext,
     conversation: input.conversation,
+    onImageGenerationAttachmentsChange: input.onImageGenerationAttachmentsChange,
   });
 }

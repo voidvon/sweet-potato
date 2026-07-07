@@ -8,6 +8,9 @@ import { modelConfigRepository } from '../model-configs/model-config.repository.
 import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
 import { resolveSkillInvocation } from '../skills/skill.service.js';
 import { userRepository } from '../users/user.repository.js';
+import { publishGenerationEvent } from '../generation/generation.events.js';
+import { generationRepository } from '../generation/generation.repository.js';
+import type { GenerationJob } from '../generation/generation.types.js';
 import { dispatchChatCapability, resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { assertModelConfigReady, streamConfiguredModel } from './chat-completion.service.js';
 import { chatRepository } from './chat.repository.js';
@@ -40,6 +43,34 @@ export function makeChatTitle(content: string) {
 function makeConversationPreview(content: string) {
   const compact = content.replace(/\s+/g, ' ').trim();
   return compact.length > 48 ? `${compact.slice(0, 48)}...` : compact;
+}
+
+function expectedImageGenerationCount(input: {
+  attachments: ChatAttachment[];
+  capabilityContext?: SendChatPayload['capabilityContext'];
+}) {
+  const imageGenerationContext = input.capabilityContext?.imageGeneration;
+  return Math.max(
+    1,
+    imageGenerationContext?.outputCount || 0,
+    ...((imageGenerationContext?.referenceGroups || []).map((group) => group.attachmentIds.length)),
+    input.attachments.filter((attachment) => attachment.kind === 'image').length,
+  );
+}
+
+function publishJob(job: GenerationJob | undefined) {
+  if (!job) {
+    return;
+  }
+  const message = job.assistantMessageId ? chatRepository.findMessage(job.assistantMessageId) : undefined;
+  publishGenerationEvent({
+    type: 'generation-job-updated',
+    userId: job.userId,
+    job,
+    items: generationRepository.listItems(job.id),
+    message,
+    at: new Date().toISOString(),
+  });
 }
 
 export function parseChatAttachments(value: unknown): ChatAttachment[] {
@@ -181,11 +212,15 @@ export async function handleCapabilityConversation(input: {
   conversation?: ChatConversation;
   existingHistory?: ChatMessage[];
   editedUserMessage?: ChatMessage;
+  onConversation?: (conversation: ChatConversation) => void;
+  onUserMessage?: (message: ChatMessage) => void;
+  onAssistantMessage?: (message: ChatMessage) => void;
 }) {
   const invocation = resolveChatCapabilityInvocation(input.content, input.requestedCapabilities);
   if (!invocation) {
     return null;
   }
+  const resolvedInvocation = invocation;
 
   const now = new Date().toISOString();
   const conversation: ChatConversation = input.conversation
@@ -201,18 +236,215 @@ export async function handleCapabilityConversation(input: {
         updatedAt: now,
       };
 
-  const result = await dispatchChatCapability({
-    userId: input.userId,
+  const userMessage: ChatMessage = {
+    id: input.editedUserMessage?.id || randomBytes(12).toString('hex'),
+    conversationId: conversation.id,
+    role: 'user',
     content: input.content,
-    agent: input.agent,
-    modelConfig: input.modelConfig,
-    imageModelConfig: input.imageModelConfig,
-    history: input.existingHistory || [],
-    attachments: input.attachments,
-    invocation,
     capabilityContext: input.capabilityContext,
-    conversation,
-  });
+    imageModelConfigId: input.imageModelConfig?.id || null,
+    agentId: input.agent.id,
+    modelConfigId: conversation.modelConfigId || undefined,
+    attachments: input.attachments,
+    createdAt: input.editedUserMessage?.createdAt || now,
+  };
+  let streamingAssistantMessage: ChatMessage | undefined;
+  let generationJob: GenerationJob | undefined;
+  const completedGenerationSlots = new Set<number>();
+  const imageGenerationExpectedCount = resolvedInvocation.capability === 'image_generation'
+    ? expectedImageGenerationCount(input)
+    : undefined;
+
+  function buildImageGenerationFailures(message: string) {
+    if (resolvedInvocation.capability !== 'image_generation') {
+      return [];
+    }
+    const outputCount = expectedImageGenerationCount(input);
+    return Array.from({ length: outputCount }, (_, slotIndex) => ({
+      slotIndex,
+      message,
+    })).filter((failure) => !completedGenerationSlots.has(failure.slotIndex));
+  }
+
+  if (input.onAssistantMessage) {
+    const initialConversation: ChatConversation = {
+      ...conversation,
+      metadata: {
+        ...(conversation.metadata || {}),
+        previewText: makeConversationPreview(invocation.cleanedContent || input.content),
+      },
+    };
+    streamingAssistantMessage = {
+      id: randomBytes(12).toString('hex'),
+      conversationId: initialConversation.id,
+      role: 'assistant',
+      content: '',
+      actions: [],
+      agentId: input.agent.id,
+      modelConfigId: initialConversation.modelConfigId || undefined,
+      attachments: [],
+      imageGenerationExpectedCount,
+      imageGenerationFailures: [],
+      createdAt: new Date(Date.now() + 1).toISOString(),
+      isCompleted: false,
+    };
+    if (resolvedInvocation.capability === 'image_generation') {
+      generationJob = generationRepository.createJob({
+        userId: input.userId,
+        kind: 'image',
+        sourceModule: 'claw',
+        conversationId: initialConversation.id,
+        userMessageId: userMessage.id,
+        assistantMessageId: streamingAssistantMessage.id,
+        expectedCount: imageGenerationExpectedCount || 1,
+        payload: {
+          content: input.content,
+          capabilityContext: input.capabilityContext || {},
+          imageModelConfigId: input.imageModelConfig?.id || null,
+        },
+      });
+      streamingAssistantMessage.generationJobId = generationJob.id;
+      publishJob(generationJob);
+    }
+
+    if (input.conversation) {
+      chatRepository.touchConversation(initialConversation);
+    } else {
+      chatRepository.createConversation(initialConversation);
+    }
+    if (input.editedUserMessage) {
+      chatRepository.replaceMessageContent({
+        id: userMessage.id,
+        content: userMessage.content,
+        attachments: userMessage.attachments,
+        capabilityContext: userMessage.capabilityContext,
+        imageModelConfigId: userMessage.imageModelConfigId,
+      });
+    } else {
+      chatRepository.createMessages([userMessage]);
+    }
+    chatRepository.createMessages([streamingAssistantMessage]);
+    input.onConversation?.(initialConversation);
+    input.onUserMessage?.(userMessage);
+    input.onAssistantMessage(streamingAssistantMessage);
+  }
+
+  let result: Awaited<ReturnType<typeof dispatchChatCapability>>;
+  try {
+    if (generationJob) {
+      generationJob = generationRepository.markJobRunning(generationJob.id);
+      publishJob(generationJob);
+    }
+    result = await dispatchChatCapability({
+      userId: input.userId,
+      content: input.content,
+      agent: input.agent,
+      modelConfig: input.modelConfig,
+      imageModelConfig: input.imageModelConfig,
+      history: input.existingHistory || [],
+      attachments: input.attachments,
+      invocation,
+      capabilityContext: input.capabilityContext,
+      conversation,
+      onImageGenerationAttachmentsChange: input.onAssistantMessage
+        ? async (attachments) => {
+          if (!streamingAssistantMessage) {
+            return;
+          }
+          streamingAssistantMessage = {
+            ...streamingAssistantMessage,
+            content: attachments.length ? `已生成 ${attachments.length} 张图片，剩余图片继续生成中。` : '',
+            attachments,
+            imageGenerationFailures: [],
+            generationJobId: generationJob?.id,
+            imageGenerationExpectedCount,
+            isCompleted: false,
+          };
+          attachments.forEach((attachment, index) => {
+            const slotIndex = attachment.imageGenerationSlotIndex ?? index;
+            if (generationJob && !completedGenerationSlots.has(slotIndex)) {
+              completedGenerationSlots.add(slotIndex);
+              const nextJob = generationRepository.updateItem({
+                jobId: generationJob.id,
+                slotIndex,
+                status: 'completed',
+                attachmentId: attachment.id,
+              });
+              if (nextJob) {
+                generationJob = nextJob;
+              }
+            }
+          });
+          chatRepository.replaceMessageContent({
+            id: streamingAssistantMessage.id,
+            content: streamingAssistantMessage.content,
+            attachments: streamingAssistantMessage.attachments,
+            generationJobId: streamingAssistantMessage.generationJobId,
+            imageGenerationExpectedCount: streamingAssistantMessage.imageGenerationExpectedCount,
+            imageGenerationFailures: streamingAssistantMessage.imageGenerationFailures,
+            isCompleted: false,
+          });
+          publishJob(generationJob);
+          input.onAssistantMessage?.(streamingAssistantMessage);
+        }
+        : undefined,
+    });
+  } catch (error) {
+    if (!streamingAssistantMessage) {
+      throw error;
+    }
+    const errorMessage = error instanceof Error ? error.message : '图片生成失败';
+    const failedConversation: ChatConversation = {
+      ...conversation,
+      metadata: {
+        ...(conversation.metadata || {}),
+        previewText: errorMessage,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    streamingAssistantMessage = {
+      ...streamingAssistantMessage,
+      content: `图片生成失败：${errorMessage}`,
+      generationJobId: generationJob?.id,
+      imageGenerationExpectedCount,
+      imageGenerationFailures: buildImageGenerationFailures(errorMessage),
+      isCompleted: true,
+    };
+    if (generationJob) {
+      streamingAssistantMessage.imageGenerationFailures?.forEach((failure) => {
+        generationRepository.updateItem({
+          jobId: generationJob!.id,
+          slotIndex: failure.slotIndex,
+          status: 'failed',
+          error: failure.message,
+        });
+      });
+      generationJob = generationRepository.finalizeJob({
+        jobId: generationJob.id,
+        status: 'failed',
+        error: errorMessage,
+      });
+    }
+    chatRepository.touchConversation(failedConversation);
+    chatRepository.replaceMessageContent({
+      id: streamingAssistantMessage.id,
+      content: streamingAssistantMessage.content,
+      attachments: streamingAssistantMessage.attachments,
+      generationJobId: streamingAssistantMessage.generationJobId,
+      imageGenerationExpectedCount: streamingAssistantMessage.imageGenerationExpectedCount,
+      imageGenerationFailures: streamingAssistantMessage.imageGenerationFailures,
+      isCompleted: true,
+    });
+    publishJob(generationJob);
+    input.onConversation?.(failedConversation);
+    input.onAssistantMessage?.(streamingAssistantMessage);
+    return {
+      conversation: failedConversation,
+      userMessage,
+      assistantMessage: streamingAssistantMessage,
+      messages: chatRepository.listMessages(failedConversation.id),
+    };
+  }
 
   const nextConversation: ChatConversation = {
     ...conversation,
@@ -222,18 +454,8 @@ export async function handleCapabilityConversation(input: {
     },
     updatedAt: now,
   };
-  const userMessage: ChatMessage = {
-    id: input.editedUserMessage?.id || randomBytes(12).toString('hex'),
-    conversationId: nextConversation.id,
-    role: 'user',
-    content: input.content,
-    agentId: input.agent.id,
-    modelConfigId: nextConversation.modelConfigId || undefined,
-    attachments: input.attachments,
-    createdAt: input.editedUserMessage?.createdAt || now,
-  };
   const assistantMessage: ChatMessage = {
-    id: randomBytes(12).toString('hex'),
+    id: streamingAssistantMessage?.id || randomBytes(12).toString('hex'),
     conversationId: nextConversation.id,
     role: 'assistant',
     content: result.assistantContent,
@@ -241,33 +463,68 @@ export async function handleCapabilityConversation(input: {
     agentId: input.agent.id,
     modelConfigId: nextConversation.modelConfigId || undefined,
     attachments: result.assistantAttachments || [],
-    createdAt: new Date(Date.now() + 1).toISOString(),
+    generationJobId: generationJob?.id,
+    imageGenerationExpectedCount,
+    imageGenerationFailures: result.imageGenerationFailures || [],
+    createdAt: streamingAssistantMessage?.createdAt || new Date(Date.now() + 1).toISOString(),
     isCompleted: true,
   };
-
-  if (input.conversation) {
-    chatRepository.touchConversation(nextConversation);
-  } else {
-    chatRepository.createConversation(nextConversation);
-  }
-  if (input.editedUserMessage) {
-    chatRepository.replaceMessageContent({
-      id: userMessage.id,
-      content: userMessage.content,
-      attachments: userMessage.attachments,
+  if (generationJob) {
+    assistantMessage.imageGenerationFailures?.forEach((failure) => {
+      generationRepository.updateItem({
+        jobId: generationJob!.id,
+        slotIndex: failure.slotIndex,
+        status: 'failed',
+        error: failure.message,
+      });
     });
-    chatRepository.createMessages([assistantMessage]);
+    generationJob = generationRepository.finalizeJob({
+      jobId: generationJob.id,
+      result: {
+        attachmentIds: (assistantMessage.attachments || []).map((attachment) => attachment.id),
+      },
+    });
+  }
+
+  if (streamingAssistantMessage) {
+    chatRepository.touchConversation(nextConversation);
+    chatRepository.replaceMessageContent({
+      id: assistantMessage.id,
+      content: assistantMessage.content,
+      attachments: assistantMessage.attachments,
+      generationJobId: assistantMessage.generationJobId,
+      imageGenerationExpectedCount: assistantMessage.imageGenerationExpectedCount,
+      imageGenerationFailures: assistantMessage.imageGenerationFailures,
+      isCompleted: true,
+    });
+    publishJob(generationJob);
+    input.onConversation?.(nextConversation);
+    input.onAssistantMessage?.(assistantMessage);
   } else {
-    chatRepository.createMessages([userMessage, assistantMessage]);
+    if (input.conversation) {
+      chatRepository.touchConversation(nextConversation);
+    } else {
+      chatRepository.createConversation(nextConversation);
+    }
+    if (input.editedUserMessage) {
+      chatRepository.replaceMessageContent({
+        id: userMessage.id,
+        content: userMessage.content,
+        attachments: userMessage.attachments,
+        capabilityContext: userMessage.capabilityContext,
+        imageModelConfigId: userMessage.imageModelConfigId,
+      });
+      chatRepository.createMessages([assistantMessage]);
+    } else {
+      chatRepository.createMessages([userMessage, assistantMessage]);
+    }
   }
 
   return {
     conversation: nextConversation,
     userMessage,
     assistantMessage,
-    messages: input.existingHistory
-      ? [...input.existingHistory, userMessage, assistantMessage]
-      : chatRepository.listMessages(nextConversation.id),
+    messages: chatRepository.listMessages(nextConversation.id),
   };
 }
 
@@ -379,10 +636,13 @@ export function createChatStreamExecutor() {
         id: editTarget.id,
         content,
         attachments,
+        capabilityContext,
+        imageModelConfigId,
       });
     }
     if (capabilityInvocation) {
       try {
+        const streamCapabilityMessages = capabilityInvocation.capability === 'image_generation';
         const handled = await handleCapabilityConversation({
           userId,
           content,
@@ -401,11 +661,22 @@ export function createChatStreamExecutor() {
                 attachments,
               }
             : undefined,
+          onConversation: streamCapabilityMessages
+            ? (conversation) => sink.send({ type: 'conversation', conversation })
+            : undefined,
+          onUserMessage: streamCapabilityMessages
+            ? (message) => sink.send({ type: 'user_message', message })
+            : undefined,
+          onAssistantMessage: streamCapabilityMessages
+            ? (message) => sink.send({ type: 'assistant_message', message })
+            : undefined,
         });
         if (handled) {
-          sink.send({ type: 'conversation', conversation: handled.conversation });
-          sink.send({ type: 'user_message', message: handled.userMessage });
-          sink.send({ type: 'assistant_message', message: handled.assistantMessage });
+          if (!streamCapabilityMessages) {
+            sink.send({ type: 'conversation', conversation: handled.conversation });
+            sink.send({ type: 'user_message', message: handled.userMessage });
+            sink.send({ type: 'assistant_message', message: handled.assistantMessage });
+          }
           sink.send({ type: 'done', conversation: handled.conversation, messages: handled.messages });
           sink.end();
           return;

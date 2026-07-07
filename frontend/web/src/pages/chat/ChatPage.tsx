@@ -85,7 +85,7 @@ export function ChatPage() {
               messages={chat.messages}
               onActionClick={(content) => void chat.sendPresetMessage(content)}
               onDeleteMessage={(messageItem) => void chat.removeMessage(messageItem)}
-              onRegenerateImage={(content, attachments) => void chat.regenerateImageMessage(content, attachments)}
+              onRegenerateImage={(messageItem) => void chat.regenerateImageMessage(messageItem)}
               onUpdateUserMessage={(messageId, content) => void chat.updateUserMessage(messageId, content)}
               onScroll={chat.handleChatScroll}
               onScrollToBottom={() => chat.scrollToBottom(true)}

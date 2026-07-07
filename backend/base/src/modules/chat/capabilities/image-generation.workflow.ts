@@ -10,7 +10,7 @@ import {
 } from '../../content/internals/content-image-assets.js';
 import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
 import type { ChatCapabilityExecutionInput } from '../chat-capability.types.js';
-import type { ChatAttachment } from '../chat.types.js';
+import type { ChatAttachment, ChatImageGenerationFailure } from '../chat.types.js';
 import type { AiModelConfig } from '../../model-configs/model-config.types.js';
 import { askConfiguredModelWithMessages } from '../chat-completion.service.js';
 import {
@@ -672,8 +672,7 @@ function outputCountOf(
   const outputConfig = imageGenerationOutputConfigOf(modeSchema);
   if (modeSchema.outputCountStrategy === 'matchUploadedImages') {
     const imageCount = referenceAttachments.filter((attachment) => attachment.kind === 'image').length;
-    const maxAllowed = Math.max(...outputConfig.allowedOutputCounts);
-    return Math.max(1, Math.min(imageCount || 1, maxAllowed));
+    return Math.max(1, imageCount || 1);
   }
   const requestedCount = Number(input.capabilityContext?.imageGeneration?.outputCount);
   if (!Number.isFinite(requestedCount)) {
@@ -916,21 +915,155 @@ async function persistGeneratedImageAttachments(input: {
   outputCount: number;
 }) {
   const { generatedItems, outputCount } = input;
-  const assistantAttachments = await Promise.all(generatedItems.map(async (generated, index) => {
-    const extension = extensionForMimeType(generated.mimeType);
-    const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
-    const filePath = path.join(contentFilesDir, storedFileName);
-    await writeFile(filePath, generated.buffer);
-    return {
-      id: randomBytes(8).toString('hex'),
-      kind: 'image' as const,
-      name: outputCount > 1 ? `generated-image-${index + 1}.${extension}` : `generated-image.${extension}`,
-      type: generated.mimeType,
-      size: generated.buffer.byteLength,
-      url: fileUrlFor(storedFileName),
-    };
-  }));
+  const assistantAttachments = await Promise.all(generatedItems.map((generated, index) => (
+    persistGeneratedImageAttachment({ generated, index, outputCount })
+  )));
   return assistantAttachments;
+}
+
+async function persistGeneratedImageAttachment(input: {
+  generated: ImageGenerationProviderResult;
+  index: number;
+  outputCount: number;
+  slotIndex?: number;
+}) {
+  const { generated, index, outputCount } = input;
+  const slotIndex = input.slotIndex ?? index;
+  const extension = extensionForMimeType(generated.mimeType);
+  const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
+  const filePath = path.join(contentFilesDir, storedFileName);
+  await writeFile(filePath, generated.buffer);
+  return {
+    id: randomBytes(8).toString('hex'),
+    kind: 'image' as const,
+    name: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
+    type: generated.mimeType,
+    size: generated.buffer.byteLength,
+    url: fileUrlFor(storedFileName),
+    imageGenerationSlotIndex: slotIndex,
+  };
+}
+
+async function generateAndPersistImageAttachments(input: {
+  prepared: ImageGenerationPreparedInput;
+  userId: string;
+  onAttachmentsChange?: (attachments: ChatAttachment[]) => void | Promise<void>;
+}) {
+  const { prepared, userId, onAttachmentsChange } = input;
+  const persistedAttachments: ChatAttachment[] = [];
+  const imageGenerationFailures: ChatImageGenerationFailure[] = [];
+  const sortedPersistedAttachments = () => [...persistedAttachments].sort((left, right) => (
+    (left.imageGenerationSlotIndex ?? 0) - (right.imageGenerationSlotIndex ?? 0)
+  ));
+  const sortedFailures = () => [...imageGenerationFailures].sort((left, right) => left.slotIndex - right.slotIndex);
+
+  async function persistResults(results: ImageGenerationProviderResult[], slotStartIndex: number) {
+    if (!results.length) {
+      throw new Error('图片模型未返回图片');
+    }
+    const attachments = await Promise.all(results.map((generated, index) => (
+      persistGeneratedImageAttachment({
+        generated,
+        index: slotStartIndex + index,
+        outputCount: prepared.outputCount,
+        slotIndex: slotStartIndex + index,
+      })
+    )));
+    persistedAttachments.push(...attachments);
+    if (attachments.length) {
+      await onAttachmentsChange?.(sortedPersistedAttachments());
+    }
+  }
+
+  function collectSettledGenerationFailures(results: PromiseSettledResult<unknown>[]) {
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        return;
+      }
+      imageGenerationFailures.push({
+        slotIndex: index,
+        message: result.reason instanceof Error ? result.reason.message : String(result.reason || '图片生成失败'),
+      });
+    });
+  }
+
+  const adapter = resolveImageGenerationProviderAdapter(prepared.modelConfig);
+  if (prepared.redrawPromptTexts?.length) {
+    const results = await Promise.allSettled(prepared.redrawPromptTexts.map(async (redrawPrompt, index) => {
+      const results = await adapter.generate({
+        background: prepared.generationOptions?.background,
+        modelConfig: prepared.modelConfig,
+        modeKey: prepared.modeKey,
+        outputCount: 1,
+        outputCompression: prepared.generationOptions?.outputCompression,
+        outputFormat: prepared.generationOptions?.outputFormat,
+        outputSize: prepared.outputSize,
+        prompt: [
+          redrawPrompt,
+          prepared.prompt,
+          '生成方式：完全基于以上文字提示词生成新图，不要参考、编辑、复制或沿用原始上传图片。',
+        ].join('\n'),
+        referenceAssets: [],
+        referenceDecision: prepared.referenceDecision?.intent,
+        sourceIdPrefix: `${prepared.sourceIdPrefix}-redraw-${index + 1}`,
+        userId,
+      });
+      await persistResults(results.slice(0, 1), index);
+    }));
+    collectSettledGenerationFailures(results);
+    return {
+      attachments: sortedPersistedAttachments(),
+      failures: sortedFailures(),
+    };
+  }
+
+  if (prepared.referenceAssetBatches?.length) {
+    const results = await Promise.allSettled(prepared.referenceAssetBatches.map(async (referenceAssets, index) => {
+      const results = await adapter.generate({
+        background: prepared.generationOptions?.background,
+        modelConfig: prepared.modelConfig,
+        modeKey: prepared.modeKey,
+        outputCount: 1,
+        outputCompression: prepared.generationOptions?.outputCompression,
+        outputFormat: prepared.generationOptions?.outputFormat,
+        outputSize: prepared.outputSize,
+        prompt: [
+          prepared.prompt,
+          `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
+        ].join('\n'),
+        referenceAssets,
+        referenceDecision: prepared.referenceDecision?.intent,
+        sourceIdPrefix: `${prepared.sourceIdPrefix}-${index + 1}`,
+        userId,
+      });
+      await persistResults(results.slice(0, 1), index);
+    }));
+    collectSettledGenerationFailures(results);
+    return {
+      attachments: sortedPersistedAttachments(),
+      failures: sortedFailures(),
+    };
+  }
+
+  await persistResults(await adapter.generate({
+    background: prepared.generationOptions?.background,
+    modelConfig: prepared.modelConfig,
+    modeKey: prepared.modeKey,
+    outputCount: prepared.outputCount,
+    outputCompression: prepared.generationOptions?.outputCompression,
+    outputFormat: prepared.generationOptions?.outputFormat,
+    outputSize: prepared.outputSize,
+    prompt: prepared.prompt,
+    referenceAssets: prepared.referenceAssets,
+    referenceDecision: prepared.referenceDecision?.intent,
+    sourceIdPrefix: prepared.sourceIdPrefix,
+    userId,
+  }), 0);
+
+  return {
+    attachments: sortedPersistedAttachments(),
+    failures: sortedFailures(),
+  };
 }
 
 const ImageGenerationGraphState = Annotation.Root({
@@ -992,6 +1125,23 @@ async function runImageGenerationGraph(input: ChatCapabilityExecutionInput) {
 }
 
 export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionInput) {
+  if (input.onImageGenerationAttachmentsChange) {
+    const prepared = await prepareImageGeneration(input);
+    const assistantAttachments = await generateAndPersistImageAttachments({
+      prepared,
+      userId: input.userId,
+      onAttachmentsChange: input.onImageGenerationAttachmentsChange,
+    });
+    const failureCount = assistantAttachments.failures.length;
+    return {
+      assistantAttachments: assistantAttachments.attachments,
+      imageGenerationFailures: assistantAttachments.failures,
+      assistantContent: failureCount
+        ? `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片，${failureCount} 张失败。`
+        : `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片。`,
+    };
+  }
+
   const result = await runImageGenerationGraph(input);
   return {
     assistantAttachments: result.assistantAttachments,

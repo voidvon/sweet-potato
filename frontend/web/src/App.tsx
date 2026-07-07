@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Spin } from 'antd';
 import { getCurrentUser } from '@shared/api/user';
 import { getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
+import { AppRealtimeEventsProvider } from './events/appRealtimeEvents';
 import { AppRoutes } from './routes/AppRoutes';
 import type { AuthSession, User } from '@shared/types';
 
@@ -72,12 +73,14 @@ function App() {
   }
 
   return (
-    <AppRoutes
-      currentUser={currentUser}
-      onAuthed={handleAuthed}
-      onLogout={handleLogout}
-      onUserUpdated={handleUserUpdated}
-    />
+    <AppRealtimeEventsProvider currentUser={currentUser}>
+      <AppRoutes
+        currentUser={currentUser}
+        onAuthed={handleAuthed}
+        onLogout={handleLogout}
+        onUserUpdated={handleUserUpdated}
+      />
+    </AppRealtimeEventsProvider>
   );
 }
 

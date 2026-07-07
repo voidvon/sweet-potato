@@ -22,7 +22,6 @@ import {
   parseRequestedCapabilities,
 } from './chat-stream.service.js';
 import type { ChatConversation, ChatMessage } from './chat.types.js';
-
 const chatFilesDir = path.join(dataDir, 'files');
 mkdirSync(chatFilesDir, { recursive: true });
 
@@ -236,6 +235,7 @@ export function createChatRouter() {
     const attachments = parseChatAttachments(req.body.attachments);
     const capabilityContext = parseCapabilityContext(req.body.capabilityContext);
     const requestedCapabilities = parseRequestedCapabilities(req.body.requestedCapabilities);
+    const editMessageId = String(req.body.editMessageId || '').trim();
 
     if (!userId || (!content && !attachments.length) || !agentId) {
       sendError(res, 401, '请先登录');
@@ -271,6 +271,11 @@ export function createChatRouter() {
       sendError(res, 403, '无权访问该对话');
       return;
     }
+    const editTarget = editMessageId ? chatRepository.findMessage(editMessageId) : undefined;
+    if (editMessageId && (!existingConversation || !editTarget || editTarget.conversationId !== existingConversation.id || editTarget.role !== 'user')) {
+      sendError(res, 404, '待编辑消息不存在或不可编辑');
+      return;
+    }
 
     const capabilityInvocation = resolveChatCapabilityInvocation(content, requestedCapabilities);
     const imageModelConfig = imageModelConfigId
@@ -284,6 +289,63 @@ export function createChatRouter() {
     }
     if (imageModelConfig && imageModelConfig.type !== 'image') {
       sendError(res, 400, '请选择图片模型配置');
+      return;
+    }
+    if (capabilityInvocation?.capability === 'image_generation') {
+      let existingHistory = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
+      if (editTarget) {
+        existingHistory = existingHistory.filter((item) => item.createdAt < editTarget.createdAt);
+        chatRepository.deleteMessagesAfter(existingConversation!.id, editTarget.createdAt);
+        chatRepository.replaceMessageContent({
+          id: editTarget.id,
+          content,
+          attachments,
+          capabilityContext,
+          imageModelConfigId,
+        });
+      }
+      let initialConversation: ChatConversation | undefined;
+      let initialUserMessage: ChatMessage | undefined;
+      let initialAssistantMessage: ChatMessage | undefined;
+      const backgroundRun = handleCapabilityConversation({
+        userId,
+        content,
+        agent,
+        modelConfig,
+        imageModelConfig,
+        attachments,
+        capabilityContext,
+        requestedCapabilities,
+        conversation: existingConversation,
+        existingHistory,
+        editedUserMessage: editTarget
+          ? {
+              ...editTarget,
+              content,
+              attachments,
+            }
+          : undefined,
+        onConversation: (conversation) => {
+          initialConversation = conversation;
+        },
+        onUserMessage: (message) => {
+          initialUserMessage = message;
+        },
+        onAssistantMessage: (message) => {
+          initialAssistantMessage = message;
+        },
+      });
+      void backgroundRun.catch((error) => {
+        console.error('[chat] background image generation failed', error);
+      });
+      if (!initialConversation || !initialUserMessage || !initialAssistantMessage) {
+        sendError(res, 500, '图片生成任务创建失败');
+        return;
+      }
+      res.status(202).json({
+        conversation: initialConversation,
+        messages: chatRepository.listMessages(initialConversation.id),
+      });
       return;
     }
     if (capabilityInvocation) {
