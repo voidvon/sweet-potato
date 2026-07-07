@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express';
 import multer from 'multer';
 import { mkdirSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
@@ -11,6 +12,7 @@ import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
 import { contentService } from './content.service.js';
+import { execFileAsync } from './internals/content-common.js';
 import type { ContentResourceType } from './content.types.js';
 import type { UserRole } from '../users/user.types.js';
 
@@ -160,6 +162,35 @@ function uploadedFilePayload(req: Request) {
   return uploadedFilePayloadFromMulterFile(req.file, requestPublicBaseUrl(req));
 }
 
+function parseTrimSecond(value: unknown, fieldName: string) {
+  const nextValue = Number(value);
+  if (!Number.isFinite(nextValue) || nextValue < 0) {
+    throw new Error(`${fieldName} 必须是有效秒数`);
+  }
+  return roundTrimSecond(nextValue);
+}
+
+function roundTrimSecond(value: number) {
+  return Number(value.toFixed(1));
+}
+
+function fileUrlForContentFile(fileName: string) {
+  return `/files/${encodeURIComponent(fileName)}`;
+}
+
+function storedFileNameFromReferenceVideoPayload(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    throw new Error('缺少参考视频文件');
+  }
+  const decoded = decodeURIComponent(raw.replace(/^\/files\//, ''));
+  const baseName = path.basename(decoded);
+  if (!baseName || baseName !== decoded || !baseName.endsWith('-trimmed.mp4')) {
+    throw new Error('参考视频文件无效');
+  }
+  return baseName;
+}
+
 export function createContentRouter() {
   const router = Router();
 
@@ -177,6 +208,80 @@ export function createContentRouter() {
       return;
     }
     registerContentEventClient(userId, res);
+  });
+
+  router.post('/reference-video/trim', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
+    upload.single('file')(req, res, (uploadError) => {
+      void (async () => {
+        if (uploadError) {
+          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '参考视频上传失败');
+          return;
+        }
+        let outputPath = '';
+        try {
+          if (!req.file) {
+            throw new Error('请选择要剪辑的参考视频');
+          }
+          if (!String(req.file.mimetype || '').startsWith('video/')) {
+            throw new Error('参考素材必须是视频文件');
+          }
+          const start = parseTrimSecond(req.body.start, '起点');
+          const end = parseTrimSecond(req.body.end, '终点');
+          const duration = roundTrimSecond(end - start);
+          if (duration < 4 || duration > 15) {
+            throw new Error('参考视频选区必须在 4-15 秒之间');
+          }
+
+          const originalName = decodeUploadFileName(req.file.originalname);
+          const parsed = path.parse(sanitizeFileName(originalName));
+          const storedFileName = `${Date.now()}-${parsed.name || 'reference-video'}-trimmed.mp4`;
+          outputPath = path.join(contentFilesDir, storedFileName);
+
+          await execFileAsync('ffmpeg', [
+            '-y',
+            '-ss', String(start),
+            '-i', req.file.path,
+            '-t', String(duration),
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-movflags', '+faststart',
+            outputPath,
+          ], { timeout: 120000 });
+
+          await rm(req.file.path, { force: true });
+          const fileUrl = fileUrlForContentFile(storedFileName);
+          res.status(201).json({
+            duration,
+            end,
+            fileUrl,
+            name: storedFileName,
+            originalFileName: originalName,
+            start,
+            storedFileName,
+          });
+        } catch (error) {
+          if (req.file) {
+            await rm(req.file.path, { force: true });
+          }
+          if (outputPath) {
+            await rm(outputPath, { force: true });
+          }
+          sendError(res, 400, getErrorMessage(error, '参考视频剪辑失败'));
+        }
+      })();
+    });
+  });
+
+  router.delete('/reference-video', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
+    void (async () => {
+      try {
+        const storedFileName = storedFileNameFromReferenceVideoPayload(req.body.storedFileName || req.body.fileUrl);
+        await rm(path.join(contentFilesDir, storedFileName), { force: true });
+        res.json({ ok: true });
+      } catch (error) {
+        sendError(res, 400, getErrorMessage(error, '参考视频删除失败'));
+      }
+    })();
   });
 
   router.post('/real-person/validation-session', (req, res) => {

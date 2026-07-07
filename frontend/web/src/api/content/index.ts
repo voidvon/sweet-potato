@@ -13,9 +13,21 @@ enum Api {
   groups = '/api/content/asset-groups',
   assets = '/api/content/assets',
   uploadAsset = '/api/content/assets/upload',
+  referenceVideo = '/api/content/reference-video',
+  trimReferenceVideo = '/api/content/reference-video/trim',
   videoTasks = '/api/content/video-tasks',
   videoProductions = '/api/content/video-productions',
 }
+
+export type TrimReferenceVideoResult = {
+  duration: number;
+  end: number;
+  fileUrl: string;
+  name: string;
+  originalFileName: string;
+  start: number;
+  storedFileName: string;
+};
 
 const groupPageRequests = new Map<string, Promise<PaginatedResult<ContentAssetGroup>>>();
 
@@ -168,6 +180,31 @@ export function uploadContentAsset(payload: {
   return request<ContentAsset>(Api.uploadAsset, {
     method: 'POST',
     body: formData,
+  });
+}
+
+export function trimReferenceVideo(payload: {
+  file: File;
+  start: number;
+  end: number;
+}) {
+  const formData = new FormData();
+  formData.set('file', payload.file);
+  formData.set('start', String(payload.start));
+  formData.set('end', String(payload.end));
+  return request<TrimReferenceVideoResult>(Api.trimReferenceVideo, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export function deleteReferenceVideo(payload: {
+  fileUrl?: string;
+  storedFileName?: string;
+}) {
+  return request<{ ok: boolean }>(Api.referenceVideo, {
+    method: 'DELETE',
+    body: JSON.stringify(payload),
   });
 }
 

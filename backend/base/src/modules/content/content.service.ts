@@ -1663,8 +1663,8 @@ export const contentService = {
             }
             const remoteUrl = stringMetadataField(remoteAsset as Record<string, unknown>, 'URL');
             contentRepository.updateAssetFileInfo(asset.id, {
-              fileUrl: remoteUrl || asset.fileUrl,
-              originalFileName: remoteUrl ? originalNameFromUrl(remoteUrl) : asset.originalFileName,
+              fileUrl: asset.fileUrl,
+              originalFileName: asset.originalFileName,
               mimeType: remoteAssetMimeType(remoteAsset),
               name: remoteAssetName(remoteAsset),
               metadata: {

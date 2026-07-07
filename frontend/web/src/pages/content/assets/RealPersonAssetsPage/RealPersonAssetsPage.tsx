@@ -53,11 +53,17 @@ function formatDateTime(value: string) {
 }
 
 function fileUrl(asset: ContentAsset) {
+  if (!asset.fileUrl) {
+    return '';
+  }
+  if (/^(blob:|data:|https?:\/\/)/i.test(asset.fileUrl)) {
+    return asset.fileUrl;
+  }
   return `${API_BASE_URL}${asset.fileUrl}`;
 }
 
 function previewUrl(asset: ContentAsset) {
-  return stringMetadata(asset.metadata, 'remotePreviewUrl') || fileUrl(asset);
+  return fileUrl(asset) || stringMetadata(asset.metadata, 'remotePreviewUrl');
 }
 
 function extractGroup(result: RealPersonValidationResultResponse) {

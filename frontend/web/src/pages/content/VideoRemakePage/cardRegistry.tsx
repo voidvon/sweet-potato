@@ -8,6 +8,7 @@ import { AssetLibraryAudioWave } from '../../../components/AssetLibraryCard';
 import { MentionRichTextarea, type MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import { AssetSelector, type AssetSelectorKind } from './AssetSelector';
 import {
+  assetPreviewUrl,
   asItems,
   asRecord,
   cardTypeLabels,
@@ -299,7 +300,7 @@ function SelectedReference({
   }
   const title = asset?.name || asset?.originalFileName || group?.name || '已选择素材';
   const description = asset?.description || asset?.originalFileName || group?.description || (group?.assetCount !== undefined ? `${group.assetCount} 个素材` : '');
-  const preview = asset ? mediaUrl(asset.fileUrl) : group?.coverAssets?.[0] ? mediaUrl(group.coverAssets[0].fileUrl) : '';
+  const preview = asset ? assetPreviewUrl(asset) : assetPreviewUrl(group?.coverAssets?.[0]);
   const mimeType = asset?.mimeType || group?.coverAssets?.[0]?.mimeType || '';
 
   return (
@@ -461,7 +462,7 @@ function SquareReferencePicker({
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const previewAsset = asset || resolveGroupPreviewAsset(group, assets, preferAudioPreview ? 'audio/' : undefined) || resolveGroupPreviewAsset(group, assets);
-  const previewUrl = previewAsset ? mediaUrl(previewAsset.fileUrl) : '';
+  const previewUrl = assetPreviewUrl(previewAsset);
   const mimeType = previewAsset?.mimeType || '';
   const title = asset?.name || asset?.originalFileName || group?.name || pickText;
   const hasSelection = Boolean(asset || group);

@@ -361,6 +361,30 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
+    key: 'content-create-video',
+    path: 'content/create_video',
+    fullPath: routePaths.contentModule('create_video'),
+    element: (currentUser) => withImmersiveSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="create_video" />),
+    routeResource: {
+      permissionCode: 'web.module.content.create_video',
+      protected: false,
+      resourceKey: 'web.module.content.create_video',
+      resourceType: 'menu',
+    },
+    handle: {
+      title: '视频生成',
+      surface: 'immersive',
+      sidebar: {
+        groupKey: 'video',
+        icon: <Video {...menuIconProps} />,
+        label: '视频生成',
+      },
+      contentNavigation: {
+        code: 'create_video',
+      },
+    },
+  },
+  {
     key: 'creator-ops-xingtu',
     path: 'creator-ops/xingtu',
     fullPath: routePaths.xingtuCreators,

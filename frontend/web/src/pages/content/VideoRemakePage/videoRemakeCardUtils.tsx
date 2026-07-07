@@ -86,6 +86,22 @@ export function mediaUrl(url: string) {
   return resolveAssetUrl(url);
 }
 
+function metadataString(asset: ContentAsset | undefined, key: string) {
+  const value = asset?.metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export function assetPreviewUrl(asset: ContentAsset | undefined) {
+  if (!asset) {
+    return '';
+  }
+  const localUrl = mediaUrl(asset.fileUrl);
+  if (localUrl) {
+    return localUrl;
+  }
+  return mediaUrl(metadataString(asset, 'remotePreviewUrl'));
+}
+
 function isThreeViewResultAsset(asset: ContentAsset) {
   if (asset.metadata?.kind === 'three_view_failure' || asset.metadata?.kind === 'three_view_running') {
     return false;

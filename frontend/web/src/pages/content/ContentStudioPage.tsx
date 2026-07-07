@@ -9,7 +9,7 @@ import type { ContentResourceType, CreativeModuleCode, User } from '../../types'
 
 const ContentResourceLibraryPage = lazy(() => import('./ContentResourceLibraryPage').then((m) => ({ default: m.ContentResourceLibraryPage })));
 const VideoRemakePage = lazy(() => import('./VideoRemakePage').then((m) => ({ default: m.VideoRemakePage })));
-const VideoCreatePage = lazy(() => import('./VideoCreatePage').then((m) => ({ default: m.VideoCreatePage })));
+const VideoTaskClonePage = lazy(() => import('./VideoTaskClonePage').then((m) => ({ default: m.VideoTaskClonePage })));
 const DigitalHumanAssetsPage = lazy(() => import('./assets/DigitalHumanAssetsPage').then((m) => ({ default: m.DigitalHumanAssetsPage })));
 const RealPersonAssetsPage = lazy(() => import('./assets/RealPersonAssetsPage').then((m) => ({ default: m.RealPersonAssetsPage })));
 const SceneAssetsPage = lazy(() => import('./assets/SceneAssetsPage').then((m) => ({ default: m.SceneAssetsPage })));
@@ -41,7 +41,7 @@ export function ContentStudioPage({ currentUser, moduleCode: moduleCodeProp }: C
   if (code === 'video_remake') {
     page = <VideoRemakePage currentUser={currentUser} />;
   } else if (code === 'create_video') {
-    page = <VideoCreatePage currentUser={currentUser} />;
+    page = <VideoTaskClonePage />;
   } else if (code === 'digital_human') {
     page = <DigitalHumanAssetsPage currentUser={currentUser} />;
   } else if (code === 'virtual_portrait_assets') {

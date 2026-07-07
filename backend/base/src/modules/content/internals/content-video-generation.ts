@@ -1463,6 +1463,28 @@ export function selectedReferenceSummary(context: Record<string, unknown>) {
   };
 }
 
+function selectedImageReferenceAssets(context: Record<string, unknown>) {
+  const materialContext = isRecord(context.materialContext) ? context.materialContext : undefined;
+  const references = isRecord(materialContext?.references) ? materialContext.references : undefined;
+  const groups = [
+    references?.images,
+    isRecord(references?.imageGroup) ? references.imageGroup.assets : undefined,
+  ];
+  return groups
+    .flatMap((items) => (Array.isArray(items) ? items : []))
+    .filter(isRecord);
+}
+
+function selectedCharacterReferencesMissingAssetUri(context: Record<string, unknown>) {
+  return selectedImageReferenceAssets(context).filter((asset) => {
+    const resourceType = String(asset.resourceType || '').trim();
+    if (resourceType !== 'virtual_portrait' && resourceType !== 'real_person') {
+      return false;
+    }
+    return !seedanceAssetUriFromMetadata(asset.metadata);
+  });
+}
+
 function isPublicHttpUrl(value: string) {
   if (!/^https?:\/\/\S+/i.test(value)) {
     return false;
@@ -1506,6 +1528,10 @@ export function assertSelectedReferencesResolved(input: {
 }) {
   const allowSeedanceAudioReference = input.context.allowSeedanceAudioReference === true;
   const selected = selectedReferenceSummary(input.context);
+  const characterReferencesMissingAssetUri = selectedCharacterReferencesMissingAssetUri(input.context);
+  if (characterReferencesMissingAssetUri.length) {
+    throw new Error(`已选择的人物素材缺少火山资源编号，无法稳定提交给 Seedance。请先同步人物素材入火山私域素材库，确认素材状态为 Active 后再生成。缺少资源编号：${characterReferencesMissingAssetUri.length} 个`);
+  }
   const unresolved: string[] = [];
   if (selected.images > 0 && input.imageUrls.length === 0) {
     unresolved.push(`图片 ${selected.images} 个`);
@@ -1524,15 +1550,7 @@ export function assertSelectedReferencesResolved(input: {
 }
 
 export async function collectSeedanceImageUrls(context: Record<string, unknown>) {
-  const materialContext = isRecord(context.materialContext) ? context.materialContext : undefined;
-  const references = isRecord(materialContext?.references) ? materialContext.references : undefined;
-  const groups = [
-    references?.images,
-    isRecord(references?.imageGroup) ? references.imageGroup.assets : undefined,
-  ];
-  const assets = groups
-    .flatMap((items) => (Array.isArray(items) ? items : []))
-    .filter(isRecord);
+  const assets = selectedImageReferenceAssets(context);
   const urls = await Promise.all(assets.map(async (asset) => (
     seedanceAssetUriFromMetadata(asset.metadata)
     || await fileAssetToDataUrl(asset, 'image')

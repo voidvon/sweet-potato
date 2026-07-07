@@ -32,10 +32,22 @@ type ThreeViewStatusEvent = {
 type DigitalHumanCreateMode = 'local' | 'ai';
 
 function fileUrl(asset: ContentAsset) {
+  if (!asset.fileUrl) {
+    return '';
+  }
   if (/^(blob:|data:|https?:\/\/)/i.test(asset.fileUrl)) {
     return asset.fileUrl;
   }
   return `${API_BASE_URL}${asset.fileUrl.startsWith('/') ? asset.fileUrl : `/${asset.fileUrl}`}`;
+}
+
+function metadataUrl(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function previewUrl(asset: ContentAsset) {
+  return fileUrl(asset) || metadataUrl(asset, 'remotePreviewUrl');
 }
 
 function formatDate(value: string) {
@@ -64,7 +76,7 @@ function threeViewFailureReason(asset: ContentAsset | undefined) {
 }
 
 function photoPreview(asset?: ContentAsset) {
-  return asset?.mimeType.startsWith('image/') ? <img alt={asset.name} src={fileUrl(asset)} /> : <span>👤</span>;
+  return asset?.mimeType.startsWith('image/') ? <img alt={asset.name} src={previewUrl(asset)} /> : <span>👤</span>;
 }
 
 function browserDownload(url: string, fileName: string) {
@@ -192,9 +204,9 @@ function resultPreview(
         preview={{
           mask: false,
           rootClassName: 'digital-human-preview-root',
-          src: fileUrl(asset),
+          src: previewUrl(asset),
         }}
-        src={fileUrl(asset)}
+        src={previewUrl(asset)}
       />
     </div>
   ) : null;
@@ -751,9 +763,9 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
                       preview={{
                         mask: false,
                         rootClassName: 'digital-human-preview-root',
-                        src: fileUrl(activeThreeViewResult),
+                        src: previewUrl(activeThreeViewResult),
                       }}
-                      src={fileUrl(activeThreeViewResult)}
+                      src={previewUrl(activeThreeViewResult)}
                     />
                   ) : (
                     <div className="digital-human-result-placeholder">

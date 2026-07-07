@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AssetLibraryCard } from '../../../components/AssetLibraryCard';
 import type { ContentAsset, ContentAssetGroup } from '../../../types';
 import {
+  assetPreviewUrl,
   characterAssetSourceLabel,
   formatDate,
   groupAssetCount,
@@ -94,7 +95,7 @@ function groupSelectableAssetCount(kind: AssetSelectorKind, group: ContentAssetG
 }
 
 function assetPreview(asset: ContentAsset, fallback?: ReactNode) {
-  const preview = mediaUrl(asset.fileUrl);
+  const preview = assetPreviewUrl(asset);
   if (asset.mimeType.startsWith('image/') && preview) {
     return <img alt={asset.name || asset.originalFileName} src={preview} />;
   }

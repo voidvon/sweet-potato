@@ -717,8 +717,8 @@ export async function refreshVirtualPortraitAssetsForGroup(
     });
     if (existing) {
       contentRepository.updateAssetFileInfo(existing.id, {
-        fileUrl: remoteUrl || existing.fileUrl,
-        originalFileName: remoteUrl ? originalNameFromUrl(remoteUrl) : existing.originalFileName,
+        fileUrl: existing.fileUrl,
+        originalFileName: existing.originalFileName,
         mimeType: remoteAssetMimeType(remoteAsset),
         name,
         metadata,
@@ -816,8 +816,8 @@ export async function refreshVirtualPortraitAssetFromRemote(asset: ContentAsset)
   });
   const syncedAt = new Date().toISOString();
   return contentRepository.updateAssetFileInfo(asset.id, {
-    fileUrl: remote.url || asset.fileUrl,
-    originalFileName: remote.url ? originalNameFromUrl(remote.url) : asset.originalFileName,
+    fileUrl: asset.fileUrl,
+    originalFileName: asset.originalFileName,
     mimeType: remoteAssetMimeType(remote.asset),
     name: remote.asset.Name || asset.name,
     metadata: {
