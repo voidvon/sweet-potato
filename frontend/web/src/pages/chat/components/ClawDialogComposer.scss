@@ -388,6 +388,26 @@
   font-size: 13px;
 }
 
+.claw-background-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 210px;
+}
+
+.claw-background-menu-title {
+  color: #171717;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.claw-background-menu-description {
+  color: #737373;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 .claw-image-model-dropdown .ant-dropdown-menu-item-selected {
   background: #e5f6d7;
 }

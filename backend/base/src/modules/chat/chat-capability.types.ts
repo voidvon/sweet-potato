@@ -14,6 +14,7 @@ export type ChatCapabilityContext = {
     promptHint?: string;
     outputSize?: string;
     outputCount?: number;
+    outputBackground?: 'transparent' | 'white' | 'black';
     aspectRatio?: string;
     resolution?: string;
     referenceGroups?: Array<{

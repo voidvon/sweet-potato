@@ -112,6 +112,11 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
   }
   const source = value as Record<string, unknown>;
   const outputCount = Number(source.outputCount);
+  const outputBackground = stringValue(source.outputBackground, 20);
+  const parsedOutputBackground: 'transparent' | 'white' | 'black' | undefined =
+    outputBackground === 'transparent' || outputBackground === 'white' || outputBackground === 'black'
+      ? outputBackground
+      : undefined;
   const context = {
     modeKey: stringValue(source.modeKey, 80),
     modeTitle: stringValue(source.modeTitle, 80),
@@ -119,6 +124,7 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
     promptHint: stringValue(source.promptHint, 4000),
     outputSize: stringValue(source.outputSize, 40),
     outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.floor(outputCount)) : undefined,
+    outputBackground: parsedOutputBackground,
     aspectRatio: stringValue(source.aspectRatio, 20),
     resolution: stringValue(source.resolution, 20),
     referenceGroups: parseImageGenerationReferenceGroups(source.referenceGroups),

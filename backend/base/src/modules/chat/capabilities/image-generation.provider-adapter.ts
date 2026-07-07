@@ -75,7 +75,10 @@ async function generateWithCompatibleImageApi(input: ImageGenerationProviderRequ
     input.referenceAssets.length
       ? editImageWithConfiguredModel({
         prompt: input.prompt,
+        background: input.background,
         modelConfig: input.modelConfig,
+        outputCompression: input.outputCompression,
+        outputFormat: input.outputFormat,
         referenceAssets: input.referenceAssets,
         size: input.outputSize,
         billingContext: {
@@ -86,7 +89,10 @@ async function generateWithCompatibleImageApi(input: ImageGenerationProviderRequ
       })
       : generateImageWithConfiguredModel({
         prompt: input.prompt,
+        background: input.background,
         modelConfig: input.modelConfig,
+        outputCompression: input.outputCompression,
+        outputFormat: input.outputFormat,
         size: input.outputSize,
         billingContext: {
           userId: input.userId,

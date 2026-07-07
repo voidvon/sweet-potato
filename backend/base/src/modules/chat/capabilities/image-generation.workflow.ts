@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { access, writeFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
@@ -27,7 +27,9 @@ type ImageGenerationPreparedInput = {
   outputSize?: string;
   requestedResolution?: string;
   prompt: string;
+  redrawPromptTexts?: string[];
   referenceAssets: ImageGenerationReferenceAsset[];
+  referenceAssetBatches?: ImageGenerationReferenceAsset[][];
   referenceDecision?: ImageGenerationReferenceDecision;
   sourceIdPrefix: string;
 };
@@ -193,7 +195,7 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     generationPrompt: [
       '对图一进行主体抠图，准确保留前景主体、边缘细节、发丝、透明材质和细小结构。',
       '移除背景并输出干净主体，边缘自然，不残留背景色块、杂边、阴影污渍或多余物体。',
-      '保持主体原始颜色、材质、光影和比例，不要改变主体造型。',
+      '根据用户选择的输出底色生成结果，保持主体原始颜色、材质、光影和比例，不要改变主体造型。',
     ].join(''),
     generationOptions: {
       background: 'transparent',
@@ -257,9 +259,11 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     outputCountStrategy: 'fixedOne',
     generationPrompt: [
       '以图一模特为基础，保持身体、服装、姿势、背景、构图和整体光影不变。',
-      '为模特生成一个自然协调的新头部形象，包括脸部、发型和头部轮廓，要求与身体比例、肤色、视角和光线匹配。',
-      '新头部需要真实自然，适合原图场景和服装风格。',
-      '不要改变身体、服装、背景，不要生成多余人物或明显拼接痕迹。',
+      '需要彻底替换整个头部形象，不需要保留原脸部身份或原发型，可以使用完全不同的发型、发量、发色深浅、脸型、五官比例、眉眼鼻唇细节和整体气质。',
+      '新头部与原图相比应有明显差异，避免只做轻微美化、局部修饰或相似脸替换。',
+      '在明显更换头部的前提下，新头部仍需与原身体比例、头部角度、视角、光线、清晰度和服装风格自然融合。',
+      '必须保持图一模特的人种、肤色范围和族裔视觉特征不变，不要跨人种转换。',
+      '不要改变身体、服装、背景、姿势和构图，不要生成多余人物或明显拼接痕迹。',
     ].join(''),
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
   },
@@ -270,9 +274,10 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     outputCountStrategy: 'fixedOne',
     generationPrompt: [
       '以图一模特为基础，保持发型、身体、服装、姿势、背景、构图和整体光影不变。',
-      '为模特生成一张自然协调的新脸，脸型、五官、肤色和神态需要与原图头部角度、光线和清晰度匹配。',
-      '替换区域需要融合自然，不影响头发、服装、身体和背景。',
-      '不要改变整体造型，不要生成多余人物或明显拼接痕迹。',
+      '需要更激进地替换脸部身份，不需要保留原脸特征，可以使用明显不同的脸型、五官比例、眉眼鼻唇细节、年龄感和神态气质，避免只做美颜、磨皮或轻微修饰。',
+      '新脸与原图相比应有清晰可见的身份差异，但必须保持图一模特的人种、肤色范围和族裔视觉特征不变，不要跨人种转换。',
+      '替换区域需要与原图头部角度、光线、清晰度和透视自然融合，不影响头发、服装、身体和背景。',
+      '不要改变发型、整体造型、身体、服装、背景、姿势和构图，不要生成多余人物或明显拼接痕迹。',
     ].join(''),
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
   },
@@ -282,10 +287,10 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     promptHint: '读懂 图一 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
     outputCountStrategy: 'matchUploadedImages',
     generationPrompt: [
-      '理解图一的主体、场景、构图、风格、色调、光影和主要视觉元素，并在此基础上重新生成一张更干净自然的图片。',
-      '保留原图的核心内容和视觉意图，优化画面质量、细节、光影、比例、边缘和整体完成度。',
+      '先解读图一的主体、场景、构图、风格、色调、光影、材质、镜头语言和主要视觉元素，整理成一段可直接用于文生图的完整提示词。',
+      '再完全基于整理后的提示词生成一张新的图片，第二步生成时不要继续参照、编辑或复制原始图片。',
+      '新图需要保留原图的核心语义和视觉意图，同时优化画面质量、细节、光影、比例、边缘和整体完成度。',
       '可以修正原图中的噪点、模糊、瑕疵、不自然结构和杂乱背景，但不要偏离原始主题。',
-      '不要生成与原图无关的新主体，不要改变核心语义。',
     ].join(''),
     referenceGroups: [{ key: 'reference', label: '参考图', required: true }],
   },
@@ -390,6 +395,16 @@ async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
   };
 }
 
+async function imageUrlForModelVision(attachment: ChatAttachment) {
+  const localFilePath = localContentFilePathFromUrl(attachment.url);
+  if (!localFilePath) {
+    return attachment.url;
+  }
+  const bytes = await readFile(localFilePath);
+  const mimeType = attachment.type || 'image/png';
+  return `data:${mimeType};base64,${bytes.toString('base64')}`;
+}
+
 function latestGeneratedImageAttachment(input: ChatCapabilityExecutionInput) {
   for (const message of [...input.history].reverse()) {
     if (message.role !== 'assistant') {
@@ -481,6 +496,45 @@ function referenceImageSequenceSummary(groups: ResolvedImageGenerationReferenceG
   return parts.join('；');
 }
 
+async function describeRedrawImage(input: {
+  attachment: ChatAttachment;
+  executionInput: ChatCapabilityExecutionInput;
+  modeSchema: ImageGenerationModeSchema;
+  userPrompt: string;
+}) {
+  const imageUrl = await imageUrlForModelVision(input.attachment);
+  return askConfiguredModelWithMessages(input.executionInput.modelConfig, [
+    {
+      role: 'system',
+      content: [
+        '你是电商和视觉设计场景中的图片反推提示词专家。',
+        '你的任务是阅读用户提供的图片，把它转换成一段可以直接用于文生图的完整提示词。',
+        '只输出最终提示词，不要输出解释、标题、编号、Markdown 或 JSON。',
+        '提示词需要覆盖主体、场景、构图、镜头、材质、光影、色彩、风格、细节质量和必要的负面约束。',
+        '不要要求后续图片模型参考、编辑、复制或保持原图；第二步会完全基于你输出的文字重新生成新图片。',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: [
+            `当前功能：${input.modeSchema.title}`,
+            `业务要求：${input.modeSchema.generationPrompt || input.modeSchema.promptHint || ''}`,
+            input.userPrompt ? `用户补充：${input.userPrompt}` : '',
+            '请根据这张图片生成一段完整、可执行的文生图提示词。',
+          ].filter(Boolean).join('\n'),
+        },
+        {
+          type: 'image_url',
+          image_url: { url: imageUrl },
+        },
+      ],
+    },
+  ], { temperature: 0.2 });
+}
+
 async function decideImageGenerationReference(input: {
   executionInput: ChatCapabilityExecutionInput;
   modeSchema: ImageGenerationModeSchema;
@@ -541,6 +595,7 @@ function buildImageGenerationPrompt(
   const modeTitle = cleanText(context?.modeTitle) || modeSchema.title;
   const userPrompt = cleanText(context?.promptText || input.content);
   const generationPrompt = cleanText(modeSchema.generationPrompt || modeSchema.promptHint || context?.promptHint);
+  const outputBackground = context?.outputBackground;
   const aspectRatio = cleanText(context?.aspectRatio);
   const outputFormatSummary = modeSchema.generationOptions?.businessOutputFormats?.length
     ? `输出格式：${modeSchema.generationOptions.businessOutputFormats.join(' + ')}`
@@ -553,6 +608,13 @@ function buildImageGenerationPrompt(
     .map((group) => `${group.label}：${group.attachmentIds.length} 张`)
     .join('；');
   const referenceSequenceSummary = referenceImageSequenceSummary(groups);
+  const outputBackgroundSummary = modeSchema.key === 'cutout' && outputBackground
+    ? outputBackground === 'transparent'
+      ? '输出底色：透明背景，保留 alpha 通道，主体外区域必须透明，适合继续合成和入库。'
+      : outputBackground === 'white'
+        ? '输出底色：白底，主体外区域使用纯白背景，适合电商主图、目录图和快审稿。'
+        : '输出底色：黑底，主体外区域使用纯黑背景，适合暗场氛围、光效测试和封面图。'
+    : '';
   const referenceDecisionSummary = options?.referenceDecision
     ? '连续对话约束：基于上一张生成图进行修改，尽量保持原图主体、构图、身份特征和整体风格，只改变用户本轮明确要求调整的部分。'
     : '';
@@ -560,6 +622,7 @@ function buildImageGenerationPrompt(
     modeTitle ? `当前生图模式：${modeTitle}` : '',
     generationPrompt ? `业务要求：${generationPrompt}` : '',
     referenceDecisionSummary,
+    outputBackgroundSummary,
     outputFormatSummary ? `业务输出：${outputFormatSummary}` : '',
     aspectRatioSummary,
     userPrompt ? `用户补充：${userPrompt}` : '',
@@ -567,6 +630,31 @@ function buildImageGenerationPrompt(
     referenceSequenceSummary ? `参考图顺序：${referenceSequenceSummary}` : '',
   ].filter(Boolean);
   return parts.join('\n');
+}
+
+function generationOptionsOf(
+  modeSchema: ImageGenerationModeSchema,
+  context: ChatCapabilityExecutionInput['capabilityContext'],
+) {
+  const outputBackground = context?.imageGeneration?.outputBackground;
+  if (modeSchema.key !== 'cutout') {
+    return modeSchema.generationOptions;
+  }
+  if (outputBackground === 'transparent') {
+    return {
+      ...modeSchema.generationOptions,
+      background: 'transparent' as const,
+      outputFormat: 'png' as const,
+    };
+  }
+  if (outputBackground === 'white' || outputBackground === 'black') {
+    return {
+      ...modeSchema.generationOptions,
+      background: 'opaque' as const,
+      outputFormat: 'png' as const,
+    };
+  }
+  return modeSchema.generationOptions;
 }
 
 function imageGenerationOutputConfigOf(modeSchema: ImageGenerationModeSchema) {
@@ -718,19 +806,35 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     ? [latestGeneratedImage]
     : imageAttachments;
   const outputCount = outputCountOf(input, modeSchema, effectiveReferenceAttachments);
+  const redrawPromptTexts = modeSchema.key === 'redraw'
+    ? await Promise.all(effectiveReferenceAttachments.slice(0, outputCount).map((attachment, index) => describeRedrawImage({
+      attachment,
+      executionInput: input,
+      modeSchema,
+      userPrompt: [
+        userPrompt,
+        effectiveReferenceAttachments.length > 1 ? `当前处理第 ${index + 1} 张上传图片。` : '',
+      ].filter(Boolean).join('\n'),
+    })))
+    : undefined;
   const referenceAssets = effectiveReferenceAttachments.length
     ? await Promise.all(effectiveReferenceAttachments.map(chatAttachmentToReferenceAsset))
     : [];
+  const referenceAssetBatches = modeSchema.key !== 'redraw' && modeSchema.outputCountStrategy === 'matchUploadedImages' && referenceAssets.length
+    ? referenceAssets.slice(0, outputCount).map((asset) => [asset])
+    : undefined;
   const sourceIdPrefix = input.conversation?.id || `chat-image-${Date.now()}`;
   return {
-    generationOptions: modeSchema.generationOptions,
+    generationOptions: generationOptionsOf(modeSchema, input.capabilityContext),
     modelConfig,
     modeKey: modeSchema.key,
     outputCount,
     outputSize: normalizedOutput.outputSize,
     requestedResolution: normalizedOutput.resolution,
     prompt,
+    redrawPromptTexts,
     referenceAssets,
+    referenceAssetBatches,
     referenceDecision: referenceDecision || undefined,
     sourceIdPrefix,
   };
@@ -742,6 +846,55 @@ async function generateImageItems(input: {
 }): Promise<ImageGenerationProviderResult[]> {
   const { prepared, userId } = input;
   const adapter = resolveImageGenerationProviderAdapter(prepared.modelConfig);
+  if (prepared.redrawPromptTexts?.length) {
+    const generatedItems = await Promise.all(prepared.redrawPromptTexts.map(async (redrawPrompt, index) => {
+      const results = await adapter.generate({
+        background: prepared.generationOptions?.background,
+        modelConfig: prepared.modelConfig,
+        modeKey: prepared.modeKey,
+        outputCount: 1,
+        outputCompression: prepared.generationOptions?.outputCompression,
+        outputFormat: prepared.generationOptions?.outputFormat,
+        outputSize: prepared.outputSize,
+        prompt: [
+          redrawPrompt,
+          prepared.prompt,
+          '生成方式：完全基于以上文字提示词生成新图，不要参考、编辑、复制或沿用原始上传图片。',
+        ].join('\n'),
+        referenceAssets: [],
+        referenceDecision: prepared.referenceDecision?.intent,
+        sourceIdPrefix: `${prepared.sourceIdPrefix}-redraw-${index + 1}`,
+        userId,
+      });
+      return results[0] ? [results[0]] : [];
+    }));
+    return generatedItems.flat();
+  }
+
+  if (prepared.referenceAssetBatches?.length) {
+    const generatedItems = await Promise.all(prepared.referenceAssetBatches.map(async (referenceAssets, index) => {
+      const results = await adapter.generate({
+        background: prepared.generationOptions?.background,
+        modelConfig: prepared.modelConfig,
+        modeKey: prepared.modeKey,
+        outputCount: 1,
+        outputCompression: prepared.generationOptions?.outputCompression,
+        outputFormat: prepared.generationOptions?.outputFormat,
+        outputSize: prepared.outputSize,
+        prompt: [
+          prepared.prompt,
+          `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
+        ].join('\n'),
+        referenceAssets,
+        referenceDecision: prepared.referenceDecision?.intent,
+        sourceIdPrefix: `${prepared.sourceIdPrefix}-${index + 1}`,
+        userId,
+      });
+      return results[0] ? [results[0]] : [];
+    }));
+    return generatedItems.flat();
+  }
+
   return adapter.generate({
     background: prepared.generationOptions?.background,
     modelConfig: prepared.modelConfig,

@@ -11,6 +11,7 @@ import {
   List,
   Maximize2,
   MessageCircle,
+  Palette,
   Scan,
   Shirt,
   Square,
@@ -69,8 +70,9 @@ type ClawModeConfig = {
 };
 
 type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages';
-type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount';
+type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount' | 'background';
 type ClawAspectRatioKey = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
+type ClawBackgroundKey = 'transparent' | 'white' | 'black';
 type ClawResolutionKey = '2K' | '4K';
 type ClawModeOutputConfig = {
   allowedOutputCounts: number[];
@@ -80,7 +82,8 @@ type ClawModeOutputConfig = {
 };
 
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
-const noGenerationToolbarControls: ClawToolbarControl[] = [];
+const modelOnlyToolbarControls: ClawToolbarControl[] = ['model'];
+const cutoutToolbarControls: ClawToolbarControl[] = ['model', 'background'];
 const defaultOptionalPlaceholder = '补充要求（选填），例如：调整光线、风格、姿态…';
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
 const defaultModeOutputConfig: ClawModeOutputConfig = {
@@ -89,6 +92,11 @@ const defaultModeOutputConfig: ClawModeOutputConfig = {
   defaultOutputCount: 1,
   defaultResolution: '2K',
 };
+const backgroundOptions: Array<{ description: string; key: ClawBackgroundKey; label: string }> = [
+  { key: 'transparent', label: '透明背景', description: '保留 alpha 通道，适合继续合成和入库。' },
+  { key: 'white', label: '白底', description: '适合电商主图、目录图和快审稿。' },
+  { key: 'black', label: '黑底', description: '适合暗场氛围、光效测试和封面图。' },
+];
 
 const clawModeConfigs: ClawModeConfig[] = [
   {
@@ -174,7 +182,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'matchUploadedImages',
     promptHint: '把 图一 的背景去掉，按所选底色输出。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: cutoutToolbarControls,
   },
   {
     key: 'background',
@@ -187,7 +195,7 @@ const clawModeConfigs: ClawModeConfig[] = [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
       { key: 'background', label: '背景', maxCount: 1, required: true },
     ],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'scene-extract',
@@ -197,7 +205,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'matchUploadedImages',
     promptHint: '从 图一 提取干净的场景素材。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'model-face-swap',
@@ -210,7 +218,7 @@ const clawModeConfigs: ClawModeConfig[] = [
       { key: 'model', label: '模特', maxCount: 1, required: true },
       { key: 'face', label: '脸部', maxCount: 1, required: true },
     ],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'head-swap',
@@ -220,7 +228,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'fixedOne',
     promptHint: '给 图一 模特随机换一个新头型。',
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'face-swap',
@@ -230,7 +238,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'fixedOne',
     promptHint: '给 图一 模特随机换一张新脸。',
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'redraw',
@@ -240,7 +248,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'matchUploadedImages',
     promptHint: '读懂 图一 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
     referenceGroups: [{ key: 'reference', label: '参考图', required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'detail-enhance',
@@ -262,7 +270,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'matchUploadedImages',
     promptHint: '提取 图一 服装的印花，输出 PNG 和 PSD。',
     referenceGroups: [{ key: 'clothes', label: '服装', required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'face-enhance',
@@ -272,7 +280,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     outputCountStrategy: 'matchUploadedImages',
     promptHint: '为 图一 等图像增强脸部细节。',
     referenceGroups: [{ key: 'portrait', label: '人像', required: true }],
-    toolbarControls: noGenerationToolbarControls,
+    toolbarControls: modelOnlyToolbarControls,
   },
 ];
 
@@ -356,6 +364,7 @@ export function ClawDialogComposer({
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [selectedImageModelValue, setSelectedImageModelValue] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
+  const [selectedBackground, setSelectedBackground] = useState<ClawBackgroundKey>('transparent');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
   const [selectedOutputCount, setSelectedOutputCount] = useState(1);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
@@ -374,6 +383,7 @@ export function ClawDialogComposer({
   const showImageModelControl = selectedToolbarControls.includes('model');
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount') && outputCountStrategy === 'selectable';
+  const showBackgroundControl = selectedToolbarControls.includes('background');
   const selectedOutputConfig = selectedMode.outputConfig ?? defaultModeOutputConfig;
   const maxReferenceAttachmentCount = useMemo(() => {
     if (selectedMode.referenceGroups.some((group) => !group.maxCount)) {
@@ -506,6 +516,7 @@ export function ClawDialogComposer({
   const selectableResolutions = selectedOutputConfig.allowedResolutions;
   const selectableOutputCounts = selectedOutputConfig.allowedOutputCounts;
   const outputSizeLabel = outputSizeMap[selectedResolution][selectedAspectRatio];
+  const selectedBackgroundOption = backgroundOptions.find((option) => option.key === selectedBackground) || backgroundOptions[0];
   const resolvedOutputCount = outputCountStrategy === 'fixedOne'
     ? 1
     : outputCountStrategy === 'matchUploadedImages'
@@ -584,6 +595,7 @@ export function ClawDialogComposer({
             promptHint: selectedMode.promptHint,
             outputSize: supportsCustomResolution ? outputSizeLabel : undefined,
             outputCount: resolvedOutputCount,
+            outputBackground: showBackgroundControl ? selectedBackground : undefined,
             aspectRatio: selectedAspectRatio,
             resolution: supportsCustomResolution ? selectedResolution : undefined,
             referenceGroups: selectedMode.referenceGroups.map((group) => ({
@@ -694,6 +706,29 @@ export function ClawDialogComposer({
               >
                 <Button className="claw-option-button" icon={<Layers size={12} />}>
                   {selectedImageModel?.config.name || selectedImageModel?.config.model || '图片模型'}
+                  <ChevronDown size={11} />
+                </Button>
+              </Dropdown>
+            ) : null}
+            {showBackgroundControl ? (
+              <Dropdown
+                menu={{
+                  items: backgroundOptions.map((option) => ({
+                    key: option.key,
+                    label: (
+                      <span className="claw-background-menu-item">
+                        <span className="claw-background-menu-title">{option.label}</span>
+                        <span className="claw-background-menu-description">{option.description}</span>
+                      </span>
+                    ),
+                  })),
+                  onClick: ({ key }) => setSelectedBackground(key as ClawBackgroundKey),
+                  selectedKeys: [selectedBackground],
+                }}
+                trigger={['click']}
+              >
+                <Button className="claw-option-button" icon={<Palette size={12} />}>
+                  {selectedBackgroundOption.label}
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>

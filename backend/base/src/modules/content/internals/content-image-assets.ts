@@ -207,7 +207,10 @@ export async function editImageWithJsonReferences(input: {
 export async function editImageWithConfiguredModel(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
+  background?: string;
   modelConfig?: ImageModelConfig;
+  outputCompression?: number;
+  outputFormat?: string;
   size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
@@ -221,6 +224,15 @@ export async function editImageWithConfiguredModel(input: {
       form.set('n', '1');
       form.set('size', size);
       form.set('response_format', 'b64_json');
+      if (input.background) {
+        form.set('background', input.background);
+      }
+      if (input.outputFormat) {
+        form.set('output_format', input.outputFormat);
+      }
+      if (input.outputCompression !== undefined) {
+        form.set('output_compression', String(input.outputCompression));
+      }
       for (const asset of input.referenceAssets.slice(0, 6)) {
         const bytes = await readFile(asset.filePath);
         const blob = new Blob([bytes], { type: asset.mimeType || 'image/png' });
@@ -247,6 +259,9 @@ export async function editImageWithConfiguredModel(input: {
             referenceAssetCount: input.referenceAssets.length,
             requestMode: 'multipart_edits',
             size,
+            background: input.background,
+            outputFormat: input.outputFormat,
+            outputCompression: input.outputCompression,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,
@@ -265,7 +280,10 @@ export async function editImageWithConfiguredModel(input: {
 
 export async function generateImageWithConfiguredModel(input: {
   prompt: string;
+  background?: string;
   modelConfig: ImageModelConfig;
+  outputCompression?: number;
+  outputFormat?: string;
   size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
@@ -286,6 +304,9 @@ export async function generateImageWithConfiguredModel(input: {
           size,
           response_format: 'b64_json',
           watermark: false,
+          ...(input.background ? { background: input.background } : {}),
+          ...(input.outputFormat ? { output_format: input.outputFormat } : {}),
+          ...(input.outputCompression !== undefined ? { output_compression: input.outputCompression } : {}),
         }),
       });
       const generated = await parseGeneratedImageResponse(response, config);
@@ -301,6 +322,9 @@ export async function generateImageWithConfiguredModel(input: {
             referenceAssetCount: 0,
             requestMode: 'text_to_image',
             size,
+            background: input.background,
+            outputFormat: input.outputFormat,
+            outputCompression: input.outputCompression,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,
