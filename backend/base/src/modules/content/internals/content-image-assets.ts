@@ -56,12 +56,26 @@ function requestedImageSize(config: { provider?: string; settings?: Record<strin
 }
 
 export async function parseGeneratedImageResponse(response: Response, config: { model: string }): Promise<GeneratedImage> {
+  const contentType = response.headers.get('content-type') || '';
+  if (response.ok && contentType.toLowerCase().startsWith('image/')) {
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      mimeType: contentType,
+      source: 'binary',
+      model: config.model,
+    };
+  }
+
   const text = await response.text();
   let data: unknown = {};
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    throw new Error('图片模型返回了无法解析的响应');
+    const preview = text.replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!response.ok) {
+      throw new Error(preview || `图片模型请求失败：${response.status}`);
+    }
+    throw new Error(preview ? `图片模型返回了无法解析的响应：${preview}` : '图片模型返回了无法解析的响应');
   }
   if (!response.ok) {
     const message = (data as { error?: { message?: string }; message?: string })?.error?.message
@@ -193,7 +207,10 @@ export async function editImageWithJsonReferences(input: {
 export async function editImageWithConfiguredModel(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
+  background?: string;
   modelConfig?: ImageModelConfig;
+  outputCompression?: number;
+  outputFormat?: string;
   size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
@@ -207,11 +224,20 @@ export async function editImageWithConfiguredModel(input: {
       form.set('n', '1');
       form.set('size', size);
       form.set('response_format', 'b64_json');
-      await Promise.all(input.referenceAssets.slice(0, 6).map(async (asset) => {
+      if (input.background) {
+        form.set('background', input.background);
+      }
+      if (input.outputFormat) {
+        form.set('output_format', input.outputFormat);
+      }
+      if (input.outputCompression !== undefined) {
+        form.set('output_compression', String(input.outputCompression));
+      }
+      for (const asset of input.referenceAssets.slice(0, 6)) {
         const bytes = await readFile(asset.filePath);
         const blob = new Blob([bytes], { type: asset.mimeType || 'image/png' });
         form.append('image', blob, asset.originalFileName || 'reference.png');
-      }));
+      }
       const response = await fetch(imageEditsUrl(config.baseUrl), {
         method: 'POST',
         signal,
@@ -233,6 +259,9 @@ export async function editImageWithConfiguredModel(input: {
             referenceAssetCount: input.referenceAssets.length,
             requestMode: 'multipart_edits',
             size,
+            background: input.background,
+            outputFormat: input.outputFormat,
+            outputCompression: input.outputCompression,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,
@@ -251,7 +280,10 @@ export async function editImageWithConfiguredModel(input: {
 
 export async function generateImageWithConfiguredModel(input: {
   prompt: string;
+  background?: string;
   modelConfig: ImageModelConfig;
+  outputCompression?: number;
+  outputFormat?: string;
   size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
@@ -272,6 +304,9 @@ export async function generateImageWithConfiguredModel(input: {
           size,
           response_format: 'b64_json',
           watermark: false,
+          ...(input.background ? { background: input.background } : {}),
+          ...(input.outputFormat ? { output_format: input.outputFormat } : {}),
+          ...(input.outputCompression !== undefined ? { output_compression: input.outputCompression } : {}),
         }),
       });
       const generated = await parseGeneratedImageResponse(response, config);
@@ -287,6 +322,9 @@ export async function generateImageWithConfiguredModel(input: {
             referenceAssetCount: 0,
             requestMode: 'text_to_image',
             size,
+            background: input.background,
+            outputFormat: input.outputFormat,
+            outputCompression: input.outputCompression,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,

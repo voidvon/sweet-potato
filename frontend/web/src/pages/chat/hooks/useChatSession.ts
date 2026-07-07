@@ -3,12 +3,16 @@ import { Modal, message } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import {
   clearChatConversationMessages,
+  createChatMessage,
   deleteChatConversation,
+  deleteChatMessage,
   getChatConversation,
   listChatConversations,
   renameChatConversation,
   streamChatMessage,
+  uploadChatAttachment,
 } from '../../../api/chat';
+import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '../../../events/appRealtimeEvents';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
 import { resolveChatCapabilityPayload } from '../chatCapabilities';
@@ -35,20 +39,21 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
     return [...items, messageItem];
   }
 
-  return items.map((item, itemIndex) => (itemIndex === index ? messageItem : item));
+  return items.map((item, itemIndex) => (itemIndex === index
+    ? {
+        ...messageItem,
+        capability: messageItem.capability ?? item.capability,
+        capabilityContext: messageItem.capabilityContext ?? item.capabilityContext,
+        imageModelConfigId: messageItem.imageModelConfigId ?? item.imageModelConfigId,
+        generationJobId: messageItem.generationJobId ?? item.generationJobId,
+        imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? item.imageGenerationExpectedCount,
+        imageGenerationFailures: messageItem.imageGenerationFailures ?? item.imageGenerationFailures,
+      }
+    : item));
 }
 
 const maxAttachmentCount = 6;
 const maxAttachmentBytes = 3 * 1024 * 1024;
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('附件读取失败'));
-    reader.readAsDataURL(file);
-  });
-}
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
@@ -85,7 +90,6 @@ export function useChatSession() {
     () => messages.some((item) => item.role === 'assistant' && item.isCompleted === false),
     [messages],
   );
-
   useEffect(() => {
     urlConversationIdRef.current = urlConversationId;
     if (!urlConversationId) {
@@ -274,6 +278,26 @@ export function useChatSession() {
     };
   }, [activeConversationId, currentUserId, loadConversation, refreshConversations, urlConversationId]);
 
+  useEffect(() => {
+    if (!activeConversationId || !currentUserId) {
+      return undefined;
+    }
+    const handleJobUpdated = (event: Event) => {
+      const payload = (event as CustomEvent<AppGenerationJobUpdatedDetail>).detail;
+      if (payload.userId !== currentUserId || payload.job?.conversationId !== activeConversationId) {
+        return;
+      }
+      if (!payload.message) {
+        return;
+      }
+      setMessages((current) => mergeMessage(current, payload.message!));
+    };
+    window.addEventListener(appRealtimeEventNames.generationJobUpdated, handleJobUpdated);
+    return () => {
+      window.removeEventListener(appRealtimeEventNames.generationJobUpdated, handleJobUpdated);
+    };
+  }, [activeConversationId, currentUserId]);
+
   const isNearBottom = useCallback(() => {
     const element = scrollContainerRef.current;
     if (!element) {
@@ -345,14 +369,7 @@ export function useChatSession() {
     });
 
     try {
-      const nextAttachments = await Promise.all(acceptedFiles.map(async (file) => ({
-        id: `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`,
-        kind: file.type.startsWith('image/') ? 'image' as const : 'file' as const,
-        name: file.name,
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        url: await readFileAsDataUrl(file),
-      })));
+      const nextAttachments = await Promise.all(acceptedFiles.map((file) => uploadChatAttachment(file)));
       setAttachments((items) => [...items, ...nextAttachments]);
       return nextAttachments;
     } catch (error) {
@@ -430,6 +447,17 @@ export function useChatSession() {
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
+    const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
+    const requestedCapabilities = override?.requestedCapabilities || capabilityPayload.requestedCapabilities;
+    const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
+    const resolvedCapabilityContext = {
+      ...(capabilityPayload.capabilityContext || {}),
+      ...(override?.capabilityContext || {}),
+    };
+    const resolvedImageModelConfigId = override?.imageModelConfigId || null;
+    const imageGenerationExpectedCount = isImageGenerationRequest
+      ? Math.max(1, resolvedCapabilityContext.imageGeneration?.outputCount || 0)
+      : undefined;
     setSending(true);
     setUserHasScrolledUp(false);
     const abortController = new AbortController();
@@ -440,6 +468,8 @@ export function useChatSession() {
       conversationId: activeConversationId || 'pending',
       role: 'user',
       content: contentForSend,
+      capabilityContext: isImageGenerationRequest ? resolvedCapabilityContext : undefined,
+      imageModelConfigId: isImageGenerationRequest ? resolvedImageModelConfigId : undefined,
       agentId: activeAgent.id,
       attachments: sendingAttachments,
       createdAt: new Date().toISOString(),
@@ -449,6 +479,8 @@ export function useChatSession() {
       conversationId: activeConversationId || 'pending',
       role: 'assistant',
       content: '',
+      capability: isImageGenerationRequest ? 'image_generation' : undefined,
+      imageGenerationExpectedCount: isImageGenerationRequest ? imageGenerationExpectedCount : undefined,
       reasoningContent: '',
       agentId: activeAgent.id,
       createdAt: new Date(Date.now() + 1).toISOString(),
@@ -474,7 +506,38 @@ export function useChatSession() {
     scrollToBottom(true);
 
     try {
-      const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
+      if (isImageGenerationRequest) {
+        const result = await createChatMessage({
+          userId: currentUser.id,
+          conversationId: activeConversationId,
+          editMessageId,
+          agentId: activeAgent.id,
+          attachments: sendingAttachments,
+          content: contentForSend,
+          ...capabilityPayload,
+          capabilityContext: resolvedCapabilityContext,
+          imageModelConfigId: resolvedImageModelConfigId,
+          requestedCapabilities,
+        });
+        setInput('');
+        setAttachments([]);
+        setActiveConversationId(result.conversation.id);
+        syncConversationUrl(result.conversation.id);
+        setMessages((currentMessages) => result.messages.map((messageItem) => {
+          const currentMessage = currentMessages.find((item) => item.id === messageItem.id);
+          return {
+            ...messageItem,
+            capability: messageItem.capability ?? currentMessage?.capability,
+            generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
+            imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
+            imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+          };
+        }));
+        scrollToBottom(true);
+        await refreshConversations();
+        return;
+      }
+
       await streamChatMessage(
         {
           userId: currentUser.id,
@@ -484,12 +547,9 @@ export function useChatSession() {
           attachments: sendingAttachments,
           content: contentForSend,
           ...capabilityPayload,
-          capabilityContext: {
-            ...(capabilityPayload.capabilityContext || {}),
-            ...(override?.capabilityContext || {}),
-          },
-          imageModelConfigId: override?.imageModelConfigId || null,
-          requestedCapabilities: override?.requestedCapabilities || capabilityPayload.requestedCapabilities,
+          capabilityContext: resolvedCapabilityContext,
+          imageModelConfigId: resolvedImageModelConfigId,
+          requestedCapabilities,
         },
         (event) => {
           if (event.type === 'conversation') {
@@ -504,7 +564,18 @@ export function useChatSession() {
           }
 
           if (event.type === 'assistant_message') {
-            setMessages((items) => mergeMessage(items, event.message, pendingAssistantId));
+            setMessages((items) => mergeMessage(
+              items,
+              {
+                ...event.message,
+                capability: isImageGenerationRequest ? 'image_generation' : event.message.capability,
+                generationJobId: event.message.generationJobId,
+                imageGenerationExpectedCount: isImageGenerationRequest
+                  ? event.message.imageGenerationExpectedCount ?? imageGenerationExpectedCount
+                  : event.message.imageGenerationExpectedCount,
+              },
+              pendingAssistantId,
+            ));
             return;
           }
 
@@ -535,7 +606,16 @@ export function useChatSession() {
             setAttachments([]);
             setActiveConversationId(event.conversation.id);
             syncConversationUrl(event.conversation.id);
-            setMessages(event.messages);
+            setMessages((currentMessages) => event.messages.map((messageItem) => {
+              const currentMessage = currentMessages.find((item) => item.id === messageItem.id);
+              return {
+                ...messageItem,
+                capability: messageItem.capability ?? currentMessage?.capability,
+                generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
+                imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
+                imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+              };
+            }));
           }
         },
         { signal: abortController.signal },
@@ -556,6 +636,32 @@ export function useChatSession() {
               : item,
           ),
         );
+        await refreshConversations();
+        return;
+      }
+
+      if (isImageGenerationRequest) {
+        const errorMessage = error instanceof Error ? error.message : '图片生成失败';
+        const failureCount = Math.max(1, imageGenerationExpectedCount || 0, sendingAttachments.filter((attachment) => attachment.kind === 'image').length);
+        setMessages((items) =>
+          items.map((item) =>
+            item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)
+              ? {
+                  ...item,
+                  capability: 'image_generation',
+                  content: `图片生成失败：${errorMessage}`,
+                  imageGenerationExpectedCount: item.imageGenerationExpectedCount ?? failureCount,
+                  imageGenerationFailures: Array.from({ length: failureCount }, (_, slotIndex) => ({
+                    slotIndex,
+                    message: errorMessage,
+                  })),
+                  reasoningContent: item.reasoningContent || null,
+                  isCompleted: true,
+                }
+              : item,
+          ),
+        );
+        message.error(errorMessage);
         await refreshConversations();
         return;
       }
@@ -598,6 +704,45 @@ export function useChatSession() {
     });
   }, [sendMessage]);
 
+  const removeMessage = useCallback(async (messageItem: ChatMessage) => {
+    if (!messageItem.conversationId || messageItem.conversationId === 'pending') {
+      setMessages((items) => items.filter((item) => item.id !== messageItem.id));
+      return;
+    }
+    const result = await deleteChatMessage(messageItem.conversationId, messageItem.id);
+    setMessages(result.messages);
+    await refreshConversations();
+  }, [refreshConversations]);
+
+  const regenerateImageMessage = useCallback(async (messageItem: ChatMessage) => {
+    const messageAttachments = messageItem.attachments || [];
+    const imageAttachments = messageAttachments.filter((attachment) => attachment.kind === 'image');
+    const fallbackCapabilityContext: SendChatPayload['capabilityContext'] | undefined = imageAttachments.length
+      ? {
+          imageGeneration: {
+            modeKey: 'upscale',
+            modeTitle: '高清放大',
+            outputCount: imageAttachments.length,
+            referenceGroups: [{
+              key: 'source',
+              label: '原图',
+              required: true,
+              attachmentIds: imageAttachments.map((attachment) => attachment.id),
+            }],
+          },
+        }
+      : undefined;
+    await sendMessage({
+      content: messageItem.content,
+      attachments: messageAttachments,
+      capabilityContext: messageItem.capabilityContext || fallbackCapabilityContext,
+      clearComposer: false,
+      editMessageId: messageItem.id,
+      imageModelConfigId: messageItem.imageModelConfigId || null,
+      requestedCapabilities: ['image_generation'],
+    });
+  }, [sendMessage]);
+
   const stopSending = useCallback(() => {
     streamAbortControllerRef.current?.abort();
   }, []);
@@ -618,11 +763,13 @@ export function useChatSession() {
     messages,
     openConversation,
     removeAttachment,
+    removeMessage,
     removeConversation,
     scrollContainerRef,
     scrollToBottom,
     sendCurrentMessage,
     sendPresetMessage,
+    regenerateImageMessage,
     sending,
     setInput,
     showWelcome: !isResolvingConversation && !conversationOverlayLoading && !activeConversationId && messages.length === 0,

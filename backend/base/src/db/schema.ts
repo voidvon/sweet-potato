@@ -291,6 +291,11 @@ export function migrateDatabase() {
       conversation_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      capability_context TEXT,
+      image_model_config_id TEXT,
+      generation_job_id TEXT,
+      image_generation_expected_count INTEGER,
+      image_generation_failures TEXT NOT NULL DEFAULT '[]',
       reasoning_content TEXT,
       actions TEXT NOT NULL DEFAULT '[]',
       agent_id TEXT NOT NULL,
@@ -298,6 +303,38 @@ export function migrateDatabase() {
       attachments TEXT NOT NULL DEFAULT '[]',
       is_completed INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS generation_jobs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      source_module TEXT NOT NULL,
+      conversation_id TEXT,
+      user_message_id TEXT,
+      assistant_message_id TEXT,
+      status TEXT NOT NULL,
+      expected_count INTEGER NOT NULL DEFAULT 1,
+      completed_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      payload TEXT NOT NULL DEFAULT '{}',
+      result TEXT NOT NULL DEFAULT '{}',
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS generation_job_items (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      slot_index INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      input TEXT NOT NULL DEFAULT '{}',
+      attachment_id TEXT,
+      error TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS skill_files (
@@ -460,6 +497,12 @@ export function migrateDatabase() {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
     ON chat_messages(conversation_id, created_at ASC);
 
+    CREATE INDEX IF NOT EXISTS idx_generation_jobs_conversation
+    ON generation_jobs(conversation_id, updated_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_generation_job_items_job_slot
+    ON generation_job_items(job_id, slot_index ASC);
+
     CREATE INDEX IF NOT EXISTS idx_skill_files_user_updated
     ON skill_files(user_id, updated_at DESC);
 
@@ -534,9 +577,16 @@ export function migrateDatabase() {
   addColumnIfMissing('billable_usage_records', 'credit_base_cost', 'credit_base_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billable_usage_records', 'credit_billed_cost', 'credit_billed_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('chat_messages', 'reasoning_content', 'reasoning_content TEXT');
+  addColumnIfMissing('chat_messages', 'capability_context', 'capability_context TEXT');
+  addColumnIfMissing('chat_messages', 'image_model_config_id', 'image_model_config_id TEXT');
+  addColumnIfMissing('chat_messages', 'generation_job_id', 'generation_job_id TEXT');
+  addColumnIfMissing('chat_messages', 'image_generation_expected_count', 'image_generation_expected_count INTEGER');
+  addColumnIfMissing('chat_messages', 'image_generation_failures', "image_generation_failures TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('chat_messages', 'actions', "actions TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('chat_messages', 'is_completed', 'is_completed INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing('chat_messages', 'attachments', "attachments TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing('generation_jobs', 'payload', "payload TEXT NOT NULL DEFAULT '{}'");
+  addColumnIfMissing('generation_jobs', 'result', "result TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('chat_conversations', 'metadata', "metadata TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('skill_files', 'command', "command TEXT NOT NULL DEFAULT 'skill'");
   addColumnIfMissing('skill_files', 'category', "category TEXT NOT NULL DEFAULT 'brand_style'");

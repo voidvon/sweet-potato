@@ -5,6 +5,7 @@ import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, PlusOu
 import type { GetRef, InputRef, UploadProps } from 'antd';
 import { ArrowUp, Square } from 'lucide-react';
 import type { AiAgent, ChatAttachment } from '../../../types';
+import { resolveAssetUrl } from '../../../api/request';
 import { FloatingComposer } from '../../../components/FloatingComposer';
 import { chatCapabilityChips, chatCapabilityOptions } from '../chatCapabilities';
 import './ChatComposer.scss';
@@ -317,7 +318,7 @@ export function ChatComposer({
             <Image
               alt={attachment.name}
               className="chat-attachment-preview"
-              src={attachment.url}
+              src={resolveAssetUrl(attachment.url)}
             />
           ) : (
             <span className="chat-attachment-file-icon">

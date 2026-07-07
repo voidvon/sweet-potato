@@ -1,8 +1,10 @@
 import { Image, message, Upload } from 'antd';
 import type { UploadProps } from 'antd';
 import { Plus, X } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import type { ChatAttachment } from '../../../types';
+import { resolveAssetUrl } from '../../../api/request';
+import { ImageAttachmentStack } from './ImageAttachmentStack';
 
 export type ClawReferenceGroupConfig = {
   key: string;
@@ -18,22 +20,7 @@ type ClawReferenceGroupsProps = {
   onRemoveAttachment: (attachmentId: string) => void;
 };
 
-type ReferenceStackStyle = CSSProperties & {
-  '--claw-reference-index'?: number;
-  '--claw-reference-transform'?: string;
-  '--claw-reference-z-index'?: number;
-};
-
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
-const maxVisiblePreviewCount = 5;
-const previewStackWidth = 108;
-const previewStackTransforms = [
-  'translate(0px, 0px) rotate(-1deg)',
-  'translate(7px, -3px) rotate(3deg)',
-  'translate(14px, -6px) rotate(-3deg)',
-  'translate(21px, -9px) rotate(3deg)',
-  'translate(28px, -12px) rotate(-3deg)',
-];
 
 export function ClawReferenceGroups({
   groups,
@@ -41,13 +28,15 @@ export function ClawReferenceGroups({
   onAddFiles,
   onRemoveAttachment,
 }: ClawReferenceGroupsProps) {
-  function createPreviewStyle(index: number): ReferenceStackStyle {
-    return {
-      '--claw-reference-index': index,
-      '--claw-reference-transform': previewStackTransforms[index],
-      '--claw-reference-z-index': index + 1,
-    };
-  }
+  const [previewImageGroup, setPreviewImageGroup] = useState<{
+    current: number;
+    images: ChatAttachment[];
+    open: boolean;
+  }>({
+    current: 0,
+    images: [],
+    open: false,
+  });
 
   async function handleReferenceUpload(group: ClawReferenceGroupConfig, files: File[]) {
     const currentCount = groupedAttachments[group.key]?.length || 0;
@@ -86,9 +75,6 @@ export function ClawReferenceGroups({
         const groupAttachments = groupedAttachments[group.key] || [];
         const maxCount = group.maxCount ?? unlimitedReferenceCount;
         const uploadDisabled = groupAttachments.length >= maxCount;
-        const visibleAttachments = groupAttachments
-          .map((attachment, index) => ({ attachment, number: index + 1 }))
-          .slice(-maxVisiblePreviewCount);
         const hasAttachments = groupAttachments.length > 0;
 
         return (
@@ -105,44 +91,27 @@ export function ClawReferenceGroups({
               </Upload>
             ) : (
               <>
-                <div
-                  className="claw-reference-stack"
-                  style={{
-                    width: `${previewStackWidth}px`,
-                  } as ReferenceStackStyle}
-                >
-                  {visibleAttachments.map(({ attachment, number }, index) => (
-                    <span
-                      className="claw-reference-preview"
-                      key={attachment.id}
-                      style={createPreviewStyle(index)}
+                <ImageAttachmentStack
+                  attachments={groupAttachments}
+                  onPreview={(_attachment, index) => setPreviewImageGroup({
+                    current: index,
+                    images: groupAttachments,
+                    open: true,
+                  })}
+                  renderTopAction={(attachment) => (
+                    <button
+                      aria-label={`移除 ${attachment.name}`}
+                      className="claw-reference-remove"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemoveAttachment(attachment.id);
+                      }}
+                      type="button"
                     >
-                      <span className="claw-reference-card-shadow" />
-                      <span className="claw-reference-image-frame">
-                        {index === visibleAttachments.length - 1 ? (
-                          <span className="claw-reference-image-index">图{number}</span>
-                        ) : null}
-                        {index === visibleAttachments.length - 1 ? (
-                          <button
-                            aria-label={`移除 ${attachment.name}`}
-                            onClick={() => onRemoveAttachment(attachment.id)}
-                            type="button"
-                          >
-                            <X size={10} />
-                          </button>
-                        ) : null}
-                      </span>
-                      <span className="claw-reference-image-mask">
-                        <Image
-                          alt={attachment.name}
-                          className="claw-reference-image"
-                          preview={false}
-                          src={attachment.url}
-                        />
-                      </span>
-                    </span>
-                  ))}
-                </div>
+                      <X size={10} />
+                    </button>
+                  )}
+                />
                 {!uploadDisabled ? (
                   <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
                     <button aria-label={`继续上传${group.label}`} className="claw-reference-add" type="button">
@@ -155,6 +124,29 @@ export function ClawReferenceGroups({
           </div>
         );
       })}
+      <Image.PreviewGroup
+        items={previewImageGroup.images.map((attachment) => ({
+          alt: attachment.name,
+          src: resolveAssetUrl(attachment.url),
+        }))}
+        preview={{
+          current: previewImageGroup.current,
+          open: previewImageGroup.open,
+          onChange: (current) => {
+            setPreviewImageGroup((group) => ({
+              ...group,
+              current,
+            }));
+          },
+          onOpenChange: (open, info) => {
+            setPreviewImageGroup((group) => ({
+              ...group,
+              current: info.current ?? group.current,
+              open,
+            }));
+          },
+        }}
+      />
     </div>
   );
 }

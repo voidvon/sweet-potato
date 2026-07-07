@@ -1,9 +1,11 @@
 import { db } from '../../db/database.js';
 import type { ChatConversation, ChatMessage } from './chat.types.js';
 
-type ChatMessageRow = Omit<ChatMessage, 'attachments' | 'actions' | 'isCompleted'> & {
+type ChatMessageRow = Omit<ChatMessage, 'attachments' | 'actions' | 'capabilityContext' | 'imageGenerationFailures' | 'isCompleted'> & {
   actions?: string;
   attachments?: string;
+  capabilityContext?: string | null;
+  imageGenerationFailures?: string | null;
   isCompleted?: number | boolean;
 };
 
@@ -30,6 +32,11 @@ const messageSelect = `
     conversation_id as conversationId,
     role,
     content,
+    capability_context as capabilityContext,
+    image_model_config_id as imageModelConfigId,
+    generation_job_id as generationJobId,
+    image_generation_expected_count as imageGenerationExpectedCount,
+    image_generation_failures as imageGenerationFailures,
     reasoning_content as reasoningContent,
     actions,
     agent_id as agentId,
@@ -60,6 +67,8 @@ function parseMessage(row: ChatMessageRow) {
     ...row,
     actions: row.actions ? JSON.parse(row.actions) : [],
     attachments: row.attachments ? JSON.parse(row.attachments) : [],
+    capabilityContext: row.capabilityContext ? JSON.parse(row.capabilityContext) : undefined,
+    imageGenerationFailures: row.imageGenerationFailures ? JSON.parse(row.imageGenerationFailures) : [],
     isCompleted: Boolean(row.isCompleted),
   } as ChatMessage;
 }
@@ -67,6 +76,11 @@ function parseMessage(row: ChatMessageRow) {
 function serializeMessage(message: ChatMessage) {
   return {
     ...message,
+    capabilityContext: message.capabilityContext ? JSON.stringify(message.capabilityContext) : null,
+    imageModelConfigId: message.imageModelConfigId || null,
+    generationJobId: message.generationJobId || null,
+    imageGenerationExpectedCount: message.imageGenerationExpectedCount || null,
+    imageGenerationFailures: JSON.stringify(message.imageGenerationFailures || []),
     reasoningContent: message.reasoningContent || null,
     actions: JSON.stringify(message.actions || []),
     modelConfigId: message.modelConfigId || null,
@@ -151,10 +165,22 @@ export const chatRepository = {
     `).run(conversationId, createdAt);
   },
 
+  deleteMessage(conversationId: string, messageId: string) {
+    db.prepare(`
+      DELETE FROM chat_messages
+      WHERE conversation_id = ? AND id = ?
+    `).run(conversationId, messageId);
+  },
+
   replaceMessageContent(input: {
     id: string;
     content: string;
     attachments?: ChatMessage['attachments'];
+    capabilityContext?: ChatMessage['capabilityContext'];
+    imageModelConfigId?: string | null;
+    generationJobId?: string | null;
+    imageGenerationExpectedCount?: number;
+    imageGenerationFailures?: ChatMessage['imageGenerationFailures'];
     updatedReasoningContent?: string | null;
     isCompleted?: boolean;
   }) {
@@ -162,6 +188,11 @@ export const chatRepository = {
       UPDATE chat_messages
       SET
         content = @content,
+        capability_context = @capabilityContext,
+        image_model_config_id = @imageModelConfigId,
+        generation_job_id = @generationJobId,
+        image_generation_expected_count = @imageGenerationExpectedCount,
+        image_generation_failures = @imageGenerationFailures,
         attachments = @attachments,
         reasoning_content = @reasoningContent,
         is_completed = @isCompleted
@@ -169,6 +200,11 @@ export const chatRepository = {
     `).run({
       id: input.id,
       content: input.content,
+      capabilityContext: input.capabilityContext ? JSON.stringify(input.capabilityContext) : null,
+      imageModelConfigId: input.imageModelConfigId || null,
+      generationJobId: input.generationJobId || null,
+      imageGenerationExpectedCount: input.imageGenerationExpectedCount || null,
+      imageGenerationFailures: JSON.stringify(input.imageGenerationFailures || []),
       attachments: JSON.stringify(input.attachments || []),
       reasoningContent: input.updatedReasoningContent || null,
       isCompleted: input.isCompleted === false ? 0 : 1,
@@ -188,10 +224,10 @@ export const chatRepository = {
   createMessages(messages: ChatMessage[]) {
     const query = db.prepare(`
       INSERT INTO chat_messages (
-        id, conversation_id, role, content, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, created_at
+        id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, created_at
       )
       VALUES (
-        @id, @conversationId, @role, @content, @reasoningContent, @actions, @agentId, @modelConfigId, @attachments, @isCompleted, @createdAt
+        @id, @conversationId, @role, @content, @capabilityContext, @imageModelConfigId, @generationJobId, @imageGenerationExpectedCount, @imageGenerationFailures, @reasoningContent, @actions, @agentId, @modelConfigId, @attachments, @isCompleted, @createdAt
       )
     `);
     const transaction = db.transaction(() => {

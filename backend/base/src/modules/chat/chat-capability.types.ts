@@ -1,6 +1,6 @@
 import type { AiAgent } from '../agents/agent.types.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
-import type { ChatAttachment, ChatConversation, ChatMessage, ChatMessageAction } from './chat.types.js';
+import type { ChatAttachment, ChatConversation, ChatImageGenerationFailure, ChatMessage, ChatMessageAction } from './chat.types.js';
 
 export type ChatCapabilityName = 'xingtu_creator_search' | 'image_generation';
 
@@ -14,6 +14,7 @@ export type ChatCapabilityContext = {
     promptHint?: string;
     outputSize?: string;
     outputCount?: number;
+    outputBackground?: 'transparent' | 'white' | 'black';
     aspectRatio?: string;
     resolution?: string;
     referenceGroups?: Array<{
@@ -56,12 +57,14 @@ export type ChatCapabilityExecutionInput = {
   attachments: ChatAttachment[];
   capabilityContext?: ChatCapabilityContext;
   conversation?: ChatConversation;
+  onImageGenerationAttachmentsChange?: (attachments: ChatAttachment[]) => void | Promise<void>;
 };
 
 export type ChatCapabilityExecutionResult = {
   capability: ChatCapabilityName;
   assistantContent: string;
   assistantAttachments?: ChatAttachment[];
+  imageGenerationFailures?: ChatImageGenerationFailure[];
   assistantActions?: ChatMessageAction[];
   metadata: ChatConversationMetadata;
 };

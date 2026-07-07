@@ -18,6 +18,12 @@ export type ChatAttachment = {
   size: number;
   kind: 'image' | 'file';
   url: string;
+  imageGenerationSlotIndex?: number;
+};
+
+export type ChatImageGenerationFailure = {
+  slotIndex: number;
+  message: string;
 };
 
 export type ChatMessageAction = {
@@ -32,6 +38,11 @@ export type ChatMessage = {
   conversationId: string;
   role: 'user' | 'assistant';
   content: string;
+  capabilityContext?: ChatCapabilityContext;
+  imageModelConfigId?: string | null;
+  generationJobId?: string | null;
+  imageGenerationExpectedCount?: number;
+  imageGenerationFailures?: ChatImageGenerationFailure[];
   reasoningContent?: string | null;
   actions?: ChatMessageAction[];
   agentId: string;
