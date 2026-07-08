@@ -34,7 +34,6 @@ export const defaultImageModelConfig: AiModelConfig = {
       adapter: 'compatible',
     },
     billing: {
-      multiplier: 1,
       creditsPerRequest: 0,
       priceSource: 'official-manual',
     },
@@ -59,7 +58,6 @@ export const openaiImageModelConfig: AiModelConfig = {
       adapter: 'compatible',
     },
     billing: {
-      multiplier: 1,
       creditsPerRequest: 0,
       priceSource: 'official-manual',
     },

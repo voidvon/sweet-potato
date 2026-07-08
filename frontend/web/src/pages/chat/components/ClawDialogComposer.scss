@@ -28,9 +28,8 @@
   border-bottom: 1px solid #eeeeee;
   display: grid;
   gap: 18px;
-  grid-template-columns: auto minmax(0, 1fr) 30px;
-  min-height: 126px;
-  padding: 22px 20px 10px 16px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px 20px 12px 16px;
 }
 
 .claw-dialog-hint {
@@ -192,22 +191,12 @@
 
 .claw-dialog-rich-textarea .mention-rich-textarea-editor {
   max-height: 174px;
-  min-height: 72px;
+  min-height: 42px;
   padding: 5px 0;
 }
 
 .claw-dialog-rich-textarea .mention-rich-textarea-editor p + p {
   margin-top: 4px;
-}
-
-.claw-expand-button.ant-btn {
-  align-self: start;
-  border-radius: 999px;
-  box-shadow: 0 6px 13px rgba(15, 23, 42, 0.08);
-  color: #6b7a90;
-  height: 26px;
-  justify-self: end;
-  width: 26px;
 }
 
 .claw-dialog-toolbar {
@@ -510,20 +499,6 @@
 
 .claw-prompt-status.ready {
   color: #0f766e;
-}
-
-.claw-credit {
-  align-items: center;
-  color: #171717;
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 800;
-  gap: 5px;
-  white-space: nowrap;
-}
-
-.claw-credit svg {
-  color: #ff9500;
 }
 
 .claw-send-button.ant-btn {

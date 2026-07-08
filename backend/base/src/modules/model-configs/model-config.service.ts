@@ -63,7 +63,6 @@ function normalizeImageBillingSettings(settings: Record<string, unknown>) {
       supportsCustomResolution: imageGeneration.supportsCustomResolution === true,
     },
     billing: {
-      multiplier: Math.max(0, normalizeNumber(billing.multiplier, 1)),
       creditsPerRequest: Math.max(
         0,
         normalizeNumber(billing.creditsPerRequest, normalizeNumber(billing.perRequestUsd, 0)),
@@ -191,8 +190,7 @@ function assertImageBillingSettings(config: AiModelConfig) {
     return;
   }
   if (
-    normalizeNumber(billing.multiplier, 1) < 0
-    || normalizeNumber(billing.creditsPerRequest, normalizeNumber(billing.perRequestUsd, 0)) < 0
+    normalizeNumber(billing.creditsPerRequest, normalizeNumber(billing.perRequestUsd, 0)) < 0
   ) {
     throw new Error('图片模型计费配置不能小于 0');
   }

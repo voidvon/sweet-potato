@@ -16,12 +16,14 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import {
   createLlmModelPricing,
   createModelConfig,
   deleteLlmModelPricing,
   deleteModelConfig,
   listAudioModelProviders,
+  listImageModelProviders,
   listLlmModelPricing,
   listModelConfigs,
   listVideoModelProviders,
@@ -30,7 +32,7 @@ import {
   updateModelConfig,
 } from '../../api/model-config';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import type { AudioModelProviderOption, VideoModelProviderOption } from '../../api/model-config';
+import type { AudioModelProviderOption, ImageModelProviderOption, VideoModelProviderOption } from '../../api/model-config';
 import type {
   AudioBillingSettings,
   ImageBillingSettings,
@@ -48,6 +50,10 @@ const visibleModelTypes: Array<{ key: ModelType; label: string }> = [
   { key: 'video', label: '视频模型' },
   // { key: 'audio', label: '音频模型' },
 ];
+
+function modelTypeFromTabParam(value: string | null): ModelType {
+  return visibleModelTypes.some((item) => item.key === value) ? value as ModelType : 'llm';
+}
 
 function saveModelConfig(values: ModelConfig) {
   return values.id ? updateModelConfig(values.id, values) : createModelConfig(values);
@@ -80,19 +86,6 @@ const modelTypeLabelMap: Record<ModelType, string> = {
   video: '视频模型',
   audio: '音频模型',
 };
-
-const imageGenerationAdapterOptions = [
-  { label: '通用兼容适配器', value: 'compatible' },
-  { label: 'Image2 适配器', value: 'image2' },
-];
-
-const imageGenerationQualityOptions = [
-  { label: '默认', value: '' },
-  { label: '低', value: 'low' },
-  { label: '中', value: 'medium' },
-  { label: '高', value: 'high' },
-  { label: '自动', value: 'auto' },
-];
 
 type ModelColumn = NonNullable<TableProps<ModelConfig>['columns']>[number];
 type LlmPriceTableRow = {
@@ -219,28 +212,11 @@ function imageBillingSettingsOf(record: ModelConfig): ImageBillingSettings {
     ? settings.billing as Record<string, unknown>
     : {};
   return {
-    multiplier: toNumericValue(billing.multiplier, 1),
     creditsPerRequest: toNumericValue(billing.creditsPerRequest, toNumericValue(billing.perRequestUsd, 0)),
     priceSource: typeof billing.priceSource === 'string' && billing.priceSource.trim()
       ? billing.priceSource.trim()
       : 'official-manual',
   };
-}
-
-function imageGenerationAdapterOf(record: ModelConfig | null) {
-  const settings = record?.settings && typeof record.settings === 'object'
-    ? record.settings as Record<string, unknown>
-    : {};
-  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
-    ? settings.imageGeneration as Record<string, unknown>
-    : {};
-  const adapter = imageGeneration.adapter || imageGeneration.providerAdapter || settings.imageGenerationAdapter;
-  return typeof adapter === 'string' && adapter.trim() ? adapter.trim() : 'compatible';
-}
-
-function imageGenerationAdapterLabel(record: ModelConfig) {
-  const adapter = imageGenerationAdapterOf(record);
-  return imageGenerationAdapterOptions.find((item) => item.value === adapter)?.label || adapter;
 }
 
 function imageGenerationSettingsOf(record: ModelConfig | null) {
@@ -257,9 +233,7 @@ function imageGenerationSupportsCustomResolutionOf(record: ModelConfig | null) {
 }
 
 function imageGenerationSummary(record: ModelConfig) {
-  const settings = imageGenerationSettingsOf(record);
   const items = [
-    typeof settings.quality === 'string' && settings.quality ? `质量 ${settings.quality}` : '',
     imageGenerationSupportsCustomResolutionOf(record) ? '支持自定义分辨率' : '固定分辨率',
   ].filter(Boolean);
   return items.join('，') || '默认参数';
@@ -320,7 +294,6 @@ function normalizedSettingsForForm(record: ModelConfig | null, activeType: Model
       ? {
         imageGeneration: {
           ...imageGenerationSettingsOf(record),
-          adapter: imageGenerationAdapterOf(record),
           supportsCustomResolution: imageGenerationSupportsCustomResolutionOf(record),
         },
       }
@@ -390,6 +363,7 @@ function videoProviderConfigRow(provider: VideoModelProviderOption, existing?: M
 type ModelFormModalProps = {
   activeType: ModelType;
   audioProviders: AudioModelProviderOption[];
+  imageProviders: ImageModelProviderOption[];
   llmModelPricing: LlmModelPricing[];
   videoProviders: VideoModelProviderOption[];
   editingRecord: ModelConfig | null;
@@ -407,6 +381,7 @@ type LlmPricingFormValues = LlmModelPricing;
 function ModelFormModal({
   activeType,
   audioProviders,
+  imageProviders,
   llmModelPricing,
   videoProviders,
   editingRecord,
@@ -416,6 +391,7 @@ function ModelFormModal({
 }: ModelFormModalProps) {
   const [form] = Form.useForm<ModelFormValues>();
   const [saving, setSaving] = useState(false);
+  const selectedImageProviderId = Form.useWatch('provider', form);
   const audioProvider = activeType === 'audio' && editingRecord
     ? audioProviders.find((item) => item.id === editingRecord.provider)
     : undefined;
@@ -437,6 +413,25 @@ function ModelFormModal({
     );
     return Object.values(groups);
   }, [llmModelPricing]);
+  const imageProviderOptions = useMemo(() => imageProviders.map((provider) => ({
+    label: provider.name,
+    value: provider.id,
+  })), [imageProviders]);
+  const selectedImageProvider = activeType === 'image'
+    ? imageProviders.find((provider) => provider.id === selectedImageProviderId)
+    : undefined;
+  const imageModelOptions = useMemo(() => {
+    const options = (selectedImageProvider?.models || []).map((model) => ({
+      label: `${model.name} (${model.id})`,
+      value: model.id,
+      disabled: model.disabled,
+    }));
+    const currentModel = String(form.getFieldValue('model') || '').trim();
+    if (currentModel && !options.some((item) => item.value === currentModel)) {
+      return [{ label: currentModel, value: currentModel }, ...options];
+    }
+    return options;
+  }, [form, selectedImageProvider]);
 
   function applyLlmPricing(pricing: LlmModelPricing) {
     const currentSettings = (form.getFieldValue('settings') || {}) as Record<string, unknown>;
@@ -460,6 +455,19 @@ function ModelFormModal({
     }
   }
 
+  function handleImageProviderChange(providerId: string) {
+    const provider = imageProviders.find((item) => item.id === providerId);
+    if (!provider) {
+      return;
+    }
+    form.setFieldsValue({
+      name: provider.name,
+      provider: provider.id,
+      model: provider.defaultModel,
+      baseUrl: provider.defaultBaseUrl,
+    });
+  }
+
   useEffect(() => {
     if (!open) {
       return;
@@ -480,8 +488,10 @@ function ModelFormModal({
       } else {
         form.setFieldValue('llmPricingId', undefined);
       }
+    } else if (activeType === 'image' && !editingRecord && imageProviders.length) {
+      handleImageProviderChange(imageProviders[0].id);
     }
-  }, [activeType, editingRecord, form, llmModelPricing, open]);
+  }, [activeType, editingRecord, form, imageProviders, llmModelPricing, open]);
 
   async function handleSubmit(values: ModelFormValues) {
     setSaving(true);
@@ -652,9 +662,17 @@ function ModelFormModal({
             <Form.Item
               label="服务商"
               name="provider"
-              rules={[{ required: true, message: '请输入服务商' }]}
+              rules={[{ required: true, message: activeType === 'image' ? '请选择服务商' : '请输入服务商' }]}
             >
-              <Input disabled={activeType === 'llm'} placeholder="openai-images / volcengine-seedream / Runway" />
+              {activeType === 'image' ? (
+                <Select
+                  options={imageProviderOptions}
+                  onChange={handleImageProviderChange}
+                  placeholder="请选择图片服务商"
+                />
+              ) : (
+                <Input disabled={activeType === 'llm'} placeholder="openai-images / volcengine-seedream / Runway" />
+              )}
             </Form.Item>
             <Form.Item
               label="模型名称"
@@ -668,6 +686,13 @@ function ModelFormModal({
                   options={llmModelOptions}
                   onChange={handleLlmModelChange}
                   placeholder="请选择模型"
+                />
+              ) : activeType === 'image' ? (
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={imageModelOptions}
+                  placeholder="请选择图片模型"
                 />
               ) : (
                 <Input placeholder="gpt-image-1 / doubao-seedream-5-0-260128 / flux-pro" />
@@ -794,31 +819,11 @@ function ModelFormModal({
             {activeType === 'image' && (
               <>
                 <Form.Item
-                  label="生图适配器"
-                  name={['settings', 'imageGeneration', 'adapter']}
-                  rules={[{ required: true, message: '请选择生图适配器' }]}
-                >
-                  <Select options={imageGenerationAdapterOptions} />
-                </Form.Item>
-                <Form.Item
-                  label="生成质量"
-                  name={['settings', 'imageGeneration', 'quality']}
-                >
-                  <Select options={imageGenerationQualityOptions} />
-                </Form.Item>
-                <Form.Item
                   className="full-span"
                   name={['settings', 'imageGeneration', 'supportsCustomResolution']}
                   valuePropName="checked"
                 >
                   <Checkbox>支持自定义分辨率</Checkbox>
-                </Form.Item>
-                <Form.Item
-                  label="模型消耗倍率"
-                  name={['settings', 'billing', 'multiplier']}
-                  rules={[{ required: true, message: '请输入模型消耗倍率' }]}
-                >
-                  <InputNumber controls={false} min={0} precision={2} step={0.01} style={{ width: '100%' }} />
                 </Form.Item>
                 <Form.Item
                   label="图片生成单价 (Credit / 张)"
@@ -1102,10 +1107,12 @@ function LlmPricingEditorModal({
 }
 
 export function ModelSettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeType = modelTypeFromTabParam(searchParams.get('tab'));
   const [audioProviders, setAudioProviders] = useState<AudioModelProviderOption[]>([]);
+  const [imageProviders, setImageProviders] = useState<ImageModelProviderOption[]>([]);
   const [llmModelPricing, setLlmModelPricing] = useState<LlmModelPricing[]>([]);
   const [videoProviders, setVideoProviders] = useState<VideoModelProviderOption[]>([]);
-  const [activeType, setActiveType] = useState<ModelType>('llm');
   const [configsByType, setConfigsByType] = useState<Record<ModelType, ModelConfig[]>>({
     llm: [],
     image: [],
@@ -1149,7 +1156,8 @@ export function ModelSettingsPage() {
         setAudioProviders(providers);
         setConfigsByType((current) => ({ ...current, [type]: rows }));
       } else if (type === 'image') {
-        const rows = await listModelConfigs(type);
+        const [rows, providers] = await Promise.all([listModelConfigs(type), listImageModelProviders()]);
+        setImageProviders(providers);
         setConfigsByType((current) => ({ ...current, [type]: rows }));
       } else if (type === 'video') {
         const [rows, providers] = await Promise.all([listModelConfigs(type), listVideoModelProviders()]);
@@ -1174,6 +1182,19 @@ export function ModelSettingsPage() {
   async function loadLlmModelPricing() {
     const pricing = await listLlmModelPricing();
     setLlmModelPricing(pricing);
+  }
+
+  function handleTabChange(key: string) {
+    const nextType = modelTypeFromTabParam(key);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (nextType === 'llm') {
+        next.delete('tab');
+      } else {
+        next.set('tab', nextType);
+      }
+      return next;
+    }, { replace: true });
   }
 
   useEffect(() => {
@@ -1386,14 +1407,9 @@ export function ModelSettingsPage() {
           dataIndex: 'model',
         },
         {
-          title: '生图适配器',
-          width: 220,
-          render: (_, record) => (
-            <Space orientation="vertical" size={2}>
-              <Tag>{imageGenerationAdapterLabel(record)}</Tag>
-              <span className="model-subtext">{imageGenerationSummary(record)}</span>
-            </Space>
-          ),
+          title: '生成能力',
+          width: 180,
+          render: (_, record) => <span className="model-subtext">{imageGenerationSummary(record)}</span>,
         },
         {
           title: 'Key 状态',
@@ -1406,8 +1422,7 @@ export function ModelSettingsPage() {
             const billing = imageBillingSettingsOf(record);
             return (
               <Space orientation="vertical" size={2}>
-                <span>倍率 {billing.multiplier.toFixed(2)}</span>
-                <span className="model-subtext">{billing.creditsPerRequest.toFixed(6)} Credit / 张</span>
+                <span>{billing.creditsPerRequest.toFixed(6)} Credit / 张</span>
               </Space>
             );
           },
@@ -1549,11 +1564,11 @@ export function ModelSettingsPage() {
           title: '计费参数',
           width: 280,
           render: (_, record) => {
-            const billing = imageBillingSettingsOf(record);
+            const billing = audioBillingSettingsOf(record);
             return (
               <Space orientation="vertical" size={2}>
                 <span>倍率 {billing.multiplier.toFixed(2)}</span>
-                <span className="model-subtext">{billing.creditsPerRequest.toFixed(6)} Credit / 次</span>
+                <span className="model-subtext">声音克隆 {billing.voiceCloneCredits.toFixed(6)} Credit / 次</span>
               </Space>
             );
           },
@@ -1588,7 +1603,7 @@ export function ModelSettingsPage() {
         <Tabs
           activeKey={activeType}
           items={visibleModelTypes.map((item) => ({ key: item.key, label: item.label }))}
-          onChange={(key) => setActiveType(key as ModelType)}
+          onChange={handleTabChange}
         />
 
         <Table
@@ -1603,6 +1618,7 @@ export function ModelSettingsPage() {
       <ModelFormModal
         activeType={activeType}
         audioProviders={audioProviders}
+        imageProviders={imageProviders}
         editingRecord={editingRecord}
         llmModelPricing={llmModelPricing}
         onCancel={() => setModalOpen(false)}
