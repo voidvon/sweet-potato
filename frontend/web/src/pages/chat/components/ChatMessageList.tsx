@@ -1,5 +1,5 @@
 import { Button, Dropdown, Image, Modal, Tooltip, message } from 'antd';
-import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownCircleOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ChevronRight } from 'lucide-react';
 import { Children, cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '../../../types';
@@ -17,10 +17,8 @@ type ChatMessageListProps = {
   onRegenerateImage: (message: ChatMessage) => void;
   onUpdateUserMessage: (messageId: string, content: string) => void;
   onScroll: () => void;
-  onScrollToBottom: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sending: boolean;
-  showScrollBottom: boolean;
 };
 
 export function ChatMessageList({
@@ -31,10 +29,8 @@ export function ChatMessageList({
   onRegenerateImage,
   onUpdateUserMessage,
   onScroll,
-  onScrollToBottom,
   scrollContainerRef,
   sending,
-  showScrollBottom,
 }: ChatMessageListProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
@@ -627,9 +623,6 @@ export function ChatMessageList({
         }}
       />
 
-      {showScrollBottom && (
-        <Button className="chat-scroll-bottom" icon={<DownCircleOutlined />} onClick={onScrollToBottom} shape="circle" type="default" />
-      )}
     </>
   );
 }

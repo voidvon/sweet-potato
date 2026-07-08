@@ -54,6 +54,7 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
 
 const maxAttachmentCount = 6;
 const maxAttachmentBytes = 3 * 1024 * 1024;
+const bottomLockThreshold = 4;
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
@@ -298,12 +299,12 @@ export function useChatSession() {
     };
   }, [activeConversationId, currentUserId]);
 
-  const isNearBottom = useCallback(() => {
+  const isAtBottom = useCallback(() => {
     const element = scrollContainerRef.current;
     if (!element) {
       return true;
     }
-    return element.scrollHeight - element.scrollTop - element.clientHeight < 90;
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= bottomLockThreshold;
   }, []);
 
   const scrollToBottom = useCallback((force = false) => {
@@ -324,8 +325,8 @@ export function useChatSession() {
   }, [messages, sending, scrollToBottom]);
 
   const handleChatScroll = useCallback(() => {
-    setUserHasScrolledUp(!isNearBottom());
-  }, [isNearBottom]);
+    setUserHasScrolledUp(!isAtBottom());
+  }, [isAtBottom]);
 
   const openConversation = useCallback(async (conversation: ChatConversation) => {
     await loadConversation(conversation.id, { showOverlay: true });

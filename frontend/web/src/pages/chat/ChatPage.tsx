@@ -39,6 +39,7 @@ export function ChatPage() {
       onRemoveAttachment={chat.removeAttachment}
       onSend={(options) => void chat.sendCurrentMessage(options)}
       onStop={chat.stopSending}
+      showHeading={chat.messages.length === 0}
       sending={chat.sending}
     />
   );
@@ -88,10 +89,8 @@ export function ChatPage() {
               onRegenerateImage={(messageItem) => void chat.regenerateImageMessage(messageItem)}
               onUpdateUserMessage={(messageId, content) => void chat.updateUserMessage(messageId, content)}
               onScroll={chat.handleChatScroll}
-              onScrollToBottom={() => chat.scrollToBottom(true)}
               scrollContainerRef={chat.scrollContainerRef}
               sending={chat.sending}
-              showScrollBottom={chat.userHasScrolledUp}
             />
           </div>
         </main>

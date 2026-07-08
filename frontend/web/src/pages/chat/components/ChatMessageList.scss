@@ -530,13 +530,6 @@
   }
 }
 
-.chat-scroll-bottom.ant-btn {
-  left: 50%;
-  position: absolute;
-  transform: translateX(-50%);
-  bottom: 104px;
-}
-
 @media (max-width: 720px) {
   .chat-message-shell.user.has-reference-groups {
     max-width: 94%;
