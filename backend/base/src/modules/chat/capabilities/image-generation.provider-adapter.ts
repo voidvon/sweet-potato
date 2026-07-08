@@ -50,7 +50,10 @@ function imageGenerationAdapterKey(modelConfig: AiModelConfig) {
   const settings = isRecord(modelConfig.settings) ? modelConfig.settings : {};
   const imageGeneration = isRecord(settings.imageGeneration) ? settings.imageGeneration : {};
   const adapter = imageGeneration.adapter || imageGeneration.providerAdapter || settings.imageGenerationAdapter;
-  return typeof adapter === 'string' ? adapter.trim() : '';
+  if (typeof adapter === 'string' && adapter.trim()) {
+    return adapter.trim();
+  }
+  return modelConfig.provider === 'openai-images' ? 'image2' : 'compatible';
 }
 
 function imageGenerationSettings(modelConfig: AiModelConfig) {

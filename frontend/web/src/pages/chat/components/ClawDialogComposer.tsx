@@ -4,7 +4,6 @@ import {
   Brush,
   Check,
   ChevronDown,
-  Expand,
   ImagePlus,
   Images,
   Layers,
@@ -684,7 +683,7 @@ export function ClawDialogComposer({
                 fallbackMentionMenu
                 menuDescription="选择图片会自动插入引用"
                 menuTitle="可引用图片"
-                minRows={3}
+                minRows={2}
                 onChange={onInputChange}
                 onSubmit={handlePrimaryAction}
                 options={mentionOptions}
@@ -696,9 +695,6 @@ export function ClawDialogComposer({
             <div className="claw-dialog-mode-hint" />
           )}
 
-          {showPromptInput ? (
-            <Button aria-label="放大输入框" className="claw-expand-button" icon={<Expand size={12} />} type="text" />
-          ) : null}
         </div>
 
         <footer className="claw-dialog-toolbar">
@@ -797,10 +793,6 @@ export function ClawDialogComposer({
             {!canStartGeneration ? (
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}
-            <span className="claw-credit">
-              <Zap size={12} fill="currentColor" />
-              15
-            </span>
             <Button
               aria-label={sending ? '停止生成' : '发送消息'}
               className="claw-send-button"

@@ -756,6 +756,7 @@ export function MentionRichTextarea({
         }}
         src={previewImage?.src}
         style={{ display: 'none' }}
+        wrapperStyle={{ display: 'none' }}
       />
     </div>
   );

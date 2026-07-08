@@ -233,7 +233,7 @@ function nonLlmModelBillingSettingsOf(modelConfig: AiModelConfig): NonLlmModelBi
   const settings = isRecord(modelConfig.settings) ? modelConfig.settings : {};
   const billing = isRecord(settings.billing) ? settings.billing : {};
   return {
-    multiplier: normalizeNumber(billing.multiplier, 1),
+    multiplier: modelConfig.type === 'image' ? 1 : normalizeNumber(billing.multiplier, 1),
     creditsPerRequest: normalizeNumber(
       billing.creditsPerRequest,
       normalizeNumber(billing.perRequestUsd, 0),
@@ -922,7 +922,7 @@ export function recordImageGenerationUsage(input: {
     requestSnapshot: input.requestSnapshot,
     responseSnapshot: input.responseSnapshot,
     creditBaseCost: billing.creditsPerRequest,
-    multiplier: billing.multiplier,
+    multiplier: 1,
     priceSource: billing.priceSource,
   });
 }

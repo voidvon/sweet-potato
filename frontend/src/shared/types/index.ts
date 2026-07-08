@@ -149,7 +149,6 @@ export type LlmModelPricing = {
 };
 
 export type ImageBillingSettings = {
-  multiplier: number;
   creditsPerRequest: number;
   priceSource?: string;
 };
