@@ -642,7 +642,7 @@ export function useChatSession() {
 
       if (isImageGenerationRequest) {
         const errorMessage = error instanceof Error ? error.message : '图片生成失败';
-        const failureCount = Math.max(1, imageGenerationExpectedCount || 0, sendingAttachments.filter((attachment) => attachment.kind === 'image').length);
+        const failureCount = Math.max(1, imageGenerationExpectedCount || 0);
         setMessages((items) =>
           items.map((item) =>
             item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)

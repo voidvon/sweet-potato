@@ -429,6 +429,28 @@ function modeSchemaOf(input: ChatCapabilityExecutionInput) {
   return imageGenerationModeSchemas[modeKey] || imageGenerationModeSchemas.dialog;
 }
 
+export function expectedImageGenerationOutputCount(input: {
+  attachments: ChatAttachment[];
+  capabilityContext?: ChatCapabilityExecutionInput['capabilityContext'];
+}) {
+  const modeSchema = modeSchemaOf(input as ChatCapabilityExecutionInput);
+  const outputConfig = imageGenerationOutputConfigOf(modeSchema);
+  if (modeSchema.outputCountStrategy === 'fixedOne') {
+    return 1;
+  }
+  if (modeSchema.outputCountStrategy === 'matchUploadedImages') {
+    return Math.max(1, input.attachments.filter((attachment) => attachment.kind === 'image').length);
+  }
+  const requestedCount = Number(input.capabilityContext?.imageGeneration?.outputCount);
+  if (!Number.isFinite(requestedCount)) {
+    return outputConfig.defaultOutputCount;
+  }
+  const normalizedCount = Math.max(1, Math.floor(requestedCount));
+  return outputConfig.allowedOutputCounts.includes(normalizedCount)
+    ? normalizedCount
+    : outputConfig.defaultOutputCount;
+}
+
 function imageModelSupportsCustomResolution(modelConfig: AiModelConfig) {
   const settings = modelConfig.settings && typeof modelConfig.settings === 'object'
     ? modelConfig.settings

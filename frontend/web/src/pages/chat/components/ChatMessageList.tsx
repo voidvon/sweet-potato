@@ -359,12 +359,15 @@ export function ChatMessageList({
               && item.isCompleted !== false
               && answerContent.startsWith('图片生成失败');
             const isImageGenerationFailed = isLegacyImageGenerationFailed || imageGenerationFailures.length > 0;
+            const expectedImageGenerationSlotCount = item.imageGenerationExpectedCount
+              || previousImageGenerationContext?.outputCount
+              || 0;
             const imageGenerationSlotCount = isImageGenerationLoading
-              ? Math.max(1, item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0, imageAttachments.length)
+              ? Math.max(1, expectedImageGenerationSlotCount || imageAttachments.length)
               : isImageGenerationFailed
                 ? Math.max(
                   1,
-                  item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0,
+                  expectedImageGenerationSlotCount,
                   imageAttachments.length,
                   ...imageGenerationFailures.map((failure) => failure.slotIndex + 1),
                 )

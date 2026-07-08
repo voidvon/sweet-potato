@@ -13,6 +13,7 @@ import { generationRepository } from '../generation/generation.repository.js';
 import type { GenerationJob } from '../generation/generation.types.js';
 import { dispatchChatCapability, resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { assertModelConfigReady, streamConfiguredModel } from './chat-completion.service.js';
+import { expectedImageGenerationOutputCount } from './capabilities/image-generation.workflow.js';
 import { chatRepository } from './chat.repository.js';
 import type { ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from './chat.types.js';
 
@@ -49,13 +50,7 @@ function expectedImageGenerationCount(input: {
   attachments: ChatAttachment[];
   capabilityContext?: SendChatPayload['capabilityContext'];
 }) {
-  const imageGenerationContext = input.capabilityContext?.imageGeneration;
-  return Math.max(
-    1,
-    imageGenerationContext?.outputCount || 0,
-    ...((imageGenerationContext?.referenceGroups || []).map((group) => group.attachmentIds.length)),
-    input.attachments.filter((attachment) => attachment.kind === 'image').length,
-  );
+  return expectedImageGenerationOutputCount(input);
 }
 
 function publishJob(job: GenerationJob | undefined) {
