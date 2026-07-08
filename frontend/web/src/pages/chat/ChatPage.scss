@@ -34,6 +34,11 @@
   position: relative;
 }
 
+.chat-page .video-workbench-main-body {
+  position: relative;
+  z-index: 1;
+}
+
 .chat-session-overlay {
   align-items: center;
   display: flex;
@@ -65,8 +70,32 @@
   grid-row: 2;
 }
 
-.chat-page.is-idle .chat-history {
+.chat-page.is-idle .chat-history-content {
   padding: 0;
+}
+
+.chat-page .video-workbench-footer {
+  position: relative;
+  z-index: 10;
+}
+
+.chat-page .video-workbench-footer::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.48) 44%,
+    rgba(255, 255, 255, 0.82) 70%,
+    rgba(255, 255, 255, 0.96) 88%,
+    #ffffff 100%
+  );
+  bottom: 100%;
+  content: "";
+  height: 28px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  z-index: 1;
 }
 
 .workspace-chat-title-shell {

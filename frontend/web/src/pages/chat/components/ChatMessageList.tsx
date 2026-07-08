@@ -250,174 +250,175 @@ export function ChatMessageList({
   return (
     <>
       <div className="chat-history" onScroll={onScroll} ref={scrollContainerRef}>
-        {messages.map((item, messageIndex) => {
-          const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
-          const thinkingContent = item.role === 'assistant' ? item.reasoningContent || parsed?.thinking : '';
-          const answerContent = item.role === 'assistant' ? parsed?.answer || item.content : item.content;
-          const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
-          const imageAttachments = item.attachments?.filter((attachment) => attachment.kind === 'image') || [];
-          const fileAttachments = item.attachments?.filter((attachment) => attachment.kind !== 'image') || [];
-          const imageGenerationFailures = item.imageGenerationFailures || [];
-          const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
-          const previousImageGenerationContext = previousUserMessage?.capabilityContext?.imageGeneration;
-          const isImageGenerationAssistant = item.role === 'assistant'
-            && (
-              item.capability === 'image_generation'
-              || Boolean(item.generationJobId)
-              || item.imageGenerationExpectedCount !== undefined
-              || imageAttachments.some(isGeneratedImageAttachment)
-              || imageGenerationFailures.length > 0
-              || Boolean(previousImageGenerationContext && item.isCompleted === false)
+        <div className="chat-history-content">
+          {messages.map((item, messageIndex) => {
+            const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
+            const thinkingContent = item.role === 'assistant' ? item.reasoningContent || parsed?.thinking : '';
+            const answerContent = item.role === 'assistant' ? parsed?.answer || item.content : item.content;
+            const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
+            const imageAttachments = item.attachments?.filter((attachment) => attachment.kind === 'image') || [];
+            const fileAttachments = item.attachments?.filter((attachment) => attachment.kind !== 'image') || [];
+            const imageGenerationFailures = item.imageGenerationFailures || [];
+            const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
+            const previousImageGenerationContext = previousUserMessage?.capabilityContext?.imageGeneration;
+            const isImageGenerationAssistant = item.role === 'assistant'
+              && (
+                item.capability === 'image_generation'
+                || Boolean(item.generationJobId)
+                || item.imageGenerationExpectedCount !== undefined
+                || imageAttachments.some(isGeneratedImageAttachment)
+                || imageGenerationFailures.length > 0
+                || Boolean(previousImageGenerationContext && item.isCompleted === false)
+              );
+            const isImageGenerationLoading = isImageGenerationAssistant && item.isCompleted === false;
+            const imageGenerationFailureBySlot = new Map(imageGenerationFailures.map((failure) => [failure.slotIndex, failure]));
+            const isLegacyImageGenerationFailed = isImageGenerationAssistant
+              && item.isCompleted !== false
+              && answerContent.startsWith('图片生成失败');
+            const isImageGenerationFailed = isLegacyImageGenerationFailed || imageGenerationFailures.length > 0;
+            const imageGenerationSlotCount = isImageGenerationLoading
+              ? Math.max(1, item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0, imageAttachments.length)
+              : isImageGenerationFailed
+                ? Math.max(
+                  1,
+                  item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0,
+                  imageAttachments.length,
+                  ...imageGenerationFailures.map((failure) => failure.slotIndex + 1),
+                )
+                : imageAttachments.length;
+            const imageGenerationLayoutClass = imageGenerationSlotCount === 1
+              ? 'single'
+              : imageGenerationSlotCount === 2
+                ? 'double'
+                : imageGenerationSlotCount === 4
+                ? 'quad'
+                : 'multi';
+            const imageGenerationAttachmentsBySlot = new Map(
+              imageAttachments.map((attachment, index) => [attachment.imageGenerationSlotIndex ?? index, attachment]),
             );
-          const isImageGenerationLoading = isImageGenerationAssistant && item.isCompleted === false;
-          const imageGenerationFailureBySlot = new Map(imageGenerationFailures.map((failure) => [failure.slotIndex, failure]));
-          const isLegacyImageGenerationFailed = isImageGenerationAssistant
-            && item.isCompleted !== false
-            && answerContent.startsWith('图片生成失败');
-          const isImageGenerationFailed = isLegacyImageGenerationFailed || imageGenerationFailures.length > 0;
-          const imageGenerationSlotCount = isImageGenerationLoading
-            ? Math.max(1, item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0, imageAttachments.length)
-            : isImageGenerationFailed
-              ? Math.max(
-                1,
-                item.imageGenerationExpectedCount || previousImageGenerationContext?.outputCount || 0,
-                imageAttachments.length,
-                ...imageGenerationFailures.map((failure) => failure.slotIndex + 1),
-              )
-              : imageAttachments.length;
-          const imageGenerationLayoutClass = imageGenerationSlotCount === 1
-            ? 'single'
-            : imageGenerationSlotCount === 2
-              ? 'double'
-              : imageGenerationSlotCount === 4
-              ? 'quad'
-              : 'multi';
-          const imageGenerationAttachmentsBySlot = new Map(
-            imageAttachments.map((attachment, index) => [attachment.imageGenerationSlotIndex ?? index, attachment]),
-          );
-          const attachmentList = Boolean(item.attachments?.length) ? (
-            <div className={`chat-message-attachments ${item.role}`}>
-              {item.role === 'user' && imageAttachments.length ? renderUserImageStack(imageAttachments) : null}
-              {item.role === 'assistant' ? imageAttachments.map((attachment) => (
-                <Image
-                  alt={attachment.name}
-                  className="chat-message-image"
-                  key={attachment.id}
-                  src={resolveAssetUrl(attachment.url)}
-                />
-              )) : null}
-              {fileAttachments.map(renderFileAttachment)}
-            </div>
-          ) : null;
+            const attachmentList = Boolean(item.attachments?.length) ? (
+              <div className={`chat-message-attachments ${item.role}`}>
+                {item.role === 'user' && imageAttachments.length ? renderUserImageStack(imageAttachments) : null}
+                {item.role === 'assistant' ? imageAttachments.map((attachment) => (
+                  <Image
+                    alt={attachment.name}
+                    className="chat-message-image"
+                    key={attachment.id}
+                    src={resolveAssetUrl(attachment.url)}
+                  />
+                )) : null}
+                {fileAttachments.map(renderFileAttachment)}
+              </div>
+            ) : null;
 
-          if (isImageGenerationAssistant) {
-            return (
-              <div className="chat-message-shell assistant image-generation" key={item.id}>
-                {imageGenerationSlotCount ? (
-                  <>
-                    <Image.PreviewGroup
-                      preview={{
-                        actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current),
-                      }}
-                    >
-                      <div className={`chat-image-generation-grid ${imageGenerationLayoutClass}`}>
-                        {Array.from({ length: imageGenerationSlotCount }, (_, index) => {
-                          const attachment = imageGenerationAttachmentsBySlot.get(index);
-                          const failure = imageGenerationFailureBySlot.get(index);
-                          return attachment ? (
-                            <div className="chat-image-generation-cell" key={attachment.id}>
-                              <Image
-                                alt={attachment.name}
-                                className="chat-image-generation-image"
-                                height="100%"
-                                src={resolveAssetUrl(attachment.url)}
-                                width="100%"
-                              />
-                            </div>
-                          ) : failure || isLegacyImageGenerationFailed ? (
-                            <div className="chat-image-generation-cell failed" key={`failed-${index}`}>
-                              <Tooltip title={failure?.message || answerContent || '图片生成失败'}>
-                                <CloseCircleOutlined className="chat-image-generation-failed-icon" />
-                              </Tooltip>
-                              <span>生成失败</span>
-                            </div>
-                          ) : (
-                            <div className="chat-image-generation-cell loading" key={`loading-${index}`}>
-                              <span />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </Image.PreviewGroup>
-                    <div className="chat-image-generation-actions">
-                      <Button
-                        className="chat-image-generation-action"
-                        color="default"
-                        disabled={sending || !previousUserMessage}
-                        icon={<ReloadOutlined />}
-                        onClick={() => confirmRegenerateImage(previousUserMessage)}
-                        size="small"
-                        variant="filled"
-                      >
-                        再次生成
-                      </Button>
-                      <Dropdown
-                        menu={{
-                          items: [
-                            {
-                              key: 'download',
-                              icon: <DownloadOutlined />,
-                              label: '下载',
-                              disabled: !imageAttachments.length,
-                              onClick: () => downloadGeneratedImages(imageAttachments),
-                            },
-                            {
-                              danger: true,
-                              key: 'delete',
-                              icon: <DeleteOutlined />,
-                              label: '删除',
-                              onClick: () => confirmDeleteImageResult(item),
-                            },
-                          ],
+            if (isImageGenerationAssistant) {
+              return (
+                <div className="chat-message-shell assistant image-generation" key={item.id}>
+                  {imageGenerationSlotCount ? (
+                    <>
+                      <Image.PreviewGroup
+                        preview={{
+                          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current),
                         }}
-                        trigger={['click']}
                       >
+                        <div className={`chat-image-generation-grid ${imageGenerationLayoutClass}`}>
+                          {Array.from({ length: imageGenerationSlotCount }, (_, index) => {
+                            const attachment = imageGenerationAttachmentsBySlot.get(index);
+                            const failure = imageGenerationFailureBySlot.get(index);
+                            return attachment ? (
+                              <div className="chat-image-generation-cell" key={attachment.id}>
+                                <Image
+                                  alt={attachment.name}
+                                  className="chat-image-generation-image"
+                                  height="100%"
+                                  src={resolveAssetUrl(attachment.url)}
+                                  width="100%"
+                                />
+                              </div>
+                            ) : failure || isLegacyImageGenerationFailed ? (
+                              <div className="chat-image-generation-cell failed" key={`failed-${index}`}>
+                                <Tooltip title={failure?.message || answerContent || '图片生成失败'}>
+                                  <CloseCircleOutlined className="chat-image-generation-failed-icon" />
+                                </Tooltip>
+                                <span>生成失败</span>
+                              </div>
+                            ) : (
+                              <div className="chat-image-generation-cell loading" key={`loading-${index}`}>
+                                <span />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </Image.PreviewGroup>
+                      <div className="chat-image-generation-actions">
                         <Button
-                          aria-label="更多操作"
-                          className="chat-image-generation-more"
+                          className="chat-image-generation-action"
                           color="default"
-                          icon={<MoreOutlined />}
+                          disabled={sending || !previousUserMessage}
+                          icon={<ReloadOutlined />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage)}
                           size="small"
                           variant="filled"
-                        />
-                      </Dropdown>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="chat-image-generation-error">
-                      {answerContent || '图片生成失败'}
-                    </div>
-                    <div className="chat-image-generation-actions">
-                      <Button
-                        className="chat-image-generation-action"
-                        color="default"
-                        disabled={sending || !previousUserMessage}
-                        icon={<ReloadOutlined />}
-                        onClick={() => confirmRegenerateImage(previousUserMessage)}
-                        size="small"
-                        variant="filled"
-                      >
-                        再次生成
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          }
+                        >
+                          再次生成
+                        </Button>
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                key: 'download',
+                                icon: <DownloadOutlined />,
+                                label: '下载',
+                                disabled: !imageAttachments.length,
+                                onClick: () => downloadGeneratedImages(imageAttachments),
+                              },
+                              {
+                                danger: true,
+                                key: 'delete',
+                                icon: <DeleteOutlined />,
+                                label: '删除',
+                                onClick: () => confirmDeleteImageResult(item),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
+                        >
+                          <Button
+                            aria-label="更多操作"
+                            className="chat-image-generation-more"
+                            color="default"
+                            icon={<MoreOutlined />}
+                            size="small"
+                            variant="filled"
+                          />
+                        </Dropdown>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="chat-image-generation-error">
+                        {answerContent || '图片生成失败'}
+                      </div>
+                      <div className="chat-image-generation-actions">
+                        <Button
+                          className="chat-image-generation-action"
+                          color="default"
+                          disabled={sending || !previousUserMessage}
+                          icon={<ReloadOutlined />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage)}
+                          size="small"
+                          variant="filled"
+                        >
+                          再次生成
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
 
-          return (
+            return (
               <div className={`chat-message-shell ${item.role}`} key={item.id}>
                 <article className={`chat-message ${item.role}`}>
                   {thinkingContent && (
@@ -519,13 +520,14 @@ export function ChatMessageList({
               </div>
             );
           })}
-        {sending && !hasStreamingAssistant && (
-          <div className="chat-typing">
-            <span />
-            <span />
-            <span />
-          </div>
-        )}
+          {sending && !hasStreamingAssistant && (
+            <div className="chat-typing">
+              <span />
+              <span />
+              <span />
+            </div>
+          )}
+        </div>
       </div>
 
       <Image.PreviewGroup

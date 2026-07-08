@@ -1,16 +1,21 @@
 .chat-history {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: rgba(71, 84, 103, 0.26) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  width: 100%;
+}
+
+.chat-history-content {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin: 0 auto;
   max-width: 1080px;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  min-height: 100%;
   padding: 24px 24px 20px;
-  scrollbar-color: rgba(71, 84, 103, 0.26) transparent;
-  scrollbar-gutter: stable both-edges;
-  scrollbar-width: thin;
   width: 100%;
 }
 
@@ -512,8 +517,4 @@
   position: absolute;
   transform: translateX(-50%);
   bottom: 104px;
-}
-
-.chat-history {
-  max-width: 1080px;
 }
