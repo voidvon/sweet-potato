@@ -21,10 +21,10 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onToggle }: ToolSw
           <strong>{currentTool.label}</strong>
           <p>{currentTool.description}</p>
         </div>
-        <button className="video-task-switch" onClick={onToggle} type="button">
+        {/* <button className="video-task-switch" onClick={onToggle} type="button">
           切换
           <ChevronDown size={16} />
-        </button>
+        </button> */}
       </div>
 
       {isOpen && (

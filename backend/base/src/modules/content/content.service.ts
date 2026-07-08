@@ -955,6 +955,8 @@ export const contentService = {
     actor: { userId: string; role: UserRole; permissions?: readonly string[] };
     groupId?: string;
     resourceType?: string;
+    page?: number;
+    pageSize?: number;
   }) {
     assertUserId(input.actor.userId);
     let resourceType: ContentResourceType | undefined;
@@ -971,11 +973,26 @@ export const contentService = {
     }
     const isAdminVirtualPortraitScope = input.actor.role === 'admin'
       && (resourceType === 'virtual_portrait' || group?.resourceType === 'virtual_portrait');
-    const assets = contentRepository.listAssets({
+    const scope = {
       userId: isAdminVirtualPortraitScope ? undefined : input.actor.userId,
       groupId: input.groupId,
       resourceType,
-    });
+    };
+    if (input.page || input.pageSize) {
+      const page = Math.max(1, Math.floor(Number(input.page || 1)));
+      const pageSize = Math.max(1, Math.min(50, Math.floor(Number(input.pageSize || 20))));
+      const result = contentRepository.listAssetsPage({
+        ...scope,
+        page,
+        pageSize,
+      });
+      const items = filterAssetsByPermissions(input.actor, result.items);
+      return {
+        ...result,
+        items,
+      };
+    }
+    const assets = contentRepository.listAssets(scope);
     return filterAssetsByPermissions(input.actor, assets);
   },
 

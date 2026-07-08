@@ -1,5 +1,4 @@
-import { Modal } from 'antd';
-import { Play, X } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { useRef } from 'react';
 
 export type ConfirmedReferenceVideo = {
@@ -17,11 +16,6 @@ type ReferenceVideoCardProps = {
   onPreview: () => void;
   onRemove: () => void;
   onReplace: () => void;
-};
-
-type ReferenceVideoPreviewModalProps = {
-  onClose: () => void;
-  video: ConfirmedReferenceVideo;
 };
 
 export function ReferenceVideoCard({ video, onPreview, onRemove, onReplace }: ReferenceVideoCardProps) {
@@ -56,55 +50,5 @@ export function ReferenceVideoCard({ video, onPreview, onRemove, onReplace }: Re
         </div>
       </div>
     </div>
-  );
-}
-
-export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPreviewModalProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const syncStart = () => {
-    const element = videoRef.current;
-    if (!element) return;
-    element.currentTime = video.start;
-    void element.play();
-  };
-
-  const loopSelection = () => {
-    const element = videoRef.current;
-    if (!element) return;
-    if (element.currentTime < video.start || element.currentTime >= video.end) {
-      element.currentTime = video.start;
-      if (!element.paused) void element.play();
-    }
-  };
-
-  return (
-    <Modal
-      centered
-      className="video-task-reference-preview-modal"
-      closable={false}
-      footer={null}
-      mask={{ closable: true }}
-      onCancel={onClose}
-      open
-      title={null}
-      width={760}
-    >
-      <div className="video-task-reference-preview">
-        <button aria-label="关闭预览" className="video-task-reference-preview__close" onClick={onClose} type="button">
-          <X size={18} />
-        </button>
-        <video
-          ref={videoRef}
-          autoPlay
-          controls
-          controlsList="nodownload noremoteplayback"
-          onLoadedMetadata={syncStart}
-          onTimeUpdate={loopSelection}
-          playsInline
-          src={video.videoUrl}
-        />
-      </div>
-    </Modal>
   );
 }

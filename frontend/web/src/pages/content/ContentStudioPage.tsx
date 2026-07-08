@@ -41,7 +41,7 @@ export function ContentStudioPage({ currentUser, moduleCode: moduleCodeProp }: C
   if (code === 'video_remake') {
     page = <VideoRemakePage currentUser={currentUser} />;
   } else if (code === 'create_video') {
-    page = <VideoTaskClonePage />;
+    page = <VideoTaskClonePage currentUser={currentUser} />;
   } else if (code === 'digital_human') {
     page = <DigitalHumanAssetsPage currentUser={currentUser} />;
   } else if (code === 'virtual_portrait_assets') {

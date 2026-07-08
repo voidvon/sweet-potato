@@ -554,6 +554,8 @@ export function createContentRouter() {
         actor: getCurrentActor(req),
         groupId: req.query.groupId ? String(req.query.groupId) : undefined,
         resourceType: req.query.resourceType ? String(req.query.resourceType) : undefined,
+        page: req.query.page ? Number(req.query.page) : undefined,
+        pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
       })
         .then((result) => res.json(result))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '素材列表获取失败')));

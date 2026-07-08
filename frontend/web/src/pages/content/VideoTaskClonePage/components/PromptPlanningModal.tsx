@@ -3,9 +3,10 @@ import { FileVideo, Trash2, X } from 'lucide-react';
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { deleteReferenceVideo, trimReferenceVideo } from '../../../../api/content';
 import { resolveAssetUrl } from '../../../../api/request';
-import type { MaterialKind, PromptPanel as PromptPanelKind, SelectedMaterials } from '../types';
+import type { LocalMaterialFile, MaterialKind, PromptPanel as PromptPanelKind, SelectedMaterialValue, SelectedMaterials } from '../types';
 import { MaterialSlot } from './MaterialSlot';
-import { ReferenceVideoCard, ReferenceVideoPreviewModal, type ConfirmedReferenceVideo } from './ReferenceVideoCard';
+import { ReferenceVideoCard, type ConfirmedReferenceVideo } from './ReferenceVideoCard';
+import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
 
 type PromptPlanningModalProps = {
@@ -54,17 +55,30 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
     imageInputRef.current?.click();
   };
 
-  const fillMaterial = (item: MaterialKind) => {
+  const fillMaterial = (item: MaterialKind, files?: FileList | File[]) => {
     setSelectedMaterials((current) => {
       if (item.key === 'image') {
+        if (files) {
+          const selectedFiles = Array.from(files).slice(0, Math.max(9 - getMaterialCount(current.image), 0));
+          const localFiles = selectedFiles.map((file) => ({
+            id: `image-${crypto.randomUUID()}`,
+            name: file.name,
+            type: 'image',
+            url: URL.createObjectURL(file),
+          })) satisfies LocalMaterialFile[];
+          const currentFiles = getLocalFiles(current.image);
+          return { ...current, image: [...currentFiles, ...localFiles].slice(0, 9) };
+        }
         return { ...current, image: `商品图 ${Math.min(getMaterialCount(current.image) + 1, 9)} 张` };
       }
       return { ...current, video: '参考视频 01' };
     });
   };
 
-  const handleImageChoose = () => {
-    fillMaterial(marketingImageMaterial);
+  const handleImageChoose = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.currentTarget.files?.length) {
+      fillMaterial(marketingImageMaterial, event.currentTarget.files);
+    }
     if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
@@ -124,6 +138,18 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
 
   const removeOneMaterial = (item: MaterialKind) => {
     setSelectedMaterials((current) => {
+      const localFiles = getLocalFiles(current[item.key]);
+      if (localFiles.length > 0) {
+        URL.revokeObjectURL(localFiles[localFiles.length - 1].url);
+        const nextFiles = localFiles.slice(0, -1);
+        if (nextFiles.length === 0) {
+          const next = { ...current };
+          delete next[item.key];
+          return next;
+        }
+        return { ...current, [item.key]: nextFiles };
+      }
+
       if (item.key === 'image') {
         const count = getMaterialCount(current.image);
         if (count <= 1) {
@@ -142,6 +168,7 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
   const clearMaterial = (item: MaterialKind) => {
     setSelectedMaterials((current) => {
       const next = { ...current };
+      getLocalFiles(next[item.key]).forEach((file) => URL.revokeObjectURL(file.url));
       delete next[item.key];
       return next;
     });
@@ -151,6 +178,9 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
     if (referenceVideo) {
       void deleteServerReferenceVideo(referenceVideo);
     }
+    Object.values(selectedMaterials).forEach((value) => {
+      getLocalFiles(value).forEach((file) => URL.revokeObjectURL(file.url));
+    });
     setReferenceVideo(null);
     setPreviewVideo(null);
     setSelectedMaterials({});
@@ -214,6 +244,7 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
                   <MaterialSlot
                     item={marketingImageMaterial}
                     onClear={clearMaterial}
+                    onLocalFiles={fillMaterial}
                     onLocalUpload={openLocalUpload}
                     onOpen={() => undefined}
                     onRemoveOne={removeOneMaterial}
@@ -314,10 +345,15 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
   );
 }
 
-function getMaterialCount(value: string | undefined) {
+function getMaterialCount(value: SelectedMaterialValue) {
+  if (Array.isArray(value)) return value.length;
   if (!value) return 0;
   const matched = value.match(/(\d+)\s*张/);
   return matched ? Number(matched[1]) : 1;
+}
+
+function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function getVideoDisplayName(file: File) {

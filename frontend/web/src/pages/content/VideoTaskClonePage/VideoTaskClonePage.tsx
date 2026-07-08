@@ -6,10 +6,15 @@ import { PromptPanel } from './components/PromptPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { ToolSwitcher } from './components/ToolSwitcher';
 import { useVideoTaskCloneState } from './useVideoTaskCloneState';
+import type { User } from '../../../types';
 import './VideoTaskClonePage.scss';
 
-export function VideoTaskClonePage() {
-  const state = useVideoTaskCloneState();
+type VideoTaskClonePageProps = {
+  currentUser: User;
+};
+
+export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
+  const state = useVideoTaskCloneState(currentUser);
 
   return (
     <div className="video-task-clone-page">
@@ -25,20 +30,28 @@ export function VideoTaskClonePage() {
           <MaterialPanel
             activeUpload={state.activeUpload}
             materialMode={state.materialMode}
-            onAudioChoose={state.chooseAudio}
+            onLibraryAssetChoose={state.chooseLibraryAsset}
             onClosePopovers={state.closeMaterialPopovers}
             onMaterialClear={state.clearMaterial}
+            onMaterialLocalFiles={state.fillMaterialFiles}
             onMaterialRemoveOne={state.removeOneMaterial}
+            onMaterialReplaceFiles={state.replaceMaterialFiles}
+            onModelPickerOpen={state.openModelPicker}
             onMaterialsClearAll={state.clearAllMaterials}
             onMaterialFill={state.fillMaterial}
             onTabChange={state.chooseMaterialTab}
             onUploadClose={() => state.setActiveUpload(null)}
             onUploadOpen={state.setActiveUploadWithAnchor}
             onVoiceChange={state.setVoiceEnabled}
+            onWorksTabChange={state.setWorksTab}
             selectedMaterials={state.selectedMaterials}
+            voiceAssets={state.voiceAssets}
+            isLoadingLibraryAssets={state.isLoadingLibraryAssets}
             tool={state.tool}
             uploadAnchor={state.uploadAnchor}
             voiceEnabled={state.voiceEnabled}
+            worksAssets={state.worksAssets}
+            worksTab={state.worksTab}
           />
 
           <PromptPanel
@@ -84,8 +97,9 @@ export function VideoTaskClonePage() {
       {state.showModelPicker && (
         <ModelPicker
           onClose={() => state.setShowModelPicker(false)}
-          onSelect={state.chooseModelAvatar}
+          onSelect={state.chooseModelAsset}
           selectedModelAvatar={state.selectedModelAvatar}
+          user={currentUser}
         />
       )}
 

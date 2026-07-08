@@ -369,6 +369,43 @@ export const contentRepository = {
     return rows.map(serializeAsset);
   },
 
+  listAssetsPage(input: { userId?: string; groupId?: string; resourceType?: ContentResourceType; page: number; pageSize: number }) {
+    const filters: string[] = [];
+    const params: Record<string, string | number> = {
+      limit: input.pageSize,
+      offset: (input.page - 1) * input.pageSize,
+    };
+    if (input.userId) {
+      filters.push('user_id = @userId');
+      params.userId = input.userId;
+    }
+    if (input.groupId) {
+      filters.push('group_id = @groupId');
+      params.groupId = input.groupId;
+    }
+    if (input.resourceType) {
+      filters.push('resource_type = @resourceType');
+      params.resourceType = input.resourceType;
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const rows = db.prepare(`
+      SELECT * FROM content_assets
+      ${where}
+      ORDER BY updated_at DESC
+      LIMIT @limit OFFSET @offset
+    `).all(params) as AssetRow[];
+    const total = Number((db.prepare(`
+      SELECT COUNT(*) as total FROM content_assets
+      ${where}
+    `).get(params) as { total: number } | undefined)?.total || 0);
+    return {
+      items: rows.map(serializeAsset),
+      page: input.page,
+      pageSize: input.pageSize,
+      total,
+    };
+  },
+
   findAsset(id: string) {
     const row = db.prepare('SELECT * FROM content_assets WHERE id = ?').get(id) as AssetRow | undefined;
     return row ? serializeAsset(row) : null;

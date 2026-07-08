@@ -20,7 +20,9 @@ export type FilterGroup = {
   options: string[];
 };
 
-export type MaterialMode = 'works' | 'audio' | 'model' | null;
+export type MaterialMode = 'works' | 'audio' | null;
+
+export type WorksTab = 'all' | 'image' | 'video';
 
 export type PromptPanel = 'marketing' | 'reverse' | 'write';
 
@@ -33,6 +35,21 @@ export type UploadAnchor = {
   top: number;
 };
 
-export type SelectedMaterials = Partial<Record<MaterialKey, string>>;
+export type LocalMaterialFile = {
+  assetId?: string;
+  audioDuration?: number;
+  file?: File;
+  id: string;
+  name: string;
+  serverFileUrl?: string;
+  storedFileName?: string;
+  trimDuration?: number;
+  trimEnd?: number;
+  trimStart?: number;
+  type: MaterialKey;
+  url: string;
+};
 
-export type SelectedMaterialValue = string | undefined;
+export type SelectedMaterials = Partial<Record<MaterialKey, string | LocalMaterialFile[]>>;
+
+export type SelectedMaterialValue = string | LocalMaterialFile[] | undefined;

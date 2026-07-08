@@ -1,50 +1,76 @@
-import { ChevronLeft, Image, Music2, Play, Plus, Trash2, UserRound } from 'lucide-react';
+import { ChevronLeft, Image, Music2, Package, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { audioOptions } from '../constants';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
-import type { MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor } from '../types';
+import { resolveAssetUrl } from '../../../../api/request';
+import type { ContentAsset } from '../../../../types';
+import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
 
 type MaterialPanelProps = {
   activeUpload: MaterialKind | null;
+  isLoadingLibraryAssets: boolean;
   materialMode: MaterialMode;
-  onAudioChoose: (name: string) => void;
   onClosePopovers: () => void;
+  onLibraryAssetChoose: (kind: MaterialKind, asset: ContentAsset) => void;
   onMaterialClear: (kind: MaterialKind) => void;
   onMaterialRemoveOne: (kind: MaterialKind) => void;
   onMaterialsClearAll: () => void;
   onMaterialFill: (kind: MaterialKind, value: string) => void;
+  onMaterialLocalFiles: (kind: MaterialKind, files: FileList | File[]) => void;
+  onMaterialReplaceFiles: (kind: MaterialKind, files: LocalMaterialFile[]) => void;
+  onModelPickerOpen: () => void;
   onTabChange: (mode: MaterialMode) => void;
   onUploadClose: () => void;
   onUploadOpen: (kind: MaterialKind, anchor: UploadAnchor) => void;
   onVoiceChange: (enabled: boolean) => void;
+  onWorksTabChange: (tab: WorksTab) => void;
   selectedMaterials: SelectedMaterials;
   tool: ToolOption;
   uploadAnchor: UploadAnchor | null;
   voiceEnabled: boolean;
+  voiceAssets: ContentAsset[];
+  worksAssets: ContentAsset[];
+  worksTab: WorksTab;
 };
 
 export function MaterialPanel({
   activeUpload,
+  isLoadingLibraryAssets,
   materialMode,
-  onAudioChoose,
   onClosePopovers,
+  onLibraryAssetChoose,
   onMaterialClear,
   onMaterialRemoveOne,
   onMaterialsClearAll,
   onMaterialFill,
+  onMaterialLocalFiles,
+  onMaterialReplaceFiles,
+  onModelPickerOpen,
   onTabChange,
   onUploadClose,
   onUploadOpen,
   onVoiceChange,
+  onWorksTabChange,
   selectedMaterials,
   tool,
   uploadAnchor,
   voiceEnabled,
+  voiceAssets,
+  worksAssets,
+  worksTab,
 }: MaterialPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const popoverRef = useRef<HTMLElement | null>(null);
   const hasOpenPopover = Boolean(materialMode || activeUpload);
+  const audioMaterial = tool.materials.find((item) => item.key === 'audio');
+  const imageMaterial = tool.materials.find((item) => item.key === 'image');
+  const videoMaterial = tool.materials.find((item) => item.key === 'video');
+  const hasSelectedAudio = Boolean(selectedMaterials.audio);
+  const filteredWorksAssets = worksAssets.filter((asset) => {
+    if (worksTab === 'image') return asset.mimeType.startsWith('image/');
+    if (worksTab === 'video') return asset.mimeType.startsWith('video/');
+    return asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/');
+  });
 
   useEffect(() => {
     if (!hasOpenPopover) return;
@@ -95,19 +121,22 @@ export function MaterialPanel({
             音频
           </button>
           <button
-            aria-expanded={materialMode === 'model'}
-            className={materialMode === 'model' ? 'is-active' : ''}
-            onClick={() => onTabChange(materialMode === 'model' ? null : 'model')}
+            aria-expanded={false}
+            onClick={onModelPickerOpen}
             type="button"
           >
-            <UserRound size={12} />
-            模特
+            <Package size={12} />
+            素材
           </button>
           {tool.label === '视频' && (
-            <label className="video-task-voice-toggle" title="生成视频声音">
+            <label
+              className={`video-task-voice-toggle${hasSelectedAudio ? ' is-locked' : ''}`}
+              title={hasSelectedAudio ? '已选择参考音频，声音必须开启' : '生成视频声音'}
+            >
               <span>声音</span>
               <input
-                checked={voiceEnabled}
+                checked={voiceEnabled || hasSelectedAudio}
+                disabled={hasSelectedAudio}
                 onChange={(event) => onVoiceChange(event.target.checked)}
                 type="checkbox"
               />
@@ -125,8 +154,11 @@ export function MaterialPanel({
               item={item}
               key={item.label}
               onClear={onMaterialClear}
+              onLocalFiles={onMaterialLocalFiles}
               onOpen={onUploadOpen}
               onRemoveOne={onMaterialRemoveOne}
+              onReplaceFiles={onMaterialReplaceFiles}
+              openMode="local"
               selected={selected}
             />
           );
@@ -146,20 +178,42 @@ export function MaterialPanel({
           </header>
           <p>点击「填入」或拖动卡片到左侧参考音频槽位 ↙</p>
           <div className="video-task-audio-scroll">
-            <ul className="video-task-audio-list">
-              {audioOptions.map((name) => (
-                <li className="video-task-audio-card" key={name}>
-                  <button className="video-task-audio-main" onClick={() => onAudioChoose(name)} type="button">
-                    <i aria-hidden="true"><Play size={13} fill="currentColor" /></i>
-                    <span>{name}</span>
-                  </button>
-                  <button aria-label={`填入${name}`} className="video-task-audio-add" onClick={() => onAudioChoose(name)} type="button">
-                    <Plus size={15} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <em>— 没有更多 —</em>
+            {isLoadingLibraryAssets && <div className="video-task-assets-empty">正在加载人声素材</div>}
+            {!isLoadingLibraryAssets && voiceAssets.length === 0 && (
+              <div className="video-task-assets-empty">暂无人声素材</div>
+            )}
+            {!isLoadingLibraryAssets && voiceAssets.length > 0 && (
+              <>
+                <ul className="video-task-audio-list">
+                  {voiceAssets.map((asset) => {
+                    const name = getAssetName(asset, '人声素材');
+                    return (
+                      <li className="video-task-audio-card" key={asset.id}>
+                        <button
+                          className="video-task-audio-main"
+                          disabled={!audioMaterial}
+                          onClick={() => audioMaterial && onLibraryAssetChoose(audioMaterial, asset)}
+                          type="button"
+                        >
+                          <i aria-hidden="true"><Play size={13} fill="currentColor" /></i>
+                          <span>{name}</span>
+                        </button>
+                        <button
+                          aria-label={`填入${name}`}
+                          className="video-task-audio-add"
+                          disabled={!audioMaterial}
+                          onClick={() => audioMaterial && onLibraryAssetChoose(audioMaterial, asset)}
+                          type="button"
+                        >
+                          <Plus size={15} />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <em>— 没有更多 —</em>
+              </>
+            )}
           </div>
         </aside>
       )}
@@ -177,11 +231,50 @@ export function MaterialPanel({
           </header>
           <p>点击或拖动卡片填入参考图 / 视频 ↙</p>
           <div className="video-task-assets-tabs">
-            <button className="is-active" type="button">全部</button>
-            <button type="button">图片</button>
-            <button type="button">视频</button>
+            <button className={worksTab === 'all' ? 'is-active' : ''} onClick={() => onWorksTabChange('all')} type="button">全部</button>
+            <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">图片</button>
+            <button className={worksTab === 'video' ? 'is-active' : ''} onClick={() => onWorksTabChange('video')} type="button">视频</button>
           </div>
-          <div className="video-task-assets-empty">暂无作品</div>
+          <div className="video-task-works-scroll">
+            {isLoadingLibraryAssets && <div className="video-task-assets-empty">正在加载作品</div>}
+            {!isLoadingLibraryAssets && filteredWorksAssets.length === 0 && (
+              <div className="video-task-assets-empty">暂无作品</div>
+            )}
+            {!isLoadingLibraryAssets && filteredWorksAssets.length > 0 && (
+              <>
+                <div className="video-task-works-grid">
+                  {filteredWorksAssets.map((asset) => {
+                    const isVideo = asset.mimeType.startsWith('video/');
+                    const targetMaterial = isVideo ? videoMaterial : imageMaterial;
+                    const name = getAssetName(asset, isVideo ? '视频作品' : '图片作品');
+                    return (
+                      <button
+                        className="video-task-works-card"
+                        disabled={!targetMaterial}
+                        key={asset.id}
+                        onClick={() => targetMaterial && onLibraryAssetChoose(targetMaterial, asset)}
+                        title={name}
+                        type="button"
+                      >
+                        {isVideo ? (
+                          <>
+                            <video muted playsInline preload="metadata" src={resolveAssetUrl(asset.fileUrl)} />
+                            <span className="video-task-works-video-badge">
+                              <Play size={10} fill="currentColor" />
+                              {getAssetDuration(asset)}
+                            </span>
+                          </>
+                        ) : (
+                          <img alt={name} src={resolveAssetUrl(asset.fileUrl)} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <em>— 没有更多 —</em>
+              </>
+            )}
+          </div>
         </aside>
       )}
 
@@ -204,4 +297,17 @@ function getDemoMaterialValue(item: MaterialKind) {
   }
   if (item.key === 'image') return '参考图 8 张';
   return `素材库 ${item.label}`;
+}
+
+function getAssetName(asset: ContentAsset, fallback: string) {
+  return asset.name || asset.originalFileName || asset.storedFileName || fallback;
+}
+
+function getAssetDuration(asset: ContentAsset) {
+  const rawDuration = asset.metadata?.duration;
+  const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
+  if (Number.isFinite(duration) && duration > 0) {
+    return `${Math.round(duration)}s`;
+  }
+  return '0:15';
 }

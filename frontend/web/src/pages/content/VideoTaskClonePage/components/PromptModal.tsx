@@ -1,4 +1,6 @@
-import { Wand2, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MentionRichTextarea } from '../../../../components/MentionRichTextarea';
 import { promptMentionOptions } from '../promptMentionOptions';
 import type { SelectedMaterials } from '../types';
@@ -11,7 +13,18 @@ type PromptModalProps = {
 };
 
 export function PromptModal({ onClose, onPromptChange, prompt, selectedMaterials }: PromptModalProps) {
-  return (
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return createPortal(
     <div className="video-task-prompt-modal">
       <section>
         <div className="video-task-model-head">
@@ -29,11 +42,8 @@ export function PromptModal({ onClose, onPromptChange, prompt, selectedMaterials
           suggestionContainer=".video-task-prompt-modal"
           value={prompt}
         />
-        <button onClick={onClose} type="button">
-          <Wand2 size={16} />
-          完成
-        </button>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

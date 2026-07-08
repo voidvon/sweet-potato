@@ -158,6 +158,27 @@ export function listContentAssets(input: { userId: string; groupId?: string; res
   return request<ContentAsset[]>(`${Api.assets}?${params.toString()}`);
 }
 
+export function listContentAssetsPage(input: {
+  userId: string;
+  groupId?: string;
+  resourceType?: ContentAssetResourceType;
+  page: number;
+  pageSize: number;
+}) {
+  void input.userId;
+  const params = new URLSearchParams({
+    page: String(input.page),
+    pageSize: String(input.pageSize),
+  });
+  if (input.groupId) {
+    params.set('groupId', input.groupId);
+  }
+  if (input.resourceType) {
+    params.set('resourceType', input.resourceType);
+  }
+  return request<PaginatedResult<ContentAsset>>(`${Api.assets}?${params.toString()}`);
+}
+
 export function uploadContentAsset(payload: {
   file: File;
   userId: string;

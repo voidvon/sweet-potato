@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
+import { createPortal } from 'react-dom';
 
 const MIN_SELECTION_SECONDS = 4;
 const MAX_SELECTION_SECONDS = 15;
@@ -121,7 +122,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
     [selectionLeft, selectionRight],
   );
 
-  return (
+  const modal = (
     <div aria-label="剪辑参考视频" aria-modal="true" className="trim-modal" role="dialog">
       <div className="trim-modal__backdrop" />
       <div className="trim-modal__panel">
@@ -211,6 +212,8 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
 
 function useObjectUrl(file: File) {
