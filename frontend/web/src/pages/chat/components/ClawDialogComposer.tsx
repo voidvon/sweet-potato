@@ -62,6 +62,7 @@ type ClawModeConfig = {
   inputPlaceholder?: string;
   key: ClawModeKey;
   outputConfig?: ClawModeOutputConfig;
+  outputCountGroupKey?: string;
   outputCountStrategy?: ClawOutputCountStrategy;
   promptHint?: string;
   referenceGroups: ClawReferenceGroupConfig[];
@@ -70,7 +71,7 @@ type ClawModeConfig = {
   toolbarControls?: ClawToolbarControl[];
 };
 
-type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages';
+type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages' | 'matchReferenceGroup';
 type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount' | 'background';
 type ClawAspectRatioKey = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
 type ClawBackgroundKey = 'transparent' | 'white' | 'black';
@@ -157,7 +158,8 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '参考姿态',
     Icon: Scan,
     outputConfig: defaultModeOutputConfig,
-    outputCountStrategy: 'fixedOne',
+    outputCountGroupKey: 'pose',
+    outputCountStrategy: 'matchReferenceGroup',
     promptHint: '让 图1 的主体摆出 图2 的姿势。',
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
@@ -540,7 +542,9 @@ export function ClawDialogComposer({
     ? 1
     : outputCountStrategy === 'matchUploadedImages'
       ? Math.max(1, attachments.filter((attachment) => attachment.kind === 'image').length)
-      : selectedOutputCount;
+      : outputCountStrategy === 'matchReferenceGroup'
+        ? Math.max(1, (groupedAttachments[selectedMode.outputCountGroupKey || ''] || []).filter((attachment) => attachment.kind === 'image').length)
+        : selectedOutputCount;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {
