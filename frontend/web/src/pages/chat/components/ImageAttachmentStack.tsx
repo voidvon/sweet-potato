@@ -11,11 +11,13 @@ type ImageAttachmentStackProps = {
   maxVisible?: number;
   onPreview?: (attachment: ChatAttachment, index: number) => void;
   renderTopAction?: (attachment: ChatAttachment) => ReactNode;
+  startIndex?: number;
 };
 
 type ImageAttachmentStackStyle = CSSProperties & {
   '--image-stack-transform'?: string;
   '--image-stack-z-index'?: number;
+  '--image-stack-width'?: string;
 };
 
 const defaultMaxVisible = 5;
@@ -34,6 +36,7 @@ export function ImageAttachmentStack({
   maxVisible = defaultMaxVisible,
   onPreview,
   renderTopAction,
+  startIndex = 1,
 }: ImageAttachmentStackProps) {
   if (layout === 'grid') {
     const gridClassName = [
@@ -89,12 +92,15 @@ export function ImageAttachmentStack({
   }
 
   const visibleImages = attachments
-    .map((attachment, index) => ({ attachment, number: index + 1, originalIndex: index }))
+    .map((attachment, index) => ({ attachment, number: startIndex + index, originalIndex: index }))
     .slice(-maxVisible);
   const stackClassName = ['image-attachment-stack', className].filter(Boolean).join(' ');
+  const stackWidth = visibleImages.length
+    ? `${80 + Math.max(0, visibleImages.length - 1) * 7}px`
+    : '80px';
 
   return (
-    <div className={stackClassName}>
+    <div className={stackClassName} style={{ '--image-stack-width': stackWidth } as ImageAttachmentStackStyle}>
       {visibleImages.map(({ attachment, number, originalIndex }, index) => {
         const isTopImage = index === visibleImages.length - 1;
         const content = (

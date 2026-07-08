@@ -440,16 +440,16 @@ export function useChatSession() {
       return;
     }
 
-    const contentForSend = content || '请分析附件内容';
     const sendingAttachments = messageAttachments;
     const previousMessages = messages;
     const previousConversationId = activeConversationId;
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
-    const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
+    const capabilityPayload = resolveChatCapabilityPayload(content);
     const requestedCapabilities = override?.requestedCapabilities || capabilityPayload.requestedCapabilities;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
+    const contentForSend = content || (isImageGenerationRequest ? '' : '请分析附件内容');
     const resolvedCapabilityContext = {
       ...(capabilityPayload.capabilityContext || {}),
       ...(override?.capabilityContext || {}),

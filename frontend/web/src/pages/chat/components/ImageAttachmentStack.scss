@@ -1,7 +1,7 @@
 .image-attachment-stack {
   height: 92px;
   position: relative;
-  width: 108px;
+  width: var(--image-stack-width, 108px);
 }
 
 .image-attachment-stack-item {

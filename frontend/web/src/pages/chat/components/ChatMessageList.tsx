@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { Children, cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
+import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
 import { ImageAttachmentStack } from './ImageAttachmentStack';
 import './ChatMessageList.scss';
@@ -156,6 +157,88 @@ export function ChatMessageList({
     );
   }
 
+  function renderUserImageAttachments(messageItem: ChatMessage, imageAttachments: ChatAttachment[]) {
+    const referenceGroups = messageItem.capabilityContext?.imageGeneration?.referenceGroups || [];
+    const attachmentById = new Map(imageAttachments.map((attachment) => [attachment.id, attachment]));
+    const renderedAttachmentIds = new Set<string>();
+    const groupedAttachments = Object.fromEntries(referenceGroups.map((group) => {
+      const groupAttachments = group.attachmentIds
+        .map((attachmentId) => attachmentById.get(attachmentId))
+        .filter((attachment): attachment is ChatAttachment => Boolean(attachment));
+      groupAttachments.forEach((attachment) => renderedAttachmentIds.add(attachment.id));
+      return [group.key, groupAttachments];
+    }));
+    const visibleGroups: ClawReferenceGroupConfig[] = referenceGroups
+      .map((group) => {
+        return {
+          key: group.key,
+          label: group.label,
+          maxCount: group.maxCount,
+          required: group.required,
+        };
+      })
+      .filter((group) => groupedAttachments[group.key]?.length > 0);
+    const ungroupedAttachments = imageAttachments.filter((attachment) => !renderedAttachmentIds.has(attachment.id));
+    if (ungroupedAttachments.length) {
+      groupedAttachments.reference = ungroupedAttachments;
+      visibleGroups.push({ key: 'reference', label: '参考图' });
+    }
+
+    if (!visibleGroups.length) {
+      return renderUserImageStack(imageAttachments);
+    }
+
+    return (
+      <ClawReferenceGroups
+        className="chat-message-claw-reference-groups"
+        groupedAttachments={groupedAttachments}
+        groups={visibleGroups}
+        readonly
+      />
+    );
+  }
+
+  function renderUserMessageContent(messageItem: ChatMessage, isEditingUserMessage: boolean) {
+    if (isEditingUserMessage) {
+      return (
+        <>
+          <textarea
+            className="chat-user-message-editor"
+            onChange={(event) => setEditingContent(event.target.value)}
+            ref={editorRef}
+            value={editingContent}
+          />
+          <div className="chat-user-message-editor-actions">
+            <Button onClick={cancelEditing} size="small">
+              取消
+            </Button>
+            <Button onClick={() => void submitEditing(messageItem.id)} size="small" type="primary">
+              更新
+            </Button>
+          </div>
+        </>
+      );
+    }
+
+    const imageGeneration = messageItem.capabilityContext?.imageGeneration;
+    const promptHint = imageGeneration?.promptHint?.trim();
+    const promptText = imageGeneration?.promptText?.trim() || messageItem.content.trim();
+    const shouldShowPromptText = Boolean(promptText && promptText !== promptHint);
+
+    if (!promptHint) {
+      return <div>{messageItem.content}</div>;
+    }
+
+    return (
+      <div className="chat-user-generation-text">
+        <div className="chat-user-generation-hint">{promptHint}</div>
+        {shouldShowPromptText ? (
+          <div className="chat-user-generation-extra">{promptText}</div>
+        ) : null}
+      </div>
+    );
+  }
+
   function isGeneratedImageAttachment(attachment: ChatAttachment) {
     return attachment.kind === 'image'
       && (attachment.name.startsWith('generated-image') || attachment.url.includes('chat-generated-image-'));
@@ -298,7 +381,7 @@ export function ChatMessageList({
             );
             const attachmentList = Boolean(item.attachments?.length) ? (
               <div className={`chat-message-attachments ${item.role}`}>
-                {item.role === 'user' && imageAttachments.length ? renderUserImageStack(imageAttachments) : null}
+                {item.role === 'user' && imageAttachments.length ? renderUserImageAttachments(item, imageAttachments) : null}
                 {item.role === 'assistant' ? imageAttachments.map((attachment) => (
                   <Image
                     alt={attachment.name}
@@ -310,6 +393,11 @@ export function ChatMessageList({
                 {fileAttachments.map(renderFileAttachment)}
               </div>
             ) : null;
+            const hasGroupedUserImageAttachments = item.role === 'user'
+              && imageAttachments.length > 0
+              && Boolean(item.capabilityContext?.imageGeneration?.referenceGroups?.some((group) => (
+                group.attachmentIds.some((attachmentId) => imageAttachments.some((attachment) => attachment.id === attachmentId))
+              )));
 
             if (isImageGenerationAssistant) {
               return (
@@ -419,7 +507,7 @@ export function ChatMessageList({
             }
 
             return (
-              <div className={`chat-message-shell ${item.role}`} key={item.id}>
+              <div className={`chat-message-shell ${item.role}${hasGroupedUserImageAttachments ? ' has-reference-groups' : ''}`} key={item.id}>
                 <article className={`chat-message ${item.role}`}>
                   {thinkingContent && (
                     <details className={`chat-thinking ${item.isCompleted === false ? 'streaming' : ''}`} open={item.isCompleted === false}>
@@ -441,26 +529,7 @@ export function ChatMessageList({
                     <>
                       {attachmentList}
                       <div className="chat-user-message-content">
-                        {isEditingUserMessage ? (
-                          <>
-                            <textarea
-                              className="chat-user-message-editor"
-                              onChange={(event) => setEditingContent(event.target.value)}
-                              ref={editorRef}
-                              value={editingContent}
-                            />
-                            <div className="chat-user-message-editor-actions">
-                              <Button onClick={cancelEditing} size="small">
-                                取消
-                              </Button>
-                              <Button onClick={() => void submitEditing(item.id)} size="small" type="primary">
-                                更新
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <div>{item.content}</div>
-                        )}
+                        {renderUserMessageContent(item, isEditingUserMessage)}
                       </div>
                     </>
                   )}

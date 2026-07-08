@@ -45,10 +45,25 @@
 }
 
 .claw-reference-groups {
+  align-items: center;
   display: flex;
   gap: 12px;
   min-width: 0;
   white-space: nowrap;
+}
+
+.claw-reference-groups.is-pair {
+  gap: 6px;
+}
+
+.claw-reference-group-bridge {
+  align-items: center;
+  color: #98a2b3;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 100%;
+  justify-content: center;
+  width: 12px;
 }
 
 .claw-reference-group {
