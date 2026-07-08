@@ -100,6 +100,14 @@ function mentionOptionIcon(option: Pick<MentionRichTextareaOption, 'label' | 'mi
   return option.label.slice(0, 1);
 }
 
+function mentionOptionTitle(option: Pick<MentionRichTextareaOption, 'token'>) {
+  return option.token;
+}
+
+function mentionOptionDescription(option: Pick<MentionRichTextareaOption, 'label' | 'name' | 'subtitle'>) {
+  return option.name || option.subtitle || option.label;
+}
+
 const ReferenceMention = Mention.extend({
   addNodeView() {
     return ReactNodeViewRenderer(MentionChipView);
@@ -365,27 +373,29 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
         <strong>{menuTitle}</strong>
         <span>{menuDescription}</span>
       </div>
-      {items.map((item, index) => (
-        <button
-          className={index === selectedIndex ? 'is-selected' : ''}
-          key={item.token}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            selectItem(index);
-          }}
-          type="button"
-        >
+      <div className="mention-rich-textarea-menu__list">
+        {items.map((item, index) => (
+          <button
+            className={index === selectedIndex ? 'is-selected' : ''}
+            key={item.token}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              selectItem(index);
+            }}
+            type="button"
+          >
           {item.previewUrl && !isAudioMention(item) ? (
             <img alt={item.label} src={item.previewUrl} />
           ) : (
             <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
           )}
           <span className="mention-rich-textarea-option__body">
-            <strong>{item.name || item.token}</strong>
-            <small>{item.name ? item.token.replace(/^@/, '') : item.subtitle}</small>
+            <strong>{mentionOptionTitle(item)}</strong>
+            <small>{mentionOptionDescription(item)}</small>
           </span>
         </button>
       ))}
+      </div>
     </div>
   );
 });
@@ -728,8 +738,8 @@ export function MentionRichTextarea({
                   <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
                 )}
                 <span className="mention-rich-textarea-option__body">
-                  <strong>{item.name || item.token}</strong>
-                  <small>{item.name ? item.token.replace(/^@/, '') : item.subtitle}</small>
+                  <strong>{mentionOptionTitle(item)}</strong>
+                  <small>{mentionOptionDescription(item)}</small>
                 </span>
               </button>
             )) : <div className="mention-rich-textarea-menu--empty">{emptyText}</div>}

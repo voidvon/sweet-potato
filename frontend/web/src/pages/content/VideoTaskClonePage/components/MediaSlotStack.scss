@@ -1,0 +1,182 @@
+.video-task-stack-wrapper {
+  height: 92px;
+  overflow: visible;
+  position: relative;
+  width: var(--media-stack-width, 80px);
+}
+
+.video-task-material-slot.is-image:has(.video-task-stack-wrapper:hover),
+.video-task-material-slot.is-image:has(.video-task-stack-wrapper:focus-within),
+.video-task-material-slot.is-audio:has(.video-task-stack-wrapper:hover),
+.video-task-material-slot.is-audio:has(.video-task-stack-wrapper:focus-within) {
+  z-index: 40;
+}
+
+.video-task-stack-item,
+.media-slot-popover__item {
+  background: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  color: #cbd5e1;
+  cursor: pointer;
+  height: 92px;
+  left: 0;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  top: 0;
+  transform-origin: left center;
+  transition: transform 0.42s cubic-bezier(0.18, 0.82, 0.2, 1), box-shadow 0.22s ease;
+  width: 80px;
+}
+
+.video-task-stack-item.is-audio,
+.media-slot-popover__item:has(.video-task-audio-preview-inner) {
+  background: #fffbeb;
+  border-color: rgba(255, 255, 255, 0.95);
+}
+
+.video-task-stack-item:hover,
+.media-slot-popover__item:hover {
+  box-shadow: 0 10px 24px rgba(31, 74, 60, 0.18);
+}
+
+.media-slot-popover.is-fanned {
+  height: 92px;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  visibility: hidden;
+  width: 80px;
+  z-index: 9999;
+}
+
+.media-slot-popover.is-fanned.is-portal {
+  pointer-events: auto;
+  position: fixed;
+  visibility: visible;
+  z-index: 10000;
+}
+
+.video-task-stack-wrapper:hover .media-slot-popover.is-fanned,
+.video-task-stack-wrapper:focus-within .media-slot-popover.is-fanned {
+  visibility: visible;
+}
+
+.video-task-stack-wrapper:hover .media-slot-popover.is-fanned:has(.media-slot-popover__hit-area),
+.video-task-stack-wrapper:focus-within .media-slot-popover.is-fanned:has(.media-slot-popover__hit-area) {
+  pointer-events: auto;
+}
+
+.video-task-stack-wrapper.is-popover-suppressed .media-slot-popover.is-fanned {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.media-slot-popover__hit-area {
+  height: 116px;
+  left: 0;
+  position: absolute;
+  top: -12px;
+  width: 640px;
+  z-index: 0;
+}
+
+.video-task-stack-caption {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  bottom: 0;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  left: 0;
+  line-height: 12.5px;
+  padding: 2px 4px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: center;
+}
+
+.video-task-slot-delete {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  transition: background 0.16s ease;
+  width: 24px;
+  z-index: 20;
+}
+
+.video-task-slot-delete:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.video-task-audio-preview-inner {
+  align-items: center;
+  background: #fffbeb;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 90px;
+  justify-content: center;
+  padding: 8px 6px 20px;
+  width: 78px;
+}
+
+.video-task-audio-play {
+  align-items: center;
+  background: #f59e0b;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(146, 64, 14, 0.1);
+  color: #fff;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  transition: background 0.16s ease;
+  width: 28px;
+}
+
+.media-slot-popover__item:hover .video-task-audio-play {
+  background: #d97706;
+}
+
+.video-task-audio-play.is-playing {
+  background: #f59e0b;
+}
+
+.video-task-audio-name {
+  color: #78350f;
+  display: -webkit-box;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 11.25px;
+  max-width: 66px;
+  overflow: hidden;
+  padding: 0 2px;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.video-task-audio-duration {
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(146, 64, 14, 0.1);
+  color: #b45309;
+  font-size: 9px;
+  font-weight: 520;
+  line-height: 9px;
+  padding: 2px 6px;
+}

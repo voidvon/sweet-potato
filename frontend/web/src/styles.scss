@@ -40,6 +40,10 @@ body {
   min-height: 100vh;
 }
 
+button {
+  cursor: pointer;
+}
+
 button,
 input {
   font: inherit;

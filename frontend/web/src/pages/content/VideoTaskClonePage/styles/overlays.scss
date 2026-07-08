@@ -186,24 +186,32 @@
 }
 
 .video-task-audio-card {
-  align-items: center;
   background: #fff;
   border: 1px solid #ebe7ff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(15, 20, 25, 0.04);
   display: flex;
-  gap: 8px;
-  height: 42px;
+  flex-direction: column;
+  gap: 0;
   overflow: hidden;
-  padding: 6px 8px 6px 9px;
+  padding: 8px 8px 8px 9px;
   position: relative;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  cursor: pointer;
 }
 
+.video-task-audio-top {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.video-task-audio-card.is-active,
 .video-task-audio-card:hover {
   border-color: rgba(132, 204, 21, 0.5);
   box-shadow: 0 10px 28px -12px rgba(132, 204, 21, 0.36);
-  transform: translateY(-1px);
 }
 
 .video-task-audio-main {
@@ -212,11 +220,26 @@
   border: 0;
   color: #111827;
   display: flex;
-  flex: 1;
-  gap: 8px;
-  min-width: 0;
+  flex: none;
   padding: 0;
   text-align: left;
+}
+
+.video-task-audio-title {
+  color: #111827;
+  display: block;
+  flex: 1;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 16px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-task-audio-main.is-playing span {
+  color: #0f5132;
 }
 
 .video-task-audio-main i {
@@ -231,15 +254,9 @@
   width: 28px;
 }
 
-.video-task-audio-main span {
-  display: block;
-  color: #111827;
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 16px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.video-task-audio-main.is-playing i {
+  background: #5ab000;
+  box-shadow: 0 6px 16px rgba(90, 176, 0, 0.24);
 }
 
 .video-task-audio-add {
@@ -262,6 +279,32 @@
 .video-task-audio-add:hover {
   background: rgba(132, 204, 21, 0.18);
   transform: scale(1.05);
+}
+
+.video-task-audio-progress {
+  bottom: 0;
+  display: flex;
+  left: 0;
+  position: absolute;
+  right: 0;
+  width: 100%;
+}
+
+.video-task-audio-progress-bar {
+  background: rgba(132, 204, 21, 0.12);
+  border-radius: 0;
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.video-task-audio-progress-bar span {
+  background: linear-gradient(90deg, #75c900 0%, #9ddc33 100%);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 0.12s linear;
 }
 
 .video-task-assets-tabs {
@@ -1447,14 +1490,14 @@
 .video-task-param-popover.is-model {
   left: 14px;
   top: 126px;
-  width: 378px;
+  width: 364px;
 }
 
 .video-task-param-popover.is-canvas {
   left: 14px;
   top: 126px;
   padding: 12px;
-  width: 378px;
+  width: 364px;
 }
 
 .video-task-param-popover.is-duration {
@@ -1505,7 +1548,7 @@
 .video-task-ratio-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, 82px);
+  grid-template-columns: repeat(4, 76px);
   margin-top: 9px;
 }
 
@@ -1524,9 +1567,9 @@
 .video-task-ratio-grid button {
   align-items: center;
   gap: 7px;
-  height: 62px;
-  min-height: 62px;
-  width: 82px;
+  height: 58px;
+  min-height: 58px;
+  width: 76px;
 }
 
 .video-task-ratio-grid button.is-active,
@@ -1574,18 +1617,18 @@
 .video-task-quality-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(2, 172px);
+  grid-template-columns: repeat(2, 166px);
   margin-top: 9px;
 }
 
 .video-task-quality-grid button {
   align-items: flex-start;
   display: block;
-  height: 72px;
-  min-height: 72px;
+  height: 68px;
+  min-height: 68px;
   padding: 10px;
   text-align: left;
-  width: 172px;
+  width: 166px;
 }
 
 .video-task-quality-grid strong {
@@ -1622,10 +1665,9 @@
   border-radius: 0;
   color: #050505;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  gap: 12px;
   height: 62px;
-  justify-content: center;
+  justify-content: space-between;
   padding: 12px 14px;
   text-align: left;
   width: 100%;
@@ -1638,11 +1680,23 @@
   font-weight: 400;
 }
 
+.video-task-param-option-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
 .video-task-param-popover.is-model .video-task-param-options button strong {
   color: #050505;
+  display: block;
   font-size: 13px;
   font-weight: 500;
   line-height: 18.85px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-task-param-popover.is-model .video-task-param-options button span {
@@ -1650,6 +1704,13 @@
   font-size: 11px;
   font-weight: 400;
   line-height: 15.95px;
+}
+
+.video-task-param-option-check {
+  color: #38296c;
+  flex: none;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .video-task-param-popover.is-duration .video-task-param-options button,
@@ -1665,9 +1726,9 @@
 
 .video-task-param-popover.is-duration .video-task-param-options button.is-active,
 .video-task-filter-group button.is-active {
-  background: #defc64;
-  border-color: rgba(0, 0, 0, 0.08);
-  color: #0f1419;
+  background: #f1eef9;
+  border-color: #a69ccc;
+  color: #4a3b8f;
   font-weight: 650;
 }
 

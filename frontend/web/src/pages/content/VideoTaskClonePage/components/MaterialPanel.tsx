@@ -1,5 +1,5 @@
-import { ChevronLeft, Image, Music2, Package, Play, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
 import { resolveAssetUrl } from '../../../../api/request';
@@ -29,6 +29,7 @@ type MaterialPanelProps = {
   uploadAnchor: UploadAnchor | null;
   voiceEnabled: boolean;
   voiceAssets: ContentAsset[];
+  voiceGroupNameById: Record<string, string>;
   worksAssets: ContentAsset[];
   worksTab: WorksTab;
 };
@@ -56,21 +57,28 @@ export function MaterialPanel({
   uploadAnchor,
   voiceEnabled,
   voiceAssets,
+  voiceGroupNameById,
   worksAssets,
   worksTab,
 }: MaterialPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const popoverRef = useRef<HTMLElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentAudioAssetIdRef = useRef<string | null>(null);
   const hasOpenPopover = Boolean(materialMode || activeUpload);
   const audioMaterial = tool.materials.find((item) => item.key === 'audio');
   const imageMaterial = tool.materials.find((item) => item.key === 'image');
   const videoMaterial = tool.materials.find((item) => item.key === 'video');
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
+  const [playingAssetId, setPlayingAssetId] = useState<string | null>(null);
+  const [activeAudioAssetId, setActiveAudioAssetId] = useState<string | null>(null);
+  const [audioProgressByAssetId, setAudioProgressByAssetId] = useState<Record<string, number>>({});
   const filteredWorksAssets = worksAssets.filter((asset) => {
     if (worksTab === 'image') return asset.mimeType.startsWith('image/');
     if (worksTab === 'video') return asset.mimeType.startsWith('video/');
     return asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/');
   });
+  const voiceAssetUrls = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, resolveAssetUrl(asset.fileUrl)])), [voiceAssets]);
 
   useEffect(() => {
     if (!hasOpenPopover) return;
@@ -87,6 +95,115 @@ export function MaterialPanel({
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [hasOpenPopover, onClosePopovers]);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audioRef.current = audio;
+
+    const handleTimeUpdate = () => {
+      const assetId = currentAudioAssetIdRef.current;
+      if (!assetId) {
+        return;
+      }
+      const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+      const currentTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const nextProgress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+      setAudioProgressByAssetId((current) => (
+        current[assetId] === nextProgress ? current : { ...current, [assetId]: nextProgress }
+      ));
+    };
+    const handleLoadedMetadata = handleTimeUpdate;
+    const handlePause = () => setPlayingAssetId(null);
+    const handleEnded = () => {
+      const assetId = currentAudioAssetIdRef.current;
+      setPlayingAssetId(null);
+      setActiveAudioAssetId(null);
+      currentAudioAssetIdRef.current = null;
+      if (assetId) {
+        setAudioProgressByAssetId((current) => {
+          if (!(assetId in current)) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[assetId];
+          return next;
+        });
+      }
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!playingAssetId) {
+      return;
+    }
+    if (!voiceAssetUrls.has(playingAssetId)) {
+      audioRef.current?.pause();
+      setPlayingAssetId(null);
+      setActiveAudioAssetId(null);
+      currentAudioAssetIdRef.current = null;
+    }
+  }, [playingAssetId, voiceAssetUrls]);
+
+  const toggleAudioPlayback = async (asset: ContentAsset) => {
+    const src = voiceAssetUrls.get(asset.id);
+    if (!src) {
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+    if (playingAssetId === asset.id && !audio.paused) {
+      audio.pause();
+      return;
+    }
+
+    const previousAssetId = currentAudioAssetIdRef.current;
+    const isSwitchingAsset = previousAssetId !== null && previousAssetId !== asset.id;
+    if (isSwitchingAsset && previousAssetId) {
+      setAudioProgressByAssetId((current) => {
+        if (!(previousAssetId in current)) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[previousAssetId];
+        return next;
+      });
+    }
+
+    if (audio.src !== src) {
+      audio.src = src;
+      audio.currentTime = 0;
+    } else if (previousAssetId !== asset.id) {
+      audio.currentTime = 0;
+    }
+
+    currentAudioAssetIdRef.current = asset.id;
+    setActiveAudioAssetId(asset.id);
+
+    try {
+      await audio.play();
+      setPlayingAssetId(asset.id);
+    } catch {
+      setPlayingAssetId(null);
+    }
+  };
 
   return (
     <section className="video-task-card video-task-material-card" ref={panelRef}>
@@ -186,27 +303,60 @@ export function MaterialPanel({
               <>
                 <ul className="video-task-audio-list">
                   {voiceAssets.map((asset) => {
-                    const name = getAssetName(asset, '人声素材');
+                    const name = getVoiceAssetName(asset, voiceGroupNameById);
+                    const isPlaying = playingAssetId === asset.id;
+                    const hasActiveProgress = activeAudioAssetId === asset.id && (audioProgressByAssetId[asset.id] ?? 0) > 0;
+                    const progressPercent = Math.min(100, Math.max(0, (audioProgressByAssetId[asset.id] ?? 0) * 100));
                     return (
-                      <li className="video-task-audio-card" key={asset.id}>
-                        <button
-                          className="video-task-audio-main"
-                          disabled={!audioMaterial}
-                          onClick={() => audioMaterial && onLibraryAssetChoose(audioMaterial, asset)}
-                          type="button"
-                        >
-                          <i aria-hidden="true"><Play size={13} fill="currentColor" /></i>
-                          <span>{name}</span>
-                        </button>
-                        <button
-                          aria-label={`填入${name}`}
-                          className="video-task-audio-add"
-                          disabled={!audioMaterial}
-                          onClick={() => audioMaterial && onLibraryAssetChoose(audioMaterial, asset)}
-                          type="button"
-                        >
-                          <Plus size={15} />
-                        </button>
+                      <li
+                        className={`video-task-audio-card${isPlaying || hasActiveProgress ? ' is-active' : ''}${audioMaterial ? '' : ' is-disabled'}`}
+                        key={asset.id}
+                        onClick={() => audioMaterial && onLibraryAssetChoose(audioMaterial, asset)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return;
+                          event.preventDefault();
+                          if (audioMaterial) {
+                            onLibraryAssetChoose(audioMaterial, asset);
+                          }
+                        }}
+                        role={audioMaterial ? 'button' : undefined}
+                        tabIndex={audioMaterial ? 0 : -1}
+                      >
+                        <div className="video-task-audio-top">
+                          <button
+                            aria-label={isPlaying ? `暂停播放${name}` : `播放${name}`}
+                            className={`video-task-audio-main${isPlaying ? ' is-playing' : ''}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void toggleAudioPlayback(asset);
+                            }}
+                            type="button"
+                          >
+                            <i aria-hidden="true">{isPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}</i>
+                          </button>
+                          <span className="video-task-audio-title" title={name}>{name}</span>
+                          <button
+                            aria-label={`填入${name}`}
+                            className="video-task-audio-add"
+                            disabled={!audioMaterial}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (audioMaterial) {
+                                onLibraryAssetChoose(audioMaterial, asset);
+                              }
+                            }}
+                            type="button"
+                          >
+                            <Plus size={15} />
+                          </button>
+                        </div>
+                        {hasActiveProgress ? (
+                          <div className="video-task-audio-progress" aria-hidden="true">
+                            <div className="video-task-audio-progress-bar">
+                              <span style={{ width: `${progressPercent}%` }} />
+                            </div>
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -303,11 +453,20 @@ function getAssetName(asset: ContentAsset, fallback: string) {
   return asset.name || asset.originalFileName || asset.storedFileName || fallback;
 }
 
+function getVoiceAssetName(asset: ContentAsset, voiceGroupNameById: Record<string, string>) {
+  return voiceGroupNameById[asset.groupId] || asset.name || '人声素材';
+}
+
 function getAssetDuration(asset: ContentAsset) {
-  const rawDuration = asset.metadata?.duration;
-  const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
+  const duration = getAssetDurationSeconds(asset);
   if (Number.isFinite(duration) && duration > 0) {
     return `${Math.round(duration)}s`;
   }
   return '0:15';
+}
+
+function getAssetDurationSeconds(asset: ContentAsset) {
+  const rawDuration = asset.metadata?.duration;
+  const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
+  return Number.isFinite(duration) && duration > 0 ? duration : 0;
 }

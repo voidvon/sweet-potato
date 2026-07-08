@@ -1,4 +1,4 @@
-import { Expand } from 'lucide-react';
+import { Maximize } from 'lucide-react';
 import { MentionRichTextarea } from '../../../../components/MentionRichTextarea';
 import { promptPlaceholder } from '../constants';
 import { promptMentionOptions } from '../promptMentionOptions';
@@ -40,11 +40,11 @@ export function PromptPanel({
           onChange={onPromptChange}
           options={promptMentionOptions(selectedMaterials)}
           placeholder={promptPlaceholder}
-          suggestionContainer=".video-task-clone-page"
+          suggestionContainer="body"
           value={prompt}
         />
-        <button aria-label="展开提示词编辑器" className="video-task-expand" onClick={onExpand} type="button">
-          <Expand size={18} />
+        <button aria-label="展开提示词编辑器" title='展开提示词编辑器' className="video-task-expand" onClick={onExpand} type="button">
+          <Maximize size={18} />
         </button>
         <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
           <span className="video-task-one-click-spark">✨</span>
