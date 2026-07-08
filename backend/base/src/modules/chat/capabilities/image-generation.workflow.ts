@@ -427,6 +427,33 @@ function cleanText(value: string | undefined | null) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
+function numericValue(value: unknown, fallback = 0) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function roundCreditCost(value: number) {
+  return Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
+function imageCreditsPerRequest(modelConfig: AiModelConfig) {
+  const settings = modelConfig.settings && typeof modelConfig.settings === 'object' && !Array.isArray(modelConfig.settings)
+    ? modelConfig.settings as Record<string, unknown>
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+}
+
+function imageGenerationCreditCost(modelConfig: AiModelConfig, generatedCount: number) {
+  return roundCreditCost(imageCreditsPerRequest(modelConfig) * Math.max(0, generatedCount));
+}
+
+function accumulatedImageGenerationCreditCost(input: ChatCapabilityExecutionInput) {
+  return Math.max(0, numericValue(input.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0));
+}
+
 function modeSchemaOf(input: ChatCapabilityExecutionInput) {
   const modeKey = cleanText(input.capabilityContext?.imageGeneration?.modeKey) || 'dialog';
   return imageGenerationModeSchemas[modeKey] || imageGenerationModeSchemas.dialog;
@@ -1205,6 +1232,10 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
     return {
       assistantAttachments: assistantAttachments.attachments,
       imageGenerationFailures: assistantAttachments.failures,
+      creditCost: roundCreditCost(
+        accumulatedImageGenerationCreditCost(input)
+        + imageGenerationCreditCost(prepared.modelConfig, assistantAttachments.attachments.length),
+      ),
       assistantContent: failureCount
         ? `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片，${failureCount} 张失败。`
         : `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片。`,
@@ -1214,6 +1245,10 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
   const result = await runImageGenerationGraph(input);
   return {
     assistantAttachments: result.assistantAttachments,
+    creditCost: roundCreditCost(
+      accumulatedImageGenerationCreditCost(input)
+      + imageGenerationCreditCost(result.modelConfig, result.assistantAttachments.length),
+    ),
     assistantContent: `已使用 ${result.modelConfig.name} / ${result.modelConfig.model} 生成 ${result.assistantAttachments.length} 张图片。`,
   };
 }

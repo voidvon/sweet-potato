@@ -48,6 +48,7 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
         generationJobId: messageItem.generationJobId ?? item.generationJobId,
         imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? item.imageGenerationExpectedCount,
         imageGenerationFailures: messageItem.imageGenerationFailures ?? item.imageGenerationFailures,
+        creditCost: messageItem.creditCost ?? item.creditCost,
       }
     : item));
 }
@@ -292,6 +293,9 @@ export function useChatSession() {
         return;
       }
       setMessages((current) => mergeMessage(current, payload.message!));
+      if (['completed', 'partial_failed', 'failed', 'canceled'].includes(String(payload.job?.status || ''))) {
+        void loadConversation(activeConversationId, { syncUrl: false });
+      }
     };
     window.addEventListener(appRealtimeEventNames.generationJobUpdated, handleJobUpdated);
     return () => {
@@ -532,6 +536,7 @@ export function useChatSession() {
             generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
             imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
             imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+            creditCost: messageItem.creditCost ?? currentMessage?.creditCost,
           };
         }));
         scrollToBottom(true);
@@ -615,6 +620,7 @@ export function useChatSession() {
                 generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
                 imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
                 imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+                creditCost: messageItem.creditCost ?? currentMessage?.creditCost,
               };
             }));
           }
@@ -715,9 +721,16 @@ export function useChatSession() {
     await refreshConversations();
   }, [refreshConversations]);
 
-  const regenerateImageMessage = useCallback(async (messageItem: ChatMessage) => {
+  const regenerateImageMessage = useCallback(async (messageItem: ChatMessage, assistantMessage?: ChatMessage, currentCreditCost?: number) => {
     const messageAttachments = messageItem.attachments || [];
     const imageAttachments = messageAttachments.filter((attachment) => attachment.kind === 'image');
+    const imageGenerationContext = messageItem.capabilityContext?.imageGeneration;
+    const nextRegenerationCount = Math.max(0, Number(imageGenerationContext?.regenerationCount) || 0) + 1;
+    const accumulatedCreditCost = Math.max(
+      Number(currentCreditCost) || 0,
+      Number(assistantMessage?.creditCost) || 0,
+      Number(imageGenerationContext?.accumulatedCreditCost) || 0,
+    );
     const fallbackCapabilityContext: SendChatPayload['capabilityContext'] | undefined = imageAttachments.length
       ? {
           imageGeneration: {
@@ -733,10 +746,20 @@ export function useChatSession() {
           },
         }
       : undefined;
+    const nextCapabilityContext: SendChatPayload['capabilityContext'] | undefined = messageItem.capabilityContext || fallbackCapabilityContext
+      ? {
+          ...(messageItem.capabilityContext || fallbackCapabilityContext),
+          imageGeneration: {
+            ...((messageItem.capabilityContext || fallbackCapabilityContext)?.imageGeneration || {}),
+            regenerationCount: nextRegenerationCount,
+            accumulatedCreditCost,
+          },
+        }
+      : undefined;
     await sendMessage({
       content: messageItem.content,
       attachments: messageAttachments,
-      capabilityContext: messageItem.capabilityContext || fallbackCapabilityContext,
+      capabilityContext: nextCapabilityContext,
       clearComposer: false,
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,

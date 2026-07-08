@@ -12,6 +12,8 @@ export type ChatCapabilityContext = {
     modeTitle?: string;
     promptText?: string;
     promptHint?: string;
+    regenerationCount?: number;
+    accumulatedCreditCost?: number;
     outputSize?: string;
     outputCount?: number;
     outputBackground?: 'transparent' | 'white' | 'black';
@@ -64,6 +66,7 @@ export type ChatCapabilityExecutionResult = {
   capability: ChatCapabilityName;
   assistantContent: string;
   assistantAttachments?: ChatAttachment[];
+  creditCost?: number | null;
   imageGenerationFailures?: ChatImageGenerationFailure[];
   assistantActions?: ChatMessageAction[];
   metadata: ChatConversationMetadata;

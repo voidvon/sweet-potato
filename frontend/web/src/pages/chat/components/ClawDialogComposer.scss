@@ -501,6 +501,20 @@
   color: #0f766e;
 }
 
+.claw-credit {
+  align-items: center;
+  color: #171717;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.claw-credit svg {
+  color: #ff9500;
+}
+
 .claw-send-button.ant-btn {
   align-items: center;
   background: #ececec;

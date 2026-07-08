@@ -48,6 +48,7 @@ export type ChatMessage = {
   agentId: string;
   modelConfigId?: string | null;
   attachments?: ChatAttachment[];
+  creditCost?: number | null;
   createdAt: string;
   isCompleted?: boolean;
 };

@@ -351,6 +351,28 @@ function imageModelSupportsCustomResolution(config: ModelConfig | undefined) {
   return imageGeneration.supportsCustomResolution === true || settings.supportsCustomResolution === true;
 }
 
+function numericValue(value: unknown, fallback = 0) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
+  const settings = config?.settings && typeof config.settings === 'object'
+    ? config.settings as Record<string, unknown>
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+}
+
+function formatCreditAmount(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(6).replace(/\.?0+$/, '');
+}
+
 export function ClawDialogComposer({
   attachments,
   input,
@@ -544,6 +566,8 @@ export function ClawDialogComposer({
       : outputCountStrategy === 'matchReferenceGroup'
         ? Math.max(1, (groupedAttachments[selectedMode.outputCountGroupKey || ''] || []).filter((attachment) => attachment.kind === 'image').length)
         : selectedOutputCount;
+  const imageCreditsPerRequest = imageModelCreditsPerRequest(selectedRawImageConfig);
+  const totalImageCredits = imageCreditsPerRequest * resolvedOutputCount;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {
@@ -793,6 +817,10 @@ export function ClawDialogComposer({
             {!canStartGeneration ? (
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}
+            <span className="claw-credit">
+              <Zap size={12} fill="currentColor" />
+              {formatCreditAmount(totalImageCredits)}
+            </span>
             <Button
               aria-label={sending ? '停止生成' : '发送消息'}
               className="claw-send-button"

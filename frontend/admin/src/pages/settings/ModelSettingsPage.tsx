@@ -99,6 +99,10 @@ function toNumericValue(value: unknown, fallback = 0) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function toTwoDecimalValue(value: unknown, fallback = 0) {
+  return Math.round((toNumericValue(value, fallback) + Number.EPSILON) * 100) / 100;
+}
+
 function currencySymbol(currency?: LlmBillingSettings['priceCurrency']) {
   return currency === 'CNY' ? '¥' : '$';
 }
@@ -212,7 +216,7 @@ function imageBillingSettingsOf(record: ModelConfig): ImageBillingSettings {
     ? settings.billing as Record<string, unknown>
     : {};
   return {
-    creditsPerRequest: toNumericValue(billing.creditsPerRequest, toNumericValue(billing.perRequestUsd, 0)),
+    creditsPerRequest: toTwoDecimalValue(billing.creditsPerRequest, toNumericValue(billing.perRequestUsd, 0)),
     priceSource: typeof billing.priceSource === 'string' && billing.priceSource.trim()
       ? billing.priceSource.trim()
       : 'official-manual',
@@ -378,6 +382,28 @@ type ModelFormValues = ModelConfig & {
 
 type LlmPricingFormValues = LlmModelPricing;
 
+function normalizeImagePayload(payload: ModelConfig): ModelConfig {
+  const settings = payload.settings && typeof payload.settings === 'object'
+    ? payload.settings
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  return {
+    ...payload,
+    settings: {
+      ...settings,
+      billing: {
+        ...billing,
+        creditsPerRequest: toTwoDecimalValue(
+          billing.creditsPerRequest,
+          toNumericValue(billing.perRequestUsd, 0),
+        ),
+      },
+    },
+  };
+}
+
 function ModelFormModal({
   activeType,
   audioProviders,
@@ -538,13 +564,14 @@ function ModelFormModal({
           onSaved();
           return;
         }
-        await saveModelConfig({
+        const nextPayload = {
           ...defaultFormValues,
           ...editingRecord,
           ...payload,
           type: activeType,
           settings: payload.settings || {},
-        });
+        };
+        await saveModelConfig(activeType === 'image' ? normalizeImagePayload(nextPayload) : nextPayload);
       }
       message.success('模型配置已保存');
       onSaved();
@@ -639,7 +666,7 @@ function ModelFormModal({
                   name={['settings', 'billing', 'creditsPer1MTokens']}
                   rules={[{ required: true, message: '请输入视频生成单价' }]}
                 >
-                  <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+                  <InputNumber min={0} precision={2} step={0.01} style={{ width: '100%' }} />
                 </Form.Item>
               )}
               <Form.Item
@@ -830,7 +857,15 @@ function ModelFormModal({
                   name={['settings', 'billing', 'creditsPerRequest']}
                   rules={[{ required: true, message: '请输入图片生成单价' }]}
                 >
-                  <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+                  <InputNumber<number>
+                    formatter={(value) => (value === undefined || value === null
+                      ? ''
+                      : Number(value).toFixed(2))}
+                    min={0}
+                    precision={2}
+                    step={0.01}
+                    style={{ width: '100%' }}
+                  />
                 </Form.Item>
                 <Form.Item
                   className="full-span"
@@ -1422,7 +1457,7 @@ export function ModelSettingsPage() {
             const billing = imageBillingSettingsOf(record);
             return (
               <Space orientation="vertical" size={2}>
-                <span>{billing.creditsPerRequest.toFixed(6)} Credit / 张</span>
+                <span>{billing.creditsPerRequest.toFixed(2)} Credit / 张</span>
               </Space>
             );
           },

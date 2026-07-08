@@ -138,6 +138,8 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
   }
   const source = value as Record<string, unknown>;
   const outputCount = Number(source.outputCount);
+  const regenerationCount = Number(source.regenerationCount);
+  const accumulatedCreditCost = Number(source.accumulatedCreditCost);
   const outputBackground = stringValue(source.outputBackground, 20);
   const parsedOutputBackground: 'transparent' | 'white' | 'black' | undefined =
     outputBackground === 'transparent' || outputBackground === 'white' || outputBackground === 'black'
@@ -148,6 +150,8 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
     modeTitle: stringValue(source.modeTitle, 80),
     promptText: stringValue(source.promptText, 4000),
     promptHint: stringValue(source.promptHint, 4000),
+    regenerationCount: Number.isFinite(regenerationCount) && regenerationCount > 0 ? Math.floor(regenerationCount) : undefined,
+    accumulatedCreditCost: Number.isFinite(accumulatedCreditCost) && accumulatedCreditCost > 0 ? accumulatedCreditCost : undefined,
     outputSize: stringValue(source.outputSize, 40),
     outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.floor(outputCount)) : undefined,
     outputBackground: parsedOutputBackground,
@@ -454,10 +458,12 @@ export async function handleCapabilityConversation(input: {
     conversationId: nextConversation.id,
     role: 'assistant',
     content: result.assistantContent,
+    capabilityContext: input.capabilityContext,
     actions: result.assistantActions || [],
     agentId: input.agent.id,
     modelConfigId: nextConversation.modelConfigId || undefined,
     attachments: result.assistantAttachments || [],
+    creditCost: typeof result.creditCost === 'number' ? result.creditCost : undefined,
     generationJobId: generationJob?.id,
     imageGenerationExpectedCount,
     imageGenerationFailures: result.imageGenerationFailures || [],
@@ -487,9 +493,11 @@ export async function handleCapabilityConversation(input: {
       id: assistantMessage.id,
       content: assistantMessage.content,
       attachments: assistantMessage.attachments,
+      capabilityContext: assistantMessage.capabilityContext,
       generationJobId: assistantMessage.generationJobId,
       imageGenerationExpectedCount: assistantMessage.imageGenerationExpectedCount,
       imageGenerationFailures: assistantMessage.imageGenerationFailures,
+      creditCost: assistantMessage.creditCost,
       isCompleted: true,
     });
     publishJob(generationJob);

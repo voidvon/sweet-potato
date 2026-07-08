@@ -1,12 +1,14 @@
-import { Button, Dropdown, Image, Modal, Tooltip, message } from 'antd';
-import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ChevronRight } from 'lucide-react';
+import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
+import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
+import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
 import { Children, cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
-import type { ChatAttachment, ChatMessage } from '../../../types';
+import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
+import { listModelConfigs } from '../../../api/model-config';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
 import { ImageAttachmentStack } from './ImageAttachmentStack';
+import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import './ChatMessageList.scss';
 
 type ChatMessageListProps = {
@@ -14,11 +16,30 @@ type ChatMessageListProps = {
   messages: ChatMessage[];
   onActionClick: (content: string) => void;
   onDeleteMessage: (message: ChatMessage) => void;
-  onRegenerateImage: (message: ChatMessage) => void;
+  onRegenerateImage: (userMessage: ChatMessage, assistantMessage: ChatMessage, currentCreditCost?: number) => void;
   onUpdateUserMessage: (messageId: string, content: string) => void;
   onScroll: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sending: boolean;
+};
+
+const imageGenerationModeToneMap: Record<string, string> = {
+  dialog: 'blue',
+  detail: 'amber',
+  outfit: 'violet',
+  'model-views': 'indigo',
+  'pose-reference': 'cyan',
+  upscale: 'lime',
+  cutout: 'orange',
+  background: 'emerald',
+  'scene-extract': 'fuchsia',
+  'model-face-swap': 'rose',
+  'head-swap': 'rose',
+  'face-swap': 'rose',
+  redraw: 'blue',
+  'detail-enhance': 'amber',
+  'print-extract': 'fuchsia',
+  'face-enhance': 'cyan',
 };
 
 export function ChatMessageList({
@@ -34,6 +55,7 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
     images: ChatAttachment[];
@@ -44,6 +66,28 @@ export function ChatMessageList({
     open: false,
   });
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadImageConfigs() {
+      try {
+        const configs = await listModelConfigs('image');
+        if (!ignore) {
+          setImageConfigs(configs);
+        }
+      } catch {
+        if (!ignore) {
+          setImageConfigs([]);
+        }
+      }
+    }
+
+    void loadImageConfigs();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!editingMessageId) {
@@ -296,7 +340,7 @@ export function ChatMessageList({
     ]);
   }
 
-  function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined) {
+  function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined, assistantMessage: ChatMessage) {
     if (!previousUserMessage) {
       return;
     }
@@ -307,7 +351,7 @@ export function ChatMessageList({
       okText: '再次生成',
       cancelText: '取消',
       onOk() {
-        onRegenerateImage(previousUserMessage);
+        onRegenerateImage(previousUserMessage, assistantMessage, resolveImageGenerationCreditCost(assistantMessage, previousUserMessage));
       },
     });
   }
@@ -324,6 +368,90 @@ export function ChatMessageList({
         onDeleteMessage(messageItem);
       },
     });
+  }
+
+  function formatCreditAmount(value: number) {
+    if (Number.isInteger(value)) {
+      return String(value);
+    }
+    return value.toFixed(6).replace(/\.?0+$/, '');
+  }
+
+  function numericValue(value: unknown, fallback = 0) {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  }
+
+  function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
+    const settings = config?.settings && typeof config.settings === 'object'
+      ? config.settings as Record<string, unknown>
+      : {};
+    const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+      ? settings.billing as Record<string, unknown>
+      : {};
+    return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+  }
+
+  function fallbackImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const modelConfigId = previousUserMessage?.imageModelConfigId;
+    if (!modelConfigId) {
+      return undefined;
+    }
+    const config = imageConfigs.find((item) => item.id === modelConfigId);
+    if (!config) {
+      return undefined;
+    }
+    const generatedCount = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image').length;
+    if (generatedCount <= 0) {
+      return undefined;
+    }
+    const accumulatedCreditCost = numericValue(previousUserMessage?.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0);
+    return accumulatedCreditCost + imageModelCreditsPerRequest(config) * generatedCount;
+  }
+
+  function resolveImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    return typeof messageItem.creditCost === 'number'
+      ? messageItem.creditCost
+      : fallbackImageGenerationCreditCost(messageItem, previousUserMessage);
+  }
+
+  function renderImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const creditCost = resolveImageGenerationCreditCost(messageItem, previousUserMessage);
+    if (typeof creditCost !== 'number') {
+      return null;
+    }
+    return (
+      <span className="chat-image-generation-cost" aria-label={`消耗 ${formatCreditAmount(creditCost)} Credit`}>
+        消耗
+        <Zap size={12} fill="currentColor" />
+        {formatCreditAmount(creditCost)}
+      </span>
+    );
+  }
+
+  function regenerateLabel(previousUserMessage: ChatMessage | undefined) {
+    const count = Number(previousUserMessage?.capabilityContext?.imageGeneration?.regenerationCount || 0);
+    return count > 0 ? `再次生成·${count}` : '再次生成';
+  }
+
+  function imageModelName(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const modelConfigId = previousUserMessage?.imageModelConfigId || messageItem.imageModelConfigId;
+    const config = imageConfigs.find((item) => item.id === modelConfigId);
+    return config?.name || config?.model || '';
+  }
+
+  function renderImageGenerationHeader(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const imageGeneration = previousUserMessage?.capabilityContext?.imageGeneration || messageItem.capabilityContext?.imageGeneration;
+    const modeTitle = imageGeneration?.modeTitle || '图片生成';
+    const modeTone = imageGenerationModeToneMap[imageGeneration?.modeKey || ''] || 'blue';
+    const modelName = imageModelName(messageItem, previousUserMessage);
+    return (
+      <div className="chat-image-generation-header">
+        <Tag className={`chat-image-generation-mode-tag tone-${modeTone}`}>{modeTitle}</Tag>
+        {modelName ? <span className="chat-image-generation-model-name">{modelName}</span> : null}
+        <time dateTime={messageItem.createdAt}>{formatRelativeCalendarDateTime(messageItem.createdAt)}</time>
+      </div>
+    );
   }
 
   return (
@@ -403,6 +531,7 @@ export function ChatMessageList({
                 <div className="chat-message-shell assistant image-generation" key={item.id}>
                   {imageGenerationSlotCount ? (
                     <>
+                      {renderImageGenerationHeader(item, previousUserMessage)}
                       <Image.PreviewGroup
                         preview={{
                           actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current),
@@ -438,16 +567,17 @@ export function ChatMessageList({
                         </div>
                       </Image.PreviewGroup>
                       <div className="chat-image-generation-actions">
+                        {renderImageGenerationCreditCost(item, previousUserMessage)}
                         <Button
                           className="chat-image-generation-action"
                           color="default"
                           disabled={sending || !previousUserMessage}
-                          icon={<ReloadOutlined />}
-                          onClick={() => confirmRegenerateImage(previousUserMessage)}
+                          icon={<RefreshCw size={12} strokeWidth={2} />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage, item)}
                           size="small"
                           variant="filled"
                         >
-                          再次生成
+                          {regenerateLabel(previousUserMessage)}
                         </Button>
                         <Dropdown
                           menu={{
@@ -483,20 +613,22 @@ export function ChatMessageList({
                     </>
                   ) : (
                     <>
+                      {renderImageGenerationHeader(item, previousUserMessage)}
                       <div className="chat-image-generation-error">
                         {answerContent || '图片生成失败'}
                       </div>
                       <div className="chat-image-generation-actions">
+                        {renderImageGenerationCreditCost(item, previousUserMessage)}
                         <Button
                           className="chat-image-generation-action"
                           color="default"
                           disabled={sending || !previousUserMessage}
-                          icon={<ReloadOutlined />}
-                          onClick={() => confirmRegenerateImage(previousUserMessage)}
+                          icon={<RefreshCw size={12} strokeWidth={2} />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage, item)}
                           size="small"
                           variant="filled"
                         >
-                          再次生成
+                          {regenerateLabel(previousUserMessage)}
                         </Button>
                       </div>
                     </>

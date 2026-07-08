@@ -322,6 +322,96 @@
   font-size: 22px;
 }
 
+.chat-image-generation-header {
+  align-items: center;
+  color: #667085;
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.chat-image-generation-mode-tag.ant-tag {
+  background: var(--image-generation-tone-bg);
+  border: 1px solid var(--image-generation-tone-border);
+  border-radius: 6px;
+  color: var(--image-generation-tone-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 22px;
+  margin: 0;
+  padding: 0 8px;
+}
+
+.chat-image-generation-mode-tag.tone-blue {
+  --image-generation-tone-bg: #e8f0ff;
+  --image-generation-tone-text: #1d4ed8;
+  --image-generation-tone-border: rgba(37, 99, 235, 0.2);
+}
+
+.chat-image-generation-mode-tag.tone-emerald {
+  --image-generation-tone-bg: #e6f7ef;
+  --image-generation-tone-text: #047857;
+  --image-generation-tone-border: rgba(16, 185, 129, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-amber {
+  --image-generation-tone-bg: #fff4e0;
+  --image-generation-tone-text: #b45309;
+  --image-generation-tone-border: rgba(245, 158, 11, 0.24);
+}
+
+.chat-image-generation-mode-tag.tone-violet {
+  --image-generation-tone-bg: #f0e9ff;
+  --image-generation-tone-text: #6d28d9;
+  --image-generation-tone-border: rgba(124, 58, 237, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-rose {
+  --image-generation-tone-bg: #ffe2eb;
+  --image-generation-tone-text: #be123c;
+  --image-generation-tone-border: rgba(225, 29, 72, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-cyan {
+  --image-generation-tone-bg: #def4fa;
+  --image-generation-tone-text: #0e7490;
+  --image-generation-tone-border: rgba(8, 145, 178, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-fuchsia {
+  --image-generation-tone-bg: #fbe6ff;
+  --image-generation-tone-text: #a21caf;
+  --image-generation-tone-border: rgba(192, 38, 211, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-lime {
+  --image-generation-tone-bg: #ecf7d0;
+  --image-generation-tone-text: #4d7c0f;
+  --image-generation-tone-border: rgba(101, 163, 13, 0.26);
+}
+
+.chat-image-generation-mode-tag.tone-orange {
+  --image-generation-tone-bg: #ffeada;
+  --image-generation-tone-text: #c2410c;
+  --image-generation-tone-border: rgba(234, 88, 12, 0.22);
+}
+
+.chat-image-generation-mode-tag.tone-indigo {
+  --image-generation-tone-bg: #e6e6ff;
+  --image-generation-tone-text: #4338ca;
+  --image-generation-tone-border: rgba(79, 70, 229, 0.22);
+}
+
+.chat-image-generation-header time {
+  color: #98a2b3;
+}
+
+.chat-image-generation-model-name {
+  color: #98a2b3;
+}
+
 .chat-image-generation-grid.single .chat-image-generation-cell {
   max-height: 420px;
   min-height: 240px;
@@ -354,11 +444,13 @@
 }
 
 .chat-image-generation-action.ant-btn,
-.chat-image-generation-more.ant-btn {
+.chat-image-generation-more.ant-btn,
+.chat-image-generation-cost {
   background: #f4f5f7;
   border-color: transparent;
   color: #344054;
   box-shadow: none;
+  font-size: 12px;
 }
 
 .chat-image-generation-action.ant-btn:hover,
@@ -372,6 +464,32 @@
   border-radius: 6px;
   height: 24px;
   padding: 0 8px;
+}
+
+.chat-image-generation-cost {
+  align-items: center;
+  border-radius: 6px;
+  display: inline-flex;
+  font-weight: 400;
+  gap: 4px;
+  height: 24px;
+  line-height: 1;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.chat-image-generation-action.ant-btn .anticon,
+.chat-image-generation-more.ant-btn .anticon,
+.chat-image-generation-action.ant-btn svg,
+.chat-image-generation-more.ant-btn svg,
+.chat-image-generation-cost svg {
+  font-size: 12px;
+  height: 12px;
+  width: 12px;
+}
+
+.chat-image-generation-cost svg {
+  color: #ff9500;
 }
 
 .chat-image-generation-more.ant-btn {

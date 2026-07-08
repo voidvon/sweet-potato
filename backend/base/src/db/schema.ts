@@ -302,6 +302,7 @@ export function migrateDatabase() {
       model_config_id TEXT,
       attachments TEXT NOT NULL DEFAULT '[]',
       is_completed INTEGER NOT NULL DEFAULT 1,
+      credit_cost REAL,
       created_at TEXT NOT NULL
     );
 
@@ -585,6 +586,7 @@ export function migrateDatabase() {
   addColumnIfMissing('chat_messages', 'actions', "actions TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('chat_messages', 'is_completed', 'is_completed INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing('chat_messages', 'attachments', "attachments TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing('chat_messages', 'credit_cost', 'credit_cost REAL');
   addColumnIfMissing('generation_jobs', 'payload', "payload TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('generation_jobs', 'result', "result TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('chat_conversations', 'metadata', "metadata TEXT NOT NULL DEFAULT '{}'");

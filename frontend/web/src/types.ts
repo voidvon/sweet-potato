@@ -89,6 +89,7 @@ export type ChatMessage = {
   agentId: string;
   modelConfigId?: string | null;
   attachments?: ChatAttachment[];
+  creditCost?: number | null;
   createdAt: string;
   isCompleted?: boolean;
 };
@@ -135,6 +136,8 @@ export type SendChatPayload = {
       modeTitle?: string;
       promptText?: string;
       promptHint?: string;
+      regenerationCount?: number;
+      accumulatedCreditCost?: number;
       outputSize?: string;
       outputCount?: number;
       outputBackground?: 'transparent' | 'white' | 'black';
