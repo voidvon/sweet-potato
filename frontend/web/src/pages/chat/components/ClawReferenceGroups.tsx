@@ -1,7 +1,7 @@
 import { Image, message, Upload } from 'antd';
 import type { UploadProps } from 'antd';
-import { Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowRightLeft, Plus, X } from 'lucide-react';
+import { Fragment, useState } from 'react';
 import type { ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { ImageAttachmentStack } from './ImageAttachmentStack';
@@ -14,19 +14,23 @@ export type ClawReferenceGroupConfig = {
 };
 
 type ClawReferenceGroupsProps = {
+  className?: string;
   groups: ClawReferenceGroupConfig[];
   groupedAttachments: Record<string, ChatAttachment[]>;
-  onAddFiles: (group: ClawReferenceGroupConfig, files: File[]) => Promise<ChatAttachment[]>;
-  onRemoveAttachment: (attachmentId: string) => void;
+  onAddFiles?: (group: ClawReferenceGroupConfig, files: File[]) => Promise<ChatAttachment[]>;
+  onRemoveAttachment?: (attachmentId: string) => void;
+  readonly?: boolean;
 };
 
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
 
 export function ClawReferenceGroups({
+  className,
   groups,
   groupedAttachments,
   onAddFiles,
   onRemoveAttachment,
+  readonly = false,
 }: ClawReferenceGroupsProps) {
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
@@ -39,6 +43,9 @@ export function ClawReferenceGroups({
   });
 
   async function handleReferenceUpload(group: ClawReferenceGroupConfig, files: File[]) {
+    if (!onAddFiles) {
+      return;
+    }
     const currentCount = groupedAttachments[group.key]?.length || 0;
     const maxCount = group.maxCount ?? unlimitedReferenceCount;
     const remainingCount = maxCount - currentCount;
@@ -70,58 +77,71 @@ export function ClawReferenceGroups({
   }
 
   return (
-    <div className="claw-reference-groups">
-      {groups.map((group) => {
+    <div className={['claw-reference-groups', groups.length === 2 ? 'is-pair' : '', className].filter(Boolean).join(' ')}>
+      {groups.map((group, groupIndex, groupItems) => {
         const groupAttachments = groupedAttachments[group.key] || [];
+        const showGroupBridge = groupItems.length === 2 && groupIndex === 1;
+        const startIndex = groupItems
+          .slice(0, groupIndex)
+          .reduce((total, item) => total + (groupedAttachments[item.key]?.length || 0), 1);
         const maxCount = group.maxCount ?? unlimitedReferenceCount;
         const uploadDisabled = groupAttachments.length >= maxCount;
         const hasAttachments = groupAttachments.length > 0;
 
         return (
-          <div className={`claw-reference-group${hasAttachments ? ' has-attachments' : ''}`} key={group.key}>
-            {!hasAttachments ? (
-              <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
-                <button className="claw-reference-empty" disabled={uploadDisabled} type="button">
-                  {!group.required ? (
-                    <span className="claw-reference-badge">可选</span>
+          <Fragment key={group.key}>
+            {showGroupBridge ? (
+              <span aria-hidden="true" className="claw-reference-group-bridge">
+                <ArrowRightLeft size={18} strokeWidth={1.8} />
+              </span>
+            ) : null}
+            <div className={`claw-reference-group${hasAttachments ? ' has-attachments' : ''}`}>
+              {!hasAttachments && !readonly ? (
+                <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
+                  <button className="claw-reference-empty" disabled={uploadDisabled} type="button">
+                    {!group.required ? (
+                      <span className="claw-reference-badge">可选</span>
+                    ) : null}
+                    <Plus size={26} strokeWidth={1.6} />
+                    <span className="claw-reference-label">{group.label}</span>
+                  </button>
+                </Upload>
+              ) : null}
+              {hasAttachments ? (
+                <>
+                  <ImageAttachmentStack
+                    attachments={groupAttachments}
+                    onPreview={(_attachment, index) => setPreviewImageGroup({
+                      current: index,
+                      images: groupAttachments,
+                      open: true,
+                    })}
+                    renderTopAction={readonly || !onRemoveAttachment ? undefined : (attachment) => (
+                      <button
+                        aria-label={`移除 ${attachment.name}`}
+                        className="claw-reference-remove"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRemoveAttachment(attachment.id);
+                        }}
+                        type="button"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                    startIndex={startIndex}
+                  />
+                  {!uploadDisabled && !readonly ? (
+                    <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
+                      <button aria-label={`继续上传${group.label}`} className="claw-reference-add" type="button">
+                        <Plus size={18} strokeWidth={1.6} />
+                      </button>
+                    </Upload>
                   ) : null}
-                  <Plus size={26} strokeWidth={1.6} />
-                  <span className="claw-reference-label">{group.label}</span>
-                </button>
-              </Upload>
-            ) : (
-              <>
-                <ImageAttachmentStack
-                  attachments={groupAttachments}
-                  onPreview={(_attachment, index) => setPreviewImageGroup({
-                    current: index,
-                    images: groupAttachments,
-                    open: true,
-                  })}
-                  renderTopAction={(attachment) => (
-                    <button
-                      aria-label={`移除 ${attachment.name}`}
-                      className="claw-reference-remove"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveAttachment(attachment.id);
-                      }}
-                      type="button"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                />
-                {!uploadDisabled ? (
-                  <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
-                    <button aria-label={`继续上传${group.label}`} className="claw-reference-add" type="button">
-                      <Plus size={18} strokeWidth={1.6} />
-                    </button>
-                  </Upload>
-                ) : null}
-              </>
-            )}
-          </div>
+                </>
+              ) : null}
+            </div>
+          </Fragment>
         );
       })}
       <Image.PreviewGroup

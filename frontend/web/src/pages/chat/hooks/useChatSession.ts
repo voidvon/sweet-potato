@@ -54,6 +54,7 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
 
 const maxAttachmentCount = 6;
 const maxAttachmentBytes = 3 * 1024 * 1024;
+const bottomLockThreshold = 4;
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
@@ -298,12 +299,12 @@ export function useChatSession() {
     };
   }, [activeConversationId, currentUserId]);
 
-  const isNearBottom = useCallback(() => {
+  const isAtBottom = useCallback(() => {
     const element = scrollContainerRef.current;
     if (!element) {
       return true;
     }
-    return element.scrollHeight - element.scrollTop - element.clientHeight < 90;
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= bottomLockThreshold;
   }, []);
 
   const scrollToBottom = useCallback((force = false) => {
@@ -324,8 +325,8 @@ export function useChatSession() {
   }, [messages, sending, scrollToBottom]);
 
   const handleChatScroll = useCallback(() => {
-    setUserHasScrolledUp(!isNearBottom());
-  }, [isNearBottom]);
+    setUserHasScrolledUp(!isAtBottom());
+  }, [isAtBottom]);
 
   const openConversation = useCallback(async (conversation: ChatConversation) => {
     await loadConversation(conversation.id, { showOverlay: true });
@@ -440,16 +441,16 @@ export function useChatSession() {
       return;
     }
 
-    const contentForSend = content || '请分析附件内容';
     const sendingAttachments = messageAttachments;
     const previousMessages = messages;
     const previousConversationId = activeConversationId;
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
-    const capabilityPayload = resolveChatCapabilityPayload(contentForSend);
+    const capabilityPayload = resolveChatCapabilityPayload(content);
     const requestedCapabilities = override?.requestedCapabilities || capabilityPayload.requestedCapabilities;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
+    const contentForSend = content || (isImageGenerationRequest ? '' : '请分析附件内容');
     const resolvedCapabilityContext = {
       ...(capabilityPayload.capabilityContext || {}),
       ...(override?.capabilityContext || {}),
@@ -642,7 +643,7 @@ export function useChatSession() {
 
       if (isImageGenerationRequest) {
         const errorMessage = error instanceof Error ? error.message : '图片生成失败';
-        const failureCount = Math.max(1, imageGenerationExpectedCount || 0, sendingAttachments.filter((attachment) => attachment.kind === 'image').length);
+        const failureCount = Math.max(1, imageGenerationExpectedCount || 0);
         setMessages((items) =>
           items.map((item) =>
             item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)

@@ -1,4 +1,4 @@
-import { Button, Dropdown, Input, Popover } from 'antd';
+import { Button, Dropdown, Popover } from 'antd';
 import {
   ArrowRight,
   Brush,
@@ -18,13 +18,13 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
+import { MentionRichTextarea, type MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
-
-const { TextArea } = Input;
 
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
@@ -34,6 +34,7 @@ type ClawDialogComposerProps = {
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
   onStop: () => void;
+  showHeading?: boolean;
   sending: boolean;
 };
 
@@ -61,6 +62,7 @@ type ClawModeConfig = {
   inputPlaceholder?: string;
   key: ClawModeKey;
   outputConfig?: ClawModeOutputConfig;
+  outputCountGroupKey?: string;
   outputCountStrategy?: ClawOutputCountStrategy;
   promptHint?: string;
   referenceGroups: ClawReferenceGroupConfig[];
@@ -69,7 +71,7 @@ type ClawModeConfig = {
   toolbarControls?: ClawToolbarControl[];
 };
 
-type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages';
+type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages' | 'matchReferenceGroup';
 type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount' | 'background';
 type ClawAspectRatioKey = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
 type ClawBackgroundKey = 'transparent' | 'white' | 'black';
@@ -80,7 +82,6 @@ type ClawModeOutputConfig = {
   defaultOutputCount: number;
   defaultResolution: ClawResolutionKey;
 };
-
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const modelOnlyToolbarControls: ClawToolbarControl[] = ['model'];
 const cutoutToolbarControls: ClawToolbarControl[] = ['model', 'background'];
@@ -130,7 +131,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Shirt,
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
-    promptHint: '让 图一 的模特穿上 图二 的衣服，AI 自动出图。',
+    promptHint: '让 图1 的模特穿上 图2 的衣服，AI 自动出图。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
       { key: 'clothes', label: '图片', required: true },
@@ -143,7 +144,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Layers,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '为 图一 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
+    promptHint: '为 图1 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
       { key: 'front', label: '服装正面', maxCount: 1 },
@@ -157,8 +158,9 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '参考姿态',
     Icon: Scan,
     outputConfig: defaultModeOutputConfig,
-    outputCountStrategy: 'fixedOne',
-    promptHint: '让 图一 的主体摆出 图二 的姿势。',
+    outputCountGroupKey: 'pose',
+    outputCountStrategy: 'matchReferenceGroup',
+    promptHint: '让 图1 的主体摆出 图2 的姿势。',
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
       { key: 'pose', label: '姿势', required: true },
@@ -171,7 +173,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Maximize2,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '把 图一 放大变清晰。',
+    promptHint: '把 图1 放大变清晰。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
   },
   {
@@ -180,7 +182,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '主体分离',
     Icon: Scan,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '把 图一 的背景去掉，按所选底色输出。',
+    promptHint: '把 图1 的背景去掉，按所选底色输出。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
     toolbarControls: cutoutToolbarControls,
   },
@@ -190,7 +192,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '环境焕新',
     Icon: Images,
     outputCountStrategy: 'fixedOne',
-    promptHint: '把 图一 的背景换成 图二 的风格。',
+    promptHint: '把 图1 的背景换成 图2 的风格。',
     referenceGroups: [
       { key: 'subject', label: '主体', maxCount: 1, required: true },
       { key: 'background', label: '背景', maxCount: 1, required: true },
@@ -203,7 +205,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '提取环境',
     Icon: ImagePlus,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '从 图一 提取干净的场景素材。',
+    promptHint: '从 图1 提取干净的场景素材。',
     referenceGroups: [{ key: 'source', label: '原图', required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -213,7 +215,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '替换模特脸',
     Icon: Shirt,
     outputCountStrategy: 'fixedOne',
-    promptHint: '把 图一 模特的脸换成 图二 的样子，造型不变。',
+    promptHint: '把 图1 模特的脸换成 图2 的样子，造型不变。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
       { key: 'face', label: '脸部', maxCount: 1, required: true },
@@ -226,7 +228,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '头部替换',
     Icon: Scan,
     outputCountStrategy: 'fixedOne',
-    promptHint: '给 图一 模特随机换一个新头型。',
+    promptHint: '给 图1 模特随机换一个新头型。',
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -236,7 +238,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '脸部替换',
     Icon: Scan,
     outputCountStrategy: 'fixedOne',
-    promptHint: '给 图一 模特随机换一张新脸。',
+    promptHint: '给 图1 模特随机换一张新脸。',
     referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -246,7 +248,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '读图后重绘',
     Icon: Brush,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '读懂 图一 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
+    promptHint: '读懂 图1 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
     referenceGroups: [{ key: 'reference', label: '参考图', required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -258,7 +260,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '在 图一 涂抹位置上补强、修复或替换：',
+    promptHint: '在 图1 涂抹位置上补强、修复或替换：',
     referenceGroups: [{ key: 'base', label: '基础图', maxCount: 1, required: true }],
   },
   {
@@ -268,7 +270,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Images,
     inputPlaceholder: '补充印花提取要求（选填），例如：只保留胸前主图案、支持单张图片详情描述。',
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '提取 图一 服装的印花，输出 PNG 和 PSD。',
+    promptHint: '提取 图1 服装的印花，输出 PNG 和 PSD。',
     referenceGroups: [{ key: 'clothes', label: '服装', required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -278,7 +280,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: '优化脸部',
     Icon: Scan,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '为 图一 等图像增强脸部细节。',
+    promptHint: '为 图1 等图像增强脸部细节。',
     referenceGroups: [{ key: 'portrait', label: '人像', required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
@@ -358,6 +360,7 @@ export function ClawDialogComposer({
   onRemoveAttachment,
   onSend,
   onStop,
+  showHeading = true,
   sending,
 }: ClawDialogComposerProps) {
   const [selectedModeKey, setSelectedModeKey] = useState<ClawModeKey>('dialog');
@@ -404,6 +407,24 @@ export function ClawDialogComposer({
     });
     return groups;
   }, [attachmentGroupById, attachments, firstReferenceGroupKey, referenceGroupKeys]);
+  const mentionOptions = useMemo(() => {
+    let imageIndex = 1;
+    return selectedMode.referenceGroups.flatMap((group) => {
+      const groupAttachments = groupedAttachments[group.key] || [];
+      return groupAttachments.map((attachment) => {
+        const label = `图${imageIndex}`;
+        imageIndex += 1;
+        return {
+          attachmentId: attachment.id,
+          label,
+          name: attachment.name,
+          previewUrl: resolveAssetUrl(attachment.url),
+          subtitle: group.label,
+          token: `@${label}`,
+        };
+      });
+    });
+  }, [groupedAttachments, selectedMode.referenceGroups]);
   const missingReferenceGroups = selectedMode.referenceGroups.filter(
     (group) => group.required && !groupedAttachments[group.key]?.length,
   );
@@ -521,7 +542,9 @@ export function ClawDialogComposer({
     ? 1
     : outputCountStrategy === 'matchUploadedImages'
       ? Math.max(1, attachments.filter((attachment) => attachment.kind === 'image').length)
-      : selectedOutputCount;
+      : outputCountStrategy === 'matchReferenceGroup'
+        ? Math.max(1, (groupedAttachments[selectedMode.outputCountGroupKey || ''] || []).filter((attachment) => attachment.kind === 'image').length)
+        : selectedOutputCount;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {
@@ -611,14 +634,6 @@ export function ClawDialogComposer({
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
-      return;
-    }
-    event.preventDefault();
-    handlePrimaryAction();
-  }
-
   async function handleAddReferenceFiles(group: ClawReferenceGroupConfig, files: File[]) {
     const nextAttachments = await onAddFiles(files, { maxCount: maxReferenceAttachmentCount });
     if (nextAttachments.length) {
@@ -642,9 +657,11 @@ export function ClawDialogComposer({
   return (
     <section className="claw-dialog-composer" aria-label="对话生图输入框">
       <div className="claw-dialog-card">
-        <header className="claw-dialog-heading">
-          上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。
-        </header>
+        {showHeading ? (
+          <header className="claw-dialog-heading">
+            上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。
+          </header>
+        ) : null}
 
         {selectedMode.promptHint ? (
           <div className="claw-dialog-hint">{selectedMode.promptHint}</div>
@@ -660,13 +677,18 @@ export function ClawDialogComposer({
 
           {showPromptInput ? (
             <div className="claw-dialog-textarea-wrap">
-              <TextArea
-                autoSize={{ minRows: 3, maxRows: 8 }}
-                className="claw-dialog-textarea"
-                onChange={(event) => onInputChange(event.target.value)}
-                onKeyDown={handleKeyDown}
+              <MentionRichTextarea
+                className="claw-dialog-rich-textarea"
+                editorClassName="claw-dialog-rich-editor"
+                emptyText="暂无可引用图片"
+                fallbackMentionMenu
+                menuDescription="选择图片会自动插入引用"
+                menuTitle="可引用图片"
+                minRows={3}
+                onChange={onInputChange}
+                onSubmit={handlePrimaryAction}
+                options={mentionOptions}
                 placeholder={selectedMode.inputPlaceholder}
-                variant="borderless"
                 value={input}
               />
             </div>

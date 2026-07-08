@@ -13,7 +13,6 @@
   border: 1px solid #dedede;
   border-radius: 18px;
   box-shadow: 0 8px 19px rgba(15, 23, 42, 0.06);
-  overflow: hidden;
 }
 
 .claw-dialog-heading {
@@ -45,10 +44,25 @@
 }
 
 .claw-reference-groups {
+  align-items: center;
   display: flex;
   gap: 12px;
   min-width: 0;
   white-space: nowrap;
+}
+
+.claw-reference-groups.is-pair {
+  gap: 6px;
+}
+
+.claw-reference-group-bridge {
+  align-items: center;
+  color: #98a2b3;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 100%;
+  justify-content: center;
+  width: 12px;
 }
 
 .claw-reference-group {
@@ -162,17 +176,28 @@
   min-width: 0;
 }
 
-.claw-dialog-textarea.ant-input {
+.claw-dialog-rich-textarea {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   color: #182230;
-  font-size: 14px;
   line-height: 1.55;
-  min-height: 72px;
-  padding: 5px 0;
-  resize: none;
+  overflow: visible;
 }
 
-.claw-dialog-textarea.ant-input::placeholder {
-  color: #9aa9bd;
+.claw-dialog-rich-textarea:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.claw-dialog-rich-textarea .mention-rich-textarea-editor {
+  max-height: 174px;
+  min-height: 72px;
+  padding: 5px 0;
+}
+
+.claw-dialog-rich-textarea .mention-rich-textarea-editor p + p {
+  margin-top: 4px;
 }
 
 .claw-expand-button.ant-btn {

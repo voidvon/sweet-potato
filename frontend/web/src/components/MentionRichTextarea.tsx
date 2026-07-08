@@ -1,25 +1,35 @@
 import { SoundOutlined } from '@ant-design/icons';
-import { mergeAttributes, type JSONContent } from '@tiptap/core';
+import { Image } from 'antd';
+import { mergeAttributes, type Editor, type JSONContent } from '@tiptap/core';
 import Mention from '@tiptap/extension-mention';
+import Placeholder from '@tiptap/extension-placeholder';
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, useEditor, type NodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import './MentionRichTextarea.scss';
 
 export type MentionRichTextareaOption = {
+  attachmentId?: string;
   label: string;
   mimeType?: string;
+  name?: string;
   previewUrl?: string;
   subtitle?: string;
   token: string;
 };
 
 type MentionRichTextareaProps = {
+  className?: string;
   disabled?: boolean;
+  editorClassName?: string;
+  emptyText?: string;
   fallbackMentionMenu?: boolean;
+  menuDescription?: string;
+  menuTitle?: string;
   minRows?: number;
   onChange: (value: string) => void;
+  onSubmit?: () => void;
   options: MentionRichTextareaOption[];
   placeholder?: string;
   suggestionContainer?: string | HTMLElement;
@@ -33,9 +43,24 @@ type MentionListRef = {
   onKeyDown: (props: SuggestionKeyDownProps) => boolean;
 };
 
-type MentionListProps = SuggestionProps<MentionSuggestionItem, MentionSuggestionItem>;
+type MentionListProps = SuggestionProps<MentionSuggestionItem, MentionSuggestionItem> & {
+  emptyText: string;
+  menuDescription: string;
+  menuTitle: string;
+};
 
-const mentionPattern = /@(?:图片|视频|音频)\d+/gu;
+type FallbackMentionRange = {
+  from: number;
+  query: string;
+  to: number;
+};
+
+type MentionPreviewImage = {
+  alt: string;
+  src: string;
+};
+
+const mentionPreviewEventName = 'mention-rich-textarea-preview';
 
 function isAudioMention(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
   return option.mimeType?.startsWith('audio/') || /音频/u.test(`${option.token} ${option.label}`);
@@ -98,6 +123,14 @@ const ReferenceMention = Mention.extend({
           return mimeType ? { 'data-mime-type': mimeType } : {};
         },
       },
+      attachmentId: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-attachment-id'),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const attachmentId = typeof attributes.attachmentId === 'string' ? attributes.attachmentId : '';
+          return attachmentId ? { 'data-attachment-id': attachmentId } : {};
+        },
+      },
     };
   },
 });
@@ -105,20 +138,37 @@ const ReferenceMention = Mention.extend({
 function MentionChipView({ node }: NodeViewProps) {
   const previewUrl = String(node.attrs.previewUrl ?? '');
   const mimeType = String(node.attrs.mimeType ?? '');
+  const attachmentId = String(node.attrs.attachmentId ?? '');
   const token = String(node.attrs.id ?? '');
   const label = String(node.attrs.label ?? token).replace(/^@/, '');
   const mentionInfo = { label, mimeType, token };
   const fallbackIcon = mentionFallbackIcon(mentionInfo);
   const shouldShowPreview = Boolean(previewUrl && !isAudioMention(mentionInfo));
   const kind = mentionKind(mentionInfo);
+  const canPreviewImage = Boolean(previewUrl && kind === 'image');
   return (
     <NodeViewWrapper
       as="span"
-      className="mention-rich-textarea-chip"
+      className={['mention-rich-textarea-chip', canPreviewImage ? 'is-previewable' : ''].filter(Boolean).join(' ')}
       data-mention-kind={kind}
       data-mime-type={mimeType || undefined}
       data-preview-url={previewUrl || undefined}
+      data-attachment-id={attachmentId || undefined}
       data-token={token}
+      onClick={(event: MouseEvent<HTMLSpanElement>) => {
+        if (!canPreviewImage) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.dispatchEvent(new CustomEvent<MentionPreviewImage>(mentionPreviewEventName, {
+          bubbles: true,
+          detail: {
+            alt: label,
+            src: previewUrl,
+          },
+        }));
+      }}
     >
       {shouldShowPreview ? <img alt={label} src={previewUrl} /> : <span className="mention-rich-textarea-chip-icon">{fallbackIcon}</span>}
       <b>{label}</b>
@@ -134,38 +184,76 @@ function paragraph(content: JSONContent[]): JSONContent {
   return { type: 'paragraph', content: content.length > 0 ? content : undefined };
 }
 
-function plainTextToDoc(value: string, options: MentionRichTextareaOption[]): JSONContent {
+function mentionContentNode(option: MentionRichTextareaOption): JSONContent {
+  return {
+    type: 'mention',
+    attrs: {
+      attachmentId: option.attachmentId ?? '',
+      id: option.token,
+      label: option.label,
+      mimeType: option.mimeType ?? '',
+      previewUrl: option.previewUrl ?? '',
+    },
+  };
+}
+
+function normalizeMentionDoc(node: JSONContent, options: MentionRichTextareaOption[]): JSONContent | null {
+  const optionByAttachmentId = new Map(
+    options
+      .filter((option) => option.attachmentId)
+      .map((option) => [option.attachmentId as string, option]),
+  );
   const optionByToken = new Map(options.map((option) => [option.token, option]));
-  const paragraphs = value.split('\n').map((line) => {
-    const content: JSONContent[] = [];
-    let lastIndex = 0;
 
-    for (const match of line.matchAll(mentionPattern)) {
-      const token = match[0];
-      const index = match.index ?? 0;
-      if (index > lastIndex) {
-        content.push(textNode(line.slice(lastIndex, index)));
-      }
-
-      const option = optionByToken.get(token);
-      if (option) {
-        content.push({
-          type: 'mention',
-          attrs: {
-            id: option.token,
-            label: option.label,
-            mimeType: option.mimeType ?? '',
-            previewUrl: option.previewUrl ?? '',
-          },
-        });
-      } else {
-        content.push(textNode(token));
-      }
-      lastIndex = index + token.length;
+  const normalizeNode = (currentNode: JSONContent): JSONContent | null => {
+    if (currentNode.type === 'mention') {
+      const attachmentId = typeof currentNode.attrs?.attachmentId === 'string' ? currentNode.attrs.attachmentId : '';
+      const token = typeof currentNode.attrs?.id === 'string' ? currentNode.attrs.id : '';
+      const option = (attachmentId ? optionByAttachmentId.get(attachmentId) : undefined) ?? optionByToken.get(token);
+      return option ? mentionContentNode(option) : null;
     }
 
-    if (lastIndex < line.length) {
-      content.push(textNode(line.slice(lastIndex)));
+    if (!currentNode.content) {
+      return currentNode;
+    }
+
+    const content = currentNode.content
+      .map(normalizeNode)
+      .filter((item): item is JSONContent => Boolean(item));
+
+    return {
+      ...currentNode,
+      content: content.length > 0 ? content : undefined,
+    };
+  };
+
+  return normalizeNode(node);
+}
+
+function plainTextToDoc(value: string, options: MentionRichTextareaOption[]): JSONContent {
+  const optionByToken = new Map(options.map((option) => [option.token, option]));
+  const mentionTokens = [...optionByToken.keys()].sort((left, right) => right.length - left.length);
+  const paragraphs = value.split('\n').map((line) => {
+    const content: JSONContent[] = [];
+    let index = 0;
+
+    while (index < line.length) {
+      const matchedToken = mentionTokens.find((token) => line.startsWith(token, index));
+      if (matchedToken) {
+        const option = optionByToken.get(matchedToken);
+        if (option) {
+          content.push(mentionContentNode(option));
+          index += matchedToken.length;
+          continue;
+        }
+      }
+
+      const nextTokenIndex = mentionTokens
+        .map((token) => line.indexOf(token, index + 1))
+        .filter((tokenIndex) => tokenIndex !== -1)
+        .sort((left, right) => left - right)[0] ?? line.length;
+      content.push(textNode(line.slice(index, nextTokenIndex)));
+      index = nextTokenIndex;
     }
 
     return paragraph(content);
@@ -194,7 +282,45 @@ function nodeToPlainText(node: JSONContent): string {
   return childText.join('');
 }
 
-const MentionList = forwardRef<MentionListRef, MentionListProps>(function MentionList({ command, items }, ref) {
+function getActiveFallbackMentionRange(editor: Editor): FallbackMentionRange | null {
+  const { from, empty } = editor.state.selection;
+  if (!empty) {
+    return null;
+  }
+  const $from = editor.state.selection.$from;
+  const parentOffset = $from.parentOffset;
+  const textBeforeCursor = $from.parent.textBetween(0, parentOffset, '\n', '\n');
+  const match = /(?:^|\s)@(\S*)$/u.exec(textBeforeCursor);
+  if (!match) {
+    return null;
+  }
+  const triggerOffset = textBeforeCursor.lastIndexOf('@');
+  return {
+    from: from - (parentOffset - triggerOffset),
+    query: match[1] ?? '',
+    to: from,
+  };
+}
+
+function filterMentionOptions(options: MentionRichTextareaOption[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  return options
+    .filter((option) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+      return `${option.token} ${option.label} ${option.subtitle ?? ''}`.toLowerCase().includes(normalizedQuery);
+    })
+    .slice(0, 8);
+}
+
+const MentionList = forwardRef<MentionListRef, MentionListProps>(function MentionList({
+  command,
+  emptyText,
+  items,
+  menuDescription,
+  menuTitle,
+}, ref) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
@@ -230,14 +356,14 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
   }));
 
   if (items.length === 0) {
-    return <div className="mention-rich-textarea-menu mention-rich-textarea-menu--empty">没有可用素材</div>;
+    return <div className="mention-rich-textarea-menu mention-rich-textarea-menu--empty">{emptyText}</div>;
   }
 
   return (
     <div className="mention-rich-textarea-menu">
       <div className="mention-rich-textarea-menu__header">
-        <strong>可引用素材</strong>
-        <span>选择素材会自动插入引用</span>
+        <strong>{menuTitle}</strong>
+        <span>{menuDescription}</span>
       </div>
       {items.map((item, index) => (
         <button
@@ -255,8 +381,8 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
             <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
           )}
           <span className="mention-rich-textarea-option__body">
-            <strong>{item.token}</strong>
-            {item.subtitle ? <small>{item.subtitle}</small> : null}
+            <strong>{item.name || item.token}</strong>
+            <small>{item.name ? item.token.replace(/^@/, '') : item.subtitle}</small>
           </span>
         </button>
       ))}
@@ -265,20 +391,32 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
 });
 
 export function MentionRichTextarea({
+  className,
   disabled,
+  editorClassName,
+  emptyText = '没有可用素材',
   fallbackMentionMenu = false,
+  menuDescription = '选择素材会自动插入引用',
+  menuTitle = '可引用素材',
   minRows = 8,
   onChange,
+  onSubmit,
   options,
   placeholder,
   suggestionContainer,
   value,
 }: MentionRichTextareaProps) {
   const minHeight = Math.max(minRows, 1) * 25 + 40;
-  const isEmpty = value.length === 0;
   const optionsRef = useRef(options);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [fallbackMenuOpen, setFallbackMenuOpen] = useState(false);
+  const [fallbackMenuStyle, setFallbackMenuStyle] = useState<CSSProperties | undefined>();
+  const [fallbackQuery, setFallbackQuery] = useState('');
   const [fallbackSelectedIndex, setFallbackSelectedIndex] = useState(0);
+  const [previewImage, setPreviewImage] = useState<MentionPreviewImage | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const resolvedEditorClassName = ['mention-rich-textarea-editor', editorClassName].filter(Boolean).join(' ');
+  const fallbackOptions = useMemo(() => filterMentionOptions(options, fallbackQuery), [fallbackQuery, options]);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -286,32 +424,38 @@ export function MentionRichTextarea({
 
   useEffect(() => {
     setFallbackSelectedIndex(0);
-  }, [fallbackMenuOpen, options]);
+  }, [fallbackMenuOpen, fallbackOptions]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return undefined;
+    }
+    const handlePreview = (event: Event) => {
+      const detail = (event as CustomEvent<MentionPreviewImage>).detail;
+      if (detail?.src) {
+        setPreviewImage(detail);
+        setPreviewVisible(true);
+      }
+    };
+    container.addEventListener(mentionPreviewEventName, handlePreview);
+    return () => {
+      container.removeEventListener(mentionPreviewEventName, handlePreview);
+    };
+  }, []);
 
   const insertMention = (item: MentionRichTextareaOption) => {
     if (!editor) {
       return;
     }
-    const cursor = editor.state.selection.from;
-    const previousChar = cursor > 1 ? editor.state.doc.textBetween(cursor - 1, cursor) : '';
+    const activeRange = getActiveFallbackMentionRange(editor);
     const chain = editor.chain().focus();
-    if (previousChar === '@') {
-      chain.deleteRange({ from: cursor - 1, to: cursor });
+    if (activeRange) {
+      chain.deleteRange({ from: activeRange.from, to: activeRange.to });
     }
-    chain
-      .insertContent([
-        {
-          type: 'mention',
-          attrs: {
-            id: item.token,
-            label: item.label,
-            mimeType: item.mimeType ?? '',
-            previewUrl: item.previewUrl ?? '',
-          },
-        },
-      ])
-      .run();
+    chain.insertContent([mentionContentNode(item)]).run();
     setFallbackMenuOpen(false);
+    setFallbackQuery('');
   };
 
   const handleFallbackKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -323,6 +467,10 @@ export function MentionRichTextarea({
       return;
     }
     if (!fallbackMenuOpen) {
+      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && onSubmit) {
+        event.preventDefault();
+        onSubmit();
+      }
       return;
     }
     if (event.key === 'Escape') {
@@ -330,23 +478,45 @@ export function MentionRichTextarea({
       setFallbackMenuOpen(false);
       return;
     }
-    if (!options.length) {
+    if (!fallbackOptions.length) {
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setFallbackSelectedIndex((index) => (index + options.length - 1) % options.length);
+      setFallbackSelectedIndex((index) => (index + fallbackOptions.length - 1) % fallbackOptions.length);
       return;
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setFallbackSelectedIndex((index) => (index + 1) % options.length);
+      setFallbackSelectedIndex((index) => (index + 1) % fallbackOptions.length);
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      insertMention(options[fallbackSelectedIndex] || options[0]);
+      insertMention(fallbackOptions[fallbackSelectedIndex] || fallbackOptions[0]);
     }
+  };
+
+  const syncFallbackMenuVisibility = (currentEditor: Editor) => {
+    if (!fallbackMentionMenu || disabled) {
+      setFallbackMenuOpen(false);
+      setFallbackQuery('');
+      return;
+    }
+    const activeRange = getActiveFallbackMentionRange(currentEditor);
+    if (!activeRange) {
+      setFallbackMenuOpen(false);
+      setFallbackQuery('');
+      return;
+    }
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    const cursorRect = currentEditor.view.coordsAtPos(activeRange.to);
+    setFallbackQuery(activeRange.query);
+    setFallbackMenuStyle(containerRect ? {
+      left: Math.max(0, Math.min(cursorRect.left - containerRect.left, containerRect.width - 248)),
+      top: cursorRect.bottom - containerRect.top + 6,
+    } : undefined);
+    setFallbackMenuOpen(true);
   };
 
   const extensions = useMemo(() => {
@@ -362,7 +532,11 @@ export function MentionRichTextarea({
         listItem: false,
         orderedList: false,
       }),
+      Placeholder.configure({
+        placeholder: () => placeholder ?? '',
+      }),
       ReferenceMention.configure({
+        deleteTriggerWithBackspace: true,
         HTMLAttributes: {
           class: 'mention-rich-textarea-chip',
         },
@@ -390,7 +564,10 @@ export function MentionRichTextarea({
           return [
             'span',
             mergeAttributes(mentionOptions.HTMLAttributes, {
+              'data-attachment-id': node.attrs.attachmentId,
               'data-mention-kind': kind,
+              'data-mime-type': mimeType || undefined,
+              'data-preview-url': previewUrl || undefined,
               'data-token': node.attrs.id,
             }),
             ...children,
@@ -405,35 +582,28 @@ export function MentionRichTextarea({
           container: suggestionContainer,
           floatingUi: { strategy: 'fixed' },
           items: ({ query }) => {
-            const normalizedQuery = query.trim().toLowerCase();
-            return optionsRef.current
-              .filter((option) => {
-                if (!normalizedQuery) {
-                  return true;
-                }
-                return `${option.token} ${option.label} ${option.subtitle ?? ''}`.toLowerCase().includes(normalizedQuery);
-              })
-              .slice(0, 8);
+            if (fallbackMentionMenu) {
+              return [];
+            }
+            return filterMentionOptions(optionsRef.current, query);
           },
           command: ({ editor, range, props }) => {
             const item = props as unknown as MentionSuggestionItem;
             editor
               .chain()
               .focus()
-              .insertContentAt(range, [
-                {
-                  type: 'mention',
-                  attrs: {
-                    id: item.token,
-                    label: item.label,
-                    mimeType: item.mimeType ?? '',
-                    previewUrl: item.previewUrl ?? '',
-                  },
-                },
-              ])
+              .insertContentAt(range, [mentionContentNode(item)])
               .run();
           },
           render: () => {
+            if (fallbackMentionMenu) {
+              return {
+                onStart: () => {},
+                onUpdate: () => {},
+                onKeyDown: () => false,
+                onExit: () => {},
+              };
+            }
             let component: ReactRenderer<MentionListRef, MentionListProps> | null = null;
             let unmount: (() => void) | null = null;
 
@@ -441,7 +611,12 @@ export function MentionRichTextarea({
               onStart: (props) => {
                 component = new ReactRenderer(MentionList, {
                   editor: props.editor,
-                  props,
+                  props: {
+                    ...props,
+                    emptyText,
+                    menuDescription,
+                    menuTitle,
+                  },
                 });
                 unmount = props.mount(component.element, {
                   autoUpdate: {
@@ -470,21 +645,25 @@ export function MentionRichTextarea({
         },
       }),
     ];
-  }, [suggestionContainer]);
+  }, [emptyText, fallbackMentionMenu, menuDescription, menuTitle, placeholder, suggestionContainer]);
 
   const editor = useEditor({
     content: plainTextToDoc(value, options),
     editable: !disabled,
     editorProps: {
       attributes: {
-        class: 'mention-rich-textarea-editor',
+        class: resolvedEditorClassName,
         'data-placeholder': placeholder ?? '',
         style: `min-height: ${minHeight}px`,
       },
     },
     extensions,
     immediatelyRender: false,
+    onSelectionUpdate: ({ editor: currentEditor }) => {
+      syncFallbackMenuVisibility(currentEditor);
+    },
     onUpdate: ({ editor: currentEditor }) => {
+      syncFallbackMenuVisibility(currentEditor);
       onChange(nodeToPlainText(currentEditor.getJSON()));
     },
   });
@@ -500,34 +679,40 @@ export function MentionRichTextarea({
     const currentValue = nodeToPlainText(editor.getJSON());
     if (currentValue !== value) {
       editor.commands.setContent(plainTextToDoc(value, options), { emitUpdate: false });
+      return;
     }
-  }, [editor, options, value]);
+
+    const normalizedDoc = normalizeMentionDoc(editor.getJSON(), options);
+    if (!normalizedDoc) {
+      return;
+    }
+    const normalizedValue = nodeToPlainText(normalizedDoc);
+    if (normalizedValue !== currentValue) {
+      editor.commands.setContent(normalizedDoc, { emitUpdate: false });
+      onChange(normalizedValue);
+    }
+  }, [editor, onChange, options, value]);
 
   return (
     <div
-      className={disabled ? 'mention-rich-textarea is-disabled' : 'mention-rich-textarea'}
+      className={[
+        'mention-rich-textarea',
+        disabled ? 'is-disabled' : '',
+        className,
+      ].filter(Boolean).join(' ')}
       onKeyDownCapture={handleFallbackKeyDown}
+      ref={containerRef}
       style={{ minHeight }}
     >
-      {placeholder && isEmpty ? (
-        <button
-          className="mention-rich-textarea-placeholder"
-          onClick={() => editor?.chain().focus().run()}
-          tabIndex={-1}
-          type="button"
-        >
-          {placeholder}
-        </button>
-      ) : null}
       <EditorContent editor={editor} />
       {fallbackMentionMenu && fallbackMenuOpen ? (
-        <div className="mention-rich-textarea-fallback-menu">
+        <div className="mention-rich-textarea-fallback-menu" style={fallbackMenuStyle}>
           <div className="mention-rich-textarea-menu">
             <div className="mention-rich-textarea-menu__header">
-              <strong>可引用素材</strong>
-              <span>选择素材会自动插入引用</span>
+              <strong>{menuTitle}</strong>
+              <span>{menuDescription}</span>
             </div>
-            {options.length ? options.map((item, index) => (
+            {fallbackOptions.length ? fallbackOptions.map((item, index) => (
               <button
                 className={index === fallbackSelectedIndex ? 'is-selected' : ''}
                 key={item.token}
@@ -543,14 +728,25 @@ export function MentionRichTextarea({
                   <span data-mention-kind={mentionKind(item)}>{mentionOptionIcon(item)}</span>
                 )}
                 <span className="mention-rich-textarea-option__body">
-                  <strong>{item.token}</strong>
-                  {item.subtitle ? <small>{item.subtitle}</small> : null}
+                  <strong>{item.name || item.token}</strong>
+                  <small>{item.name ? item.token.replace(/^@/, '') : item.subtitle}</small>
                 </span>
               </button>
-            )) : <div className="mention-rich-textarea-menu--empty">没有可用素材</div>}
+            )) : <div className="mention-rich-textarea-menu--empty">{emptyText}</div>}
           </div>
         </div>
       ) : null}
+      <Image
+        alt={previewImage?.alt || '图片预览'}
+        preview={{
+          visible: previewVisible,
+          onVisibleChange: (visible) => {
+            setPreviewVisible(visible);
+          },
+        }}
+        src={previewImage?.src}
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }

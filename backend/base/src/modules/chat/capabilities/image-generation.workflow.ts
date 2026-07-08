@@ -30,6 +30,7 @@ type ImageGenerationPreparedInput = {
   redrawPromptTexts?: string[];
   referenceAssets: ImageGenerationReferenceAsset[];
   referenceAssetBatches?: ImageGenerationReferenceAsset[][];
+  referenceAssetBatchPrompts?: string[];
   referenceDecision?: ImageGenerationReferenceDecision;
   sourceIdPrefix: string;
 };
@@ -46,6 +47,7 @@ type ImageGenerationModeSchema = {
   generationOptions?: ImageGenerationModeOptions;
   key: string;
   outputConfig?: ImageGenerationOutputConfig;
+  outputCountGroupKey?: string;
   outputCountStrategy?: ImageGenerationOutputCountStrategy;
   promptHint?: string;
   referenceGroups: ImageGenerationModeReferenceGroup[];
@@ -57,7 +59,7 @@ type ResolvedImageGenerationReferenceGroup = ImageGenerationModeReferenceGroup &
   attachmentIds: string[];
 };
 
-type ImageGenerationOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages';
+type ImageGenerationOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages' | 'matchReferenceGroup';
 type ImageGenerationModeOptions = {
   background?: 'transparent' | 'opaque' | 'auto';
   outputCompression?: number;
@@ -159,7 +161,8 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
     key: 'pose-reference',
     title: '姿势参考',
     outputConfig: defaultOutputConfig,
-    outputCountStrategy: 'fixedOne',
+    outputCountGroupKey: 'pose',
+    outputCountStrategy: 'matchReferenceGroup',
     promptHint: '让 图一 的主体摆出 图二 的姿势。',
     generationPrompt: [
       '第一张参考图是主体图，只用于提供需要被保留的主体身份、外观、服装、材质、颜色和整体视觉特征。',
@@ -429,6 +432,33 @@ function modeSchemaOf(input: ChatCapabilityExecutionInput) {
   return imageGenerationModeSchemas[modeKey] || imageGenerationModeSchemas.dialog;
 }
 
+export function expectedImageGenerationOutputCount(input: {
+  attachments: ChatAttachment[];
+  capabilityContext?: ChatCapabilityExecutionInput['capabilityContext'];
+}) {
+  const modeSchema = modeSchemaOf(input as ChatCapabilityExecutionInput);
+  const outputConfig = imageGenerationOutputConfigOf(modeSchema);
+  if (modeSchema.outputCountStrategy === 'fixedOne') {
+    return 1;
+  }
+  if (modeSchema.outputCountStrategy === 'matchUploadedImages') {
+    return Math.max(1, input.attachments.filter((attachment) => attachment.kind === 'image').length);
+  }
+  if (modeSchema.outputCountStrategy === 'matchReferenceGroup') {
+    const targetGroup = input.capabilityContext?.imageGeneration?.referenceGroups
+      ?.find((group) => group.key === modeSchema.outputCountGroupKey);
+    return Math.max(1, targetGroup?.attachmentIds?.length || 0);
+  }
+  const requestedCount = Number(input.capabilityContext?.imageGeneration?.outputCount);
+  if (!Number.isFinite(requestedCount)) {
+    return outputConfig.defaultOutputCount;
+  }
+  const normalizedCount = Math.max(1, Math.floor(requestedCount));
+  return outputConfig.allowedOutputCounts.includes(normalizedCount)
+    ? normalizedCount
+    : outputConfig.defaultOutputCount;
+}
+
 function imageModelSupportsCustomResolution(modelConfig: AiModelConfig) {
   const settings = modelConfig.settings && typeof modelConfig.settings === 'object'
     ? modelConfig.settings
@@ -479,6 +509,21 @@ function referenceAttachmentsByContext(
     ...orderedAttachments,
     ...imageAttachments.filter((attachment) => !orderedIds.has(attachment.id) && !input.capabilityContext?.imageGeneration?.referenceGroups?.length),
   ];
+}
+
+function referenceAttachmentsByGroup(
+  input: ChatCapabilityExecutionInput,
+  groups: ResolvedImageGenerationReferenceGroup[],
+) {
+  const imageAttachments = input.attachments.filter((attachment) => attachment.kind === 'image' && attachment.url);
+  const attachmentsById = new Map(imageAttachments.map((attachment) => [attachment.id, attachment]));
+  return new Map(groups.map((group) => [
+    group.key,
+    group.attachmentIds.flatMap((attachmentId) => {
+      const attachment = attachmentsById.get(attachmentId);
+      return attachment ? [attachment] : [];
+    }),
+  ]));
 }
 
 function imageSequenceLabel(index: number) {
@@ -674,6 +719,11 @@ function outputCountOf(
     const imageCount = referenceAttachments.filter((attachment) => attachment.kind === 'image').length;
     return Math.max(1, imageCount || 1);
   }
+  if (modeSchema.outputCountStrategy === 'matchReferenceGroup') {
+    const targetGroup = input.capabilityContext?.imageGeneration?.referenceGroups
+      ?.find((group) => group.key === modeSchema.outputCountGroupKey);
+    return Math.max(1, targetGroup?.attachmentIds?.length || 0);
+  }
   const requestedCount = Number(input.capabilityContext?.imageGeneration?.outputCount);
   if (!Number.isFinite(requestedCount)) {
     return outputConfig.defaultOutputCount;
@@ -785,6 +835,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
   const groups = referenceGroupsBySchema(input, modeSchema);
   const supportsCustomResolution = imageModelSupportsCustomResolution(modelConfig);
   const imageAttachments = referenceAttachmentsByContext(input, groups);
+  const imageAttachmentsByGroup = referenceAttachmentsByGroup(input, groups);
   const latestGeneratedImage = imageAttachments.length ? null : latestGeneratedImageAttachment(input);
   const referenceDecision = await decideImageGenerationReference({
     executionInput: input,
@@ -819,9 +870,24 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
   const referenceAssets = effectiveReferenceAttachments.length
     ? await Promise.all(effectiveReferenceAttachments.map(chatAttachmentToReferenceAsset))
     : [];
-  const referenceAssetBatches = modeSchema.key !== 'redraw' && modeSchema.outputCountStrategy === 'matchUploadedImages' && referenceAssets.length
-    ? referenceAssets.slice(0, outputCount).map((asset) => [asset])
-    : undefined;
+  let referenceAssetBatches: ImageGenerationReferenceAsset[][] | undefined;
+  let referenceAssetBatchPrompts: string[] | undefined;
+  if (modeSchema.key !== 'redraw' && modeSchema.outputCountStrategy === 'matchUploadedImages' && referenceAssets.length) {
+    referenceAssetBatches = referenceAssets.slice(0, outputCount).map((asset) => [asset]);
+  }
+  if (modeSchema.key !== 'redraw' && modeSchema.outputCountStrategy === 'matchReferenceGroup' && modeSchema.outputCountGroupKey) {
+    const targetAttachments = (imageAttachmentsByGroup.get(modeSchema.outputCountGroupKey) || []).slice(0, outputCount);
+    const stableAttachments = groups
+      .filter((group) => group.key !== modeSchema.outputCountGroupKey)
+      .flatMap((group) => imageAttachmentsByGroup.get(group.key) || []);
+    referenceAssetBatches = await Promise.all(targetAttachments.map(async (targetAttachment) => [
+      ...(await Promise.all(stableAttachments.map(chatAttachmentToReferenceAsset))),
+      await chatAttachmentToReferenceAsset(targetAttachment),
+    ]));
+    referenceAssetBatchPrompts = targetAttachments.map((_, index) => (
+      `当前批次：使用主体参考图，并只使用第 ${index + 1} 张${modeSchema.referenceGroups.find((group) => group.key === modeSchema.outputCountGroupKey)?.label || '目标参考图'}作为姿势参考；不要参考其他姿势图。`
+    ));
+  }
   const sourceIdPrefix = input.conversation?.id || `chat-image-${Date.now()}`;
   return {
     generationOptions: generationOptionsOf(modeSchema, input.capabilityContext),
@@ -834,6 +900,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     redrawPromptTexts,
     referenceAssets,
     referenceAssetBatches,
+    referenceAssetBatchPrompts,
     referenceDecision: referenceDecision || undefined,
     sourceIdPrefix,
   };
@@ -882,7 +949,8 @@ async function generateImageItems(input: {
         outputSize: prepared.outputSize,
         prompt: [
           prepared.prompt,
-          `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
+          prepared.referenceAssetBatchPrompts?.[index]
+            || `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
         ].join('\n'),
         referenceAssets,
         referenceDecision: prepared.referenceDecision?.intent,
@@ -1029,7 +1097,8 @@ async function generateAndPersistImageAttachments(input: {
         outputSize: prepared.outputSize,
         prompt: [
           prepared.prompt,
-          `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
+          prepared.referenceAssetBatchPrompts?.[index]
+            || `当前批次：只处理本次请求中的第 ${index + 1} 张上传图片；不要参考其他上传图片。`,
         ].join('\n'),
         referenceAssets,
         referenceDecision: prepared.referenceDecision?.intent,
