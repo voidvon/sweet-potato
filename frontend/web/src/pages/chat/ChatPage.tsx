@@ -33,6 +33,9 @@ export function ChatPage() {
   const renderComposer = () => (
     <ClawDialogComposer
       attachments={chat.attachments}
+      composerDraftContext={chat.composerDraftContext}
+      composerDraftImageModelConfigId={chat.composerDraftImageModelConfigId}
+      continueEditFocusToken={chat.continueEditFocusToken}
       input={chat.input}
       onAddFiles={chat.addAttachments}
       onInputChange={chat.setInput}
@@ -86,8 +89,9 @@ export function ChatPage() {
               messages={chat.messages}
               onActionClick={(content) => void chat.sendPresetMessage(content)}
               onDeleteMessage={(messageItem) => void chat.removeMessage(messageItem)}
+              onContinueEditImage={(messageItem) => chat.continueEditImageMessage(messageItem)}
               onRegenerateImage={(userMessage, assistantMessage, currentCreditCost) => void chat.regenerateImageMessage(userMessage, assistantMessage, currentCreditCost)}
-              onUpdateUserMessage={(messageId, content) => void chat.updateUserMessage(messageId, content)}
+              onRefillComposerFromMessage={(messageItem) => chat.refillComposerFromMessage(messageItem)}
               onScroll={chat.handleChatScroll}
               scrollContainerRef={chat.scrollContainerRef}
               sending={chat.sending}

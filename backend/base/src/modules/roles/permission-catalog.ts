@@ -15,8 +15,8 @@ export const defaultOnboardingRoleKey = 'default-onboarding';
 export const permissionCatalog: PermissionCatalogEntry[] = [
   {
     key: 'web.module.chat',
-    label: 'AI 对话',
-    description: '允许访问 AI 对话、会话记录和技能中心。',
+    label: '图片创作',
+    description: '允许访问图片创作、生图会话记录和图片生成工具。',
     group: 'chat',
   },
   {

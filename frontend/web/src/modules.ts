@@ -1,10 +1,10 @@
 import {
-  Bot,
   ChartNoAxesCombined,
   CircleUserRound,
   FileVideo,
   Globe2,
   Headphones,
+  ImagePlus,
   RadioTower,
   Workflow,
 } from 'lucide-react';
@@ -13,12 +13,12 @@ import type { ModuleItem } from './types';
 export const modules: ModuleItem[] = [
   {
     id: 'claw',
-    title: 'AI 对话',
-    subtitle: '智能获客引擎',
+    title: '图片创作',
+    subtitle: 'AI 生图工作台',
     priority: 'P0',
-    icon: Bot,
-    stats: ['接待人数', '转换人数', '曝光私信', '添加好友'],
-    description: '关键词曝光、定向曝光、主动互动、自动加好友和私域承接。',
+    icon: ImagePlus,
+    stats: ['换背景', '模特换装', '细节增强', '高清放大'],
+    description: '支持参考图上传、多模型生图、效果图再生成和图片继续编辑。',
   },
   {
     id: 'content',

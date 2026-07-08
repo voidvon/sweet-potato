@@ -36,6 +36,10 @@ type MentionRichTextareaProps = {
   value: string;
 };
 
+export type MentionRichTextareaRef = {
+  focus: () => void;
+};
+
 type MentionSuggestionItem = MentionRichTextareaOption;
 type MentionDomChild = ['img', { alt: string; src: string }] | ['span', { class: string }, string] | ['b', Record<string, never>, string];
 
@@ -400,7 +404,7 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
   );
 });
 
-export function MentionRichTextarea({
+export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRichTextareaProps>(function MentionRichTextarea({
   className,
   disabled,
   editorClassName,
@@ -415,7 +419,7 @@ export function MentionRichTextarea({
   placeholder,
   suggestionContainer,
   value,
-}: MentionRichTextareaProps) {
+}, ref) {
   const minHeight = Math.max(minRows, 1) * 25 + 40;
   const optionsRef = useRef(options);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -678,6 +682,12 @@ export function MentionRichTextarea({
     },
   });
 
+  useImperativeHandle(ref, () => ({
+    focus() {
+      editor?.commands.focus('end');
+    },
+  }), [editor]);
+
   useEffect(() => {
     editor?.setEditable(!disabled);
   }, [disabled, editor]);
@@ -760,4 +770,4 @@ export function MentionRichTextarea({
       />
     </div>
   );
-}
+});

@@ -17,22 +17,25 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
-import { MentionRichTextarea, type MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
+import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../../components/MentionRichTextarea';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
+  composerDraftContext?: SendChatPayload['capabilityContext'];
+  composerDraftImageModelConfigId?: string | null;
   input: string;
   onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
   onStop: () => void;
+  continueEditFocusToken?: number;
   showHeading?: boolean;
   sending: boolean;
 };
@@ -375,12 +378,15 @@ function formatCreditAmount(value: number) {
 
 export function ClawDialogComposer({
   attachments,
+  composerDraftContext,
+  composerDraftImageModelConfigId,
   input,
   onAddFiles,
   onInputChange,
   onRemoveAttachment,
   onSend,
   onStop,
+  continueEditFocusToken = 0,
   showHeading = true,
   sending,
 }: ClawDialogComposerProps) {
@@ -392,6 +398,7 @@ export function ClawDialogComposer({
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
   const [selectedOutputCount, setSelectedOutputCount] = useState(1);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
+  const textareaRef = useRef<MentionRichTextareaRef | null>(null);
   const hasPrompt = Boolean(input.trim());
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
   const SelectedModeIcon = selectedMode.Icon;
@@ -455,6 +462,46 @@ export function ClawDialogComposer({
       ? `还需上传${missingReferenceGroups[0].label}`
       : '';
   const canStartGeneration = !generationBlockReason;
+
+  useEffect(() => {
+    if (!continueEditFocusToken) {
+      return;
+    }
+    const imageGeneration = composerDraftContext?.imageGeneration;
+    const draftModeKey = imageGeneration?.modeKey as ClawModeKey | undefined;
+    const nextMode = draftModeKey && clawModeConfigs.some((mode) => mode.key === draftModeKey)
+      ? draftModeKey
+      : 'dialog';
+    const nextModeConfig = clawModeConfigs.find((mode) => mode.key === nextMode) ?? clawModeConfigs[0];
+    const nextOutputConfig = nextModeConfig.outputConfig ?? defaultModeOutputConfig;
+    const draftAttachmentGroups = imageGeneration?.referenceGroups?.flatMap((group) => (
+      group.attachmentIds.map((attachmentId) => [attachmentId, group.key] as const)
+    ));
+    setSelectedModeKey(nextMode);
+    setAttachmentGroupById(
+      draftAttachmentGroups?.length
+        ? Object.fromEntries(draftAttachmentGroups)
+        : Object.fromEntries(attachments.map((attachment) => [attachment.id, 'reference'])),
+    );
+    if (imageGeneration?.aspectRatio && aspectRatioOptions.includes(imageGeneration.aspectRatio as ClawAspectRatioKey)) {
+      setSelectedAspectRatio(imageGeneration.aspectRatio as ClawAspectRatioKey);
+    }
+    if (imageGeneration?.resolution && nextOutputConfig.allowedResolutions.includes(imageGeneration.resolution as ClawResolutionKey)) {
+      setSelectedResolution(imageGeneration.resolution as ClawResolutionKey);
+    }
+    if (imageGeneration?.outputBackground) {
+      setSelectedBackground(imageGeneration.outputBackground);
+    }
+    if (typeof imageGeneration?.outputCount === 'number') {
+      setSelectedOutputCount(imageGeneration.outputCount);
+    }
+    if (composerDraftImageModelConfigId) {
+      setSelectedImageModelValue(composerDraftImageModelConfigId);
+    }
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, continueEditFocusToken]);
 
   useEffect(() => {
     const attachmentIds = new Set(attachments.map((attachment) => attachment.id));
@@ -712,6 +759,7 @@ export function ClawDialogComposer({
                 onSubmit={handlePrimaryAction}
                 options={mentionOptions}
                 placeholder={selectedMode.inputPlaceholder}
+                ref={textareaRef}
                 value={input}
               />
             </div>

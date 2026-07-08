@@ -70,6 +70,9 @@ export function useChatSession() {
   const [isResolvingConversation, setIsResolvingConversation] = useState(Boolean(urlConversationId));
   const [conversationOverlayLoading, setConversationOverlayLoading] = useState(false);
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+  const [continueEditFocusToken, setContinueEditFocusToken] = useState(0);
+  const [composerDraftContext, setComposerDraftContext] = useState<SendChatPayload['capabilityContext']>();
+  const [composerDraftImageModelConfigId, setComposerDraftImageModelConfigId] = useState<string | null>();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?.id;
@@ -494,6 +497,8 @@ export function useChatSession() {
     if (override?.clearComposer !== false) {
       setInput('');
       setAttachments([]);
+      setComposerDraftContext(undefined);
+      setComposerDraftImageModelConfigId(undefined);
     }
     if (editTargetIndex >= 0) {
       setMessages([
@@ -526,6 +531,8 @@ export function useChatSession() {
         });
         setInput('');
         setAttachments([]);
+        setComposerDraftContext(undefined);
+        setComposerDraftImageModelConfigId(undefined);
         setActiveConversationId(result.conversation.id);
         syncConversationUrl(result.conversation.id);
         setMessages((currentMessages) => result.messages.map((messageItem) => {
@@ -610,6 +617,8 @@ export function useChatSession() {
           if (event.type === 'done') {
             setInput('');
             setAttachments([]);
+            setComposerDraftContext(undefined);
+            setComposerDraftImageModelConfigId(undefined);
             setActiveConversationId(event.conversation.id);
             syncConversationUrl(event.conversation.id);
             setMessages((currentMessages) => event.messages.map((messageItem) => {
@@ -767,6 +776,31 @@ export function useChatSession() {
     });
   }, [sendMessage]);
 
+  const continueEditImageMessage = useCallback((messageItem: ChatMessage) => {
+    const imageAttachments = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image');
+    if (!imageAttachments.length) {
+      message.warning('没有可继续编辑的图片');
+      return;
+    }
+    setAttachments(imageAttachments);
+    setInput('');
+    setComposerDraftContext(undefined);
+    setComposerDraftImageModelConfigId(undefined);
+    setContinueEditFocusToken((value) => value + 1);
+  }, []);
+
+  const refillComposerFromMessage = useCallback((messageItem: ChatMessage) => {
+    const imageGeneration = messageItem.capabilityContext?.imageGeneration;
+    const promptHint = imageGeneration?.promptHint?.trim();
+    const promptText = imageGeneration?.promptText?.trim() || messageItem.content.trim();
+    const nextInput = promptHint && promptText === promptHint ? '' : promptText;
+    setInput(nextInput);
+    setAttachments(messageItem.attachments || []);
+    setComposerDraftContext(messageItem.capabilityContext);
+    setComposerDraftImageModelConfigId(messageItem.imageModelConfigId || undefined);
+    setContinueEditFocusToken((value) => value + 1);
+  }, []);
+
   const stopSending = useCallback(() => {
     streamAbortControllerRef.current?.abort();
   }, []);
@@ -777,6 +811,10 @@ export function useChatSession() {
     activeConversationId,
     addAttachments,
     attachments,
+    composerDraftContext,
+    composerDraftImageModelConfigId,
+    continueEditFocusToken,
+    continueEditImageMessage,
     clearConversationMessages,
     conversationOverlayLoading,
     conversations,
@@ -789,6 +827,7 @@ export function useChatSession() {
     removeAttachment,
     removeMessage,
     removeConversation,
+    refillComposerFromMessage,
     scrollContainerRef,
     scrollToBottom,
     sendCurrentMessage,

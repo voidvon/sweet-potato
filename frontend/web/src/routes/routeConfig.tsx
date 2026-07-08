@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Film,
   FolderOpen,
+  ImagePlus,
   Mic,
   Package,
   Sparkles,
@@ -805,8 +806,8 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
   if (hasRouteGrant(currentUser, chatRouteGrant)) {
     sidebarItems.push({
       key: routePaths.defaultModule,
-      icon: <Bot {...menuIconProps} />,
-      label: resourceInfoMap?.get('web.module.chat')?.name || 'AI 对话',
+      icon: <ImagePlus {...menuIconProps} />,
+      label: resourceInfoMap?.get('web.module.chat')?.name || '图片创作',
       sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
     });
   }
