@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { listContentAssets } from '../../../api/content';
+import { listContentAssetGroups, listContentAssets } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, User } from '../../../types';
 import {
@@ -21,6 +21,7 @@ import type {
   UploadAnchor,
   WorksTab,
 } from './types';
+import { readVideoDuration } from './videoMetadata';
 
 export function useVideoTaskCloneState(currentUser: User) {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
@@ -43,6 +44,7 @@ export function useVideoTaskCloneState(currentUser: User) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterValues>(defaultFilters);
   const [voiceAssets, setVoiceAssets] = useState<ContentAsset[]>([]);
+  const [voiceGroupNameById, setVoiceGroupNameById] = useState<Record<string, string>>({});
   const [worksAssets, setWorksAssets] = useState<ContentAsset[]>([]);
   const [worksTab, setWorksTab] = useState<WorksTab>('all');
   const [isLoadingLibraryAssets, setIsLoadingLibraryAssets] = useState(false);
@@ -50,10 +52,12 @@ export function useVideoTaskCloneState(currentUser: User) {
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
     try {
-      const [voiceList, finishedVideoList] = await Promise.all([
+      const [voiceGroups, voiceList, finishedVideoList] = await Promise.all([
+        listContentAssetGroups(currentUser.id, 'voice'),
         listContentAssets({ userId: currentUser.id, resourceType: 'voice' }),
         listContentAssets({ userId: currentUser.id, resourceType: 'finished_video' }),
       ]);
+      setVoiceGroupNameById(Object.fromEntries(voiceGroups.map((group) => [group.id, group.name])));
       setVoiceAssets(voiceList.filter(isAllowedAudioAsset));
       setWorksAssets(finishedVideoList.filter((asset) => (
         asset.mimeType.startsWith('image/')
@@ -160,6 +164,7 @@ export function useVideoTaskCloneState(currentUser: User) {
       file,
       id: `${kind.key}-${crypto.randomUUID()}`,
       name: file.name,
+      trimDuration: kind.key === 'video' ? await readVideoDuration(file) : undefined,
       type: kind.key,
       url: URL.createObjectURL(file),
     }))) satisfies LocalMaterialFile[];
@@ -385,6 +390,7 @@ export function useVideoTaskCloneState(currentUser: User) {
     selectedMaterials,
     selectedModelAvatar,
     voiceAssets,
+    voiceGroupNameById,
     worksAssets,
     worksTab,
     setWorksTab,

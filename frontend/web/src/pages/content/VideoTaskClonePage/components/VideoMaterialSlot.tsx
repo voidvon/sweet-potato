@@ -7,6 +7,7 @@ import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
 import type { LocalMaterialFile, SelectedMaterialValue } from '../types';
+import { shouldTrimReferenceVideo } from '../videoMetadata';
 
 type VideoMaterialSlotProps = {
   onClear: () => void;
@@ -112,13 +113,15 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
 
 function getPendingVideoFile(selected: SelectedMaterialValue) {
   const file = Array.isArray(selected) ? selected[0] : null;
-  return file?.file ?? null;
+  if (!file?.file) return null;
+  return shouldTrimReferenceVideo(file.trimDuration) ? file.file : null;
 }
 
 function toConfirmedReferenceVideo(file: LocalMaterialFile): ConfirmedReferenceVideo {
+  const duration = file.trimDuration ?? 15;
   return {
-    duration: file.trimDuration ?? 15,
-    end: file.trimEnd ?? 15,
+    duration,
+    end: file.trimEnd ?? duration,
     fileUrl: file.serverFileUrl ?? file.url,
     name: file.name,
     start: file.trimStart ?? 0,

@@ -1,4 +1,5 @@
-import { ChevronDown, Clock3, Layers3 } from 'lucide-react';
+import { Check, ChevronDown, Clock3, Layers3 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { durationOptions, modelDescriptions, modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { ParamKind } from '../types';
 
@@ -29,8 +30,34 @@ export function ParameterPanel({
   ratio,
   summary,
 }: ParameterPanelProps) {
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!activeParam) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (!panelRef.current?.contains(target)) {
+        onParamToggle(null);
+        return;
+      }
+      if (target.closest('.video-task-param-grid') || target.closest('.video-task-param-popover')) {
+        return;
+      }
+      onParamToggle(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [activeParam, onParamToggle]);
+
   return (
-    <section className="video-task-card video-task-params-card">
+    <section className="video-task-card video-task-params-card" ref={panelRef}>
       <div className="video-task-section-heading">
         <div>
           <h2>生成参数</h2>
@@ -51,7 +78,7 @@ export function ParameterPanel({
         </button>
         <button className={`video-task-param-item${activeParam === 'canvas' ? ' is-open' : ''}`} onClick={() => onParamToggle(activeParam === 'canvas' ? null : 'canvas')} type="button">
           <span className="video-task-param-icon">
-            <span className="video-task-phone-icon" />
+            <span className={`video-task-ratio-icon video-task-ratio-icon--panel ratio-${ratio.replace(':', '-')}`} />
           </span>
           <span>
             <small>画布</small>
@@ -118,8 +145,11 @@ export function ParameterPanel({
                   onClick={() => onParamChoose(activeParam, option)}
                   type="button"
                 >
-                  <strong>{option}</strong>
-                  {activeParam === 'model' && <span>{modelDescriptions[option]}</span>}
+                  <span className="video-task-param-option-copy">
+                    <strong>{option}</strong>
+                    {activeParam === 'model' && <span>{modelDescriptions[option]}</span>}
+                  </span>
+                  {activeParam === 'model' && option === model ? <Check className="video-task-param-option-check" size={20} /> : null}
                 </button>
               ))}
             </div>

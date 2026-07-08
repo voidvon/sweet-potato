@@ -46,6 +46,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
             onWorksTabChange={state.setWorksTab}
             selectedMaterials={state.selectedMaterials}
             voiceAssets={state.voiceAssets}
+            voiceGroupNameById={state.voiceGroupNameById}
             isLoadingLibraryAssets={state.isLoadingLibraryAssets}
             tool={state.tool}
             uploadAnchor={state.uploadAnchor}

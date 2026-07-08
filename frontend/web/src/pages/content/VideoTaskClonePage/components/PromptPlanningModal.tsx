@@ -8,6 +8,7 @@ import { MaterialSlot } from './MaterialSlot';
 import { ReferenceVideoCard, type ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
+import { readVideoDuration, shouldTrimReferenceVideo } from '../videoMetadata';
 
 type PromptPlanningModalProps = {
   kind: PromptPanelKind;
@@ -82,21 +83,48 @@ export function PromptPlanningModal({ kind, onClose, onExampleFill }: PromptPlan
     if (imageInputRef.current) imageInputRef.current.value = '';
   };
 
-  const openVideoTrim = (file: File) => {
-    setVideoTrimFile(file);
+  const openVideoTrim = async (file: File) => {
+    const duration = await readVideoDuration(file);
     setIsVideoDragging(false);
     if (videoInputRef.current) videoInputRef.current.value = '';
+
+    if (shouldTrimReferenceVideo(duration)) {
+      setVideoTrimFile(file);
+      return;
+    }
+
+    useOriginalVideo(file, duration);
   };
 
   const handleVideoDrop = (event: DragEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('video/'));
-    if (file) openVideoTrim(file);
+    if (file) void openVideoTrim(file);
   };
 
   const handleVideoChoose = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
-    if (file) openVideoTrim(file);
+    if (file) void openVideoTrim(file);
+  };
+
+  const useOriginalVideo = (file: File, duration: number | undefined) => {
+    const previousReferenceVideo = referenceVideo;
+    const objectUrl = URL.createObjectURL(file);
+    const nextReferenceVideo = {
+      duration: duration ?? 15,
+      end: duration ?? 15,
+      fileUrl: objectUrl,
+      name: getVideoDisplayName(file),
+      start: 0,
+      storedFileName: '',
+      videoUrl: objectUrl,
+    };
+    setReferenceVideo(nextReferenceVideo);
+    setSelectedMaterials((current) => ({ ...current, video: nextReferenceVideo.name }));
+    setVideoTrimFile(null);
+    if (previousReferenceVideo) {
+      void deleteServerReferenceVideo(previousReferenceVideo);
+    }
   };
 
   const useTrimmedVideo = async (selection: TrimSelection) => {
@@ -362,6 +390,10 @@ function getVideoDisplayName(file: File) {
 }
 
 async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
+  if (video.videoUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(video.videoUrl);
+  }
+  if (!video.storedFileName && (!video.fileUrl || video.fileUrl.startsWith('blob:'))) return;
   try {
     await deleteReferenceVideo({
       fileUrl: video.fileUrl,
