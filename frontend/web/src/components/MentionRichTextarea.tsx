@@ -468,6 +468,22 @@ export function MentionRichTextarea({
     setFallbackQuery('');
   };
 
+  const handleContainerMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (disabled || !editor) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (target.closest('.mention-rich-textarea-menu')) {
+      return;
+    }
+    if (target === containerRef.current || target.classList.contains('mention-rich-textarea-editor')) {
+      editor.commands.focus('end');
+    }
+  };
+
   const handleFallbackKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (disabled || !fallbackMentionMenu) {
       return;
@@ -710,6 +726,7 @@ export function MentionRichTextarea({
         disabled ? 'is-disabled' : '',
         className,
       ].filter(Boolean).join(' ')}
+      onMouseDown={handleContainerMouseDown}
       onKeyDownCapture={handleFallbackKeyDown}
       ref={containerRef}
       style={{ minHeight }}

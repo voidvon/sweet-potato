@@ -675,6 +675,46 @@ export const contentRepository = {
     return this.findVideoTask(id);
   },
 
+  resetVideoTaskFromPrompt(id: string, input: CreateVideoTaskFromPromptPayload & {
+    expertContext: Record<string, unknown>;
+    parseResult: VideoParseResult;
+    title: string;
+    selectedSkillIds?: string[];
+  }) {
+    const current = this.findVideoTask(id);
+    if (!current) {
+      return null;
+    }
+    const updatedAt = new Date().toISOString();
+    const parseResult = JSON.stringify(input.parseResult);
+    db.prepare(`
+      UPDATE video_generation_tasks
+      SET prompt = @prompt,
+          title = @title,
+          status = 'waiting_edit',
+          raw_parse_result = @parseResult,
+          editable_parse_result = @parseResult,
+          selected_skill_ids = @selectedSkillIds,
+          expert_context = @expertContext,
+          selected_digital_human_id = NULL,
+          selected_voice_id = NULL,
+          selected_scene_id = NULL,
+          generated_video_url = NULL,
+          failure_reason = NULL,
+          updated_at = @updatedAt
+      WHERE id = @id
+    `).run({
+      id,
+      prompt: input.prompt,
+      title: input.title,
+      parseResult,
+      selectedSkillIds: JSON.stringify(input.selectedSkillIds || []),
+      expertContext: JSON.stringify(input.expertContext),
+      updatedAt,
+    });
+    return this.findVideoTask(id);
+  },
+
   updateVideoTaskParseResult(id: string, payload: UpdateVideoParsePayload) {
     const updatedAt = new Date().toISOString();
     db.prepare(`

@@ -74,6 +74,13 @@ export const modelDescriptions: Record<string, string> = {
   'Kling Omni': '适合同款参考、稳定构图和高清成片。',
 };
 
+export const modelOptionIds: Record<string, string> = {
+  'Seedance 2.0': 'doubao-seedance-2-0-260128',
+  'Seedance 2.0 Fast': 'doubao-seedance-2-0-fast-260128',
+  'Seedance 2.0 Mini': 'doubao-seedance-2-0-mini-260615',
+  'Kling Omni': 'kling-omni',
+};
+
 export const ratioOptions = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'];
 
 export const qualityOptions = [
@@ -96,13 +103,12 @@ export const modelPickerOptions = [
 
 export const filterGroups: FilterGroup[] = [
   { label: '时间', options: ['全部时间', '今天', '近 7 天', '近 30 天'] },
-  { label: '类型', options: ['全部类型', ...toolOptions.map((item) => item.label)] },
   { label: '状态', options: ['全部状态', '已完成', '生成中', '失败'] },
 ];
 
 export const defaultFilters: FilterValues = {
+  搜索: '',
   时间: '全部时间',
-  类型: '全部类型',
   状态: '全部状态',
 };
 

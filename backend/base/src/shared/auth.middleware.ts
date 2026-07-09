@@ -89,6 +89,11 @@ export function requirePermission(permissionKey: string) {
       return;
     }
 
+    if (req.auth.systemRole === 'admin') {
+      next();
+      return;
+    }
+
     const resource = findResourceByPermissionCode(permissionKey);
     if (!resource || !resource.status) {
       sendError(res, 403, '当前账号无权访问该功能');
@@ -141,6 +146,12 @@ export function requireResource(resourceKey: string) {
       sendError(res, 401, '请先登录');
       return;
     }
+
+    if (req.auth.systemRole === 'admin') {
+      next();
+      return;
+    }
+
     const resource = findResourceByResourceKey(resourceKey);
     if (!resource || !resource.status) {
       sendError(res, 403, '当前账号无权访问该功能');

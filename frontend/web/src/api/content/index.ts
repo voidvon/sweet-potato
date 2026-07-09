@@ -346,6 +346,7 @@ export function listVideoProductions(userId: string) {
 
 export function createVideoProduction(payload: {
   userId: string;
+  retryTaskId?: string;
   prompt?: string;
   quality: string;
   ratio: string;
@@ -358,6 +359,7 @@ export function createVideoProduction(payload: {
   referenceImageIds?: string[];
   referenceVideoIds?: string[];
   referenceAudioIds?: string[];
+  characterReferenceImageIds?: string[];
 }) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoGenerationTask>(Api.videoProductions, {

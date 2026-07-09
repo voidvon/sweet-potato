@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { message } from 'antd';
-import { listContentAssetGroups, listContentAssets } from '../../../api/content';
+import { createContentAssetGroup, createVideoProduction, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
-import type { ContentAsset, User } from '../../../types';
+import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
   defaultFilters,
   examplePrompt,
+  modelOptionIds,
   toolOptions,
 } from './constants';
 import type {
@@ -24,6 +26,8 @@ import type {
 import { readVideoDuration } from './videoMetadata';
 
 export function useVideoTaskCloneState(currentUser: User) {
+  const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
+  const retrySubmittingRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(toolOptions[0]);
@@ -48,6 +52,10 @@ export function useVideoTaskCloneState(currentUser: User) {
   const [worksAssets, setWorksAssets] = useState<ContentAsset[]>([]);
   const [worksTab, setWorksTab] = useState<WorksTab>('all');
   const [isLoadingLibraryAssets, setIsLoadingLibraryAssets] = useState(false);
+  const [videoProductions, setVideoProductions] = useState<VideoGenerationTask[]>([]);
+  const [isLoadingProductions, setIsLoadingProductions] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [retryingTaskId, setRetryingTaskId] = useState('');
 
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
@@ -73,6 +81,45 @@ export function useVideoTaskCloneState(currentUser: User) {
   useEffect(() => {
     void loadLibraryAssets();
   }, [loadLibraryAssets]);
+
+  const loadVideoProductions = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoadingProductions(true);
+    }
+    try {
+      const list = await listVideoProductions(currentUser.id);
+      setVideoProductions(list);
+      return list;
+    } catch (error) {
+      if (!silent) {
+        message.error(error instanceof Error ? error.message : '生成记录加载失败');
+      }
+      return [];
+    } finally {
+      if (!silent) {
+        setIsLoadingProductions(false);
+      }
+    }
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    void loadVideoProductions();
+  }, [loadVideoProductions]);
+
+  const hasRunningProduction = useMemo(
+    () => videoProductions.some(isRunningVideoProduction),
+    [videoProductions],
+  );
+
+  useEffect(() => {
+    if (!hasRunningProduction) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void loadVideoProductions(true);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [hasRunningProduction, loadVideoProductions]);
 
   const canGenerate = useMemo(
     () => prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0,
@@ -351,6 +398,89 @@ export function useVideoTaskCloneState(currentUser: User) {
     setFilters(defaultFilters);
   };
 
+  const handleGenerate = useCallback(async () => {
+    if (tool.label !== '视频') {
+      message.warning('当前仅支持视频生成功能接入开始生成');
+      return;
+    }
+    if (!canGenerate) {
+      return;
+    }
+    try {
+      setIsGenerating(true);
+      const prepared = await prepareGenerationMaterials({
+        currentUser,
+        prompt,
+        selectedMaterials,
+        uploadGroupIdsRef,
+        voiceEnabled,
+      });
+      await createVideoProduction({
+        userId: currentUser.id,
+        prompt,
+        quality: mapQualityLabel(quality),
+        ratio,
+        duration,
+        videoModelProviderId: 'volcengine-seedance',
+        videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+        referenceImageIds: prepared.referenceImageIds,
+        referenceVideoIds: prepared.referenceVideoIds,
+        referenceAudioIds: prepared.referenceAudioIds,
+        characterReferenceImageIds: prepared.characterReferenceImageIds,
+      });
+      await Promise.all([
+        loadLibraryAssets(),
+        loadVideoProductions(true),
+      ]);
+      message.success('视频生成任务已提交');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频生成失败');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [
+    canGenerate,
+    currentUser,
+    duration,
+    loadLibraryAssets,
+    loadVideoProductions,
+    model,
+    prompt,
+    quality,
+    ratio,
+    selectedMaterials,
+    tool.label,
+    voiceEnabled,
+  ]);
+
+  const retryVideoProduction = useCallback(async (task: VideoGenerationTask) => {
+    if (retrySubmittingRef.current) {
+      return;
+    }
+    const payload = buildRetryVideoProductionPayload(task, currentUser.id);
+    if (!payload.prompt?.trim()) {
+      message.warning('当前记录缺少可重试的提示词，请重新配置后再生成');
+      return;
+    }
+    try {
+      retrySubmittingRef.current = true;
+      setRetryingTaskId(task.id);
+      await createVideoProduction(payload);
+      await loadVideoProductions(true);
+      message.success('已再次提交生成任务');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '再次生成失败');
+    } finally {
+      retrySubmittingRef.current = false;
+      setRetryingTaskId('');
+    }
+  }, [currentUser.id, loadVideoProductions]);
+
+  const visibleVideoProductions = useMemo(
+    () => filterVideoProductions(videoProductions, filters),
+    [filters, videoProductions],
+  );
+
   return {
     activeParam,
     activeUpload,
@@ -372,6 +502,7 @@ export function useVideoTaskCloneState(currentUser: User) {
     fillExamplePrompt,
     fillMaterial,
     fillMaterialFiles,
+    handleGenerate,
     clearMaterial,
     removeOneMaterial,
     replaceMaterialFiles,
@@ -379,6 +510,8 @@ export function useVideoTaskCloneState(currentUser: User) {
     filterOpen,
     filters,
     isLoadingLibraryAssets,
+    isLoadingProductions,
+    isGenerating,
     materialMode,
     model,
     paramSummary,
@@ -447,15 +580,59 @@ export function useVideoTaskCloneState(currentUser: User) {
       if (!enabled && hasSelectedAudio) return;
       setVoiceEnabled(enabled);
     },
+    retryVideoProduction,
+    retryingTaskId,
     showModelPicker,
     showToolMenu,
     tool,
     uploadAnchor,
+    videoProductions: visibleVideoProductions,
     voiceEnabled,
   };
 }
 
 export type VideoTaskCloneState = ReturnType<typeof useVideoTaskCloneState>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function stringFromRecord(record: Record<string, unknown>, key: string, fallback = '') {
+  const value = record[key];
+  return typeof value === 'string' ? value : fallback;
+}
+
+function stringArrayFromRecord(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: string) {
+  const context = isRecord(task.expertContext) ? task.expertContext : {};
+  const prompt = stringFromRecord(context, 'userPrompt', task.prompt || '');
+  return {
+    userId,
+    retryTaskId: task.id,
+    prompt,
+    quality: stringFromRecord(context, 'quality', '标清 (720p)'),
+    ratio: stringFromRecord(context, 'ratio', '9:16'),
+    duration: stringFromRecord(context, 'duration', '5s'),
+    videoModelProviderId: stringFromRecord(context, 'videoModelProviderId'),
+    videoModelId: stringFromRecord(context, 'videoModelId'),
+    referenceImageGroupId: stringFromRecord(context, 'referenceImageGroupId'),
+    referenceVideoGroupId: stringFromRecord(context, 'referenceVideoGroupId'),
+    referenceAudioGroupId: stringFromRecord(context, 'referenceAudioGroupId'),
+    referenceImageIds: stringArrayFromRecord(context, 'originalReferenceImageIds').length
+      ? stringArrayFromRecord(context, 'originalReferenceImageIds')
+      : stringArrayFromRecord(context, 'referenceImageIds'),
+    referenceVideoIds: stringArrayFromRecord(context, 'referenceVideoIds'),
+    referenceAudioIds: stringArrayFromRecord(context, 'referenceAudioIds'),
+    characterReferenceImageIds: stringArrayFromRecord(context, 'characterReferenceImageIds'),
+  };
+}
 
 function getImageCount(value: SelectedMaterialValue) {
   if (Array.isArray(value)) return Math.min(value.length, 9);
@@ -578,4 +755,249 @@ function revokeLocalMaterials(files: LocalMaterialFile[]) {
 function isCompletedFinishedVideo(asset: ContentAsset) {
   const status = typeof asset.metadata?.generationStatus === 'string' ? asset.metadata.generationStatus : '';
   return Boolean(asset.fileUrl) && status !== 'generating' && status !== 'queued' && status !== 'failed';
+}
+
+function mapQualityLabel(value: string) {
+  return value === '480P' ? '普清 (480p)' : '标清 (720p)';
+}
+
+function implicitUploadGroupName(resourceType: ContentAssetResourceType) {
+  if (resourceType === 'scene') return '场景素材';
+  if (resourceType === 'product') return '产品素材';
+  if (resourceType === 'voice') return '视频制作参考音频';
+  return '视频制作参考素材';
+}
+
+async function ensureUploadGroupId(input: {
+  currentUser: User;
+  resourceType: ContentAssetResourceType;
+  uploadGroupIdsRef: MutableRefObject<Partial<Record<ContentAssetResourceType, string>>>;
+}) {
+  const cached = input.uploadGroupIdsRef.current[input.resourceType];
+  if (cached) {
+    return cached;
+  }
+  const groups = await listContentAssetGroups(input.currentUser.id, input.resourceType);
+  const existing = groups.find((group) => group.metadata?.systemDefault === true || group.name === implicitUploadGroupName(input.resourceType));
+  if (existing) {
+    input.uploadGroupIdsRef.current[input.resourceType] = existing.id;
+    return existing.id;
+  }
+  const created = await createContentAssetGroup({
+    userId: input.currentUser.id,
+    resourceType: input.resourceType,
+    name: implicitUploadGroupName(input.resourceType),
+    metadata: {
+      hiddenFromGroupUi: true,
+      systemDefault: true,
+      source: 'local_upload',
+    },
+  });
+  input.uploadGroupIdsRef.current[input.resourceType] = created.id;
+  return created.id;
+}
+
+async function ensureMaterialAssetIds(input: {
+  currentUser: User;
+  resourceType: ContentAssetResourceType;
+  files: LocalMaterialFile[];
+  uploadGroupIdsRef: MutableRefObject<Partial<Record<ContentAssetResourceType, string>>>;
+}) {
+  if (!input.files.length) {
+    return [];
+  }
+  const groupId = await ensureUploadGroupId({
+    currentUser: input.currentUser,
+    resourceType: input.resourceType,
+    uploadGroupIdsRef: input.uploadGroupIdsRef,
+  });
+  const ensuredIds = await Promise.all(input.files.map(async (file) => {
+    if (file.assetId) {
+      return file.assetId;
+    }
+    if (!file.file) {
+      throw new Error(`缺少待上传素材文件：${file.name}`);
+    }
+    const uploaded = await uploadContentAsset({
+      file: file.file,
+      userId: input.currentUser.id,
+      groupId,
+      resourceType: input.resourceType,
+      name: file.name,
+      metadata: file.audioDuration
+        ? { duration: file.audioDuration, source: 'local_upload' }
+        : { source: 'local_upload' },
+    });
+    file.assetId = uploaded.id;
+    file.serverFileUrl = uploaded.fileUrl;
+    file.storedFileName = uploaded.storedFileName;
+    file.url = resolveAssetUrl(uploaded.fileUrl);
+    return uploaded.id;
+  }));
+  return ensuredIds;
+}
+
+function mentionedCharacterReferenceIndexes(prompt: string) {
+  const keywordPattern = /人物|人像|真人|模特|角色|主角|主播|达人|女生|男生|女孩|男孩|女人|男人/u;
+  const clauses = prompt
+    .split(/[\n，。,；;！!？?]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const clauseMentions = clauses.map((clause) => Array.from(clause.matchAll(/@图片(\d+)/g))
+    .map((match) => Number(match[1]))
+    .filter((imageIndex) => Number.isFinite(imageIndex) && imageIndex > 0)
+    .map((imageIndex) => imageIndex - 1));
+  const clauseHasKeyword = clauses.map((clause) => keywordPattern.test(clause));
+  const indexes = new Set<number>();
+  clauseMentions.forEach((mentions, clauseIndex) => {
+    if (!mentions.length) {
+      return;
+    }
+    const hasNearbyCharacterKeyword = clauseHasKeyword[clauseIndex]
+      || clauseHasKeyword[clauseIndex - 1]
+      || clauseHasKeyword[clauseIndex + 1]
+      || clauseHasKeyword[clauseIndex + 2]
+      || clauseHasKeyword[clauseIndex + 3];
+    if (!hasNearbyCharacterKeyword) {
+      return;
+    }
+    mentions.forEach((imageIndex) => {
+      indexes.add(imageIndex);
+    });
+  });
+  if (!indexes.size && keywordPattern.test(prompt)) {
+    for (const match of prompt.matchAll(/@图片(\d+)/g)) {
+      const imageIndex = Number(match[1]);
+      if (Number.isFinite(imageIndex) && imageIndex > 0) {
+        indexes.add(imageIndex - 1);
+      }
+    }
+  }
+  return Array.from(indexes).sort((left, right) => left - right);
+}
+
+async function prepareGenerationMaterials(input: {
+  currentUser: User;
+  prompt: string;
+  selectedMaterials: SelectedMaterials;
+  uploadGroupIdsRef: MutableRefObject<Partial<Record<ContentAssetResourceType, string>>>;
+  voiceEnabled: boolean;
+}) {
+  const imageFiles = getLocalFiles(input.selectedMaterials.image);
+  const videoFiles = getLocalFiles(input.selectedMaterials.video);
+  const audioFiles = getLocalFiles(input.selectedMaterials.audio);
+  const [referenceImageIds, referenceVideoIds, referenceAudioIds] = await Promise.all([
+    ensureMaterialAssetIds({
+      currentUser: input.currentUser,
+      resourceType: 'product',
+      files: imageFiles,
+      uploadGroupIdsRef: input.uploadGroupIdsRef,
+    }),
+    ensureMaterialAssetIds({
+      currentUser: input.currentUser,
+      resourceType: 'other',
+      files: videoFiles,
+      uploadGroupIdsRef: input.uploadGroupIdsRef,
+    }),
+    input.voiceEnabled
+      ? ensureMaterialAssetIds({
+        currentUser: input.currentUser,
+        resourceType: 'voice',
+        files: audioFiles,
+        uploadGroupIdsRef: input.uploadGroupIdsRef,
+      })
+      : Promise.resolve<string[]>([]),
+  ]);
+  const characterReferenceImageIds = mentionedCharacterReferenceIndexes(input.prompt)
+    .map((index) => referenceImageIds[index])
+    .filter(Boolean);
+  return {
+    referenceImageIds,
+    referenceVideoIds,
+    referenceAudioIds,
+    characterReferenceImageIds,
+  };
+}
+
+function taskVideoGenerationResult(task: VideoGenerationTask) {
+  const contextResult = task.expertContext?.videoGenerationResult;
+  if (contextResult && typeof contextResult === 'object' && !Array.isArray(contextResult)) {
+    return task.editableParseResult.videoGenerationResult || contextResult as VideoGenerationResult;
+  }
+  return task.editableParseResult.videoGenerationResult;
+}
+
+function isRunningVideoProduction(task: VideoGenerationTask) {
+  const result = taskVideoGenerationResult(task);
+  const hasJobId = Boolean(String(result?.jobId || '').trim());
+  return task.status === 'generating'
+    || (result?.status === 'pending' && hasJobId)
+    || result?.status === 'running'
+    || (result?.renderStatus === 'queued' && hasJobId)
+    || result?.renderStatus === 'rendering';
+}
+
+function filterVideoProductions(tasks: VideoGenerationTask[], filters: FilterValues) {
+  return tasks.filter((task) => {
+    const keyword = String(filters.搜索 || '').trim().toLowerCase();
+    if (keyword) {
+      const result = taskVideoGenerationResult(task);
+      const haystack = [
+        task.title,
+        task.prompt,
+        task.failureReason,
+        task.generatedVideoUrl,
+        result?.jobId,
+        result?.errorMessage,
+        result?.ratio,
+        result?.duration,
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(keyword)) {
+        return false;
+      }
+    }
+
+    if (filters.时间 && filters.时间 !== '全部时间' && !matchesTimeFilter(task.updatedAt, filters.时间)) {
+      return false;
+    }
+
+    if (filters.状态 && filters.状态 !== '全部状态') {
+      const result = taskVideoGenerationResult(task);
+      const isOrphanPending = task.status !== 'generating'
+        && !task.generatedVideoUrl
+        && !result?.videoUrl
+        && !String(result?.jobId || '').trim()
+        && (result?.status === 'pending' || result?.renderStatus === 'queued');
+      const statusLabel = task.generatedVideoUrl || result?.videoUrl
+        ? '已完成'
+        : task.status === 'failed' || result?.status === 'failed' || isOrphanPending
+          ? '失败'
+          : '生成中';
+      if (statusLabel !== filters.状态) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function matchesTimeFilter(updatedAt: string, filter: string) {
+  const updatedTime = new Date(updatedAt).getTime();
+  if (!Number.isFinite(updatedTime)) {
+    return false;
+  }
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const diffMs = now.getTime() - updatedTime;
+
+  if (filter === '今天') {
+    return updatedTime >= todayStart;
+  }
+  if (filter === '近 7 天') {
+    return diffMs <= 7 * 24 * 60 * 60 * 1000;
+  }
+  if (filter === '近 30 天') {
+    return diffMs <= 30 * 24 * 60 * 60 * 1000;
+  }
+  return true;
 }

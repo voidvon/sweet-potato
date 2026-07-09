@@ -81,7 +81,12 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         </div>
 
         <div className="video-task-generate-bar">
-          <button className="video-task-generate" disabled={!state.canGenerate} type="button">
+          <button
+            className="video-task-generate"
+            disabled={!state.canGenerate || state.isGenerating}
+            onClick={() => void state.handleGenerate()}
+            type="button"
+          >
             {state.tool.submitText}
           </button>
         </div>
@@ -90,9 +95,13 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
       <ResultPanel
         filters={state.filters}
         isFilterOpen={state.filterOpen}
+        isLoading={state.isLoadingProductions}
         onClearFilters={state.clearFilters}
         onFilterChange={state.setFilters}
         onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
+        onRetry={state.retryVideoProduction}
+        records={state.videoProductions}
+        retryingTaskId={state.retryingTaskId}
       />
 
       {state.showModelPicker && (

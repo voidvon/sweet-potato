@@ -32,6 +32,10 @@ type ThreeViewStatusEvent = {
 type DigitalHumanCreateMode = 'local' | 'ai';
 
 function fileUrl(asset: ContentAsset) {
+  const localMirrorUrl = metadataUrl(asset, 'localMirrorUrl');
+  if (asset.resourceType === 'virtual_portrait' && localMirrorUrl) {
+    return `${API_BASE_URL}${localMirrorUrl.startsWith('/') ? localMirrorUrl : `/${localMirrorUrl}`}`;
+  }
   if (!asset.fileUrl) {
     return '';
   }

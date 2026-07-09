@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { existsSync, mkdirSync } from 'node:fs';
+import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import {
@@ -37,6 +37,8 @@ export const resourceTypes: ContentResourceType[] = ['digital_human', 'virtual_p
 
 export const contentFilesDir = path.join(dataDir, 'files');
 
+export const virtualPortraitFilesDir = path.join(contentFilesDir, 'virtual-portrait-assets');
+
 export const threeViewImageSize = '2048x2048';
 
 export const mimoVoiceCloneProviderId = 'mimo-v2.5-tts-voiceclone';
@@ -60,6 +62,7 @@ export type RealPersonAssetFile = {
 export type UploadedAssetFile = RealPersonAssetFile;
 
 mkdirSync(contentFilesDir, { recursive: true });
+mkdirSync(virtualPortraitFilesDir, { recursive: true });
 
 export function virtualPortraitLogFile(now = new Date()) {
   const iso = now.toISOString();
@@ -462,6 +465,250 @@ export function remoteAssetMimeType(asset: VolcenginePrivateAssetResult) {
   return 'image/*';
 }
 
+function extensionFromContentType(contentType: string) {
+  if (/jpeg|jpg/i.test(contentType)) {
+    return 'jpg';
+  }
+  if (/png/i.test(contentType)) {
+    return 'png';
+  }
+  if (/webp/i.test(contentType)) {
+    return 'webp';
+  }
+  if (/gif/i.test(contentType)) {
+    return 'gif';
+  }
+  if (/avif/i.test(contentType)) {
+    return 'avif';
+  }
+  return '';
+}
+
+function extensionFromUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const ext = path.extname(parsed.pathname).replace(/^\./, '').toLowerCase();
+    return /^(avif|gif|jpe?g|png|webp)$/i.test(ext) ? ext.replace('jpeg', 'jpg') : '';
+  } catch {
+    return '';
+  }
+}
+
+function isImageLikeRemoteAsset(input: { contentType?: string; preferredStoredFileName?: string; url: string }) {
+  if (input.contentType && input.contentType.startsWith('image/')) {
+    return true;
+  }
+  if (extensionFromUrl(input.url)) {
+    return true;
+  }
+  const preferredName = String(input.preferredStoredFileName || '').trim().toLowerCase();
+  return /\.(avif|gif|jpe?g|png|webp)$/i.test(preferredName);
+}
+
+function normalizeVirtualPortraitStoredFileName(value: string) {
+  const normalized = value.trim().replace(/^\/+/, '');
+  if (!normalized.startsWith('virtual-portrait-assets/')) {
+    return '';
+  }
+  const fileName = path.basename(normalized);
+  return fileName && fileName !== '.' ? fileName : '';
+}
+
+export function virtualPortraitMirrorStoredFileName(asset: Pick<ContentAsset, 'fileUrl' | 'metadata' | 'storedFileName'>) {
+  const storedFileName = normalizeVirtualPortraitStoredFileName(asset.storedFileName)
+    || normalizeVirtualPortraitStoredFileName(stringMetadataField(asset.metadata, 'localMirrorStoredFileName'));
+  if (storedFileName) {
+    return `virtual-portrait-assets/${storedFileName}`;
+  }
+  const fileUrl = String(asset.fileUrl || '').trim();
+  if (!fileUrl.startsWith('/files/virtual-portrait-assets/')) {
+    return '';
+  }
+  const rawFileName = fileUrl.slice('/files/'.length).split(/[?#]/u)[0] || '';
+  try {
+    const fileName = normalizeVirtualPortraitStoredFileName(decodeURIComponent(rawFileName));
+    return fileName ? `virtual-portrait-assets/${fileName}` : '';
+  } catch {
+    const fileName = normalizeVirtualPortraitStoredFileName(rawFileName);
+    return fileName ? `virtual-portrait-assets/${fileName}` : '';
+  }
+}
+
+export function hasVirtualPortraitLocalMirrorFile(asset: Pick<ContentAsset, 'filePath'>) {
+  return Boolean(asset.filePath && existsSync(asset.filePath));
+}
+
+function remoteAssetLocalFileName(assetId: string, url: string, contentType = '', preferredStoredFileName = '') {
+  const preferredFileName = normalizeVirtualPortraitStoredFileName(preferredStoredFileName);
+  if (preferredFileName) {
+    return preferredFileName;
+  }
+  const extension = extensionFromContentType(contentType) || extensionFromUrl(url) || 'jpg';
+  return `${assetId}.${extension}`;
+}
+
+function remoteAssetLocalFileUrl(storedFileName: string) {
+  return `/files/virtual-portrait-assets/${encodeURIComponent(storedFileName)}`;
+}
+
+export type DownloadedVirtualPortraitRemoteImage = {
+  filePath: string;
+  fileSize: number;
+  fileUrl: string;
+  mimeType: string;
+  storedFileName: string;
+};
+
+export async function downloadVirtualPortraitRemoteImage(input: {
+  assetId: string;
+  preferredStoredFileName?: string;
+  url: string;
+}): Promise<DownloadedVirtualPortraitRemoteImage | null> {
+  if (!input.assetId || !input.url) {
+    return null;
+  }
+  const response = await fetch(input.url);
+  if (!response.ok) {
+    throw new Error(`人物素材图片下载失败：${response.status} ${response.statusText}`);
+  }
+  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || '';
+  if (!isImageLikeRemoteAsset({
+    contentType,
+    preferredStoredFileName: input.preferredStoredFileName,
+    url: input.url,
+  })) {
+    throw new Error(`人物素材远端 URL 不是图片：${contentType}`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const storedFileName = remoteAssetLocalFileName(input.assetId, input.url, contentType, input.preferredStoredFileName);
+  const filePath = path.join(virtualPortraitFilesDir, storedFileName);
+  await writeFile(filePath, buffer);
+  const fileInfo = await stat(filePath);
+  return {
+    filePath,
+    fileSize: fileInfo.size,
+    fileUrl: remoteAssetLocalFileUrl(storedFileName),
+    mimeType: contentType || 'image/*',
+    storedFileName: `virtual-portrait-assets/${storedFileName}`,
+  };
+}
+
+type VirtualPortraitDownloadJob = {
+  assetId: string;
+  assetLocalId: string;
+  force?: boolean;
+  preferredStoredFileName?: string;
+  url: string;
+};
+
+const virtualPortraitDownloadQueue = new Set<string>();
+const virtualPortraitDownloadJobs: VirtualPortraitDownloadJob[] = [];
+let virtualPortraitDownloadRunning = 0;
+let virtualPortraitDownloadTimer: NodeJS.Timeout | null = null;
+const virtualPortraitDownloadConcurrency = 2;
+
+function scheduleVirtualPortraitDownloadQueue() {
+  if (virtualPortraitDownloadTimer) {
+    return;
+  }
+  virtualPortraitDownloadTimer = setTimeout(() => {
+    virtualPortraitDownloadTimer = null;
+    drainVirtualPortraitDownloadQueue();
+  }, 0);
+}
+
+function drainVirtualPortraitDownloadQueue() {
+  while (
+    virtualPortraitDownloadRunning < virtualPortraitDownloadConcurrency
+    && virtualPortraitDownloadJobs.length > 0
+  ) {
+    const job = virtualPortraitDownloadJobs.shift();
+    if (!job) {
+      return;
+    }
+    virtualPortraitDownloadRunning += 1;
+    void runVirtualPortraitDownloadJob(job)
+      .finally(() => {
+        virtualPortraitDownloadRunning -= 1;
+        virtualPortraitDownloadQueue.delete(`${job.assetLocalId}:${job.url}`);
+        if (virtualPortraitDownloadJobs.length > 0) {
+          scheduleVirtualPortraitDownloadQueue();
+        }
+      });
+  }
+}
+
+async function runVirtualPortraitDownloadJob(input: VirtualPortraitDownloadJob) {
+  const syncedAt = new Date().toISOString();
+  try {
+    const beforeDownload = contentRepository.findAsset(input.assetLocalId);
+    if (!input.force && beforeDownload && hasVirtualPortraitLocalMirrorFile(beforeDownload)) {
+      return;
+    }
+    const downloaded = await downloadVirtualPortraitRemoteImage({
+      assetId: input.assetId,
+      preferredStoredFileName: input.preferredStoredFileName,
+      url: input.url,
+    });
+    const current = contentRepository.findAsset(input.assetLocalId);
+    if (!current || current.resourceType !== 'virtual_portrait' || !downloaded) {
+      return;
+    }
+    contentRepository.updateAssetFileInfo(current.id, {
+      fileUrl: downloaded.fileUrl,
+      originalFileName: downloaded.storedFileName,
+      storedFileName: downloaded.storedFileName,
+      mimeType: downloaded.mimeType,
+      fileSize: downloaded.fileSize,
+      filePath: downloaded.filePath,
+      metadata: {
+        ...current.metadata,
+        localMirrorUrl: downloaded.fileUrl,
+        localMirrorStoredFileName: downloaded.storedFileName,
+        localMirrorSyncedAt: syncedAt,
+        localMirrorError: '',
+        updatedAt: syncedAt,
+      },
+    });
+  } catch (error) {
+    const current = contentRepository.findAsset(input.assetLocalId);
+    if (current && current.resourceType === 'virtual_portrait') {
+      contentRepository.updateAssetFileInfo(current.id, {
+        metadata: {
+          ...current.metadata,
+          localMirrorError: error instanceof Error ? error.message : String(error),
+          updatedAt: syncedAt,
+        },
+      });
+    }
+    logger.warn('virtual portrait remote image async download failed', {
+      localAssetId: input.assetLocalId,
+      remoteAssetId: input.assetId,
+      remoteUrl: input.url,
+      error: errorLogContext(error),
+    });
+  }
+}
+
+export function enqueueVirtualPortraitRemoteImageDownload(input: {
+  assetId: string;
+  assetLocalId: string;
+  force?: boolean;
+  preferredStoredFileName?: string;
+  url: string;
+}) {
+  if (!input.assetLocalId || !input.assetId || !input.url) {
+    return;
+  }
+  const queueKey = `${input.assetLocalId}:${input.url}`;
+  if (virtualPortraitDownloadQueue.has(queueKey)) {
+    return;
+  }
+  virtualPortraitDownloadQueue.add(queueKey);
+  virtualPortraitDownloadJobs.push({ ...input });
+  scheduleVirtualPortraitDownloadQueue();
+}
+
 export function virtualPortraitGroupSource(group?: ContentAssetGroup) {
   if (!group) {
     return 'local_upload';
@@ -700,6 +947,18 @@ export async function refreshVirtualPortraitAssetsForGroup(
   const localByRemoteId = new Map(localAssets
     .map((asset) => [privateAssetId(asset.metadata), asset] as const)
     .filter(([assetId]) => Boolean(assetId)));
+  const remoteAssetIds = new Set(remoteAssets.assets
+    .map((asset) => stringMetadataField(asset as Record<string, unknown>, 'Id'))
+    .filter(Boolean));
+  for (const localAsset of localAssets) {
+    const localRemoteAssetId = privateAssetId(localAsset.metadata);
+    if (localRemoteAssetId && !remoteAssetIds.has(localRemoteAssetId)) {
+      contentRepository.deleteAsset(localAsset.id);
+      if (localAsset.filePath && existsSync(localAsset.filePath)) {
+        await rm(localAsset.filePath, { force: true });
+      }
+    }
+  }
   const syncedAt = new Date().toISOString();
   for (const remoteAsset of remoteAssets.assets) {
     const remoteAssetId = stringMetadataField(remoteAsset as Record<string, unknown>, 'Id');
@@ -709,36 +968,70 @@ export async function refreshVirtualPortraitAssetsForGroup(
     const existing = localByRemoteId.get(remoteAssetId);
     const remoteUrl = stringMetadataField(remoteAsset as Record<string, unknown>, 'URL');
     const name = remoteAssetName(remoteAsset);
-    const metadata = virtualPortraitAssetMetadataFromRemote({
+    const metadata: Record<string, unknown> = {
+      ...virtualPortraitAssetMetadataFromRemote({
       group,
       remote: remoteAsset,
       existing,
       syncedAt,
-    });
+      }),
+      localMirrorUrl: stringMetadataField(existing?.metadata || {}, 'localMirrorUrl'),
+      localMirrorStoredFileName: stringMetadataField(existing?.metadata || {}, 'localMirrorStoredFileName'),
+      localMirrorSyncedAt: stringMetadataField(existing?.metadata || {}, 'localMirrorSyncedAt'),
+      localMirrorError: '',
+    };
+    const hasLocalMirror = existing ? hasVirtualPortraitLocalMirrorFile(existing) : false;
+    const nextFileUrl = hasLocalMirror ? existing?.fileUrl || remoteUrl : remoteUrl || existing?.fileUrl || '';
+    const nextOriginalFileName = existing?.originalFileName || (remoteUrl ? originalNameFromUrl(remoteUrl) : `${remoteAssetId}.asset`);
+    const nextStoredFileName = existing?.storedFileName || '';
+    const nextMimeType = existing?.mimeType || remoteAssetMimeType(remoteAsset);
+    const nextFileSize = existing?.fileSize || 0;
+    const nextFilePath = existing?.filePath || '';
     if (existing) {
       contentRepository.updateAssetFileInfo(existing.id, {
-        fileUrl: existing.fileUrl,
-        originalFileName: existing.originalFileName,
-        mimeType: remoteAssetMimeType(remoteAsset),
+        fileUrl: nextFileUrl,
+        originalFileName: nextOriginalFileName,
+        storedFileName: nextStoredFileName,
+        mimeType: nextMimeType,
+        fileSize: nextFileSize,
+        filePath: nextFilePath,
         name,
         metadata,
       });
+      if (remoteUrl && remoteAssetMimeType(remoteAsset).startsWith('image/')) {
+        enqueueVirtualPortraitRemoteImageDownload({
+          assetId: remoteAssetId,
+          assetLocalId: existing.id,
+          force: !hasLocalMirror,
+          preferredStoredFileName: virtualPortraitMirrorStoredFileName(existing),
+          url: remoteUrl,
+        });
+      }
       continue;
     }
-    contentRepository.createAsset({
+    const created = contentRepository.createAsset({
       userId: group.userId,
       groupId: group.id,
       resourceType: 'virtual_portrait',
       name,
       description: '从火山私域人物素材资产库同步',
-      originalFileName: remoteUrl ? originalNameFromUrl(remoteUrl) : `${remoteAssetId}.asset`,
-      storedFileName: '',
-      mimeType: remoteAssetMimeType(remoteAsset),
-      fileSize: 0,
-      filePath: '',
-      fileUrl: remoteUrl,
+      originalFileName: nextOriginalFileName,
+      storedFileName: nextStoredFileName,
+      mimeType: nextMimeType,
+      fileSize: nextFileSize,
+      filePath: nextFilePath,
+      fileUrl: nextFileUrl,
       metadata,
     });
+    if (created && remoteUrl && remoteAssetMimeType(remoteAsset).startsWith('image/')) {
+      enqueueVirtualPortraitRemoteImageDownload({
+        assetId: remoteAssetId,
+        assetLocalId: created.id,
+        force: true,
+        preferredStoredFileName: virtualPortraitMirrorStoredFileName(created),
+        url: remoteUrl,
+      });
+    }
   }
   contentRepository.updateGroup(group.id, {
     metadata: {
@@ -815,10 +1108,21 @@ export async function refreshVirtualPortraitAssetFromRemote(asset: ContentAsset)
     projectName: privateAssetProjectName(asset.metadata),
   });
   const syncedAt = new Date().toISOString();
+  if (remote.url && remoteAssetMimeType(remote.asset).startsWith('image/')) {
+    enqueueVirtualPortraitRemoteImageDownload({
+      assetId: remote.assetId,
+      assetLocalId: asset.id,
+      preferredStoredFileName: virtualPortraitMirrorStoredFileName(asset),
+      url: remote.url,
+    });
+  }
   return contentRepository.updateAssetFileInfo(asset.id, {
-    fileUrl: asset.fileUrl,
-    originalFileName: asset.originalFileName,
-    mimeType: remoteAssetMimeType(remote.asset),
+    fileUrl: asset.fileUrl || remote.url,
+    originalFileName: asset.originalFileName || (remote.url ? originalNameFromUrl(remote.url) : asset.originalFileName),
+    storedFileName: asset.storedFileName,
+    mimeType: asset.mimeType || remoteAssetMimeType(remote.asset),
+    fileSize: asset.fileSize,
+    filePath: asset.filePath,
     name: remote.asset.Name || asset.name,
     metadata: {
       ...asset.metadata,
@@ -829,6 +1133,10 @@ export async function refreshVirtualPortraitAssetFromRemote(asset: ContentAsset)
       remotePreviewUrl: remote.url || asset.metadata.remotePreviewUrl,
       failureReason: remote.failureReason,
       getAssetRaw: remote.raw,
+      localMirrorUrl: stringMetadataField(asset.metadata, 'localMirrorUrl'),
+      localMirrorStoredFileName: stringMetadataField(asset.metadata, 'localMirrorStoredFileName'),
+      localMirrorSyncedAt: stringMetadataField(asset.metadata, 'localMirrorSyncedAt'),
+      localMirrorError: '',
       syncedAt,
       updatedAt: syncedAt,
     },

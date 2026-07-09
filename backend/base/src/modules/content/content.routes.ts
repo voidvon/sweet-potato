@@ -455,12 +455,16 @@ export function createContentRouter() {
         }
         try {
           const file = uploadedFilePayload(req);
+          const metadata = {
+            ...parseMetadata(req.body.metadata),
+            ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
+          };
           const result = await contentService.createRealPersonAsset(String(req.params.id || ''), {
             userId: getCurrentUserId(req),
             name: String(req.body.name || ''),
             description: String(req.body.description || ''),
             url: String(req.body.url || ''),
-            metadata: parseMetadata(req.body.metadata),
+            metadata,
           }, file);
           res.status(201).json(result);
         } catch (error) {
@@ -485,12 +489,16 @@ export function createContentRouter() {
         }
         try {
           const file = uploadedFilePayload(req);
+          const metadata = {
+            ...parseMetadata(req.body.metadata),
+            ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
+          };
           const result = await contentService.createVirtualPortraitAsset(String(req.params.id || ''), {
             userId: getCurrentUserId(req),
             name: String(req.body.name || ''),
             description: String(req.body.description || ''),
             url: String(req.body.url || ''),
-            metadata: parseMetadata(req.body.metadata),
+            metadata,
           }, file);
           res.status(201).json(result.asset);
         } catch (error) {
@@ -632,6 +640,11 @@ export function createContentRouter() {
             throw new Error('成片素材只能由视频生成任务写入');
           }
           const originalFileName = decodeUploadFileName(req.file.originalname);
+          const file = uploadedFilePayload(req);
+          const metadata = {
+            ...parseMetadata(req.body.metadata),
+            ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
+          };
           const asset = contentService.createAsset({
             userId: getCurrentUserId(req),
             groupId: req.body.groupId ? String(req.body.groupId || '') : undefined,
@@ -644,7 +657,7 @@ export function createContentRouter() {
             fileSize: req.file.size,
             filePath: req.file.path,
             fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
-            metadata: parseMetadata(req.body.metadata),
+            metadata,
           });
           res.status(201).json(asset);
         } catch (error) {

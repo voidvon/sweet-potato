@@ -2,9 +2,9 @@ import { Image, message, Modal, Spin } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { UIEvent } from 'react';
 import { Package, Trees, UserRound, X } from 'lucide-react';
-import { listContentAssetsPage } from '../../../../api/content';
-import { resolveAssetUrl } from '../../../../api/request';
-import type { ContentAsset, ContentAssetResourceType, User } from '../../../../types';
+import { listContentAssetGroups, listContentAssetsPage } from '../../../../api/content';
+import { API_BASE_URL, resolveAssetUrl } from '../../../../api/request';
+import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User } from '../../../../types';
 
 type ModelPickerProps = {
   onClose: () => void;
@@ -50,12 +50,14 @@ export function ModelPicker({
   selectedModelAvatar,
   user,
 }: ModelPickerProps) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<AssetTabKey>('real_person');
   const [tabStates, setTabStates] = useState<Record<AssetTabKey, AssetTabState>>({
     real_person: defaultTabState,
     scene: defaultTabState,
     product: defaultTabState,
   });
+  const [groupNameById, setGroupNameById] = useState<Record<string, string>>({});
   const tabStatesRef = useRef(tabStates);
 
   useEffect(() => {
@@ -77,13 +79,25 @@ export function ModelPicker({
       },
     }));
     try {
-      const result = await loadAssetTabResult({
-        page: nextPage,
-        pageSize: PAGE_SIZE,
-        resourceTypes: tab.resourceTypes,
-        userId: user.id,
-      });
+      const shouldUseGroupName = tabKey === 'real_person';
+      const [result, groups] = await Promise.all([
+        loadAssetTabResult({
+          page: nextPage,
+          pageSize: PAGE_SIZE,
+          resourceTypes: tab.resourceTypes,
+          userId: user.id,
+        }),
+        shouldUseGroupName && nextPage === 1
+          ? loadAssetGroups(user.id, tab.resourceTypes)
+          : Promise.resolve<ContentAssetGroup[]>([]),
+      ]);
       const usableItems = result.items.filter((asset) => asset.mimeType.startsWith('image/'));
+      if (groups.length > 0) {
+        setGroupNameById((current) => ({
+          ...current,
+          ...Object.fromEntries(groups.map((group) => [group.id, group.name])),
+        }));
+      }
       setTabStates((current) => {
         const previousItems = nextPage === 1 ? [] : current[tabKey].items;
         const existingIds = new Set(previousItems.map((asset) => asset.id));
@@ -91,10 +105,13 @@ export function ModelPicker({
           ...previousItems,
           ...usableItems.filter((asset) => !existingIds.has(asset.id)),
         ];
+        mergedItems.sort((left, right) => (
+          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+        ));
         return {
           ...current,
           [tabKey]: {
-            hasMore: result.page * result.pageSize < result.total,
+            hasMore: result.hasMore,
             items: mergedItems,
             isLoading: false,
             page: result.page,
@@ -121,6 +138,17 @@ export function ModelPicker({
       void loadTabPage(activeTab, 1);
     }
   }, [activeTab, loadTabPage]);
+
+  useEffect(() => {
+    const currentState = tabStates[activeTab];
+    const body = bodyRef.current;
+    if (!body || currentState.page === 0 || currentState.isLoading || !currentState.hasMore) {
+      return;
+    }
+    if (body.scrollHeight <= body.clientHeight + 4) {
+      void loadTabPage(activeTab, currentState.page + 1);
+    }
+  }, [activeTab, loadTabPage, tabStates]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
@@ -177,10 +205,10 @@ export function ModelPicker({
             );
           })}
         </div>
-        <div className="vc-model-picker__body" onScroll={handleScroll}>
+        <div className="vc-model-picker__body" onScroll={handleScroll} ref={bodyRef}>
           <div className="vc-model-picker__grid">
             {activeState.items.map((asset) => {
-              const name = getModelAssetName(asset);
+              const name = getModelAssetName(asset, groupNameById);
               return (
               <button
                 className={`vc-model-picker__card${selectedModelAvatar === asset.id ? ' is-active' : ''}`}
@@ -193,7 +221,7 @@ export function ModelPicker({
                     alt={name}
                     loading="lazy"
                     preview={false}
-                    src={resolveAssetUrl(asset.fileUrl)}
+                    src={modelPickerAssetUrl(asset)}
                     style={{ height: '100%', objectFit: 'cover', width: '100%' }}
                   />
                 </span>
@@ -220,8 +248,24 @@ export function ModelPicker({
   );
 }
 
-function getModelAssetName(asset: ContentAsset) {
+function getModelAssetName(asset: ContentAsset, groupNameById: Record<string, string>) {
+  if (asset.resourceType === 'real_person' || asset.resourceType === 'virtual_portrait') {
+    return groupNameById[asset.groupId] || asset.name || asset.originalFileName || asset.storedFileName || '素材';
+  }
   return asset.name || asset.originalFileName || asset.storedFileName || '素材';
+}
+
+function modelPickerAssetUrl(asset: ContentAsset) {
+  const localMirrorUrl = typeof asset.metadata?.localMirrorUrl === 'string' ? asset.metadata.localMirrorUrl.trim() : '';
+  if (asset.resourceType === 'virtual_portrait' && localMirrorUrl) {
+    return `${API_BASE_URL}${localMirrorUrl.startsWith('/') ? localMirrorUrl : `/${localMirrorUrl}`}`;
+  }
+  return resolveAssetUrl(asset.fileUrl);
+}
+
+async function loadAssetGroups(userId: string, resourceTypes: ContentAssetResourceType[]) {
+  const results = await Promise.all(resourceTypes.map((resourceType) => listContentAssetGroups(userId, resourceType)));
+  return results.flat();
 }
 
 async function loadAssetTabResult(input: {
@@ -238,19 +282,11 @@ async function loadAssetTabResult(input: {
       userId: input.userId,
     })
   )));
-  if (results.length === 1) {
-    return results[0];
-  }
-  const primary = results[0];
-  const fallback = results[1];
-  if (input.page === 1 && primary.items.length > 0) {
-    return primary;
-  }
-  if (primary.total > 0) {
-    return primary;
-  }
   return {
-    ...fallback,
-    total: fallback.total,
+    hasMore: results.some((result) => result.page * result.pageSize < result.total),
+    items: results.flatMap((result) => result.items),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: results.reduce((sum, result) => sum + result.total, 0),
   };
 }

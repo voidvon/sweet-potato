@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { TosClient } from '@volcengine/tos-sdk';
 import {
+  volcengineTosConfig,
   volcengineRealPersonConfig,
   volcengineVirtualPortraitConfig
 } from '../../config/env.js';
@@ -109,6 +111,23 @@ function uploadedSourceUrl(file?: RealPersonAssetFile | UploadedAssetFile) {
     || absolutizeMaterialUrl(file.fileUrl);
 }
 
+function fallbackMimeTypeForAssetType(assetType: 'Image' | 'Video' | 'Audio') {
+  if (assetType === 'Image') {
+    return 'image/*';
+  }
+  if (assetType === 'Video') {
+    return 'video/*';
+  }
+  return 'audio/*';
+}
+
+function persistedAssetMimeType(input: {
+  mimeType?: string;
+  assetType: 'Image' | 'Video' | 'Audio';
+}) {
+  return String(input.mimeType || '').trim() || fallbackMimeTypeForAssetType(input.assetType);
+}
+
 function assertOwnsGroup(group: ContentAssetGroup, userId: string) {
   assertUserId(userId);
   if (group.userId !== userId) {
@@ -197,6 +216,10 @@ function filterGroupsByPermissions(
   return groups.filter((group) => actorHasPermission(actor, permissionForContentResourceType(group.resourceType)));
 }
 
+function filterHiddenGroupsForUi(groups: ContentAssetGroup[]) {
+  return groups.filter((group) => group.metadata?.hiddenFromGroupUi !== true);
+}
+
 function isUserUploadedVirtualPortraitAsset(asset: ContentAsset) {
   return asset.resourceType === 'virtual_portrait'
     && stringMetadataField(asset.metadata, 'syncPolicy') === 'user_uploaded_remote_mirror';
@@ -230,6 +253,368 @@ async function deleteLocalVirtualPortraitGroup(group: ContentAssetGroup) {
   return assets;
 }
 
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+}
+
+function characterKeywordPattern() {
+  return /(人物|角色|人像|真人|模特|女生|男生|女人|男人|小姐姐|小哥哥|美女|帅哥|肖像)/;
+}
+
+function inferCharacterReferenceIndexes(prompt: string) {
+  const normalizedPrompt = String(prompt || '').trim();
+  if (!normalizedPrompt) {
+    return [];
+  }
+  const indexes = new Set<number>();
+  const clauses = normalizedPrompt.split(/[，,。；;\n]/u).map((clause) => clause.trim()).filter(Boolean);
+  const clauseHasKeyword = clauses.map((clause) => characterKeywordPattern().test(clause));
+  clauses.forEach((clause, clauseIndex) => {
+    const matches = Array.from(clause.matchAll(/@图片(\d+)/gu));
+    if (!matches.length) {
+      return;
+    }
+    const hasNearbyCharacterKeyword = clauseHasKeyword[clauseIndex]
+      || clauseHasKeyword[clauseIndex - 1]
+      || clauseHasKeyword[clauseIndex + 1]
+      || clauseHasKeyword[clauseIndex - 2]
+      || clauseHasKeyword[clauseIndex + 2];
+    if (!hasNearbyCharacterKeyword) {
+      return;
+    }
+    matches.forEach((match) => {
+      const index = Number(match[1]) - 1;
+      if (Number.isFinite(index) && index >= 0) {
+        indexes.add(index);
+      }
+    });
+  });
+  if (!indexes.size && characterKeywordPattern().test(normalizedPrompt)) {
+    for (const match of normalizedPrompt.matchAll(/@图片(\d+)/gu)) {
+      const index = Number(match[1]) - 1;
+      if (Number.isFinite(index) && index >= 0) {
+        indexes.add(index);
+      }
+    }
+  }
+  return Array.from(indexes).sort((left, right) => left - right);
+}
+
+function collectCharacterReferenceImageIds(input: {
+  prompt?: string;
+  referenceImageIds?: string[];
+  explicitIds?: string[];
+}) {
+  const explicitIds = stringArray(input.explicitIds);
+  if (explicitIds.length) {
+    return Array.from(new Set(explicitIds));
+  }
+  const referenceImageIds = stringArray(input.referenceImageIds);
+  if (!referenceImageIds.length) {
+    return [];
+  }
+  const inferredIndexes = inferCharacterReferenceIndexes(String(input.prompt || ''));
+  if (!inferredIndexes.length) {
+    return [];
+  }
+  return inferredIndexes
+    .map((index) => referenceImageIds[index])
+    .filter(Boolean);
+}
+
+function isSensitiveRealPersonError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /InputImageSensitiveContentDetected\.PrivacyInformation|input image may contain real person/i.test(error.message);
+}
+
+let cachedTosClient: TosClient | null = null;
+
+function assertVolcengineTosConfigured() {
+  if (!volcengineTosConfig.accessKey || !volcengineTosConfig.secretKey) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLC_ACCESSKEY 和 VOLC_SECRETKEY');
+  }
+  if (!volcengineTosConfig.endpoint) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_ENDPOINT');
+  }
+  if (!volcengineTosConfig.bucket) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_BUCKET');
+  }
+}
+
+function normalizeTosEndpoint(endpoint: string) {
+  const raw = String(endpoint || '').trim();
+  if (!raw) {
+    return raw;
+  }
+  return raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+}
+
+function ensureTosClient() {
+  assertVolcengineTosConfigured();
+  if (!cachedTosClient) {
+    cachedTosClient = new TosClient({
+      accessKeyId: volcengineTosConfig.accessKey,
+      accessKeySecret: volcengineTosConfig.secretKey,
+      region: volcengineTosConfig.region,
+      endpoint: normalizeTosEndpoint(volcengineTosConfig.endpoint),
+    });
+  }
+  return cachedTosClient;
+}
+
+function tosPublicBaseUrl() {
+  if (volcengineTosConfig.publicBaseUrl) {
+    return volcengineTosConfig.publicBaseUrl;
+  }
+  try {
+    const endpoint = new URL(volcengineTosConfig.endpoint);
+    return `https://${volcengineTosConfig.bucket}.${endpoint.host}`;
+  } catch {
+    return '';
+  }
+}
+
+function fileExtensionForTemporaryReference(asset: ContentAsset) {
+  const extension = extensionForMimeType(asset.mimeType)
+    || path.extname(asset.originalFileName || '')
+    || path.extname(asset.filePath || '')
+    || path.extname(asset.fileUrl || '')
+    || '.png';
+  return extension.startsWith('.') ? extension : `.${extension}`;
+}
+
+function temporaryCharacterReferenceTosKey(input: { taskId: string; sourceAsset: ContentAsset }) {
+  const day = new Date().toISOString().slice(0, 10);
+  const keyPrefix = volcengineTosConfig.keyPrefix || 'video-generation-temp';
+  return [
+    keyPrefix,
+    'character-reference',
+    day,
+    input.taskId,
+    `${input.sourceAsset.id}-${randomUUID()}${fileExtensionForTemporaryReference(input.sourceAsset)}`,
+  ].filter(Boolean).join('/');
+}
+
+function encodeObjectKeyForUrl(key: string) {
+  return key.split('/').map((part) => encodeURIComponent(part)).join('/');
+}
+
+async function uploadLocalFileToTos(input: {
+  taskId: string;
+  userId: string;
+  sourceAsset: ContentAsset;
+}) {
+  if (!input.sourceAsset.filePath || !existsSync(input.sourceAsset.filePath)) {
+    throw new Error(`人物参考图源文件不存在：${input.sourceAsset.name || input.sourceAsset.id}`);
+  }
+  const client = ensureTosClient();
+  const key = temporaryCharacterReferenceTosKey(input);
+  const response = await client.putObjectFromFile({
+    bucket: volcengineTosConfig.bucket,
+    key,
+    filePath: input.sourceAsset.filePath,
+  });
+  const publicBaseUrl = tosPublicBaseUrl();
+  if (!publicBaseUrl) {
+    throw new Error('火山 TOS 公网访问地址缺失：请配置 VOLCENGINE_TOS_PUBLIC_BASE_URL');
+  }
+  const headerRecord = response && typeof response === 'object' && 'headers' in response
+    ? response.headers as Record<string, unknown>
+    : {};
+  return {
+    bucket: volcengineTosConfig.bucket,
+    key,
+    publicUrl: `${publicBaseUrl}/${encodeObjectKeyForUrl(key)}`,
+    requestId: typeof headerRecord['x-tos-request-id'] === 'string' ? headerRecord['x-tos-request-id'] : '',
+  };
+}
+
+async function deleteTemporaryTosObject(key: string) {
+  const normalizedKey = String(key || '').trim();
+  if (!normalizedKey) {
+    return;
+  }
+  try {
+    const client = ensureTosClient();
+    await client.deleteObject({
+      bucket: volcengineTosConfig.bucket,
+      key: normalizedKey,
+    });
+  } catch (error) {
+    logger.warn('temporary character reference tos object delete failed', {
+      key: normalizedKey,
+      error: errorLogContext(error),
+    });
+  }
+}
+
+async function cleanupTemporaryCharacterReferenceGroup(input: {
+  groupId?: string;
+  userId: string;
+}) {
+  const groupId = String(input.groupId || '').trim();
+  if (!groupId) {
+    return;
+  }
+  const group = contentRepository.findGroup(groupId);
+  if (!group || group.userId !== input.userId || group.resourceType !== 'virtual_portrait') {
+    return;
+  }
+  const assets = contentRepository.listAssets({
+    userId: input.userId,
+    groupId,
+    resourceType: 'virtual_portrait',
+  });
+  await Promise.all(assets.map(async (asset) => {
+    try {
+      await deleteRemoteVirtualPortraitAsset(asset);
+    } catch (error) {
+      logger.warn('temporary character reference remote asset delete failed', {
+        groupId,
+        assetId: asset.id,
+        error: errorLogContext(error),
+      });
+    }
+  }));
+  try {
+    await deleteRemoteVirtualPortraitGroup(group);
+  } catch (error) {
+    logger.warn('temporary character reference remote group delete failed', {
+      groupId,
+      error: errorLogContext(error),
+    });
+  }
+  const deletedAssets = await deleteLocalVirtualPortraitGroup(group);
+  await Promise.all(deletedAssets.map((asset) => deleteTemporaryTosObject(stringMetadataField(asset.metadata, 'tosKey'))));
+}
+
+function clearTemporaryCharacterReferenceContext(task: VideoGenerationTask) {
+  const groupId = String(task.expertContext?.temporaryCharacterReferenceGroupId || '').trim();
+  const assetIds = stringArray(task.expertContext?.temporaryCharacterReferenceAssetIds);
+  if (!groupId && !assetIds.length) {
+    return task;
+  }
+  return contentRepository.updateVideoTaskContext(task.id, {
+    selectedSkillIds: task.selectedSkillIds,
+    expertContext: {
+      ...task.expertContext,
+      temporaryCharacterReferenceGroupId: '',
+      temporaryCharacterReferenceAssetIds: [],
+      updatedAt: new Date().toISOString(),
+    },
+  }) || task;
+}
+
+async function waitForVirtualPortraitAssetReady(input: {
+  assetId: string;
+  userId: string;
+  maxAttempts?: number;
+  intervalMs?: number;
+}) {
+  const maxAttempts = Number.isFinite(input.maxAttempts) ? Math.max(1, Math.floor(input.maxAttempts || 0)) : 40;
+  const intervalMs = Number.isFinite(input.intervalMs) ? Math.max(200, Math.floor(input.intervalMs || 0)) : 3000;
+  let lastAsset = contentRepository.findAsset(input.assetId);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const synced = await contentService.syncVirtualPortraitAsset(input.assetId, { userId: input.userId });
+    lastAsset = synced.asset;
+    const status = String(synced.asset.metadata.volcStatus || '').trim();
+    if (status === 'Active') {
+      return synced.asset;
+    }
+    if (status === 'Failed') {
+      const failureReason = String(synced.asset.metadata.failureReason || '').trim();
+      throw new Error(failureReason || '火山虚拟人物素材处理失败');
+    }
+    if (attempt < maxAttempts) {
+      await waitMs(intervalMs);
+    }
+  }
+  throw new Error(`火山虚拟人物素材仍在处理中，请稍后重试（assetId: ${input.assetId}）`);
+}
+
+async function createTemporaryCharacterReferenceAssets(input: {
+  taskId: string;
+  userId: string;
+  prompt: string;
+  referenceImageIds: string[];
+  characterReferenceImageIds: string[];
+}) {
+  const sourceAssetIds = collectCharacterReferenceImageIds({
+    prompt: input.prompt,
+    referenceImageIds: input.referenceImageIds,
+    explicitIds: input.characterReferenceImageIds,
+  });
+  if (!sourceAssetIds.length) {
+    throw new Error('当前任务没有可用于人物审核兜底的参考图片');
+  }
+  const group = await contentService.createGroup({
+    userId: input.userId,
+    resourceType: 'virtual_portrait',
+    name: `视频生成人物兜底-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}`,
+    description: '视频生成真人图片审核兜底临时素材组',
+    metadata: {
+      source: 'video_generation_character_fallback',
+      kind: 'video_generation_character_reference_group',
+      hiddenFromGroupUi: true,
+      temporary: true,
+      taskId: input.taskId,
+    },
+  });
+  if (!group) {
+    throw new Error('视频生成兜底人物素材组创建失败');
+  }
+  const assetIdBySourceId: Record<string, string> = {};
+  try {
+    for (const [index, sourceAssetId] of sourceAssetIds.entries()) {
+      const sourceAsset = contentRepository.findAsset(sourceAssetId);
+      if (!sourceAsset || sourceAsset.userId !== input.userId) {
+        throw new Error(`人物参考图不存在：${sourceAssetId}`);
+      }
+      const tosUpload = await uploadLocalFileToTos({
+        taskId: input.taskId,
+        userId: input.userId,
+        sourceAsset,
+      });
+      const created = await contentService.createVirtualPortraitAsset(group.id, {
+        userId: input.userId,
+        name: sourceAsset.name || sourceAsset.originalFileName || `人物参考${index + 1}`,
+        description: '视频生成真人审核兜底临时素材',
+        url: tosUpload.publicUrl,
+        metadata: {
+          source: 'video_generation_character_fallback',
+          kind: 'video_generation_character_reference_asset',
+          hiddenFromGroupUi: true,
+          temporary: true,
+          taskId: input.taskId,
+          sourceAssetId: sourceAsset.id,
+          sourceGroupId: sourceAsset.groupId,
+          tosBucket: tosUpload.bucket,
+          tosKey: tosUpload.key,
+          tosPublicUrl: tosUpload.publicUrl,
+          tosRequestId: tosUpload.requestId,
+        },
+      });
+      await waitForVirtualPortraitAssetReady({
+        assetId: created.asset.id,
+        userId: input.userId,
+      });
+      assetIdBySourceId[sourceAsset.id] = created.asset.id;
+    }
+  } catch (error) {
+    await cleanupTemporaryCharacterReferenceGroup({ groupId: group.id, userId: input.userId });
+    throw error;
+  }
+  return {
+    groupId: group.id,
+    assetIdBySourceId,
+    assetIds: Object.values(assetIdBySourceId),
+  };
+}
+
 const virtualPortraitSyncIntervalMs = 60 * 1000;
 let virtualPortraitMirrorSyncTimer: ReturnType<typeof setInterval> | null = null;
 let virtualPortraitMirrorSyncRunning = false;
@@ -256,7 +641,7 @@ export const contentService = {
       userId: normalizedType === 'virtual_portrait' && actor.role === 'admin' ? undefined : actor.userId,
       resourceType: normalizedType,
     });
-    return filterGroupsByPermissions(actor, groups);
+    return filterHiddenGroupsForUi(filterGroupsByPermissions(actor, groups));
   },
 
   async listGroupsPage(input: {
@@ -282,7 +667,7 @@ export const contentService = {
       page,
       pageSize,
     });
-    const items = filterGroupsByPermissions(input.actor, result.items);
+    const items = filterHiddenGroupsForUi(filterGroupsByPermissions(input.actor, result.items));
     return {
       ...result,
       items,
@@ -682,7 +1067,7 @@ export const contentService = {
       description: payload.description || '',
       originalFileName: file?.originalFileName || originalNameFromUrl(sourceUrl),
       storedFileName: file?.storedFileName || '',
-      mimeType: file?.mimeType || 'application/octet-stream',
+      mimeType: persistedAssetMimeType({ mimeType: file?.mimeType, assetType }),
       fileSize: file?.fileSize || 0,
       filePath: file?.filePath || '',
       fileUrl: file?.fileUrl || sourceUrl,
@@ -830,7 +1215,7 @@ export const contentService = {
         description: payload.description || '',
         originalFileName: file?.originalFileName || originalNameFromUrl(sourceRef),
         storedFileName: file?.storedFileName || '',
-        mimeType: file?.mimeType || 'application/octet-stream',
+        mimeType: persistedAssetMimeType({ mimeType: file?.mimeType, assetType }),
         fileSize: file?.fileSize || 0,
         filePath: file?.filePath || '',
         fileUrl: file?.fileUrl || sourceRef,
@@ -1003,7 +1388,15 @@ export const contentService = {
       .filter((task) => task.expertContext?.mode === 'video_create');
     const refreshed = await Promise.all(tasks.map(async (task) => {
       try {
-        return await refreshVideoTaskGenerationStatus(task);
+        const nextTask = await refreshVideoTaskGenerationStatus(task);
+        if (nextTask && nextTask.status !== 'generating' && nextTask.expertContext?.temporaryCharacterReferenceGroupId) {
+          await cleanupTemporaryCharacterReferenceGroup({
+            groupId: String(nextTask.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
+            userId,
+          });
+          return clearTemporaryCharacterReferenceContext(nextTask);
+        }
+        return nextTask;
       } catch (error) {
         logger.warn('refresh video production status failed', {
           taskId: task.id,
@@ -1484,7 +1877,15 @@ export const contentService = {
   async getVideoTaskView(id: string, userId?: string) {
     const task = this.getVideoTask(id, userId);
     try {
-      return await refreshVideoTaskGenerationStatus(task);
+      const refreshed = await refreshVideoTaskGenerationStatus(task);
+      if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
+        await cleanupTemporaryCharacterReferenceGroup({
+          groupId: String(refreshed.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
+          userId,
+        });
+        return clearTemporaryCharacterReferenceContext(refreshed);
+      }
+      return refreshed;
     } catch (error) {
       logger.warn('refresh video task status failed', {
         taskId: id,
@@ -1786,6 +2187,7 @@ export const contentService = {
   async createVideoProduction(payload: CreateVideoProductionPayload) {
     assertUserId(payload.userId);
     const traceId = createTraceId('video-production');
+    const retryTaskId = String(payload.retryTaskId || '').trim();
     const userPrompt = String(payload.prompt || '').trim();
     const resolvedConfig = resolveDefaultVideoModel(payload.videoModelProviderId);
     const resolvedProvider = resolveConfiguredVideoProvider(resolvedConfig);
@@ -1809,6 +2211,11 @@ export const contentService = {
       duration,
       modelOption: resolvedModelOption,
       materialContext,
+    });
+    const characterReferenceImageIds = collectCharacterReferenceImageIds({
+      prompt: userPrompt || prompt,
+      referenceImageIds: payload.referenceImageIds,
+      explicitIds: payload.characterReferenceImageIds,
     });
     let stage: 'create_task' | 'queue_video_model' = 'create_task';
     logger.info('video production request started', {
@@ -1847,29 +2254,44 @@ export const contentService = {
         duration,
         generationResult: pendingResult,
       });
-      const task = contentRepository.createVideoTaskFromPrompt({
-        userId: payload.userId,
-        prompt,
-        selectedSkillIds: [],
-        title: `视频制作 ${ratio} ${duration}`,
-        parseResult,
-        expertContext: {
-          mode: 'video_create',
-          traceId,
-          quality,
-          ratio,
-          duration,
-          videoModelProviderId: payload.videoModelProviderId || '',
-          videoModelId: payload.videoModelId || '',
-          referenceImageGroupId: payload.referenceImageGroupId || '',
-          referenceVideoGroupId: payload.referenceVideoGroupId || '',
-          referenceAudioGroupId: payload.referenceAudioGroupId || '',
-          referenceImageIds: payload.referenceImageIds || [],
-          referenceVideoIds: payload.referenceVideoIds || [],
-          referenceAudioIds: payload.referenceAudioIds || [],
-          userPrompt,
-        },
-      });
+      const title = `视频制作 ${ratio} ${duration}`;
+      const expertContext = {
+        mode: 'video_create',
+        traceId,
+        quality,
+        ratio,
+        duration,
+        videoModelProviderId: payload.videoModelProviderId || '',
+        videoModelId: payload.videoModelId || '',
+        referenceImageGroupId: payload.referenceImageGroupId || '',
+        referenceVideoGroupId: payload.referenceVideoGroupId || '',
+        referenceAudioGroupId: payload.referenceAudioGroupId || '',
+        referenceImageIds: payload.referenceImageIds || [],
+        originalReferenceImageIds: payload.referenceImageIds || [],
+        referenceVideoIds: payload.referenceVideoIds || [],
+        referenceAudioIds: payload.referenceAudioIds || [],
+        characterReferenceImageIds,
+        userPrompt,
+      };
+      const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
+      const shouldReuseRetryTask = retryTask?.status === 'failed';
+      const task = shouldReuseRetryTask
+        ? contentRepository.resetVideoTaskFromPrompt(retryTask.id, {
+          userId: payload.userId,
+          prompt,
+          selectedSkillIds: retryTask.selectedSkillIds,
+          title,
+          parseResult,
+          expertContext,
+        })
+        : contentRepository.createVideoTaskFromPrompt({
+          userId: payload.userId,
+          prompt,
+          selectedSkillIds: [],
+          title,
+          parseResult,
+          expertContext,
+        });
       if (!task) {
         throw new Error('视频制作任务创建失败');
       }
@@ -1965,9 +2387,9 @@ export const contentService = {
       throw new Error('无权操作该视频任务');
     }
     const replicationPlan = payload.replicationPlan || current.editableParseResult.replicationPlan;
-    const taskContext = isRecord(current.expertContext) ? current.expertContext : {};
+    let taskContext = isRecord(current.expertContext) ? current.expertContext : {};
     const voiceContext = isRecord(taskContext.voice) ? taskContext.voice : {};
-    const ratio = String(current.editableParseResult.viralAnalysis?.dimensions.formatQuality.details.ratio || taskContext.ratio || '9:16');
+    const ratio = String(taskContext.ratio || current.editableParseResult.viralAnalysis?.dimensions.formatQuality.details.ratio || '9:16');
     const duration = String(replicationPlan ? '25秒' : taskContext.duration || '30秒');
     const prompt = replicationPlan?.visualPrompt
       || [
@@ -2003,12 +2425,21 @@ export const contentService = {
       const referenceImageGroupId = typeof taskContext.referenceImageGroupId === 'string' ? taskContext.referenceImageGroupId : '';
       const referenceVideoGroupId = typeof taskContext.referenceVideoGroupId === 'string' ? taskContext.referenceVideoGroupId : '';
       const referenceAudioGroupId = typeof taskContext.referenceAudioGroupId === 'string' ? taskContext.referenceAudioGroupId : '';
-      const referenceImageIds = Array.isArray(taskContext.referenceImageIds) ? taskContext.referenceImageIds.map(String) : [];
-      const referenceVideoIds = Array.isArray(taskContext.referenceVideoIds) ? taskContext.referenceVideoIds.map(String) : [];
-      const referenceAudioIds = Array.isArray(taskContext.referenceAudioIds) ? taskContext.referenceAudioIds.map(String) : [];
+      let referenceImageIds = stringArray(taskContext.referenceImageIds);
+      const referenceVideoIds = stringArray(taskContext.referenceVideoIds);
+      const referenceAudioIds = stringArray(taskContext.referenceAudioIds);
+      const originalReferenceImageIds = stringArray(taskContext.originalReferenceImageIds).length
+        ? stringArray(taskContext.originalReferenceImageIds)
+        : [...referenceImageIds];
+      const characterReferenceImageIds = collectCharacterReferenceImageIds({
+        prompt: typeof taskContext.userPrompt === 'string' ? taskContext.userPrompt : prompt,
+        referenceImageIds: originalReferenceImageIds,
+        explicitIds: stringArray(taskContext.characterReferenceImageIds),
+      });
+      let temporaryCharacterReferenceGroupId = String(taskContext.temporaryCharacterReferenceGroupId || '').trim();
       const videoModelProviderId = typeof taskContext.videoModelProviderId === 'string' ? taskContext.videoModelProviderId : undefined;
       const videoModelId = typeof taskContext.videoModelId === 'string' ? taskContext.videoModelId : undefined;
-      materialContext = resolveVideoMaterialContext({
+      const buildMaterialContext = (imageIds: string[]) => resolveVideoMaterialContext({
         userId: current.userId,
         selectedDigitalHumanId,
         selectedSceneId,
@@ -2017,11 +2448,11 @@ export const contentService = {
         referenceImageGroupId,
         referenceVideoGroupId,
         referenceAudioGroupId,
-        referenceImageIds,
+        referenceImageIds: imageIds,
         referenceVideoIds,
         referenceAudioIds,
       });
-      providerResult = await callConfiguredVideoModel({
+      const submitVideoRequest = async () => callConfiguredVideoModel({
         taskId: id,
         title: current.title,
         prompt,
@@ -2042,6 +2473,50 @@ export const contentService = {
         providerId: videoModelProviderId,
         modelId: videoModelId,
       });
+      materialContext = buildMaterialContext(referenceImageIds);
+      try {
+        providerResult = await submitVideoRequest();
+      } catch (error) {
+        if (
+          isSensitiveRealPersonError(error)
+          && characterReferenceImageIds.length > 0
+          && !temporaryCharacterReferenceGroupId
+        ) {
+          logger.warn('video generation real person rejection detected, fallback upload started', {
+            taskId: id,
+            userId: current.userId,
+            characterReferenceImageIds,
+            referenceImageIds,
+          });
+          const temporaryReferences = await createTemporaryCharacterReferenceAssets({
+            taskId: id,
+            userId: current.userId,
+            prompt: typeof taskContext.userPrompt === 'string' ? taskContext.userPrompt : prompt,
+            referenceImageIds: originalReferenceImageIds,
+            characterReferenceImageIds,
+          });
+          temporaryCharacterReferenceGroupId = temporaryReferences.groupId;
+          referenceImageIds = referenceImageIds.map((assetId) => temporaryReferences.assetIdBySourceId[assetId] || assetId);
+          taskContext = {
+            ...taskContext,
+            referenceImageIds,
+            originalReferenceImageIds,
+            characterReferenceImageIds,
+            temporaryCharacterReferenceGroupId,
+            temporaryCharacterReferenceAssetIds: temporaryReferences.assetIds,
+            currentStep: 'video_generation_character_fallback_uploaded',
+            updatedAt: new Date().toISOString(),
+          };
+          contentRepository.updateVideoTaskContext(id, {
+            selectedSkillIds: current.selectedSkillIds,
+            expertContext: taskContext,
+          });
+          materialContext = buildMaterialContext(referenceImageIds);
+          providerResult = await submitVideoRequest();
+        } else {
+          throw error;
+        }
+      }
       persistPendingVideoGenerationResult({
         taskId: id,
         providerResult,
@@ -2062,6 +2537,10 @@ export const contentService = {
         promptChars: prompt.length,
         materialContext,
         error: errorLogContext(error),
+      });
+      await cleanupTemporaryCharacterReferenceGroup({
+        groupId: String(taskContext.temporaryCharacterReferenceGroupId || '').trim(),
+        userId: current.userId,
       });
       contentRepository.markVideoTaskFailed(id, failureReason);
       const failedResult: VideoGenerationResult = {
@@ -2086,9 +2565,11 @@ export const contentService = {
       contentRepository.updateVideoTaskContext(id, {
         selectedSkillIds: current.selectedSkillIds,
         expertContext: {
-          ...current.expertContext,
+          ...taskContext,
           videoResult: failedResult,
           videoGenerationResult: failedResult,
+          temporaryCharacterReferenceGroupId: '',
+          temporaryCharacterReferenceAssetIds: [],
           currentStep: 'video_generation_failed',
           requiredUserAction: 'configure_video_model_or_retry',
           updatedAt: new Date().toISOString(),
@@ -2158,11 +2639,22 @@ export const contentService = {
     if (!savedTask) {
       throw new Error('视频生成结果保存失败');
     }
+    if (savedTask.status !== 'generating' && savedTask.expertContext?.temporaryCharacterReferenceGroupId) {
+      await cleanupTemporaryCharacterReferenceGroup({
+        groupId: String(savedTask.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
+        userId: savedTask.userId,
+      });
+      return clearTemporaryCharacterReferenceContext(savedTask);
+    }
     return savedTask;
   },
 
   async deleteVideoTask(id: string, userId: string) {
     const current = this.getVideoTask(id, userId);
+    await cleanupTemporaryCharacterReferenceGroup({
+      groupId: String(current.expertContext?.temporaryCharacterReferenceGroupId || '').trim(),
+      userId,
+    });
     const task = contentRepository.deleteVideoTask(id) || current;
     const generatedAssets = contentRepository
       .listAssets({ userId: task.userId, resourceType: 'finished_video' })

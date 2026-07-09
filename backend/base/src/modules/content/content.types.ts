@@ -289,6 +289,7 @@ export type CreateVideoTaskFromPromptPayload = {
 
 export type CreateVideoProductionPayload = {
   userId: string;
+  retryTaskId?: string;
   prompt?: string;
   quality?: string;
   ratio?: string;
@@ -301,6 +302,7 @@ export type CreateVideoProductionPayload = {
   referenceImageIds?: string[];
   referenceVideoIds?: string[];
   referenceAudioIds?: string[];
+  characterReferenceImageIds?: string[];
 };
 
 export type GenerateDigitalHumanThreeViewPayload = {

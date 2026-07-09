@@ -312,6 +312,8 @@ def _install_vod_upload_progress(service: Any, upload_id: str, file_size: int) -
 def _source_info_to_dict(source_info: Any, fallback_file_name: str = "") -> dict:
     return {
         "fileName": _read_attr(source_info, "FileName", fallback_file_name) if source_info else fallback_file_name,
+        "fileType": _read_attr(source_info, "FileType", "") if source_info else "",
+        "storeUri": _read_attr(source_info, "StoreUri", "") if source_info else "",
         "height": _read_attr(source_info, "Height", 0) if source_info else 0,
         "width": _read_attr(source_info, "Width", 0) if source_info else 0,
         "duration": _read_attr(source_info, "Duration", 0) if source_info else 0,

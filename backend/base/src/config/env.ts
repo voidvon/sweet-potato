@@ -86,6 +86,16 @@ export const volcengineVirtualPortraitConfig = {
   uploadTimeoutMs: Number(process.env.VOLC_VIRTUAL_PORTTRAIT_UPLOAD_TIMEOUT_MS || 120000),
 };
 
+export const volcengineTosConfig = {
+  accessKey: String(process.env.VOLC_ACCESSKEY || '').trim(),
+  secretKey: String(process.env.VOLC_SECRETKEY || '').trim(),
+  region: String(process.env.VOLCENGINE_TOS_REGION || 'cn-beijing').trim() || 'cn-beijing',
+  endpoint: String(process.env.VOLCENGINE_TOS_ENDPOINT || '').trim(),
+  bucket: String(process.env.VOLCENGINE_TOS_BUCKET || '').trim(),
+  publicBaseUrl: String(process.env.VOLCENGINE_TOS_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, ''),
+  keyPrefix: String(process.env.VOLCENGINE_TOS_KEY_PREFIX || 'video-generation-temp').trim().replace(/^\/+|\/+$/g, ''),
+};
+
 // const defaultDigitalHumanThreeViewPrompt = `人物角色设计稿，
 // 一张图内包含全身三视图+面部细节三视图，
 // 上半部分为人物全身正面、左侧面、右侧面、背面三视图共三张图，

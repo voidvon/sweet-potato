@@ -1475,16 +1475,6 @@ function selectedImageReferenceAssets(context: Record<string, unknown>) {
     .filter(isRecord);
 }
 
-function selectedCharacterReferencesMissingAssetUri(context: Record<string, unknown>) {
-  return selectedImageReferenceAssets(context).filter((asset) => {
-    const resourceType = String(asset.resourceType || '').trim();
-    if (resourceType !== 'virtual_portrait' && resourceType !== 'real_person') {
-      return false;
-    }
-    return !seedanceAssetUriFromMetadata(asset.metadata);
-  });
-}
-
 function isPublicHttpUrl(value: string) {
   if (!/^https?:\/\/\S+/i.test(value)) {
     return false;
@@ -1528,10 +1518,6 @@ export function assertSelectedReferencesResolved(input: {
 }) {
   const allowSeedanceAudioReference = input.context.allowSeedanceAudioReference === true;
   const selected = selectedReferenceSummary(input.context);
-  const characterReferencesMissingAssetUri = selectedCharacterReferencesMissingAssetUri(input.context);
-  if (characterReferencesMissingAssetUri.length) {
-    throw new Error(`已选择的人物素材缺少火山资源编号，无法稳定提交给 Seedance。请先同步人物素材入火山私域素材库，确认素材状态为 Active 后再生成。缺少资源编号：${characterReferencesMissingAssetUri.length} 个`);
-  }
   const unresolved: string[] = [];
   if (selected.images > 0 && input.imageUrls.length === 0) {
     unresolved.push(`图片 ${selected.images} 个`);
@@ -1549,16 +1535,35 @@ export function assertSelectedReferencesResolved(input: {
   }
 }
 
+export async function resolveSeedanceImageReferenceUrl(asset: Record<string, unknown>) {
+  const resourceType = String(asset.resourceType || '').trim();
+  const assetUri = seedanceAssetUriFromMetadata(asset.metadata);
+  if (resourceType === 'virtual_portrait' && assetUri) {
+    return assetUri;
+  }
+  const localDataUrl = await fileAssetToDataUrl(asset, 'image');
+  const source = asset.metadata && isRecord(asset.metadata) ? String(asset.metadata.source || '').trim() : '';
+  if (localDataUrl && source === 'local_upload') {
+    return localDataUrl;
+  }
+  const publicUrlCandidates = [
+    publicMaterialUrl(asset.fileUrl),
+    publicMaterialUrl(asset.url),
+    publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.url : undefined),
+    publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.sourceUrl : undefined),
+  ].filter((candidate) => isPublicHttpUrl(candidate));
+  if (publicUrlCandidates[0]) {
+    return publicUrlCandidates[0];
+  }
+  if (localDataUrl) {
+    return localDataUrl;
+  }
+  return assetUri;
+}
+
 export async function collectSeedanceImageUrls(context: Record<string, unknown>) {
   const assets = selectedImageReferenceAssets(context);
-  const urls = await Promise.all(assets.map(async (asset) => (
-    seedanceAssetUriFromMetadata(asset.metadata)
-    || await fileAssetToDataUrl(asset, 'image')
-    || publicMaterialUrl(asset.fileUrl)
-    || publicMaterialUrl(asset.url)
-    || publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.url : undefined)
-    || publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.sourceUrl : undefined)
-  )));
+  const urls = await Promise.all(assets.map((asset) => resolveSeedanceImageReferenceUrl(asset)));
   return Array.from(new Set(urls.filter(Boolean)));
 }
 
