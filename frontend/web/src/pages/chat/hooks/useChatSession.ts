@@ -48,12 +48,18 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
         generationJobId: messageItem.generationJobId ?? item.generationJobId,
         imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? item.imageGenerationExpectedCount,
         imageGenerationFailures: messageItem.imageGenerationFailures ?? item.imageGenerationFailures,
+        creditCost: messageItem.creditCost ?? item.creditCost,
       }
-    : item));
+      : item));
+}
+
+function imageGenerationFailureContent(errorMessage: string) {
+  return errorMessage.startsWith('生成失败，') ? errorMessage : `图片生成失败：${errorMessage}`;
 }
 
 const maxAttachmentCount = 6;
-const maxAttachmentBytes = 3 * 1024 * 1024;
+const maxAttachmentSizeMb = 10;
+const maxAttachmentBytes = maxAttachmentSizeMb * 1024 * 1024;
 const bottomLockThreshold = 4;
 
 export function useChatSession() {
@@ -69,6 +75,9 @@ export function useChatSession() {
   const [isResolvingConversation, setIsResolvingConversation] = useState(Boolean(urlConversationId));
   const [conversationOverlayLoading, setConversationOverlayLoading] = useState(false);
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+  const [continueEditFocusToken, setContinueEditFocusToken] = useState(0);
+  const [composerDraftContext, setComposerDraftContext] = useState<SendChatPayload['capabilityContext']>();
+  const [composerDraftImageModelConfigId, setComposerDraftImageModelConfigId] = useState<string | null>();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?.id;
@@ -292,6 +301,9 @@ export function useChatSession() {
         return;
       }
       setMessages((current) => mergeMessage(current, payload.message!));
+      if (['completed', 'partial_failed', 'failed', 'canceled'].includes(String(payload.job?.status || ''))) {
+        void loadConversation(activeConversationId, { syncUrl: false });
+      }
     };
     window.addEventListener(appRealtimeEventNames.generationJobUpdated, handleJobUpdated);
     return () => {
@@ -308,6 +320,9 @@ export function useChatSession() {
   }, []);
 
   const scrollToBottom = useCallback((force = false) => {
+    if (force) {
+      setUserHasScrolledUp(false);
+    }
     if (!force && userHasScrolledUp) {
       return;
     }
@@ -363,7 +378,7 @@ export function useChatSession() {
 
     const acceptedFiles = files.slice(0, remainingSlots).filter((file) => {
       if (file.size > maxAttachmentBytes) {
-        message.warning(`${file.name} 超过 3MB，已跳过`);
+        message.warning(`${file.name} 超过 ${maxAttachmentSizeMb}MB，已跳过`);
         return false;
       }
       return true;
@@ -490,6 +505,8 @@ export function useChatSession() {
     if (override?.clearComposer !== false) {
       setInput('');
       setAttachments([]);
+      setComposerDraftContext(undefined);
+      setComposerDraftImageModelConfigId(undefined);
     }
     if (editTargetIndex >= 0) {
       setMessages([
@@ -522,6 +539,8 @@ export function useChatSession() {
         });
         setInput('');
         setAttachments([]);
+        setComposerDraftContext(undefined);
+        setComposerDraftImageModelConfigId(undefined);
         setActiveConversationId(result.conversation.id);
         syncConversationUrl(result.conversation.id);
         setMessages((currentMessages) => result.messages.map((messageItem) => {
@@ -532,6 +551,7 @@ export function useChatSession() {
             generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
             imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
             imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+            creditCost: messageItem.creditCost ?? currentMessage?.creditCost,
           };
         }));
         scrollToBottom(true);
@@ -605,6 +625,8 @@ export function useChatSession() {
           if (event.type === 'done') {
             setInput('');
             setAttachments([]);
+            setComposerDraftContext(undefined);
+            setComposerDraftImageModelConfigId(undefined);
             setActiveConversationId(event.conversation.id);
             syncConversationUrl(event.conversation.id);
             setMessages((currentMessages) => event.messages.map((messageItem) => {
@@ -615,6 +637,7 @@ export function useChatSession() {
                 generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
                 imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
                 imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
+                creditCost: messageItem.creditCost ?? currentMessage?.creditCost,
               };
             }));
           }
@@ -650,7 +673,7 @@ export function useChatSession() {
               ? {
                   ...item,
                   capability: 'image_generation',
-                  content: `图片生成失败：${errorMessage}`,
+                  content: imageGenerationFailureContent(errorMessage),
                   imageGenerationExpectedCount: item.imageGenerationExpectedCount ?? failureCount,
                   imageGenerationFailures: Array.from({ length: failureCount }, (_, slotIndex) => ({
                     slotIndex,
@@ -715,9 +738,16 @@ export function useChatSession() {
     await refreshConversations();
   }, [refreshConversations]);
 
-  const regenerateImageMessage = useCallback(async (messageItem: ChatMessage) => {
+  const regenerateImageMessage = useCallback(async (messageItem: ChatMessage, assistantMessage?: ChatMessage, currentCreditCost?: number) => {
     const messageAttachments = messageItem.attachments || [];
     const imageAttachments = messageAttachments.filter((attachment) => attachment.kind === 'image');
+    const imageGenerationContext = messageItem.capabilityContext?.imageGeneration;
+    const nextRegenerationCount = Math.max(0, Number(imageGenerationContext?.regenerationCount) || 0) + 1;
+    const accumulatedCreditCost = Math.max(
+      Number(currentCreditCost) || 0,
+      Number(assistantMessage?.creditCost) || 0,
+      Number(imageGenerationContext?.accumulatedCreditCost) || 0,
+    );
     const fallbackCapabilityContext: SendChatPayload['capabilityContext'] | undefined = imageAttachments.length
       ? {
           imageGeneration: {
@@ -733,16 +763,51 @@ export function useChatSession() {
           },
         }
       : undefined;
+    const nextCapabilityContext: SendChatPayload['capabilityContext'] | undefined = messageItem.capabilityContext || fallbackCapabilityContext
+      ? {
+          ...(messageItem.capabilityContext || fallbackCapabilityContext),
+          imageGeneration: {
+            ...((messageItem.capabilityContext || fallbackCapabilityContext)?.imageGeneration || {}),
+            regenerationCount: nextRegenerationCount,
+            accumulatedCreditCost,
+          },
+        }
+      : undefined;
     await sendMessage({
       content: messageItem.content,
       attachments: messageAttachments,
-      capabilityContext: messageItem.capabilityContext || fallbackCapabilityContext,
+      capabilityContext: nextCapabilityContext,
       clearComposer: false,
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,
       requestedCapabilities: ['image_generation'],
     });
   }, [sendMessage]);
+
+  const continueEditImageMessage = useCallback((messageItem: ChatMessage) => {
+    const imageAttachments = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image');
+    if (!imageAttachments.length) {
+      message.warning('没有可继续编辑的图片');
+      return;
+    }
+    setAttachments(imageAttachments);
+    setInput('');
+    setComposerDraftContext(undefined);
+    setComposerDraftImageModelConfigId(undefined);
+    setContinueEditFocusToken((value) => value + 1);
+  }, []);
+
+  const refillComposerFromMessage = useCallback((messageItem: ChatMessage) => {
+    const imageGeneration = messageItem.capabilityContext?.imageGeneration;
+    const promptHint = imageGeneration?.promptHint?.trim();
+    const promptText = imageGeneration?.promptText?.trim() || messageItem.content.trim();
+    const nextInput = promptHint && promptText === promptHint ? '' : promptText;
+    setInput(nextInput);
+    setAttachments(messageItem.attachments || []);
+    setComposerDraftContext(messageItem.capabilityContext);
+    setComposerDraftImageModelConfigId(messageItem.imageModelConfigId || undefined);
+    setContinueEditFocusToken((value) => value + 1);
+  }, []);
 
   const stopSending = useCallback(() => {
     streamAbortControllerRef.current?.abort();
@@ -754,6 +819,10 @@ export function useChatSession() {
     activeConversationId,
     addAttachments,
     attachments,
+    composerDraftContext,
+    composerDraftImageModelConfigId,
+    continueEditFocusToken,
+    continueEditImageMessage,
     clearConversationMessages,
     conversationOverlayLoading,
     conversations,
@@ -766,6 +835,7 @@ export function useChatSession() {
     removeAttachment,
     removeMessage,
     removeConversation,
+    refillComposerFromMessage,
     scrollContainerRef,
     scrollToBottom,
     sendCurrentMessage,

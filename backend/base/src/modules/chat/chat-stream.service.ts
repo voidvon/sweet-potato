@@ -6,16 +6,18 @@ import { agentRepository } from '../agents/agent.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
-import { resolveSkillInvocation } from '../skills/skill.service.js';
 import { userRepository } from '../users/user.repository.js';
 import { publishGenerationEvent } from '../generation/generation.events.js';
 import { generationRepository } from '../generation/generation.repository.js';
 import type { GenerationJob } from '../generation/generation.types.js';
+import { isUpstreamModelError } from '../model-providers/provider-error.js';
 import { dispatchChatCapability, resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { assertModelConfigReady, streamConfiguredModel } from './chat-completion.service.js';
 import { expectedImageGenerationOutputCount } from './capabilities/image-generation.workflow.js';
 import { chatRepository } from './chat.repository.js';
 import type { ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from './chat.types.js';
+
+const maxChatAttachmentBytes = 10 * 1024 * 1024;
 
 export type ChatStreamSink = {
   send: (event: unknown) => void;
@@ -68,6 +70,17 @@ function publishJob(job: GenerationJob | undefined) {
   });
 }
 
+function imageGenerationFailureContent(errorMessage: string) {
+  return errorMessage.startsWith('生成失败，') ? errorMessage : `图片生成失败：${errorMessage}`;
+}
+
+function imageGenerationErrorMessage(error: unknown) {
+  if (isUpstreamModelError(error, 'provider_insufficient_balance')) {
+    return '生成失败，积分不足';
+  }
+  return error instanceof Error ? error.message : '图片生成失败';
+}
+
 export function parseChatAttachments(value: unknown): ChatAttachment[] {
   if (!Array.isArray(value)) {
     return [];
@@ -83,8 +96,10 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
     const url = String(attachment.url || '').trim();
     const size = Number(attachment.size || 0);
     const kind = attachment.kind === 'image' ? 'image' : 'file';
+    const width = Number(attachment.width || 0);
+    const height = Number(attachment.height || 0);
 
-    if (!name || !url || !Number.isFinite(size) || size <= 0 || size > 3 * 1024 * 1024) {
+    if (!name || !url || !Number.isFinite(size) || size <= 0 || size > maxChatAttachmentBytes) {
       return [];
     }
 
@@ -95,6 +110,8 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
       size,
       type,
       url,
+      ...(kind === 'image' && Number.isFinite(width) && width > 0 ? { width: Math.round(width) } : {}),
+      ...(kind === 'image' && Number.isFinite(height) && height > 0 ? { height: Math.round(height) } : {}),
     }];
   });
 }
@@ -138,6 +155,8 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
   }
   const source = value as Record<string, unknown>;
   const outputCount = Number(source.outputCount);
+  const regenerationCount = Number(source.regenerationCount);
+  const accumulatedCreditCost = Number(source.accumulatedCreditCost);
   const outputBackground = stringValue(source.outputBackground, 20);
   const parsedOutputBackground: 'transparent' | 'white' | 'black' | undefined =
     outputBackground === 'transparent' || outputBackground === 'white' || outputBackground === 'black'
@@ -148,6 +167,8 @@ function parseImageGenerationContext(value: unknown): NonNullable<NonNullable<Se
     modeTitle: stringValue(source.modeTitle, 80),
     promptText: stringValue(source.promptText, 4000),
     promptHint: stringValue(source.promptHint, 4000),
+    regenerationCount: Number.isFinite(regenerationCount) && regenerationCount > 0 ? Math.floor(regenerationCount) : undefined,
+    accumulatedCreditCost: Number.isFinite(accumulatedCreditCost) && accumulatedCreditCost > 0 ? accumulatedCreditCost : undefined,
     outputSize: stringValue(source.outputSize, 40),
     outputCount: Number.isFinite(outputCount) ? Math.max(1, Math.floor(outputCount)) : undefined,
     outputBackground: parsedOutputBackground,
@@ -388,7 +409,7 @@ export async function handleCapabilityConversation(input: {
     if (!streamingAssistantMessage) {
       throw error;
     }
-    const errorMessage = error instanceof Error ? error.message : '图片生成失败';
+    const errorMessage = imageGenerationErrorMessage(error);
     const failedConversation: ChatConversation = {
       ...conversation,
       metadata: {
@@ -399,7 +420,7 @@ export async function handleCapabilityConversation(input: {
     };
     streamingAssistantMessage = {
       ...streamingAssistantMessage,
-      content: `图片生成失败：${errorMessage}`,
+      content: imageGenerationFailureContent(errorMessage),
       generationJobId: generationJob?.id,
       imageGenerationExpectedCount,
       imageGenerationFailures: buildImageGenerationFailures(errorMessage),
@@ -454,10 +475,12 @@ export async function handleCapabilityConversation(input: {
     conversationId: nextConversation.id,
     role: 'assistant',
     content: result.assistantContent,
+    capabilityContext: input.capabilityContext,
     actions: result.assistantActions || [],
     agentId: input.agent.id,
     modelConfigId: nextConversation.modelConfigId || undefined,
     attachments: result.assistantAttachments || [],
+    creditCost: typeof result.creditCost === 'number' ? result.creditCost : undefined,
     generationJobId: generationJob?.id,
     imageGenerationExpectedCount,
     imageGenerationFailures: result.imageGenerationFailures || [],
@@ -487,9 +510,11 @@ export async function handleCapabilityConversation(input: {
       id: assistantMessage.id,
       content: assistantMessage.content,
       attachments: assistantMessage.attachments,
+      capabilityContext: assistantMessage.capabilityContext,
       generationJobId: assistantMessage.generationJobId,
       imageGenerationExpectedCount: assistantMessage.imageGenerationExpectedCount,
       imageGenerationFailures: assistantMessage.imageGenerationFailures,
+      creditCost: assistantMessage.creditCost,
       isCompleted: true,
     });
     publishJob(generationJob);
@@ -683,14 +708,6 @@ export function createChatStreamExecutor() {
       }
     }
 
-    let skillInvocation;
-    try {
-      skillInvocation = await resolveSkillInvocation({ content, userId });
-    } catch (error) {
-      sink.send({ type: 'error', message: error instanceof Error ? error.message : '技能读取失败' });
-      sink.end();
-      return;
-    }
     const history = existingHistory;
     const now = new Date().toISOString();
     const conversation: ChatConversation = existingConversation
@@ -700,18 +717,18 @@ export function createChatStreamExecutor() {
           modelConfigId: modelConfig.id,
           metadata: {
             ...(existingConversation.metadata || {}),
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           updatedAt: now,
         }
       : {
           id: randomBytes(12).toString('hex'),
           userId,
-          title: makeChatTitle(skillInvocation.titleContent),
+          title: makeChatTitle(content),
           agentId,
           modelConfigId: modelConfig.id,
           metadata: {
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           createdAt: now,
           updatedAt: now,
@@ -721,7 +738,7 @@ export function createChatStreamExecutor() {
       id: editTarget?.id || randomBytes(12).toString('hex'),
       conversationId: conversation.id,
       role: 'user',
-      content: skillInvocation.userContent,
+      content,
       agentId,
       modelConfigId: modelConfig.id,
       attachments,
@@ -749,7 +766,7 @@ export function createChatStreamExecutor() {
         agent,
         modelConfig,
         history,
-        content: skillInvocation.modelContent,
+        content,
         attachments,
         signal: sink.signal,
       })) {

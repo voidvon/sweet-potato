@@ -22,7 +22,7 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
 
 const webRouteMetaByPermission = {
   'web.module.chat': {
-    path: '/app/modules/claw',
+    path: '/app/image',
   },
   'web.module.content.video_remake': {
     path: '/app/content/video_remake',
@@ -107,6 +107,9 @@ export const seededRouteResources: SeedRouteResource[] = [
       }
       if (entry.group === 'creator_ops') {
         return 'rr-web-root-creator-ops';
+      }
+      if (entry.key === 'web.module.content.finished_assets') {
+        return undefined;
       }
       if (entry.key === 'web.module.content.video_remake') {
         return 'rr-web-root-video';

@@ -12,13 +12,13 @@ import type {
 ContentAsset
 } from '../content.types.js';
 
-import { assertUserId,contentFilesDir,execFileAsync,mimoVoiceCloneProviderId } from './content-common.js';
+import { assertUserId,contentFilesDir,execFileAsync,fileUrlForContentRelativePath,mimoVoiceCloneProviderId } from './content-common.js';
 import { deleteContentAssetFile } from './content-image-assets.js';
 
 export const defaultVoiceClonePreviewText = '你好，我是你的专属声音助手，很高兴为你服务。今天天气真不错，适合出门走走。';
 
 export function fileUrlFor(storedFileName: string) {
-  return `/files/${encodeURIComponent(storedFileName)}`;
+  return fileUrlForContentRelativePath(storedFileName);
 }
 
 export function absolutizeMaterialUrl(value: unknown) {

@@ -2,8 +2,9 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import {
   Bot,
   Clapperboard,
-  Film,
+  Folder,
   FolderOpen,
+  ImagePlus,
   Mic,
   Package,
   Sparkles,
@@ -25,7 +26,6 @@ import {
 } from '../components/RouteLoadingFallback';
 import { isElectronEgg } from '../ipc';
 import { ProtectedLayout } from '../layouts/ProtectedLayout';
-import { modules } from '../modules';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { NoPermissionPage } from '../pages/NoPermissionPage';
 import { routePaths } from './paths';
@@ -35,7 +35,7 @@ import type { AuthSession, CreativeModuleCode, User } from '../types';
 
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
-const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
 const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
 const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
@@ -57,7 +57,7 @@ type WorkspaceSurface = 'default' | 'studio' | 'immersive';
 type RouteTitle = string | ((pathname: string) => string | null);
 
 type SidebarMenuMeta = {
-  groupKey: SidebarGroupKey;
+  groupKey?: SidebarGroupKey;
   icon: ReactNode;
   label?: string;
   tag?: 'HOT' | 'NEW';
@@ -79,6 +79,7 @@ type WebRouteResourceMeta = {
 };
 
 export type AppRouteHandle = {
+  hideWorkspaceHeader?: boolean;
   sidebar?: SidebarMenuMeta;
   surface?: WorkspaceSurface;
   title?: RouteTitle;
@@ -113,6 +114,7 @@ export type WorkspaceRouteState = {
   activeOpenKeys: SidebarGroupKey[];
   currentMenuTitle: string;
   defaultOpenKeys: SidebarGroupKey[];
+  hideWorkspaceHeader?: boolean;
   isChatPage: boolean;
   isContentStudioPage: boolean;
   isContentStudioVideoCreatePage: boolean;
@@ -193,16 +195,13 @@ function AuthRouteFrame({ children }: { children: ReactNode }) {
 
 const workspacePageDefinitions: WorkspacePageDefinition[] = [
   {
-    key: 'module-dashboard',
-    path: 'modules/:moduleId',
-    fullPath: routePaths.module(),
-    element: () => withChatSuspense(<DashboardPage />),
+    key: 'image-creation',
+    path: 'image',
+    fullPath: routePaths.defaultModule,
+    element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
     handle: {
-      title: (pathname) => {
-        const matchedModule = modules.find((item) => pathname === routePaths.module(item.id));
-        return matchedModule?.title || null;
-      },
+      title: '图片创作',
     },
   },
   {
@@ -324,11 +323,11 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '成片素材',
+      hideWorkspaceHeader: true,
+      title: '作品',
       surface: 'studio',
       sidebar: {
-        groupKey: 'material',
-        icon: <Film {...menuIconProps} />,
+        icon: <Folder {...menuIconProps} />,
       },
       contentNavigation: {
         code: 'finished_assets',
@@ -594,6 +593,10 @@ function getRouteSortOrder(route: WorkspacePageDefinition, resourceInfoMap?: Map
     return workspacePageDefinitions.indexOf(route);
   }
 
+  if (route.handle?.sidebar && !route.handle.sidebar.groupKey) {
+    return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 1000 + workspacePageDefinitions.indexOf(route);
+  }
+
   return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0;
 }
 
@@ -769,7 +772,7 @@ export function getContentNavigationRoutes(currentUser: User): ContentNavigation
 
 function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   const sidebarRoutes = getVisibleWorkspacePages(currentUser)
-    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar?.groupKey));
 
   return Object.entries(sidebarGroupMeta)
     .map(([groupKey, group]) => {
@@ -798,6 +801,20 @@ function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string,
     .sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
+function buildTopLevelSidebarRoutes(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return getVisibleWorkspacePages(currentUser)
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => (
+      Boolean(route.handle?.sidebar) && !route.handle?.sidebar?.groupKey
+    ))
+    .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
+    .map((route) => ({
+      key: route.fullPath,
+      icon: route.handle.sidebar.icon,
+      label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      sortOrder: getRouteSortOrder(route, resourceInfoMap),
+    }));
+}
+
 export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
   const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
   const sidebarItems: SortableWorkspaceMenuItem[] = [];
@@ -805,11 +822,13 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
   if (hasRouteGrant(currentUser, chatRouteGrant)) {
     sidebarItems.push({
       key: routePaths.defaultModule,
-      icon: <Bot {...menuIconProps} />,
-      label: resourceInfoMap?.get('web.module.chat')?.name || 'AI 对话',
+      icon: <ImagePlus {...menuIconProps} />,
+      label: resourceInfoMap?.get('web.module.chat')?.name || '图片创作',
       sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
     });
   }
+
+  sidebarItems.push(...buildTopLevelSidebarRoutes(currentUser, resourceInfoMap));
 
   sidebarItems.push(...groups.map((group) => ({
       key: group.key,
@@ -835,6 +854,7 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
 
 export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[], resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceRouteState {
   const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
+  const topLevelRoutes = buildTopLevelSidebarRoutes(currentUser, resourceInfoMap);
   const isChatRouteAccessible = hasRouteGrant(currentUser, chatRouteGrant);
   const chatMenuKey = isChatRouteAccessible ? routePaths.defaultModule : null;
   const matchedHandle = [...matches]
@@ -846,11 +866,14 @@ export function getWorkspaceLayoutState(currentUser: User, pathname: string, mat
   const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined) || resolveRouteTitle(matchedHandle?.title, pathname) || '工作台';
   const selectedMenuKey = pathname === routePaths.defaultModule
     ? chatMenuKey
-    : groups.flatMap((group) => group.children).find((item) => item.path === pathname)?.path || null;
+    : topLevelRoutes.find((item) => item.key === pathname)?.key
+      || groups.flatMap((group) => group.children).find((item) => item.path === pathname)?.path
+      || null;
   return {
     activeOpenKeys: selectedGroup ? [selectedGroup] : [],
     currentMenuTitle,
     defaultOpenKeys: groups.map((group) => group.key),
+    hideWorkspaceHeader: matchedHandle?.hideWorkspaceHeader === true,
     isChatPage: pathname === routePaths.defaultModule && isChatRouteAccessible,
     isContentStudioPage: matchedHandle?.surface === 'studio',
     isContentStudioVideoCreatePage: pathname === routePaths.contentModule('create_video'),
@@ -879,11 +902,6 @@ export function canAccessRoutePath(currentUser: User, pathname: string) {
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
   if (matchedRoute) {
     return isVisibleWorkspacePage(matchedRoute, currentUser);
-  }
-
-  if (pathname.startsWith('/app/modules/')) {
-    const moduleId = pathname.slice('/app/modules/'.length);
-    return moduleId === 'claw' && hasRouteGrant(currentUser, chatRouteGrant);
   }
 
   return false;

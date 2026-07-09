@@ -18,6 +18,8 @@ export type ChatAttachment = {
   size: number;
   kind: 'image' | 'file';
   url: string;
+  width?: number;
+  height?: number;
   imageGenerationSlotIndex?: number;
 };
 
@@ -48,6 +50,7 @@ export type ChatMessage = {
   agentId: string;
   modelConfigId?: string | null;
   attachments?: ChatAttachment[];
+  creditCost?: number | null;
   createdAt: string;
   isCompleted?: boolean;
 };

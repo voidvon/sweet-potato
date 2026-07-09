@@ -43,6 +43,7 @@ const messageSelect = `
     model_config_id as modelConfigId,
     attachments,
     is_completed as isCompleted,
+    credit_cost as creditCost,
     created_at as createdAt
   FROM chat_messages
 `;
@@ -86,6 +87,7 @@ function serializeMessage(message: ChatMessage) {
     modelConfigId: message.modelConfigId || null,
     attachments: JSON.stringify(message.attachments || []),
     isCompleted: message.isCompleted === false ? 0 : 1,
+    creditCost: typeof message.creditCost === 'number' ? message.creditCost : null,
   };
 }
 
@@ -183,7 +185,9 @@ export const chatRepository = {
     imageGenerationFailures?: ChatMessage['imageGenerationFailures'];
     updatedReasoningContent?: string | null;
     isCompleted?: boolean;
+    creditCost?: number | null;
   }) {
+    const shouldUpdateCreditCost = Object.prototype.hasOwnProperty.call(input, 'creditCost');
     db.prepare(`
       UPDATE chat_messages
       SET
@@ -196,6 +200,7 @@ export const chatRepository = {
         attachments = @attachments,
         reasoning_content = @reasoningContent,
         is_completed = @isCompleted
+        ${shouldUpdateCreditCost ? ', credit_cost = @creditCost' : ''}
       WHERE id = @id
     `).run({
       id: input.id,
@@ -208,6 +213,9 @@ export const chatRepository = {
       attachments: JSON.stringify(input.attachments || []),
       reasoningContent: input.updatedReasoningContent || null,
       isCompleted: input.isCompleted === false ? 0 : 1,
+      ...(shouldUpdateCreditCost
+        ? { creditCost: typeof input.creditCost === 'number' ? input.creditCost : null }
+        : {}),
     });
     return db.prepare(`${messageSelect} WHERE id = ?`).get(input.id) as ChatMessageRow | undefined;
   },
@@ -224,10 +232,10 @@ export const chatRepository = {
   createMessages(messages: ChatMessage[]) {
     const query = db.prepare(`
       INSERT INTO chat_messages (
-        id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, created_at
+        id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, credit_cost, created_at
       )
       VALUES (
-        @id, @conversationId, @role, @content, @capabilityContext, @imageModelConfigId, @generationJobId, @imageGenerationExpectedCount, @imageGenerationFailures, @reasoningContent, @actions, @agentId, @modelConfigId, @attachments, @isCompleted, @createdAt
+        @id, @conversationId, @role, @content, @capabilityContext, @imageModelConfigId, @generationJobId, @imageGenerationExpectedCount, @imageGenerationFailures, @reasoningContent, @actions, @agentId, @modelConfigId, @attachments, @isCompleted, @creditCost, @createdAt
       )
     `);
     const transaction = db.transaction(() => {

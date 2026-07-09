@@ -19,7 +19,7 @@ need_cmd() {
 need_cmd ssh
 
 echo "==> 配置远端 Nginx：$SSH_TARGET"
-echo "==> /web/         -> http://127.0.0.1:5689"
+echo "==> /            -> http://127.0.0.1:5689"
 echo "==> /admin/       -> http://127.0.0.1:5689/admin/"
 echo "==> /api/base/   -> $BASE_UPSTREAM"
 echo "==> /api/worker/ -> $WORKER_UPSTREAM"
@@ -50,7 +50,7 @@ ssh "$SSH_TARGET" "
   cat > \"\$NGINX_CONF_DIR/$NGINX_CONF_NAME\" <<'EOF'
 server {
   listen 80;
-  server_name 119.45.92.250;
+  server_name $REMOTE_HOST;
 
   client_max_body_size 1000m;
 
@@ -83,11 +83,19 @@ server {
   }
 
   location = /web {
-    return 301 /web/;
+    return 301 /;
   }
 
   location /web/ {
-    proxy_pass http://127.0.0.1:5689/;
+    return 301 /;
+  }
+
+  location = /admin {
+    return 301 /admin/;
+  }
+
+  location /admin/ {
+    proxy_pass http://127.0.0.1:5689/admin/;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
     proxy_set_header Real-IP \$remote_addr;
@@ -100,12 +108,8 @@ server {
     proxy_send_timeout 300s;
   }
 
-  location = /admin {
-    return 301 /admin/;
-  }
-
-  location /admin/ {
-    proxy_pass http://127.0.0.1:5689/admin/;
+  location / {
+    proxy_pass http://127.0.0.1:5689/;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
     proxy_set_header Real-IP \$remote_addr;
@@ -130,7 +134,7 @@ EOF
 "
 
 echo "==> Nginx 配置完成"
-echo "web:    http://$REMOTE_HOST/web/"
+echo "web:    http://$REMOTE_HOST/"
 echo "admin:  http://$REMOTE_HOST/admin/"
 echo "base:   http://$REMOTE_HOST/api/base/"
 echo "worker: http://$REMOTE_HOST/api/worker/"

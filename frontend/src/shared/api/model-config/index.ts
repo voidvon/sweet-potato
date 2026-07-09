@@ -74,6 +74,7 @@ export type ImageModelProviderOption = {
   keyHelp?: string;
   defaultBaseUrl: string;
   defaultModel: string;
+  defaultSettings?: Record<string, unknown>;
   models: ImageModelOption[];
 };
 

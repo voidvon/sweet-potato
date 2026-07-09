@@ -1,22 +1,24 @@
 import { Spin } from 'antd';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ClawDialogComposer } from './components/ClawDialogComposer';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ClawSidebar } from './components/ClawSidebar';
-import { SkillCenterModal } from './components/SkillCenterModal';
 import { useChatSession } from './hooks/useChatSession';
-import { useSkillCenter } from './hooks/useSkillCenter';
 import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import { VideoWorkbenchLayout } from '../../layouts/VideoWorkbenchLayout';
-import { Button, Space } from 'antd';
-import { Plus, Zap } from 'lucide-react';
+import { Button } from 'antd';
+import { Plus } from 'lucide-react';
 import '../content/VideoRemakePage/VideoRemakePage.scss';
 import './ChatPage.scss';
 
 export function ChatPage() {
   const chat = useChatSession();
-  const skillCenter = useSkillCenter();
+  const location = useLocation();
   const { setHeaderExtra } = useWorkspaceHeader();
+  const showComposerHeading = chat.messages.length === 0
+    && location.pathname === '/app/image'
+    && !location.search;
 
   useEffect(() => {
     setHeaderExtra(
@@ -33,13 +35,16 @@ export function ChatPage() {
   const renderComposer = () => (
     <ClawDialogComposer
       attachments={chat.attachments}
+      composerDraftContext={chat.composerDraftContext}
+      composerDraftImageModelConfigId={chat.composerDraftImageModelConfigId}
+      continueEditFocusToken={chat.continueEditFocusToken}
       input={chat.input}
       onAddFiles={chat.addAttachments}
       onInputChange={chat.setInput}
       onRemoveAttachment={chat.removeAttachment}
       onSend={(options) => void chat.sendCurrentMessage(options)}
       onStop={chat.stopSending}
-      showHeading={chat.messages.length === 0}
+      showHeading={showComposerHeading}
       sending={chat.sending}
     />
   );
@@ -48,19 +53,20 @@ export function ChatPage() {
     <section className={`chat-page${chat.showWelcome ? ' is-idle' : ''}`}>
       <VideoWorkbenchLayout
         footer={renderComposer()}
-        sidebarHeader={(
-          <div className="video-remake-sidebar-header">
-            <Space orientation="vertical" size={12} style={{ display: 'flex' }}>
-              <Button block icon={<Plus size={16} />} onClick={chat.startNewConversation} type="primary">
-                新建会话
-              </Button>
-              <Button block icon={<Zap size={16} />} onClick={() => skillCenter.setOpen(true)}>
-                技能中心
-              </Button>
-            </Space>
-          </div>
+        sidebarTitle={(
+          <>
+            <span>会话</span>
+            <Button
+              aria-label="新建会话"
+              icon={<Plus size={14} />}
+              onClick={chat.startNewConversation}
+              size="small"
+              type="text"
+            >
+              新建
+            </Button>
+          </>
         )}
-        sidebarTitle="会话"
         sidebarContent={(
           <ClawSidebar
             activeConversationId={chat.activeConversationId}
@@ -86,8 +92,9 @@ export function ChatPage() {
               messages={chat.messages}
               onActionClick={(content) => void chat.sendPresetMessage(content)}
               onDeleteMessage={(messageItem) => void chat.removeMessage(messageItem)}
-              onRegenerateImage={(messageItem) => void chat.regenerateImageMessage(messageItem)}
-              onUpdateUserMessage={(messageId, content) => void chat.updateUserMessage(messageId, content)}
+              onContinueEditImage={(messageItem) => chat.continueEditImageMessage(messageItem)}
+              onRegenerateImage={(userMessage, assistantMessage, currentCreditCost) => void chat.regenerateImageMessage(userMessage, assistantMessage, currentCreditCost)}
+              onRefillComposerFromMessage={(messageItem) => chat.refillComposerFromMessage(messageItem)}
               onScroll={chat.handleChatScroll}
               scrollContainerRef={chat.scrollContainerRef}
               sending={chat.sending}
@@ -95,14 +102,6 @@ export function ChatPage() {
           </div>
         </main>
       </VideoWorkbenchLayout>
-      <SkillCenterModal
-        onClose={() => skillCenter.setOpen(false)}
-        onRemoveSkill={skillCenter.removeSkill}
-        onUpdateSkill={skillCenter.updateSkill}
-        onUploadFile={skillCenter.uploadSkillFile}
-        open={skillCenter.open}
-        skills={skillCenter.skills}
-      />
     </section>
   );
 }

@@ -2,7 +2,7 @@ export const routePaths = {
   login: '/login',
   appRoot: '/app',
   defaultLanding: '/app/content/video_remake',
-  defaultModule: '/app/modules/claw',
+  defaultModule: '/app/image',
   module: (moduleId = ':moduleId') => `/app/modules/${moduleId}`,
   contentRoot: '/app/content',
   contentDefault: '/app/content/virtual_portrait_assets',

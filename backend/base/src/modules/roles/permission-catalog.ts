@@ -15,8 +15,8 @@ export const defaultOnboardingRoleKey = 'default-onboarding';
 export const permissionCatalog: PermissionCatalogEntry[] = [
   {
     key: 'web.module.chat',
-    label: 'AI 对话',
-    description: '允许访问 AI 对话、会话记录和技能中心。',
+    label: '图片创作',
+    description: '允许访问图片创作、生图会话记录和图片生成工具。',
     group: 'chat',
   },
   {
@@ -83,8 +83,8 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
   },
   {
     key: 'web.module.content.finished_assets',
-    label: '成片素材',
-    description: '允许访问成片素材模块。',
+    label: '作品',
+    description: '允许访问作品模块。',
     group: 'content',
     moduleCodes: ['finished_assets'] as const,
     resourceTypes: ['finished_video'] as const,

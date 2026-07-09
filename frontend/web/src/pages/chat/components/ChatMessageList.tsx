@@ -1,39 +1,67 @@
-import { Button, Dropdown, Image, Modal, Tooltip, message } from 'antd';
-import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ChevronRight } from 'lucide-react';
-import { Children, cloneElement, useEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
-import type { ChatAttachment, ChatMessage } from '../../../types';
+import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
+import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
+import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
+import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
+import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
+import { listModelConfigs } from '../../../api/model-config';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
 import { ImageAttachmentStack } from './ImageAttachmentStack';
+import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import './ChatMessageList.scss';
 
 type ChatMessageListProps = {
   hasStreamingAssistant: boolean;
   messages: ChatMessage[];
   onActionClick: (content: string) => void;
+  onContinueEditImage: (message: ChatMessage) => void;
   onDeleteMessage: (message: ChatMessage) => void;
-  onRegenerateImage: (message: ChatMessage) => void;
-  onUpdateUserMessage: (messageId: string, content: string) => void;
+  onRefillComposerFromMessage: (message: ChatMessage) => void;
+  onRegenerateImage: (userMessage: ChatMessage, assistantMessage: ChatMessage, currentCreditCost?: number) => void;
   onScroll: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sending: boolean;
+};
+
+type ImageGenerationContext = NonNullable<NonNullable<ChatMessage['capabilityContext']>['imageGeneration']>;
+
+type ImageGenerationCellStyle = CSSProperties & {
+  '--chat-image-aspect-ratio'?: string;
+};
+
+const imageGenerationModeToneMap: Record<string, string> = {
+  dialog: 'blue',
+  detail: 'amber',
+  outfit: 'violet',
+  'model-views': 'indigo',
+  'pose-reference': 'cyan',
+  upscale: 'lime',
+  cutout: 'orange',
+  background: 'emerald',
+  'scene-extract': 'fuchsia',
+  'model-face-swap': 'rose',
+  'head-swap': 'rose',
+  'face-swap': 'rose',
+  redraw: 'blue',
+  'detail-enhance': 'amber',
+  'print-extract': 'fuchsia',
+  'face-enhance': 'cyan',
 };
 
 export function ChatMessageList({
   hasStreamingAssistant,
   messages,
   onActionClick,
+  onContinueEditImage,
   onDeleteMessage,
+  onRefillComposerFromMessage,
   onRegenerateImage,
-  onUpdateUserMessage,
   onScroll,
   scrollContainerRef,
   sending,
 }: ChatMessageListProps) {
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
+  const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
     images: ChatAttachment[];
@@ -43,27 +71,28 @@ export function ChatMessageList({
     images: [],
     open: false,
   });
-  const editorRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (!editingMessageId) {
-      return;
-    }
-    const messageItem = messages.find((item) => item.id === editingMessageId && item.role === 'user');
-    if (!messageItem) {
-      setEditingMessageId(null);
-      setEditingContent('');
-    }
-  }, [editingMessageId, messages]);
+    let ignore = false;
 
-  useEffect(() => {
-    if (!editingMessageId) {
-      return;
+    async function loadImageConfigs() {
+      try {
+        const configs = await listModelConfigs('image');
+        if (!ignore) {
+          setImageConfigs(configs);
+        }
+      } catch {
+        if (!ignore) {
+          setImageConfigs([]);
+        }
+      }
     }
-    editorRef.current?.focus();
-    const length = editorRef.current?.value.length ?? 0;
-    editorRef.current?.setSelectionRange(length, length);
-  }, [editingMessageId]);
+
+    void loadImageConfigs();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   function fallbackCopyText(content: string) {
     const textarea = document.createElement('textarea');
@@ -100,25 +129,6 @@ export function ChatMessageList({
         message.error('复制失败');
       }
     }
-  }
-
-  function startEditing(messageItem: ChatMessage) {
-    setEditingMessageId(messageItem.id);
-    setEditingContent(messageItem.content);
-  }
-
-  function cancelEditing() {
-    setEditingMessageId(null);
-    setEditingContent('');
-  }
-
-  async function submitEditing(messageId: string) {
-    const nextContent = editingContent.trim();
-    if (!nextContent || sending) {
-      return;
-    }
-    await onUpdateUserMessage(messageId, nextContent);
-    cancelEditing();
   }
 
   function renderFileAttachment(attachment: ChatAttachment) {
@@ -194,43 +204,110 @@ export function ChatMessageList({
     );
   }
 
-  function renderUserMessageContent(messageItem: ChatMessage, isEditingUserMessage: boolean) {
-    if (isEditingUserMessage) {
-      return (
-        <>
-          <textarea
-            className="chat-user-message-editor"
-            onChange={(event) => setEditingContent(event.target.value)}
-            ref={editorRef}
-            value={editingContent}
-          />
-          <div className="chat-user-message-editor-actions">
-            <Button onClick={cancelEditing} size="small">
-              取消
-            </Button>
-            <Button onClick={() => void submitEditing(messageItem.id)} size="small" type="primary">
-              更新
-            </Button>
-          </div>
-        </>
-      );
+  function mentionKindForAttachment(attachment: ChatAttachment) {
+    if (attachment.type.startsWith('audio/')) {
+      return 'audio';
     }
+    if (attachment.type.startsWith('video/')) {
+      return 'video';
+    }
+    return 'image';
+  }
 
+  function renderReadonlyMentionChip(option: {
+    attachment?: ChatAttachment;
+    key: string;
+    label: string;
+    token: string;
+  }) {
+    const attachment = option.attachment;
+    const kind = attachment ? mentionKindForAttachment(attachment) : 'image';
+    const previewUrl = attachment?.kind === 'image' && attachment.url ? resolveAssetUrl(attachment.url) : '';
+    const fallbackIcon = kind === 'audio' ? '♪' : kind === 'video' ? '视' : option.label.slice(0, 1);
+    return (
+      <span
+        className="mention-rich-textarea-chip chat-user-message-mention-chip"
+        data-attachment-id={attachment?.id}
+        data-mention-kind={kind}
+        data-token={option.token}
+        key={option.key}
+      >
+        {previewUrl ? (
+          <img alt={option.label} src={previewUrl} />
+        ) : (
+          <span className="mention-rich-textarea-chip-icon">{fallbackIcon}</span>
+        )}
+        <b>{option.label}</b>
+      </span>
+    );
+  }
+
+  function renderReadonlyRichText(value: string, attachments: ChatAttachment[]) {
+    const mentionOptions = attachments.map((attachment, index) => {
+      const label = `图${index + 1}`;
+      return {
+        attachment,
+        label,
+        token: `@${label}`,
+      };
+    });
+    const mentionTokens = mentionOptions.map((option) => option.token).sort((left, right) => right.length - left.length);
+
+    return value.split('\n').map((line, lineIndex) => {
+      const nodes: ReactNode[] = [];
+      let index = 0;
+      while (index < line.length) {
+        const matchedToken = mentionTokens.find((token) => line.startsWith(token, index));
+        if (matchedToken) {
+          const option = mentionOptions.find((item) => item.token === matchedToken);
+          if (option) {
+            nodes.push(renderReadonlyMentionChip({ ...option, key: `${lineIndex}-${index}-${matchedToken}` }));
+            index += matchedToken.length;
+            continue;
+          }
+        }
+        const nextTokenIndex = mentionTokens
+          .map((token) => line.indexOf(token, index + 1))
+          .filter((tokenIndex) => tokenIndex !== -1)
+          .sort((left, right) => left - right)[0] ?? line.length;
+        nodes.push(<span key={`${lineIndex}-${index}-text`}>{line.slice(index, nextTokenIndex)}</span>);
+        index = nextTokenIndex;
+      }
+      return (
+        <p key={lineIndex}>
+          {nodes.length ? nodes : <br />}
+        </p>
+      );
+    });
+  }
+
+  function resolveUserVisibleMessageText(messageItem: ChatMessage) {
     const imageGeneration = messageItem.capabilityContext?.imageGeneration;
     const promptHint = imageGeneration?.promptHint?.trim();
     const promptText = imageGeneration?.promptText?.trim() || messageItem.content.trim();
-    const shouldShowPromptText = Boolean(promptText && promptText !== promptHint);
-
     if (!promptHint) {
-      return <div>{messageItem.content}</div>;
+      return messageItem.content;
     }
+    return promptText && promptText !== promptHint ? promptText : '';
+  }
 
+  function renderUserMessageContent(messageItem: ChatMessage) {
+    const visibleText = resolveUserVisibleMessageText(messageItem);
+    return visibleText ? (
+      renderReadonlyRichText(visibleText, messageItem.attachments || [])
+    ) : null;
+  }
+
+  function renderUserGenerationHint(messageItem: ChatMessage) {
+    const imageGeneration = messageItem.capabilityContext?.imageGeneration;
+    if (!imageGeneration) {
+      return null;
+    }
+    const promptHint = imageGeneration?.promptHint?.trim();
     return (
       <div className="chat-user-generation-text">
-        <div className="chat-user-generation-hint">{promptHint}</div>
-        {shouldShowPromptText ? (
-          <div className="chat-user-generation-extra">{promptText}</div>
-        ) : null}
+        {promptHint ? <span className="chat-user-generation-hint">{promptHint}</span> : null}
+        {renderImageGenerationModeTag(imageGeneration)}
       </div>
     );
   }
@@ -296,7 +373,11 @@ export function ChatMessageList({
     ]);
   }
 
-  function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined) {
+  function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined, assistantMessage: ChatMessage) {
+    if (assistantMessage.isCompleted === false) {
+      message.warning('图片正在生成中，完成后再试');
+      return;
+    }
     if (!previousUserMessage) {
       return;
     }
@@ -307,12 +388,16 @@ export function ChatMessageList({
       okText: '再次生成',
       cancelText: '取消',
       onOk() {
-        onRegenerateImage(previousUserMessage);
+        onRegenerateImage(previousUserMessage, assistantMessage, resolveImageGenerationCreditCost(assistantMessage, previousUserMessage));
       },
     });
   }
 
   function confirmDeleteImageResult(messageItem: ChatMessage) {
+    if (messageItem.isCompleted === false) {
+      message.warning('图片正在生成中，完成后再删除');
+      return;
+    }
     Modal.confirm({
       title: '删除生图结果',
       centered: true,
@@ -326,15 +411,136 @@ export function ChatMessageList({
     });
   }
 
+  function confirmDeleteUserMessage(messageItem: ChatMessage) {
+    Modal.confirm({
+      title: '删除消息',
+      centered: true,
+      content: '删除后这条消息将从当前对话中移除，确认删除？',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk() {
+        onDeleteMessage(messageItem);
+      },
+    });
+  }
+
+  function formatCreditAmount(value: number) {
+    if (Number.isInteger(value)) {
+      return String(value);
+    }
+    return value.toFixed(6).replace(/\.?0+$/, '');
+  }
+
+  function numericValue(value: unknown, fallback = 0) {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  }
+
+  function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
+    const settings = config?.settings && typeof config.settings === 'object'
+      ? config.settings as Record<string, unknown>
+      : {};
+    const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+      ? settings.billing as Record<string, unknown>
+      : {};
+    return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+  }
+
+  function fallbackImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const modelConfigId = previousUserMessage?.imageModelConfigId;
+    if (!modelConfigId) {
+      return undefined;
+    }
+    const config = imageConfigs.find((item) => item.id === modelConfigId);
+    if (!config) {
+      return undefined;
+    }
+    const generatedCount = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image').length;
+    if (generatedCount <= 0) {
+      return undefined;
+    }
+    const accumulatedCreditCost = numericValue(previousUserMessage?.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0);
+    return accumulatedCreditCost + imageModelCreditsPerRequest(config) * generatedCount;
+  }
+
+  function resolveImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    return typeof messageItem.creditCost === 'number'
+      ? messageItem.creditCost
+      : fallbackImageGenerationCreditCost(messageItem, previousUserMessage);
+  }
+
+  function renderImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const creditCost = resolveImageGenerationCreditCost(messageItem, previousUserMessage);
+    if (typeof creditCost !== 'number') {
+      return null;
+    }
+    return (
+      <span className="chat-image-generation-cost" aria-label={`消耗 ${formatCreditAmount(creditCost)} Credit`}>
+        消耗
+        <Zap size={12} fill="currentColor" />
+        {formatCreditAmount(creditCost)}
+      </span>
+    );
+  }
+
+  function regenerateLabel(previousUserMessage: ChatMessage | undefined) {
+    const count = Number(previousUserMessage?.capabilityContext?.imageGeneration?.regenerationCount || 0);
+    return count > 0 ? `再次生成·${count}` : '再次生成';
+  }
+
+  function imageModelName(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const modelConfigId = previousUserMessage?.imageModelConfigId || messageItem.imageModelConfigId;
+    const config = imageConfigs.find((item) => item.id === modelConfigId);
+    return config?.name || config?.model || '';
+  }
+
+  function renderImageGenerationModeTag(imageGeneration: ImageGenerationContext | undefined) {
+    const modeTitle = imageGeneration?.modeTitle || '图片生成';
+    const modeTone = imageGenerationModeToneMap[imageGeneration?.modeKey || ''] || 'blue';
+    return <Tag className={`chat-image-generation-mode-tag tone-${modeTone}`}>{modeTitle}</Tag>;
+  }
+
+  function renderImageGenerationHeader(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const imageGeneration = previousUserMessage?.capabilityContext?.imageGeneration || messageItem.capabilityContext?.imageGeneration;
+    const modelName = imageModelName(messageItem, previousUserMessage);
+    return (
+      <div className="chat-image-generation-header">
+        {renderImageGenerationModeTag(imageGeneration)}
+        {modelName ? <span className="chat-image-generation-model-name">{modelName}</span> : null}
+        <time dateTime={messageItem.createdAt}>{formatRelativeCalendarDateTime(messageItem.createdAt)}</time>
+      </div>
+    );
+  }
+
+  function imageGenerationCellClassName(attachment?: ChatAttachment) {
+    return [
+      'chat-image-generation-cell',
+      attachment?.width && attachment.height ? 'has-intrinsic-size' : '',
+    ].filter(Boolean).join(' ');
+  }
+
+  function imageGenerationCellStyle(attachment?: ChatAttachment): ImageGenerationCellStyle | undefined {
+    if (!attachment?.width || !attachment.height) {
+      return undefined;
+    }
+    return {
+      '--chat-image-aspect-ratio': `${attachment.width} / ${attachment.height}`,
+    };
+  }
+
   return (
     <>
-      <div className="chat-history" onScroll={onScroll} ref={scrollContainerRef}>
+      <div
+        className="chat-history"
+        onScroll={onScroll}
+        ref={scrollContainerRef}
+      >
         <div className="chat-history-content">
           {messages.map((item, messageIndex) => {
             const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
             const thinkingContent = item.role === 'assistant' ? item.reasoningContent || parsed?.thinking : '';
             const answerContent = item.role === 'assistant' ? parsed?.answer || item.content : item.content;
-            const isEditingUserMessage = item.role === 'user' && editingMessageId === item.id;
             const imageAttachments = item.attachments?.filter((attachment) => attachment.kind === 'image') || [];
             const fileAttachments = item.attachments?.filter((attachment) => attachment.kind !== 'image') || [];
             const imageGenerationFailures = item.imageGenerationFailures || [];
@@ -375,6 +581,7 @@ export function ChatMessageList({
                 : imageGenerationSlotCount === 4
                 ? 'quad'
                 : 'multi';
+            const canOperateImageGeneration = !isImageGenerationLoading;
             const imageGenerationAttachmentsBySlot = new Map(
               imageAttachments.map((attachment, index) => [attachment.imageGenerationSlotIndex ?? index, attachment]),
             );
@@ -397,12 +604,19 @@ export function ChatMessageList({
               && Boolean(item.capabilityContext?.imageGeneration?.referenceGroups?.some((group) => (
                 group.attachmentIds.some((attachmentId) => imageAttachments.some((attachment) => attachment.id === attachmentId))
               )));
+            const userMessageContent = item.role === 'user'
+              ? renderUserMessageContent(item)
+              : null;
+            const userVisibleMessageText = item.role === 'user'
+              ? resolveUserVisibleMessageText(item)
+              : '';
 
             if (isImageGenerationAssistant) {
               return (
                 <div className="chat-message-shell assistant image-generation" key={item.id}>
                   {imageGenerationSlotCount ? (
                     <>
+                      {renderImageGenerationHeader(item, previousUserMessage)}
                       <Image.PreviewGroup
                         preview={{
                           actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current),
@@ -413,7 +627,11 @@ export function ChatMessageList({
                             const attachment = imageGenerationAttachmentsBySlot.get(index);
                             const failure = imageGenerationFailureBySlot.get(index);
                             return attachment ? (
-                              <div className="chat-image-generation-cell" key={attachment.id}>
+                              <div
+                                className={imageGenerationCellClassName(attachment)}
+                                key={attachment.id}
+                                style={imageGenerationCellStyle(attachment)}
+                              >
                                 <Image
                                   alt={attachment.name}
                                   className="chat-image-generation-image"
@@ -438,16 +656,28 @@ export function ChatMessageList({
                         </div>
                       </Image.PreviewGroup>
                       <div className="chat-image-generation-actions">
+                        {renderImageGenerationCreditCost(item, previousUserMessage)}
                         <Button
                           className="chat-image-generation-action"
                           color="default"
-                          disabled={sending || !previousUserMessage}
-                          icon={<ReloadOutlined />}
-                          onClick={() => confirmRegenerateImage(previousUserMessage)}
+                          disabled={sending || !previousUserMessage || !canOperateImageGeneration}
+                          icon={<RefreshCw size={12} strokeWidth={2} />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage, item)}
                           size="small"
                           variant="filled"
                         >
-                          再次生成
+                          {regenerateLabel(previousUserMessage)}
+                        </Button>
+                        <Button
+                          className="chat-image-generation-action"
+                          color="default"
+                          disabled={sending || !imageAttachments.length || !canOperateImageGeneration}
+                          icon={<EditOutlined />}
+                          onClick={() => onContinueEditImage(item)}
+                          size="small"
+                          variant="filled"
+                        >
+                          继续编辑
                         </Button>
                         <Dropdown
                           menu={{
@@ -456,7 +686,7 @@ export function ChatMessageList({
                                 key: 'download',
                                 icon: <DownloadOutlined />,
                                 label: '下载',
-                                disabled: !imageAttachments.length,
+                                disabled: !imageAttachments.length || !canOperateImageGeneration,
                                 onClick: () => downloadGeneratedImages(imageAttachments),
                               },
                               {
@@ -464,16 +694,19 @@ export function ChatMessageList({
                                 key: 'delete',
                                 icon: <DeleteOutlined />,
                                 label: '删除',
+                                disabled: !canOperateImageGeneration,
                                 onClick: () => confirmDeleteImageResult(item),
                               },
                             ],
                           }}
+                          disabled={!canOperateImageGeneration}
                           trigger={['click']}
                         >
                           <Button
                             aria-label="更多操作"
                             className="chat-image-generation-more"
                             color="default"
+                            disabled={!canOperateImageGeneration}
                             icon={<MoreOutlined />}
                             size="small"
                             variant="filled"
@@ -483,20 +716,33 @@ export function ChatMessageList({
                     </>
                   ) : (
                     <>
+                      {renderImageGenerationHeader(item, previousUserMessage)}
                       <div className="chat-image-generation-error">
                         {answerContent || '图片生成失败'}
                       </div>
                       <div className="chat-image-generation-actions">
+                        {renderImageGenerationCreditCost(item, previousUserMessage)}
                         <Button
                           className="chat-image-generation-action"
                           color="default"
-                          disabled={sending || !previousUserMessage}
-                          icon={<ReloadOutlined />}
-                          onClick={() => confirmRegenerateImage(previousUserMessage)}
+                          disabled={sending || !previousUserMessage || !canOperateImageGeneration}
+                          icon={<RefreshCw size={12} strokeWidth={2} />}
+                          onClick={() => confirmRegenerateImage(previousUserMessage, item)}
                           size="small"
                           variant="filled"
                         >
-                          再次生成
+                          {regenerateLabel(previousUserMessage)}
+                        </Button>
+                        <Button
+                          className="chat-image-generation-action"
+                          color="default"
+                          disabled={sending || !imageAttachments.length || !canOperateImageGeneration}
+                          icon={<EditOutlined />}
+                          onClick={() => onContinueEditImage(item)}
+                          size="small"
+                          variant="filled"
+                        >
+                          继续编辑
                         </Button>
                       </div>
                     </>
@@ -526,9 +772,62 @@ export function ChatMessageList({
                     </>
                   ) : (
                     <>
+                      {renderUserGenerationHint(item)}
                       {attachmentList}
-                      <div className="chat-user-message-content">
-                        {renderUserMessageContent(item, isEditingUserMessage)}
+                      {userMessageContent ? (
+                        <div className="chat-user-message-content">
+                          {userMessageContent}
+                        </div>
+                      ) : null}
+                      <div className="chat-user-message-actions">
+                        {userVisibleMessageText ? (
+                          <Button
+                            className="chat-image-generation-action"
+                            color="default"
+                            icon={<CopyOutlined />}
+                            onClick={() => void handleCopy(userVisibleMessageText)}
+                            size="small"
+                            variant="filled"
+                          >
+                            复制
+                          </Button>
+                        ) : null}
+                        <Button
+                          className="chat-image-generation-action"
+                          color="default"
+                          disabled={sending}
+                          icon={<EditOutlined />}
+                          onClick={() => onRefillComposerFromMessage(item)}
+                          size="small"
+                          variant="filled"
+                        >
+                          重新编辑
+                        </Button>
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                danger: true,
+                                key: 'delete',
+                                icon: <DeleteOutlined />,
+                                label: '删除',
+                                disabled: sending,
+                                onClick: () => confirmDeleteUserMessage(item),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
+                        >
+                          <Button
+                            aria-label="更多操作"
+                            className="chat-image-generation-more"
+                            color="default"
+                            disabled={sending}
+                            icon={<MoreOutlined />}
+                            size="small"
+                            variant="filled"
+                          />
+                        </Dropdown>
                       </div>
                     </>
                   )}
@@ -549,29 +848,6 @@ export function ChatMessageList({
                     </div>
                   )}
                 </article>
-                {item.role === 'user' && !isEditingUserMessage && (
-                  <div className="chat-user-message-hover-actions">
-                    <Button
-                      aria-label="复制消息"
-                      className="chat-user-message-hover-button"
-                      shape="circle"
-                      icon={<CopyOutlined />}
-                      onClick={() => void handleCopy(item.content)}
-                      size="small"
-                      type="text"
-                    />
-                    <Button
-                      aria-label="编辑消息"
-                      className="chat-user-message-hover-button"
-                      disabled={sending}
-                      shape="circle"
-                      icon={<EditOutlined />}
-                      onClick={() => startEditing(item)}
-                      size="small"
-                      type="text"
-                    />
-                  </div>
-                )}
                 {item.role === 'assistant' && (
                   <div className="chat-assistant-message-hover-actions">
                     <Button

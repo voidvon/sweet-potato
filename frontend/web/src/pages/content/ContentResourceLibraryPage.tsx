@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Image, Input, Modal, Pagination, Popconfirm, message } from 'antd';
-import { Clapperboard, LoaderCircle, Plus, Search, Trash2 } from 'lucide-react';
+import { Button, Dropdown, Image, Input, Modal, Pagination, Popconfirm, message } from 'antd';
+import type { MenuProps } from 'antd';
+import { ListFilter, Plus, Search, Trash2 } from 'lucide-react';
 import {
   createContentAssetGroup,
   deleteContentAsset,
@@ -11,13 +12,16 @@ import {
   uploadContentAsset,
 } from '../../api/content';
 import { API_BASE_URL } from '../../api/request';
+import { AppSegmentedTabs } from '../../components/AppSegmentedTabs';
 import { AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../components/AssetLibraryCard';
 import type { ContentAsset, ContentAssetGroup, ContentResourceType, User } from '../../types';
+import { formatRelativeCalendarDateTime } from '../../utils/dateTime';
 import { withAuthToken } from '../../utils/session';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload';
 import type { ImagePreview } from './assets/AssetImageUpload';
 import { useCardGridPageSize } from './assets/useCardGridPageSize';
+import { WorksAssetCard, WorksAssetEmptyCard, WorksAssetSkeletonCard } from './assets/WorksAssetCard';
 import './assets/AssetLibraryPages.scss';
 
 type ContentResourceLibraryPageProps = {
@@ -48,6 +52,43 @@ type ResourceCopy = {
   assetUnit: string;
   accept: string;
 };
+
+type WorksAssetTab = 'all' | 'image' | 'video';
+
+type WorksFunctionOption = {
+  key: string;
+  label: string;
+  modeKeys: string[];
+  modeTitles: string[];
+};
+
+const allWorksFunctionOption: WorksFunctionOption = {
+  key: 'all',
+  label: '全部功能',
+  modeKeys: [],
+  modeTitles: [],
+};
+
+const imageWorksFunctionOptions: WorksFunctionOption[] = [
+  { key: 'image:dialog', label: '对话生图', modeKeys: ['dialog'], modeTitles: ['对话生图'] },
+  { key: 'image:detail', label: '详情图生成', modeKeys: ['detail'], modeTitles: ['详情图生成'] },
+  { key: 'image:outfit', label: '换装', modeKeys: ['outfit'], modeTitles: ['换装'] },
+  { key: 'image:model-views', label: '模特三视图', modeKeys: ['model-views'], modeTitles: ['模特三视图'] },
+  { key: 'image:pose-reference', label: '姿势参考', modeKeys: ['pose-reference'], modeTitles: ['姿势参考'] },
+  { key: 'image:upscale', label: '高清放大', modeKeys: ['upscale'], modeTitles: ['高清放大'] },
+  { key: 'image:cutout', label: '图片抠图', modeKeys: ['cutout'], modeTitles: ['图片抠图'] },
+  { key: 'image:background', label: '换背景', modeKeys: ['background'], modeTitles: ['换背景'] },
+  { key: 'image:scene-extract', label: '场景提取', modeKeys: ['scene-extract'], modeTitles: ['场景提取'] },
+  { key: 'image:model-face-swap', label: '模特换脸', modeKeys: ['model-face-swap'], modeTitles: ['模特换脸'] },
+  { key: 'image:head-swap', label: '智能换头', modeKeys: ['head-swap'], modeTitles: ['智能换头'] },
+  { key: 'image:face-swap', label: '智能换脸', modeKeys: ['face-swap'], modeTitles: ['智能换脸'] },
+  { key: 'image:redraw', label: '智能重绘', modeKeys: ['redraw'], modeTitles: ['智能重绘'] },
+  { key: 'image:detail-enhance', label: '细节增强', modeKeys: ['detail-enhance'], modeTitles: ['细节增强'] },
+  { key: 'image:print-extract', label: '印花提取', modeKeys: ['print-extract'], modeTitles: ['印花提取'] },
+  { key: 'image:face-enhance', label: '脸部增强', modeKeys: ['face-enhance'], modeTitles: ['脸部增强'] },
+];
+
+const showWorksBatchButton = false;
 
 const resourceCopy: Record<ContentResourceType, ResourceCopy> = {
   digital_human: {
@@ -156,24 +197,24 @@ const resourceCopy: Record<ContentResourceType, ResourceCopy> = {
     accept: 'image/*',
   },
   finished_video: {
-    breadcrumb: '素材库 / 成片素材',
-    icon: '🎥',
-    defaultGroup: '成片素材',
-    pageTitle: '成片素材',
-    pageDescription: '查看和管理已生成成功的视频。',
-    steps: ['生成视频', '预览成片', '复用或删除'],
-    addTitle: '新增成片',
-    addHint: '成片由视频生成任务自动产生',
-    nameLabel: '成片名称',
-    namePlaceholder: '成片名称',
-    uploadTitle: '成片素材',
-    uploadHint: '成片由视频生成任务自动产生',
+    breadcrumb: '作品',
+    icon: '📁',
+    defaultGroup: '作品',
+    pageTitle: '作品',
+    pageDescription: '查看和管理已生成成功的图片和视频。',
+    steps: ['生成作品', '预览作品', '复用或删除'],
+    addTitle: '新增作品',
+    addHint: '作品由图片创作和视频生成自动产生',
+    nameLabel: '作品名称',
+    namePlaceholder: '作品名称',
+    uploadTitle: '作品',
+    uploadHint: '作品由图片创作和视频生成自动产生',
     createOkText: '确认',
-    emptyGroups: '暂无生成成功的视频。',
-    emptyAssets: '暂无生成成功的视频。',
+    emptyGroups: '暂无生成成功的作品。',
+    emptyAssets: '暂无生成成功的作品。',
     detailUploadText: '上传素材',
     detailAddText: '添加素材',
-    assetUnit: '个视频',
+    assetUnit: '个作品',
     accept: 'video/*',
   },
   other: {
@@ -244,11 +285,62 @@ function productGroupPreview(groupAssets: ContentAsset[], fallbackIcon: string) 
   );
 }
 
-function isGeneratedFinishedVideoAsset(asset: ContentAsset) {
-  return asset.resourceType === 'finished_video' && asset.metadata?.generatedBy === 'video_model';
+function isGeneratedWorkAsset(asset: ContentAsset) {
+  return asset.resourceType === 'finished_video'
+    && (asset.metadata?.generatedBy === 'video_model' || asset.metadata?.generatedBy === 'image_model');
+}
+
+function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
+  if (tab === 'all') {
+    return true;
+  }
+  return asset.mimeType.startsWith(`${tab}/`);
+}
+
+function stringMetadataValue(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
+  const generatedBy = stringMetadataValue(asset, 'generatedBy');
+  if (generatedBy !== 'image_model' && generatedBy !== 'video_model') {
+    return null;
+  }
+  const mode = stringMetadataValue(asset, 'mode') || (generatedBy === 'image_model' ? 'image_generation' : 'video_generation');
+  const modeTitle = stringMetadataValue(asset, 'modeTitle');
+  if (generatedBy === 'image_model') {
+    return imageWorksFunctionOptions.find((option) => option.modeKeys.includes(mode) || option.modeTitles.includes(modeTitle))
+      || null;
+  }
+  const label = modeTitle || '视频生成';
+  return {
+    key: `${generatedBy}:${mode}`,
+    label,
+    modeKeys: [mode],
+    modeTitles: modeTitle ? [modeTitle] : [],
+  };
+}
+
+function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
+  if (functionKey === allWorksFunctionOption.key) {
+    return true;
+  }
+  const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
+  if (!option) {
+    return worksFunctionOptionOf(asset)?.key === functionKey;
+  }
+  return stringMetadataValue(asset, 'generatedBy') === 'image_model'
+    && (
+      option.modeKeys.includes(stringMetadataValue(asset, 'mode'))
+      || option.modeTitles.includes(stringMetadataValue(asset, 'modeTitle'))
+    );
 }
 
 function finishedVideoStatus(asset: ContentAsset) {
+  if (asset.mimeType.startsWith('image/')) {
+    return asset.fileUrl ? 'completed' : 'generating';
+  }
   const status = typeof asset.metadata?.generationStatus === 'string' ? asset.metadata.generationStatus : '';
   if (status === 'generating' || status === 'queued' || !asset.fileUrl) {
     return 'generating';
@@ -257,54 +349,6 @@ function finishedVideoStatus(asset: ContentAsset) {
     return 'failed';
   }
   return 'completed';
-}
-
-function finishedVideoStatusText(asset: ContentAsset) {
-  const status = finishedVideoStatus(asset);
-  if (status === 'failed') {
-    return '生成失败';
-  }
-  if (status === 'generating') {
-    return '正在生成中';
-  }
-  return '已生成';
-}
-
-function finishedVideoDescription(asset: ContentAsset) {
-  const status = finishedVideoStatus(asset);
-  if (status === 'failed') {
-    return '请回到任务重新生成';
-  }
-  if (status === 'generating') {
-    return '成片完成后会自动更新';
-  }
-  return '';
-}
-
-function finishedVideoMeta(asset: ContentAsset, onDelete: () => void) {
-  const status = finishedVideoStatus(asset);
-  const label = status === 'completed' ? `生成于 ${formatDate(asset.updatedAt)}` : `更新于 ${formatDate(asset.updatedAt)}`;
-  return (
-    <div className="finished-video-card-meta">
-      <span>{label}</span>
-      <div onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
-        <Popconfirm
-          cancelText="取消"
-          okText="删除"
-          onConfirm={onDelete}
-          title="确认删除这个成片吗？"
-        >
-          <Button
-            aria-label={`删除 ${asset.name}`}
-            danger
-            icon={<Trash2 size={14} />}
-            size="small"
-            type="text"
-          />
-        </Popconfirm>
-      </div>
-    </div>
-  );
 }
 
 function PendingAssetTile({ file, onRemove }: { file: File; onRemove: (file: File) => void }) {
@@ -374,6 +418,8 @@ export function ContentResourceLibraryPage({
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [singleLibraryPage, setSingleLibraryPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [worksAssetTab, setWorksAssetTab] = useState<WorksAssetTab>('all');
+  const [worksFunctionKey, setWorksFunctionKey] = useState(allWorksFunctionOption.key);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const hasKeyword = searchKeyword.trim().length > 0;
 
@@ -385,7 +431,7 @@ export function ContentResourceLibraryPage({
         listContentAssets({ userId: currentUser.id, resourceType }),
       ]);
       setGroups(groupList);
-      setAssets(resourceType === 'finished_video' ? assetList.filter(isGeneratedFinishedVideoAsset) : assetList);
+      setAssets(resourceType === 'finished_video' ? assetList.filter(isGeneratedWorkAsset) : assetList);
       setActiveGroup((current) => groupList.find((group) => group.id === current?.id) || null);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '素材加载失败');
@@ -426,11 +472,17 @@ export function ContentResourceLibraryPage({
   }, [groups, searchKeyword]);
   const filteredAssets = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
-    if (!keyword) {
-      return assets;
+    let nextAssets = assets;
+    if (resourceType === 'finished_video') {
+      nextAssets = nextAssets
+        .filter((asset) => matchesWorksAssetTab(asset, worksAssetTab))
+        .filter((asset) => matchesWorksFunction(asset, worksFunctionKey));
     }
-    return assets.filter((asset) => asset.name.toLowerCase().includes(keyword));
-  }, [assets, searchKeyword]);
+    if (!keyword) {
+      return nextAssets;
+    }
+    return nextAssets.filter((asset) => asset.name.toLowerCase().includes(keyword));
+  }, [assets, resourceType, searchKeyword, worksAssetTab, worksFunctionKey]);
 
   const defaultGroup = useMemo(() => {
     if (!singleDefaultGroup) {
@@ -454,6 +506,23 @@ export function ContentResourceLibraryPage({
     () => (singleDefaultGroup ? assets : activeGroupAssets),
     [activeGroupAssets, assets, singleDefaultGroup],
   );
+  const worksFunctionOptions = useMemo(() => {
+    const optionMap = new Map<string, WorksFunctionOption>();
+    for (const option of imageWorksFunctionOptions) {
+      optionMap.set(option.key, option);
+    }
+    for (const asset of assets) {
+      const option = worksFunctionOptionOf(asset);
+      if (!option || optionMap.has(option.key)) {
+        continue;
+      }
+      optionMap.set(option.key, option);
+    }
+    return [
+      allWorksFunctionOption,
+      ...Array.from(optionMap.values()),
+    ];
+  }, [assets]);
 
   useEffect(() => {
     if (!singleDefaultGroup) {
@@ -465,7 +534,14 @@ export function ContentResourceLibraryPage({
 
   useEffect(() => {
     setSingleLibraryPage(1);
-  }, [searchKeyword, singleDefaultGroup]);
+  }, [searchKeyword, singleDefaultGroup, worksAssetTab, worksFunctionKey]);
+
+  useEffect(() => {
+    if (worksFunctionOptions.some((option) => option.key === worksFunctionKey)) {
+      return;
+    }
+    setWorksFunctionKey(allWorksFunctionOption.key);
+  }, [worksFunctionKey, worksFunctionOptions]);
   const assetCountByGroupId = useMemo(() => {
     const map = new Map<string, number>();
     for (const asset of assets) {
@@ -697,9 +773,9 @@ export function ContentResourceLibraryPage({
     try {
       await deleteContentAsset(asset.id);
       await loadData();
-      message.success('成片记录已删除');
+      message.success('作品记录已删除');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '成片删除失败');
+      message.error(error instanceof Error ? error.message : '作品删除失败');
     }
   }
 
@@ -722,66 +798,98 @@ export function ContentResourceLibraryPage({
     setPreviewAsset(asset);
   }
 
+  function resetWorksHeaderFilters() {
+    setWorksAssetTab('all');
+    setWorksFunctionKey(allWorksFunctionOption.key);
+  }
+
+  const worksFunctionMenuItems: MenuProps['items'] = worksFunctionOptions.map((option) => ({
+    key: option.key,
+    label: option.label,
+  }));
+  const selectedWorksFunctionLabel = worksFunctionOptions.find((option) => option.key === worksFunctionKey)?.label
+    || allWorksFunctionOption.label;
+  const worksEmptyTitle = worksAssetTab === 'image'
+    ? '暂无图片作品'
+    : worksAssetTab === 'video'
+      ? '暂无视频作品'
+      : '暂无作品';
+  const worksEmptyDescription = worksAssetTab === 'image'
+    ? '生成后自动同步。'
+    : worksAssetTab === 'video'
+      ? '生成后自动同步。'
+      : '作品生成后自动同步。';
+
   if (resourceType === 'finished_video') {
     return (
-      <ContentStudioLayout>
-        <section className="material-page voice-board-page">
-          <div className="voice-board-toolbar">
-            <Input
-              allowClear
-              className="voice-board-search"
-              onChange={(event) => setSearchKeyword(event.target.value)}
-              placeholder="搜索素材名称..."
-              prefix={<Search size={17} />}
-              value={searchKeyword}
-            />
-            <div className="voice-board-toolbar-spacer" />
-          </div>
-          <div className="voice-board-content">
-            <div className="material-grid voice-board-grid">
-              {isLoadingLibrary ? <AssetLibrarySkeletonCards count={1} /> : filteredAssets.map((asset) => {
-                const status = finishedVideoStatus(asset);
-                const url = fileUrl(asset);
-                return (
-                  <AssetLibraryCard
-                    className={`finished-video-card finished-video-card--${status}`}
-                    key={asset.id}
-                    description={finishedVideoDescription(asset)}
-                    meta={finishedVideoMeta(asset, () => void handleDeleteFinishedAsset(asset))}
-                    metaClassName="finished-video-card-meta-wrap"
-                    onClick={status === 'completed' && url ? () => setPreviewAsset(asset) : undefined}
-                    preview={status === 'completed' && url ? (
-                      <div className="finished-video-card-preview">
-                        <video muted preload="metadata" src={url} />
-                      </div>
-                    ) : (
-                      <div className="finished-video-card-placeholder">
-                        {status === 'failed' ? <Clapperboard size={28} /> : <LoaderCircle size={28} />}
-                      </div>
-                    )}
-                    status={finishedVideoStatusText(asset)}
-                    title={asset.name}
-                  />
-                );
-              })}
-              {!isLoadingLibrary && !filteredAssets.length && (
-                <AssetLibraryPlaceholderCard
-                  icon={<Search size={30} />}
-                  title={hasKeyword ? '暂无匹配成片' : '暂无成片素材'}
-                  description={hasKeyword ? '调整搜索条件，或先生成一个视频。' : '生成完成的视频会自动同步到这里。'}
+      <>
+        <section className="material-page voice-board-page works-assets-page">
+          <div className="works-assets-shell">
+            <header className="works-assets-header">
+              <div className="works-assets-title-row">
+                <h1>作品</h1>
+                <span>已加载 {filteredAssets.length} 个结果</span>
+              </div>
+              <div className="works-assets-control-row">
+                <AppSegmentedTabs
+                  ariaLabel="作品类型"
+                  itemMinWidth={60}
+                  onChange={setWorksAssetTab}
+                  options={[
+                    { value: 'all', label: '全部' },
+                    { value: 'image', label: '图片' },
+                    { value: 'video', label: '视频' },
+                  ]}
+                  size="large"
+                  value={worksAssetTab}
                 />
-              )}
+                <Dropdown
+                  menu={{
+                    items: worksFunctionMenuItems,
+                    onClick: ({ key }) => setWorksFunctionKey(String(key)),
+                    selectable: true,
+                    selectedKeys: [worksFunctionKey],
+                  }}
+                  overlayClassName="works-function-menu"
+                  placement="bottomLeft"
+                  trigger={['click']}
+                >
+                  <Button className="works-function-button" icon={<ListFilter size={14} />} size="large">
+                    {selectedWorksFunctionLabel}
+                  </Button>
+                </Dropdown>
+                <Button className="works-reset-button" onClick={resetWorksHeaderFilters} size="large" type="text">重置</Button>
+                <div className="works-assets-toolbar-spacer" />
+                {showWorksBatchButton && (
+                  <Button className="works-batch-button" size="large">批量管理</Button>
+                )}
+              </div>
+            </header>
+            <div className="voice-board-content">
+              <div className="material-grid voice-board-grid">
+                {isLoadingLibrary ? <WorksAssetSkeletonCard /> : filteredAssets.map((asset) => (
+                  <WorksAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onDelete={() => void handleDeleteFinishedAsset(asset)}
+                    onOpen={finishedVideoStatus(asset) === 'completed' && fileUrl(asset) ? () => openAssetPreview(asset) : undefined}
+                  />
+                ))}
+                {!isLoadingLibrary && !filteredAssets.length && (
+                  <WorksAssetEmptyCard
+                    title={hasKeyword ? '暂无匹配作品' : worksEmptyTitle}
+                    description={hasKeyword ? '调整搜索条件，或先生成一个作品。' : worksEmptyDescription}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-          <div className="voice-board-pagination">
-            <span>共 {assets.length} 条</span>
           </div>
         </section>
         <Modal
           footer={null}
           onCancel={closePreviewAsset}
           open={Boolean(previewAsset)}
-          title={previewAsset?.name || '成片预览'}
+          title={previewAsset?.name || '作品预览'}
           width={960}
         >
           {previewAsset && (
@@ -792,7 +900,20 @@ export function ContentResourceLibraryPage({
             </div>
           )}
         </Modal>
-      </ContentStudioLayout>
+        <Image
+          alt={previewImage?.name || '图片预览'}
+          preview={{
+            visible: Boolean(previewImage),
+            onVisibleChange: (visible) => {
+              if (!visible) {
+                setPreviewImage(null);
+              }
+            },
+          }}
+          src={previewImage?.src}
+          style={{ display: 'none' }}
+        />
+      </>
     );
   }
 

@@ -1,7 +1,7 @@
 import { Router, type Request } from 'express';
 import multer from 'multer';
 import { mkdirSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
@@ -12,7 +12,14 @@ import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
 import { contentService } from './content.service.js';
-import { execFileAsync } from './internals/content-common.js';
+import {
+  contentFilePathForRelativePath,
+  execFileAsync,
+  fileUrlForContentRelativePath,
+  inputMediaKindForMimeType,
+  inputMediaRelativePath,
+  resolveLocalContentFilePathFromUrl,
+} from './internals/content-common.js';
 import type { ContentResourceType } from './content.types.js';
 import type { UserRole } from '../users/user.types.js';
 
@@ -175,7 +182,40 @@ function roundTrimSecond(value: number) {
 }
 
 function fileUrlForContentFile(fileName: string) {
-  return `/files/${encodeURIComponent(fileName)}`;
+  return fileUrlForContentRelativePath(fileName);
+}
+
+function isInputAssetUpload(metadata: Record<string, unknown>) {
+  return metadata.kind === 'video_create_reference_upload'
+    || metadata.kind === 'voice_source'
+    || metadata.uploadedFrom === 'video_remake';
+}
+
+async function moveUploadedFileToInputMediaDirectory(file: Express.Multer.File, metadata: Record<string, unknown>) {
+  if (!isInputAssetUpload(metadata)) {
+    return {
+      filePath: file.path,
+      fileUrl: fileUrlForContentFile(file.filename),
+      storedFileName: file.filename,
+    };
+  }
+  const mediaKind = inputMediaKindForMimeType(file.mimetype || '');
+  if (!mediaKind) {
+    return {
+      filePath: file.path,
+      fileUrl: fileUrlForContentFile(file.filename),
+      storedFileName: file.filename,
+    };
+  }
+  const storedRelativePath = inputMediaRelativePath(mediaKind, file.filename);
+  const filePath = contentFilePathForRelativePath(storedRelativePath);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await rename(file.path, filePath);
+  return {
+    filePath,
+    fileUrl: fileUrlForContentFile(storedRelativePath),
+    storedFileName: storedRelativePath,
+  };
 }
 
 function storedFileNameFromReferenceVideoPayload(value: unknown) {
@@ -183,12 +223,19 @@ function storedFileNameFromReferenceVideoPayload(value: unknown) {
   if (!raw) {
     throw new Error('缺少参考视频文件');
   }
-  const decoded = decodeURIComponent(raw.replace(/^\/files\//, ''));
-  const baseName = path.basename(decoded);
-  if (!baseName || baseName !== decoded || !baseName.endsWith('-trimmed.mp4')) {
+  const filePath = raw.startsWith('/files/') ? resolveLocalContentFilePathFromUrl(raw) : '';
+  const decoded = raw.startsWith('/files/')
+    ? decodeURIComponent(raw.replace(/^\/files\//, ''))
+    : decodeURIComponent(raw);
+  const parts = decoded.split('/').filter(Boolean);
+  if (!filePath && (!parts.length || parts.some((part) => part === '..' || part.includes('\\')))) {
     throw new Error('参考视频文件无效');
   }
-  return baseName;
+  const baseName = path.basename(decoded);
+  if (!baseName || !baseName.endsWith('-trimmed.mp4')) {
+    throw new Error('参考视频文件无效');
+  }
+  return decoded;
 }
 
 export function createContentRouter() {
@@ -235,7 +282,9 @@ export function createContentRouter() {
           const originalName = decodeUploadFileName(req.file.originalname);
           const parsed = path.parse(sanitizeFileName(originalName));
           const storedFileName = `${Date.now()}-${parsed.name || 'reference-video'}-trimmed.mp4`;
-          outputPath = path.join(contentFilesDir, storedFileName);
+          const storedRelativePath = inputMediaRelativePath('video', storedFileName);
+          outputPath = contentFilePathForRelativePath(storedRelativePath);
+          await mkdir(path.dirname(outputPath), { recursive: true });
 
           await execFileAsync('ffmpeg', [
             '-y',
@@ -249,15 +298,15 @@ export function createContentRouter() {
           ], { timeout: 120000 });
 
           await rm(req.file.path, { force: true });
-          const fileUrl = fileUrlForContentFile(storedFileName);
+          const fileUrl = fileUrlForContentFile(storedRelativePath);
           res.status(201).json({
             duration,
             end,
             fileUrl,
-            name: storedFileName,
+            name: storedRelativePath,
             originalFileName: originalName,
             start,
-            storedFileName,
+            storedFileName: storedRelativePath,
           });
         } catch (error) {
           if (req.file) {
@@ -276,7 +325,7 @@ export function createContentRouter() {
     void (async () => {
       try {
         const storedFileName = storedFileNameFromReferenceVideoPayload(req.body.storedFileName || req.body.fileUrl);
-        await rm(path.join(contentFilesDir, storedFileName), { force: true });
+        await rm(contentFilePathForRelativePath(storedFileName), { force: true });
         res.json({ ok: true });
       } catch (error) {
         sendError(res, 400, getErrorMessage(error, '参考视频删除失败'));
@@ -645,6 +694,7 @@ export function createContentRouter() {
             ...parseMetadata(req.body.metadata),
             ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
           };
+          const storedFile = await moveUploadedFileToInputMediaDirectory(req.file, metadata);
           const asset = contentService.createAsset({
             userId: getCurrentUserId(req),
             groupId: req.body.groupId ? String(req.body.groupId || '') : undefined,
@@ -652,7 +702,7 @@ export function createContentRouter() {
             name: String(req.body.name || originalFileName),
             description: String(req.body.description || ''),
             originalFileName,
-            storedFileName: req.file.filename,
+            storedFileName: storedFile.storedFileName,
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,

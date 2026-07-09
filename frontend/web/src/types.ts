@@ -37,6 +37,8 @@ export type ChatAttachment = {
   size: number;
   kind: 'image' | 'file';
   url: string;
+  width?: number;
+  height?: number;
   imageGenerationSlotIndex?: number;
 };
 
@@ -89,6 +91,7 @@ export type ChatMessage = {
   agentId: string;
   modelConfigId?: string | null;
   attachments?: ChatAttachment[];
+  creditCost?: number | null;
   createdAt: string;
   isCompleted?: boolean;
 };
@@ -135,6 +138,8 @@ export type SendChatPayload = {
       modeTitle?: string;
       promptText?: string;
       promptHint?: string;
+      regenerationCount?: number;
+      accumulatedCreditCost?: number;
       outputSize?: string;
       outputCount?: number;
       outputBackground?: 'transparent' | 'white' | 'black';
@@ -160,23 +165,6 @@ export type ChatStreamEvent =
   | { type: 'answer_delta'; delta: string }
   | { type: 'done'; conversation: ChatConversation; messages: ChatMessage[] }
   | { type: 'error'; message: string };
-
-export type SkillFile = {
-  category?: string;
-  command: string;
-  createdAt: string;
-  description: string;
-  enabled?: boolean;
-  fileUrl: string;
-  id: string;
-  isDefault?: boolean;
-  name: string;
-  originalFileName: string;
-  scenario?: string;
-  storedFileName: string;
-  updatedAt: string;
-  userId: string;
-};
 
 export type ModuleItem = {
   id: string;

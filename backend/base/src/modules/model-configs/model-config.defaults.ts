@@ -25,13 +25,13 @@ export const defaultImageModelConfig: AiModelConfig = {
   type: 'image',
   name: '默认图片模型',
   provider: 'volcengine-seedream',
-  model: 'doubao-seedream-5-0-260128',
+  model: 'doubao-seedream-5-0-lite-260128',
   apiKey: '',
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
   temperature: 0.7,
   settings: {
     imageGeneration: {
-      adapter: 'compatible',
+      adapter: 'volcengine-seedream',
     },
     billing: {
       creditsPerRequest: 0,

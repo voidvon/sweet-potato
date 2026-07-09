@@ -1,14 +1,22 @@
 import { randomBytes } from 'node:crypto';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { z } from 'zod';
-import { contentFilesDir } from '../../content/internals/content-common.js';
+import { assertSufficientStepCredits } from '../../billing/billing.service.js';
 import {
+  contentFilePathForRelativePath,
+  contentFilesDir,
+  generatedMediaRelativePath,
+  inputMediaRelativePath,
+  resolveLocalContentFilePathFromUrl,
+} from '../../content/internals/content-common.js';
+import {
+  createGeneratedImageWorkAsset,
   extensionForMimeType,
 } from '../../content/internals/content-image-assets.js';
 import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
+import { isUpstreamModelError } from '../../model-providers/provider-error.js';
 import type { ChatCapabilityExecutionInput } from '../chat-capability.types.js';
 import type { ChatAttachment, ChatImageGenerationFailure } from '../chat.types.js';
 import type { AiModelConfig } from '../../model-configs/model-config.types.js';
@@ -23,10 +31,12 @@ type ImageGenerationPreparedInput = {
   generationOptions?: ImageGenerationModeOptions;
   modelConfig: AiModelConfig;
   modeKey: string;
+  modeTitle: string;
   outputCount: number;
   outputSize?: string;
   requestedResolution?: string;
   prompt: string;
+  userPrompt: string;
   redrawPromptTexts?: string[];
   referenceAssets: ImageGenerationReferenceAsset[];
   referenceAssetBatches?: ImageGenerationReferenceAsset[][];
@@ -364,14 +374,7 @@ function safeImageName(value: string, fallback: string) {
 
 function localContentFilePathFromUrl(value: string) {
   const normalized = cleanText(value);
-  if (!normalized.startsWith('/files/')) {
-    return null;
-  }
-  const fileName = decodeURIComponent(normalized.slice('/files/'.length).split(/[?#]/u)[0] || '');
-  if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
-    return null;
-  }
-  return path.join(contentFilesDir, fileName);
+  return resolveLocalContentFilePathFromUrl(normalized) || null;
 }
 
 async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
@@ -389,7 +392,9 @@ async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
   const parsed = dataUrlToBuffer(attachment.url);
   const extension = extensionForMimeType(parsed.mimeType);
   const storedFileName = `chat-image-reference-${randomBytes(8).toString('hex')}.${extension}`;
-  const filePath = path.join(contentFilesDir, storedFileName);
+  const storedRelativePath = inputMediaRelativePath('image', storedFileName);
+  const filePath = contentFilePathForRelativePath(storedRelativePath);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, parsed.buffer);
   return {
     filePath,
@@ -425,6 +430,156 @@ function latestGeneratedImageAttachment(input: ChatCapabilityExecutionInput) {
 
 function cleanText(value: string | undefined | null) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function numericValue(value: unknown, fallback = 0) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function roundCreditCost(value: number) {
+  return Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
+function readUInt24LE(buffer: Buffer, offset: number) {
+  return buffer[offset] + (buffer[offset + 1] << 8) + (buffer[offset + 2] << 16);
+}
+
+function parsePngDimensions(buffer: Buffer) {
+  if (
+    buffer.length < 24
+    || buffer.readUInt32BE(0) !== 0x89504e47
+    || buffer.readUInt32BE(4) !== 0x0d0a1a0a
+    || buffer.toString('ascii', 12, 16) !== 'IHDR'
+  ) {
+    return null;
+  }
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function parseJpegDimensions(buffer: Buffer) {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+    return null;
+  }
+  let offset = 2;
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) {
+      continue;
+    }
+    if (offset + 2 > buffer.length) {
+      return null;
+    }
+    const segmentLength = buffer.readUInt16BE(offset);
+    if (segmentLength < 2 || offset + segmentLength > buffer.length) {
+      return null;
+    }
+    if (
+      (marker >= 0xc0 && marker <= 0xc3)
+      || (marker >= 0xc5 && marker <= 0xc7)
+      || (marker >= 0xc9 && marker <= 0xcb)
+      || (marker >= 0xcd && marker <= 0xcf)
+    ) {
+      return {
+        width: buffer.readUInt16BE(offset + 5),
+        height: buffer.readUInt16BE(offset + 3),
+      };
+    }
+    offset += segmentLength;
+  }
+  return null;
+}
+
+function parseWebpDimensions(buffer: Buffer) {
+  if (
+    buffer.length < 30
+    || buffer.toString('ascii', 0, 4) !== 'RIFF'
+    || buffer.toString('ascii', 8, 12) !== 'WEBP'
+  ) {
+    return null;
+  }
+  const chunkType = buffer.toString('ascii', 12, 16);
+  if (chunkType === 'VP8X' && buffer.length >= 30) {
+    return {
+      width: readUInt24LE(buffer, 24) + 1,
+      height: readUInt24LE(buffer, 27) + 1,
+    };
+  }
+  if (chunkType === 'VP8 ' && buffer.length >= 30) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  if (chunkType === 'VP8L' && buffer.length >= 25 && buffer[20] === 0x2f) {
+    const bits = buffer.readUInt32LE(21);
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1,
+    };
+  }
+  return null;
+}
+
+function imageDimensions(buffer: Buffer, mimeType: string) {
+  const normalizedMimeType = mimeType.toLowerCase();
+  const dimensions = normalizedMimeType.includes('png')
+    ? parsePngDimensions(buffer)
+    : normalizedMimeType.includes('jpeg') || normalizedMimeType.includes('jpg')
+      ? parseJpegDimensions(buffer)
+      : normalizedMimeType.includes('webp')
+        ? parseWebpDimensions(buffer)
+        : parsePngDimensions(buffer) || parseJpegDimensions(buffer) || parseWebpDimensions(buffer);
+  if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {
+    return null;
+  }
+  return dimensions;
+}
+
+function imageCreditsPerRequest(modelConfig: AiModelConfig) {
+  const settings = modelConfig.settings && typeof modelConfig.settings === 'object' && !Array.isArray(modelConfig.settings)
+    ? modelConfig.settings as Record<string, unknown>
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+}
+
+function imageGenerationCreditCost(modelConfig: AiModelConfig, generatedCount: number) {
+  return roundCreditCost(imageCreditsPerRequest(modelConfig) * Math.max(0, generatedCount));
+}
+
+function assertSufficientImageGenerationCredits(input: {
+  modelConfig: AiModelConfig;
+  outputCount: number;
+  userId: string;
+}) {
+  assertSufficientStepCredits({
+    userId: input.userId,
+    requiredCredits: imageGenerationCreditCost(input.modelConfig, input.outputCount),
+    step: 'image_generation',
+    stepLabel: '图片生成',
+  });
+}
+
+function imageGenerationFailureMessage(error: unknown) {
+  if (isUpstreamModelError(error, 'provider_insufficient_balance')) {
+    return '生成失败，积分不足';
+  }
+  return error instanceof Error ? error.message : String(error || '图片生成失败');
+}
+
+function accumulatedImageGenerationCreditCost(input: ChatCapabilityExecutionInput) {
+  return Math.max(0, numericValue(input.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0));
 }
 
 function modeSchemaOf(input: ChatCapabilityExecutionInput) {
@@ -893,10 +1048,12 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     generationOptions: generationOptionsOf(modeSchema, input.capabilityContext),
     modelConfig,
     modeKey: modeSchema.key,
+    modeTitle: cleanText(input.capabilityContext?.imageGeneration?.modeTitle) || modeSchema.title,
     outputCount,
     outputSize: normalizedOutput.outputSize,
     requestedResolution: normalizedOutput.resolution,
     prompt,
+    userPrompt,
     redrawPromptTexts,
     referenceAssets,
     referenceAssetBatches,
@@ -981,33 +1138,61 @@ async function generateImageItems(input: {
 async function persistGeneratedImageAttachments(input: {
   generatedItems: ImageGenerationProviderResult[];
   outputCount: number;
+  prepared: ImageGenerationPreparedInput;
+  userId: string;
+  conversationId?: string;
 }) {
-  const { generatedItems, outputCount } = input;
+  const { conversationId, generatedItems, outputCount, prepared, userId } = input;
   const assistantAttachments = await Promise.all(generatedItems.map((generated, index) => (
-    persistGeneratedImageAttachment({ generated, index, outputCount })
+    persistGeneratedImageAttachment({ conversationId, generated, index, outputCount, prepared, userId })
   )));
   return assistantAttachments;
 }
 
 async function persistGeneratedImageAttachment(input: {
+  conversationId?: string;
   generated: ImageGenerationProviderResult;
   index: number;
   outputCount: number;
+  prepared: ImageGenerationPreparedInput;
   slotIndex?: number;
+  userId: string;
 }) {
-  const { generated, index, outputCount } = input;
+  const { conversationId, generated, index, outputCount, prepared, userId } = input;
   const slotIndex = input.slotIndex ?? index;
   const extension = extensionForMimeType(generated.mimeType);
   const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
-  const filePath = path.join(contentFilesDir, storedFileName);
+  const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
+  const filePath = contentFilePathForRelativePath(storedRelativePath);
+  const dimensions = imageDimensions(generated.buffer, generated.mimeType);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, generated.buffer);
+  const fileUrl = fileUrlFor(storedRelativePath);
+  await createGeneratedImageWorkAsset({
+    userId,
+    buffer: generated.buffer,
+    mimeType: generated.mimeType,
+    storedFileName: storedRelativePath,
+    filePath,
+    fileUrl,
+    originalFileName: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
+    provider: prepared.modelConfig.provider,
+    model: prepared.modelConfig.model,
+    mode: prepared.modeKey,
+    modeTitle: prepared.modeTitle,
+    prompt: prepared.userPrompt || prepared.prompt,
+    conversationId,
+    slotIndex,
+    ...(dimensions ? dimensions : {}),
+  });
   return {
     id: randomBytes(8).toString('hex'),
     kind: 'image' as const,
     name: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
     type: generated.mimeType,
     size: generated.buffer.byteLength,
-    url: fileUrlFor(storedFileName),
+    url: fileUrl,
+    ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
   };
 }
@@ -1034,7 +1219,10 @@ async function generateAndPersistImageAttachments(input: {
         generated,
         index: slotStartIndex + index,
         outputCount: prepared.outputCount,
+        prepared,
         slotIndex: slotStartIndex + index,
+        userId,
+        conversationId: prepared.sourceIdPrefix,
       })
     )));
     persistedAttachments.push(...attachments);
@@ -1050,7 +1238,7 @@ async function generateAndPersistImageAttachments(input: {
       }
       imageGenerationFailures.push({
         slotIndex: index,
-        message: result.reason instanceof Error ? result.reason.message : String(result.reason || '图片生成失败'),
+        message: imageGenerationFailureMessage(result.reason),
       });
     });
   }
@@ -1135,67 +1323,31 @@ async function generateAndPersistImageAttachments(input: {
   };
 }
 
-const ImageGenerationGraphState = Annotation.Root({
-  input: Annotation<ChatCapabilityExecutionInput>(),
-  prepared: Annotation<ImageGenerationPreparedInput | undefined>(),
-  generatedItems: Annotation<ImageGenerationProviderResult[] | undefined>(),
-  assistantAttachments: Annotation<ChatAttachment[] | undefined>(),
-});
-
-type ImageGenerationGraphStateValue = typeof ImageGenerationGraphState.State;
-
-let compiledImageGenerationGraph: ReturnType<ReturnType<typeof createImageGenerationGraph>['compile']> | null = null;
-
-function createImageGenerationGraph() {
-  return new StateGraph(ImageGenerationGraphState)
-    .addNode('prepare', async (state: ImageGenerationGraphStateValue) => ({
-      prepared: await prepareImageGeneration(state.input),
-    }))
-    .addNode('generate', async (state: ImageGenerationGraphStateValue) => {
-      if (!state.prepared) {
-        throw new Error('图片生成参数未准备完成');
-      }
-      return {
-        generatedItems: await generateImageItems({
-          prepared: state.prepared,
-          userId: state.input.userId,
-        }),
-      };
-    })
-    .addNode('persist', async (state: ImageGenerationGraphStateValue) => {
-      if (!state.prepared || !state.generatedItems) {
-        throw new Error('图片生成结果未准备完成');
-      }
-      return {
-        assistantAttachments: await persistGeneratedImageAttachments({
-          generatedItems: state.generatedItems,
-          outputCount: state.prepared.outputCount,
-        }),
-      };
-    })
-    .addEdge(START, 'prepare')
-    .addEdge('prepare', 'generate')
-    .addEdge('generate', 'persist')
-    .addEdge('persist', END);
-}
-
-async function runImageGenerationGraph(input: ChatCapabilityExecutionInput) {
-  if (!compiledImageGenerationGraph) {
-    compiledImageGenerationGraph = createImageGenerationGraph().compile();
-  }
-  const result = await compiledImageGenerationGraph.invoke({ input });
-  if (!result.prepared || !result.assistantAttachments) {
-    throw new Error('图片生成流程未返回有效结果');
-  }
+async function runPreparedImageGeneration(input: ChatCapabilityExecutionInput, prepared: ImageGenerationPreparedInput) {
+  const generatedItems = await generateImageItems({
+    prepared,
+    userId: input.userId,
+  });
   return {
-    assistantAttachments: result.assistantAttachments,
-    modelConfig: result.prepared.modelConfig,
+    assistantAttachments: await persistGeneratedImageAttachments({
+      generatedItems,
+      outputCount: prepared.outputCount,
+      prepared,
+      userId: input.userId,
+      conversationId: input.conversation?.id,
+    }),
+    modelConfig: prepared.modelConfig,
   };
 }
 
 export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionInput) {
   if (input.onImageGenerationAttachmentsChange) {
     const prepared = await prepareImageGeneration(input);
+    assertSufficientImageGenerationCredits({
+      modelConfig: prepared.modelConfig,
+      outputCount: prepared.outputCount,
+      userId: input.userId,
+    });
     const assistantAttachments = await generateAndPersistImageAttachments({
       prepared,
       userId: input.userId,
@@ -1205,15 +1357,48 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
     return {
       assistantAttachments: assistantAttachments.attachments,
       imageGenerationFailures: assistantAttachments.failures,
-      assistantContent: failureCount
-        ? `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片，${failureCount} 张失败。`
-        : `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片。`,
+      creditCost: roundCreditCost(
+        accumulatedImageGenerationCreditCost(input)
+        + imageGenerationCreditCost(prepared.modelConfig, assistantAttachments.attachments.length),
+      ),
+      assistantContent: imageGenerationAssistantContent({
+        attachmentsCount: assistantAttachments.attachments.length,
+        failures: assistantAttachments.failures,
+        modelConfig: prepared.modelConfig,
+      }),
     };
   }
 
-  const result = await runImageGenerationGraph(input);
+  const prepared = await prepareImageGeneration(input);
+  assertSufficientImageGenerationCredits({
+    modelConfig: prepared.modelConfig,
+    outputCount: prepared.outputCount,
+    userId: input.userId,
+  });
+  const result = await runPreparedImageGeneration(input, prepared);
   return {
     assistantAttachments: result.assistantAttachments,
+    creditCost: roundCreditCost(
+      accumulatedImageGenerationCreditCost(input)
+      + imageGenerationCreditCost(result.modelConfig, result.assistantAttachments.length),
+    ),
     assistantContent: `已使用 ${result.modelConfig.name} / ${result.modelConfig.model} 生成 ${result.assistantAttachments.length} 张图片。`,
   };
+}
+
+function imageGenerationAssistantContent(input: {
+  attachmentsCount: number;
+  failures: ChatImageGenerationFailure[];
+  modelConfig: AiModelConfig;
+}) {
+  const failureCount = input.failures.length;
+  if (failureCount && !input.attachmentsCount) {
+    const failureMessages = new Set(input.failures.map((failure) => failure.message));
+    if (failureMessages.size === 1) {
+      return input.failures[0]?.message || '图片生成失败';
+    }
+  }
+  return failureCount
+    ? `已使用 ${input.modelConfig.name} / ${input.modelConfig.model} 生成 ${input.attachmentsCount} 张图片，${failureCount} 张失败。`
+    : `已使用 ${input.modelConfig.name} / ${input.modelConfig.model} 生成 ${input.attachmentsCount} 张图片。`;
 }

@@ -13,7 +13,13 @@ import type {
   VideoGenerationTask,
   ViralReplicationPlan
 } from '../content.types.js';
-import { contentFilesDir, errorLogContext, execFileAsync } from './content-common.js';
+import {
+  contentFilePathForRelativePath,
+  contentFilesDir,
+  errorLogContext,
+  execFileAsync,
+  generatedMediaRelativePath,
+} from './content-common.js';
 import { createPendingFinishedVideoAsset, ensureGeneratedAssetGroup } from './content-image-assets.js';
 import { updateVideoTaskParseResult } from './content-video-task-runtime.js';
 import { isRecord } from './content-viral-analysis.js';
@@ -2781,9 +2787,11 @@ export async function mergeGeneratedVideoSegments(input: {
   }
   const listFilePath = path.join(contentFilesDir, `video-segments-${input.taskId}-${Date.now()}.txt`);
   const storedFileName = `generated-video-${input.taskId}-${Date.now()}.mp4`;
+  const storedRelativePath = generatedMediaRelativePath('video', storedFileName);
   const concatOutputPath = path.join(contentFilesDir, `generated-video-concat-${input.taskId}-${Date.now()}.mp4`);
-  const outputPath = path.join(contentFilesDir, storedFileName);
+  const outputPath = contentFilePathForRelativePath(storedRelativePath);
   const escapeConcatPath = (filePath: string) => filePath.replace(/'/g, "'\\''");
+  await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(listFilePath, input.segmentPaths.map((filePath) => `file '${escapeConcatPath(filePath)}'`).join('\n'), 'utf8');
   logVideoGenerationFlow('info', 'ffmpeg concat started', {
     traceId: input.traceId,
@@ -2819,7 +2827,7 @@ export async function mergeGeneratedVideoSegments(input: {
     outputPath,
   });
   const outputStat = await stat(outputPath);
-  const fileUrl = fileUrlFor(storedFileName);
+  const fileUrl = fileUrlFor(storedRelativePath);
   logVideoGenerationFlow('info', 'ffmpeg concat completed', {
     traceId: input.traceId,
     taskId: input.taskId,
@@ -2830,7 +2838,7 @@ export async function mergeGeneratedVideoSegments(input: {
   return {
     filePath: outputPath,
     fileUrl,
-    storedFileName,
+    storedFileName: storedRelativePath,
     fileSize: outputStat.size,
   };
 }

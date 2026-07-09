@@ -17,22 +17,25 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
-import { MentionRichTextarea, type MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
+import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../../components/MentionRichTextarea';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
+  composerDraftContext?: SendChatPayload['capabilityContext'];
+  composerDraftImageModelConfigId?: string | null;
   input: string;
   onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
   onStop: () => void;
+  continueEditFocusToken?: number;
   showHeading?: boolean;
   sending: boolean;
 };
@@ -351,14 +354,39 @@ function imageModelSupportsCustomResolution(config: ModelConfig | undefined) {
   return imageGeneration.supportsCustomResolution === true || settings.supportsCustomResolution === true;
 }
 
+function numericValue(value: unknown, fallback = 0) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
+  const settings = config?.settings && typeof config.settings === 'object'
+    ? config.settings as Record<string, unknown>
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
+}
+
+function formatCreditAmount(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(6).replace(/\.?0+$/, '');
+}
+
 export function ClawDialogComposer({
   attachments,
+  composerDraftContext,
+  composerDraftImageModelConfigId,
   input,
   onAddFiles,
   onInputChange,
   onRemoveAttachment,
   onSend,
   onStop,
+  continueEditFocusToken = 0,
   showHeading = true,
   sending,
 }: ClawDialogComposerProps) {
@@ -370,6 +398,7 @@ export function ClawDialogComposer({
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
   const [selectedOutputCount, setSelectedOutputCount] = useState(1);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
+  const textareaRef = useRef<MentionRichTextareaRef | null>(null);
   const hasPrompt = Boolean(input.trim());
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
   const SelectedModeIcon = selectedMode.Icon;
@@ -433,6 +462,46 @@ export function ClawDialogComposer({
       ? `还需上传${missingReferenceGroups[0].label}`
       : '';
   const canStartGeneration = !generationBlockReason;
+
+  useEffect(() => {
+    if (!continueEditFocusToken) {
+      return;
+    }
+    const imageGeneration = composerDraftContext?.imageGeneration;
+    const draftModeKey = imageGeneration?.modeKey as ClawModeKey | undefined;
+    const nextMode = draftModeKey && clawModeConfigs.some((mode) => mode.key === draftModeKey)
+      ? draftModeKey
+      : 'dialog';
+    const nextModeConfig = clawModeConfigs.find((mode) => mode.key === nextMode) ?? clawModeConfigs[0];
+    const nextOutputConfig = nextModeConfig.outputConfig ?? defaultModeOutputConfig;
+    const draftAttachmentGroups = imageGeneration?.referenceGroups?.flatMap((group) => (
+      group.attachmentIds.map((attachmentId) => [attachmentId, group.key] as const)
+    ));
+    setSelectedModeKey(nextMode);
+    setAttachmentGroupById(
+      draftAttachmentGroups?.length
+        ? Object.fromEntries(draftAttachmentGroups)
+        : Object.fromEntries(attachments.map((attachment) => [attachment.id, 'reference'])),
+    );
+    if (imageGeneration?.aspectRatio && aspectRatioOptions.includes(imageGeneration.aspectRatio as ClawAspectRatioKey)) {
+      setSelectedAspectRatio(imageGeneration.aspectRatio as ClawAspectRatioKey);
+    }
+    if (imageGeneration?.resolution && nextOutputConfig.allowedResolutions.includes(imageGeneration.resolution as ClawResolutionKey)) {
+      setSelectedResolution(imageGeneration.resolution as ClawResolutionKey);
+    }
+    if (imageGeneration?.outputBackground) {
+      setSelectedBackground(imageGeneration.outputBackground);
+    }
+    if (typeof imageGeneration?.outputCount === 'number') {
+      setSelectedOutputCount(imageGeneration.outputCount);
+    }
+    if (composerDraftImageModelConfigId) {
+      setSelectedImageModelValue(composerDraftImageModelConfigId);
+    }
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, continueEditFocusToken]);
 
   useEffect(() => {
     const attachmentIds = new Set(attachments.map((attachment) => attachment.id));
@@ -544,6 +613,8 @@ export function ClawDialogComposer({
       : outputCountStrategy === 'matchReferenceGroup'
         ? Math.max(1, (groupedAttachments[selectedMode.outputCountGroupKey || ''] || []).filter((attachment) => attachment.kind === 'image').length)
         : selectedOutputCount;
+  const imageCreditsPerRequest = imageModelCreditsPerRequest(selectedRawImageConfig);
+  const totalImageCredits = imageCreditsPerRequest * resolvedOutputCount;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {
@@ -688,6 +759,7 @@ export function ClawDialogComposer({
                 onSubmit={handlePrimaryAction}
                 options={mentionOptions}
                 placeholder={selectedMode.inputPlaceholder}
+                ref={textareaRef}
                 value={input}
               />
             </div>
@@ -793,6 +865,10 @@ export function ClawDialogComposer({
             {!canStartGeneration ? (
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}
+            <span className="claw-credit">
+              <Zap size={12} fill="currentColor" />
+              {formatCreditAmount(totalImageCredits)}
+            </span>
             <Button
               aria-label={sending ? '停止生成' : '发送消息'}
               className="claw-send-button"

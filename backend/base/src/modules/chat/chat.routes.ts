@@ -8,9 +8,14 @@ import { contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
+import {
+  contentFilePathForRelativePath,
+  fileUrlForContentRelativePath,
+  inputMediaKindForMimeType,
+  inputMediaRelativePath,
+} from '../content/internals/content-common.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
-import { resolveSkillInvocation } from '../skills/skill.service.js';
 import { resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { askConfiguredModel, assertModelConfigReady } from './chat-completion.service.js';
 import { chatRepository } from './chat.repository.js';
@@ -45,8 +50,16 @@ function decodeUploadFileName(fileName: string) {
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination(_req, _file, callback) {
-      callback(null, chatFilesDir);
+    destination(_req, file, callback) {
+      const mediaKind = inputMediaKindForMimeType(file.mimetype || '');
+      if (!mediaKind) {
+        callback(null, chatFilesDir);
+        return;
+      }
+      const relativePath = inputMediaRelativePath(mediaKind, '.keep');
+      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+      mkdirSync(destination, { recursive: true });
+      callback(null, destination);
     },
     filename(_req, file, callback) {
       callback(null, `${Date.now()}-${randomBytes(6).toString('hex')}-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
@@ -83,13 +96,14 @@ export function createChatRouter() {
       }
 
       const originalFileName = decodeUploadFileName(req.file.originalname);
+      const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
       res.status(201).json({
         id: `${Date.now()}-${randomBytes(8).toString('hex')}`,
         name: originalFileName,
         type: req.file.mimetype || 'application/octet-stream',
         size: req.file.size,
         kind: (req.file.mimetype || '').startsWith('image/') ? 'image' : 'file',
-        url: `/files/${encodeURIComponent(req.file.filename)}`,
+        url: fileUrlForContentRelativePath(relativePath),
       });
     });
   });
@@ -376,14 +390,6 @@ export function createChatRouter() {
       }
     }
 
-    let skillInvocation;
-    try {
-      skillInvocation = await resolveSkillInvocation({ content, userId });
-    } catch (error) {
-      sendError(res, 400, error instanceof Error ? error.message : '技能读取失败');
-      return;
-    }
-
     const history = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
     const now = new Date().toISOString();
     const conversation: ChatConversation = existingConversation
@@ -393,18 +399,18 @@ export function createChatRouter() {
           modelConfigId: modelConfig.id,
           metadata: {
             ...(existingConversation.metadata || {}),
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           updatedAt: now,
         }
       : {
           id: randomBytes(12).toString('hex'),
           userId,
-          title: makeChatTitle(skillInvocation.titleContent),
+          title: makeChatTitle(content),
           agentId,
           modelConfigId: modelConfig.id,
           metadata: {
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           createdAt: now,
           updatedAt: now,
@@ -418,7 +424,7 @@ export function createChatRouter() {
         agent,
         modelConfig,
         history,
-        content: skillInvocation.modelContent,
+        content,
         attachments,
       });
     } catch (error) {
@@ -430,7 +436,7 @@ export function createChatRouter() {
       id: randomBytes(12).toString('hex'),
       conversationId: conversation.id,
       role: 'user',
-      content: skillInvocation.userContent,
+      content,
       agentId,
       modelConfigId: modelConfig.id,
       attachments,
