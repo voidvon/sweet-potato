@@ -6,6 +6,11 @@ import { contentUploadLimitBytes, vodUploadLimitBytes } from '../../config/env.j
 import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
+import {
+  contentFilePathForRelativePath,
+  fileUrlForContentRelativePath,
+  inputMediaRelativePath,
+} from '../content/internals/content-common.js';
 import { registerVideoRemakeEventClient } from './video-remake.events.js';
 import { videoRemakeService } from './video-remake.service.js';
 import type { VideoRemakeCardType } from './video-remake.types.js';
@@ -34,7 +39,10 @@ function decodeUploadFileName(fileName: string) {
 const vodUpload = multer({
   storage: multer.diskStorage({
     destination(_req, _file, callback) {
-      callback(null, contentFilesDir);
+      const relativePath = inputMediaRelativePath('video', '.keep');
+      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+      mkdirSync(destination, { recursive: true });
+      callback(null, destination);
     },
     filename(_req, file, callback) {
       callback(null, `${Date.now()}-video-remake-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
@@ -55,7 +63,10 @@ const vodUpload = multer({
 const pipImageUpload = multer({
   storage: multer.diskStorage({
     destination(_req, _file, callback) {
-      callback(null, contentFilesDir);
+      const relativePath = inputMediaRelativePath('image', '.keep');
+      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+      mkdirSync(destination, { recursive: true });
+      callback(null, destination);
     },
     filename(_req, file, callback) {
       callback(null, `${Date.now()}-video-remake-pip-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
@@ -199,14 +210,15 @@ export function createVideoRemakeRouter() {
           }
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
+          const storedRelativePath = path.relative(contentFilesDir, req.file.path).split(path.sep).join('/');
           const result = await videoRemakeService.upload(req.params.sessionId, {
             userId,
             originalFileName,
-            storedFileName: req.file.filename,
+            storedFileName: storedRelativePath,
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
+            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
           });
           res.status(201).json(result);
         } catch (error) {
@@ -232,14 +244,15 @@ export function createVideoRemakeRouter() {
           }
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
+          const storedRelativePath = path.relative(contentFilesDir, req.file.path).split(path.sep).join('/');
           const result = videoRemakeService.uploadPipAsset(req.params.sessionId, {
             userId,
             originalFileName,
-            storedFileName: req.file.filename,
+            storedFileName: storedRelativePath,
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
+            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
           });
           res.status(201).json(result);
         } catch (error) {

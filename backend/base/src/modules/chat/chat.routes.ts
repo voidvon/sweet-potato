@@ -8,6 +8,12 @@ import { contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
+import {
+  contentFilePathForRelativePath,
+  fileUrlForContentRelativePath,
+  inputMediaKindForMimeType,
+  inputMediaRelativePath,
+} from '../content/internals/content-common.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { resolveChatCapabilityInvocation } from './chat-capability.service.js';
@@ -44,8 +50,16 @@ function decodeUploadFileName(fileName: string) {
 
 const upload = multer({
   storage: multer.diskStorage({
-    destination(_req, _file, callback) {
-      callback(null, chatFilesDir);
+    destination(_req, file, callback) {
+      const mediaKind = inputMediaKindForMimeType(file.mimetype || '');
+      if (!mediaKind) {
+        callback(null, chatFilesDir);
+        return;
+      }
+      const relativePath = inputMediaRelativePath(mediaKind, '.keep');
+      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+      mkdirSync(destination, { recursive: true });
+      callback(null, destination);
     },
     filename(_req, file, callback) {
       callback(null, `${Date.now()}-${randomBytes(6).toString('hex')}-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
@@ -82,13 +96,14 @@ export function createChatRouter() {
       }
 
       const originalFileName = decodeUploadFileName(req.file.originalname);
+      const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
       res.status(201).json({
         id: `${Date.now()}-${randomBytes(8).toString('hex')}`,
         name: originalFileName,
         type: req.file.mimetype || 'application/octet-stream',
         size: req.file.size,
         kind: (req.file.mimetype || '').startsWith('image/') ? 'image' : 'file',
-        url: `/files/${encodeURIComponent(req.file.filename)}`,
+        url: fileUrlForContentRelativePath(relativePath),
       });
     });
   });

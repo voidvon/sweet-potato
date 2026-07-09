@@ -35,7 +35,12 @@ import {
 } from '../billing/billing.service.js';
 import { inspectVideoUrlWithWorker, type InspectedVideoMaterial } from '../content/internals/content-viral-analysis.js';
 import { contentRepository } from '../content/content.repository.js';
-import { contentFilesDir, execFileAsync } from '../content/internals/content-common.js';
+import {
+  contentFilesDir,
+  execFileAsync,
+  fileUrlForContentRelativePath,
+  resolveLocalContentFilePathFromUrl,
+} from '../content/internals/content-common.js';
 import { absolutizeMaterialUrl } from '../content/internals/content-voice-clone.js';
 import {
   buildSegmentedSeedancePrompt,
@@ -146,11 +151,12 @@ function sleep(ms: number) {
 }
 
 function fileUrlForContentFile(fileName: string) {
-  return `/files/${encodeURIComponent(fileName)}`;
+  return fileUrlForContentRelativePath(fileName);
 }
 
 function fileUrlForContentPath(filePath: string) {
-  return fileUrlForContentFile(path.basename(filePath));
+  const relativePath = path.relative(contentFilesDir, filePath).split(path.sep).join('/');
+  return fileUrlForContentFile(relativePath);
 }
 
 function contentFilePathFromUrl(url: unknown) {
@@ -158,11 +164,7 @@ function contentFilePathFromUrl(url: unknown) {
   if (!value.startsWith('/files/')) {
     return '';
   }
-  const fileName = decodeURIComponent(value.slice('/files/'.length).split(/[?#]/u)[0] || '');
-  if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
-    return '';
-  }
-  const filePath = path.join(contentFilesDir, fileName);
+  const filePath = resolveLocalContentFilePathFromUrl(value);
   return existsSync(filePath) ? filePath : '';
 }
 

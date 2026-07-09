@@ -1,10 +1,16 @@
 import { randomBytes } from 'node:crypto';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { z } from 'zod';
 import { assertSufficientStepCredits } from '../../billing/billing.service.js';
-import { contentFilesDir } from '../../content/internals/content-common.js';
+import {
+  contentFilePathForRelativePath,
+  contentFilesDir,
+  generatedMediaRelativePath,
+  inputMediaRelativePath,
+  resolveLocalContentFilePathFromUrl,
+} from '../../content/internals/content-common.js';
 import {
   createGeneratedImageWorkAsset,
   extensionForMimeType,
@@ -368,14 +374,7 @@ function safeImageName(value: string, fallback: string) {
 
 function localContentFilePathFromUrl(value: string) {
   const normalized = cleanText(value);
-  if (!normalized.startsWith('/files/')) {
-    return null;
-  }
-  const fileName = decodeURIComponent(normalized.slice('/files/'.length).split(/[?#]/u)[0] || '');
-  if (!fileName || fileName.includes('/') || fileName.includes('\\')) {
-    return null;
-  }
-  return path.join(contentFilesDir, fileName);
+  return resolveLocalContentFilePathFromUrl(normalized) || null;
 }
 
 async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
@@ -393,7 +392,9 @@ async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
   const parsed = dataUrlToBuffer(attachment.url);
   const extension = extensionForMimeType(parsed.mimeType);
   const storedFileName = `chat-image-reference-${randomBytes(8).toString('hex')}.${extension}`;
-  const filePath = path.join(contentFilesDir, storedFileName);
+  const storedRelativePath = inputMediaRelativePath('image', storedFileName);
+  const filePath = contentFilePathForRelativePath(storedRelativePath);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, parsed.buffer);
   return {
     filePath,
@@ -1161,13 +1162,19 @@ async function persistGeneratedImageAttachment(input: {
   const slotIndex = input.slotIndex ?? index;
   const extension = extensionForMimeType(generated.mimeType);
   const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
-  const filePath = path.join(contentFilesDir, storedFileName);
+  const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
+  const filePath = contentFilePathForRelativePath(storedRelativePath);
   const dimensions = imageDimensions(generated.buffer, generated.mimeType);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, generated.buffer);
+  const fileUrl = fileUrlFor(storedRelativePath);
   await createGeneratedImageWorkAsset({
     userId,
     buffer: generated.buffer,
     mimeType: generated.mimeType,
+    storedFileName: storedRelativePath,
+    filePath,
+    fileUrl,
     originalFileName: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
     provider: prepared.modelConfig.provider,
     model: prepared.modelConfig.model,
@@ -1184,7 +1191,7 @@ async function persistGeneratedImageAttachment(input: {
     name: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
     type: generated.mimeType,
     size: generated.buffer.byteLength,
-    url: fileUrlFor(storedFileName),
+    url: fileUrl,
     ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
   };

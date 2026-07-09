@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   volcengineRealPersonConfig,
@@ -44,7 +44,7 @@ import {
   permissionForContentResourceType,
 } from '../../shared/resource-permission.js';
 
-import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
+import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
@@ -1286,13 +1286,15 @@ export const contentService = {
       });
       const extension = extensionForMimeType(generated.mimeType);
       const storedFileName = `digital-human-three-view-${groupId}-${Date.now()}.${extension}`;
-      const filePath = path.join(contentFilesDir, storedFileName);
+      const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
+      const filePath = contentFilePathForRelativePath(storedRelativePath);
+      await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, generated.buffer);
       let privateAssetMetadata: Record<string, unknown> = {};
       if (options.syncToPrivateAsset) {
         const remoteGroup = await ensureVirtualPortraitRemoteGroup(group);
         const remoteGroupId = remoteGroup.remoteGroupId;
-        const sourceRef = absolutizeMaterialUrl(fileUrlFor(storedFileName));
+        const sourceRef = absolutizeMaterialUrl(fileUrlFor(storedRelativePath));
         if (!sourceRef) {
           await rm(filePath, { force: true });
           throw new Error('火山 CreateAsset 官方示例使用 JSON URL 入库；请配置 CONTENT_PUBLIC_BASE_URL，确保火山可访问 AI 训练生成的人物素材文件');
@@ -1369,11 +1371,11 @@ export const contentService = {
         name: `${group.name}-三视图成品`,
         description: `由图片模型生成的${label}三视图/多视图成品`,
         originalFileName: `digital-human-three-view.${extension}`,
-        storedFileName,
+        storedFileName: storedRelativePath,
         mimeType: generated.mimeType,
         fileSize: generated.buffer.byteLength,
         filePath,
-        fileUrl: fileUrlFor(storedFileName),
+        fileUrl: fileUrlFor(storedRelativePath),
         metadata: {
           generatedBy: 'image_model',
           kind: 'three_view_result',

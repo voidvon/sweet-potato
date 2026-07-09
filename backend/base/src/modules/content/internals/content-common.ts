@@ -61,6 +61,71 @@ export type UploadedAssetFile = RealPersonAssetFile;
 
 mkdirSync(contentFilesDir, { recursive: true });
 
+export type GeneratedMediaKind = 'image' | 'video';
+export type InputMediaKind = 'image' | 'video' | 'audio';
+
+export function generatedMediaMonth(now = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}${month}`;
+}
+
+function generatedMediaDirectoryName(kind: GeneratedMediaKind) {
+  return kind === 'image' ? 'generated_images' : 'generated_videos';
+}
+
+function inputMediaDirectoryName(kind: InputMediaKind) {
+  if (kind === 'image') {
+    return 'input_images';
+  }
+  if (kind === 'video') {
+    return 'input_videos';
+  }
+  return 'input_audios';
+}
+
+export function generatedMediaRelativePath(kind: GeneratedMediaKind, fileName: string, now = new Date()) {
+  return path.posix.join(generatedMediaDirectoryName(kind), generatedMediaMonth(now), fileName);
+}
+
+export function inputMediaRelativePath(kind: InputMediaKind, fileName: string, now = new Date()) {
+  return path.posix.join(inputMediaDirectoryName(kind), generatedMediaMonth(now), fileName);
+}
+
+export function inputMediaKindForMimeType(mimeType: string): InputMediaKind | null {
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  }
+  if (mimeType.startsWith('video/')) {
+    return 'video';
+  }
+  if (mimeType.startsWith('audio/')) {
+    return 'audio';
+  }
+  return null;
+}
+
+export function fileUrlForContentRelativePath(relativePath: string) {
+  return `/files/${relativePath.split('/').map((part) => encodeURIComponent(part)).join('/')}`;
+}
+
+export function contentFilePathForRelativePath(relativePath: string) {
+  return path.join(contentFilesDir, ...relativePath.split('/').filter(Boolean));
+}
+
+export function resolveLocalContentFilePathFromUrl(value: string) {
+  const rawPath = value.trim();
+  if (!rawPath.startsWith('/files/')) {
+    return '';
+  }
+  const relativePath = rawPath.slice('/files/'.length).split(/[?#]/u)[0] || '';
+  const parts = relativePath.split('/').map((part) => decodeURIComponent(part)).filter(Boolean);
+  if (!parts.length || parts.some((part) => part === '..' || part.includes('\\'))) {
+    return '';
+  }
+  return path.join(contentFilesDir, ...parts);
+}
+
 export function virtualPortraitLogFile(now = new Date()) {
   const iso = now.toISOString();
   return `virtual-portrait-assets/${iso.slice(0, 10)}/${iso.slice(11, 13)}.log`;

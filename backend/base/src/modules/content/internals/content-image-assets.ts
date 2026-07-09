@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile,rm,writeFile } from 'node:fs/promises';
+import { mkdir,readFile,rm,writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import {
@@ -14,7 +14,15 @@ ContentResourceType,
 VideoGenerationResult
 } from '../content.types.js';
 
-import { contentFilesDir,createContentAssetRecord,deleteRemoteVirtualPortraitAsset,threeViewImageSize } from './content-common.js';
+import {
+contentFilePathForRelativePath,
+contentFilesDir,
+createContentAssetRecord,
+deleteRemoteVirtualPortraitAsset,
+fileUrlForContentRelativePath,
+generatedMediaRelativePath,
+threeViewImageSize
+} from './content-common.js';
 import { resolveDefaultImageModel } from './content-video-generation.js';
 import { isRecord } from './content-viral-analysis.js';
 
@@ -461,13 +469,16 @@ export function videoFileNameFromUrl(url: string) {
 }
 
 function generatedImageFileUrl(storedFileName: string) {
-  return `/files/${encodeURIComponent(storedFileName)}`;
+  return fileUrlForContentRelativePath(storedFileName);
 }
 
 export async function createGeneratedImageWorkAsset(input: {
   userId: string;
   buffer: Buffer;
   mimeType: string;
+  storedFileName?: string;
+  filePath?: string;
+  fileUrl?: string;
   title?: string;
   originalFileName?: string;
   provider?: string;
@@ -481,9 +492,13 @@ export async function createGeneratedImageWorkAsset(input: {
   height?: number;
 }) {
   const extension = extensionForMimeType(input.mimeType);
-  const storedFileName = `work-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
-  const filePath = path.join(contentFilesDir, storedFileName);
-  await writeFile(filePath, input.buffer);
+  const storedRelativePath = input.storedFileName || generatedMediaRelativePath('image', `work-generated-image-${randomBytes(8).toString('hex')}.${extension}`);
+  const filePath = input.filePath || contentFilePathForRelativePath(storedRelativePath);
+  const fileUrl = input.fileUrl || generatedImageFileUrl(storedRelativePath);
+  if (!input.filePath) {
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, input.buffer);
+  }
 
   const group = ensureGeneratedAssetGroup(input.userId, 'finished_video', '生成图片', '图片创作自动产生的作品');
   const generatedAt = new Date().toISOString();
@@ -494,11 +509,11 @@ export async function createGeneratedImageWorkAsset(input: {
     name: input.title || `生成图片-${new Date().toLocaleString('zh-CN', { hour12: false })}`,
     description: '图片创作生成的作品',
     originalFileName: input.originalFileName || `generated-image.${extension}`,
-    storedFileName,
+    storedFileName: storedRelativePath,
     mimeType: input.mimeType,
     fileSize: input.buffer.byteLength,
     filePath,
-    fileUrl: generatedImageFileUrl(storedFileName),
+    fileUrl,
     metadata: {
       generatedBy: 'image_model',
       generationStatus: 'completed',
