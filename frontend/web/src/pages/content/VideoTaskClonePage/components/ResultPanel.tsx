@@ -36,6 +36,7 @@ export function ResultPanel({
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
+  const dailyGroups = groupRecordsByDay(sortedRecords);
   const handleCopyId = async (value: string) => {
     const normalized = String(value || '').trim();
     if (!normalized) {
@@ -115,93 +116,92 @@ export function ResultPanel({
         </div>
       ) : (
         <div className="video-task-result-flow">
-          <div className="video-task-result-group-marker">
-            <span className="video-task-result-group-dot" />
-            <strong>视频</strong>
+          <div className="video-task-result-timeline">
+            {dailyGroups.map((group) => (
+              <section className="video-task-result-track" key={group.key}>
+                <div className="video-task-result-track-head">
+                  <span className="video-task-result-pill">{group.label}</span>
+                  <span className="video-task-result-track-count">{group.records.length}个</span>
+                </div>
+
+                <div className="video-task-result-grid">
+                  {group.records.map((task) => {
+                    const state = viewState(task);
+                    const isRetrying = retryingTaskId === task.id;
+                    return (
+                      <article className={`video-task-result-card is-${state.kind}`} key={task.id}>
+                        <div className="video-task-result-preview">
+                          {state.videoUrl ? (
+                            <button
+                              className="video-task-result-thumb"
+                              onClick={() => state.previewVideo && setPreviewVideo(state.previewVideo)}
+                              type="button"
+                            >
+                              <video muted playsInline poster={state.coverUrl || undefined} preload="metadata" src={state.videoUrl} />
+                              <span className="video-task-result-play">
+                                <Play size={20} fill="currentColor" />
+                              </span>
+                            </button>
+                          ) : state.kind === 'failed' || state.kind === 'running' ? (
+                            <div className={`video-task-result-placeholder is-${state.kind}`} title={state.note || state.posterText}>
+                              {state.kind === 'failed' ? <CircleAlert size={26} /> : <LoaderCircle className="is-spinning" size={24} />}
+                              <strong>{state.posterText}</strong>
+                              {state.note ? <p>{previewNote(state.note, state.kind)}</p> : null}
+                            </div>
+                          ) : state.coverUrl ? (
+                            <img alt={task.title} src={state.coverUrl} />
+                          ) : (
+                            <div className={`video-task-result-placeholder is-${state.kind}`} title={state.note || state.posterText}>
+                              <Clapperboard size={24} />
+                              <strong>{state.posterText}</strong>
+                              {state.note ? <p>{previewNote(state.note, state.kind)}</p> : null}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="video-task-result-copy">
+                          <div className="video-task-result-copy-meta">
+                            <button
+                              className="video-task-result-chip is-copy"
+                              onClick={() => void handleCopyId(state.copyId)}
+                              type="button"
+                            >
+                              复制ID
+                            </button>
+                            <span className="video-task-result-copy-dot">·</span>
+                            <span className="video-task-result-chip is-metric">
+                              <Zap size={11} />
+                              {state.metric}
+                            </span>
+                          </div>
+
+                          <time className="video-task-result-time" dateTime={task.updatedAt}>
+                            {formatRelativeCalendarDateTime(task.updatedAt)}
+                          </time>
+
+                          <div className="video-task-result-actions">
+                            {state.canRetry ? (
+                              <button
+                                className="video-task-result-retry"
+                                disabled={isRetrying}
+                                onClick={() => void onRetry(task)}
+                                type="button"
+                              >
+                                {isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
+                                {isRetrying ? '提交中' : '再次生成'}
+                              </button>
+                            ) : (
+                              <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
-
-          <section className="video-task-result-track">
-            <div className="video-task-result-track-head">
-              <span className="video-task-result-pill">视频</span>
-              <span className="video-task-result-track-count">{sortedRecords.length}个</span>
-            </div>
-
-            <div className="video-task-result-grid">
-              {sortedRecords.map((task) => {
-                const state = viewState(task);
-                const isRetrying = retryingTaskId === task.id;
-                return (
-                  <article className={`video-task-result-card is-${state.kind}`} key={task.id}>
-                    <div className="video-task-result-preview">
-                      {state.videoUrl ? (
-                        <button
-                          className="video-task-result-thumb"
-                          onClick={() => state.previewVideo && setPreviewVideo(state.previewVideo)}
-                          type="button"
-                        >
-                          <video muted playsInline poster={state.coverUrl || undefined} preload="metadata" src={state.videoUrl} />
-                          <span className="video-task-result-play">
-                            <Play size={20} fill="currentColor" />
-                          </span>
-                        </button>
-                      ) : state.kind === 'failed' || state.kind === 'running' ? (
-                        <div className={`video-task-result-placeholder is-${state.kind}`} title={state.note || state.posterText}>
-                          {state.kind === 'failed' ? <CircleAlert size={26} /> : <LoaderCircle className="is-spinning" size={24} />}
-                          <strong>{state.posterText}</strong>
-                          {state.note ? <p>{previewNote(state.note, state.kind)}</p> : null}
-                        </div>
-                      ) : state.coverUrl ? (
-                        <img alt={task.title} src={state.coverUrl} />
-                      ) : (
-                        <div className={`video-task-result-placeholder is-${state.kind}`} title={state.note || state.posterText}>
-                          <Clapperboard size={24} />
-                          <strong>{state.posterText}</strong>
-                          {state.note ? <p>{previewNote(state.note, state.kind)}</p> : null}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="video-task-result-copy">
-                      <div className="video-task-result-copy-meta">
-                        <button
-                          className="video-task-result-chip is-copy"
-                          onClick={() => void handleCopyId(state.copyId)}
-                          type="button"
-                        >
-                          复制ID
-                        </button>
-                        <span className="video-task-result-copy-dot">·</span>
-                        <span className="video-task-result-chip is-metric">
-                          <Zap size={11} />
-                          {state.metric}
-                        </span>
-                      </div>
-
-                      <time className="video-task-result-time" dateTime={task.updatedAt}>
-                        {formatRelativeCalendarDateTime(task.updatedAt)}
-                      </time>
-
-                      <div className="video-task-result-actions">
-                        {state.canRetry ? (
-                          <button
-                            className="video-task-result-retry"
-                            disabled={isRetrying}
-                            onClick={() => void onRetry(task)}
-                            type="button"
-                          >
-                            {isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
-                            {isRetrying ? '提交中' : '再次生成'}
-                          </button>
-                        ) : (
-                          <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
         </div>
       )}
 
@@ -322,6 +322,50 @@ function formatMetric(result?: VideoGenerationResult) {
 function parseDurationSeconds(duration?: string | null) {
   const matched = String(duration || '').match(/(\d+)/);
   return matched ? Number(matched[1]) : 0;
+}
+
+function groupRecordsByDay(records: VideoGenerationTask[]) {
+  const groups = new Map<string, { key: string; label: string; records: VideoGenerationTask[] }>();
+  records.forEach((record) => {
+    const date = new Date(record.updatedAt);
+    const key = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
+    const current = groups.get(key);
+    if (current) {
+      current.records.push(record);
+      return;
+    }
+    groups.set(key, {
+      key,
+      label: formatDayLabel(date),
+      records: [record],
+    });
+  });
+  return Array.from(groups.values());
+}
+
+function formatDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDayLabel(date: Date) {
+  if (Number.isNaN(date.getTime())) {
+    return '未知时间';
+  }
+  const now = new Date();
+  const currentDayKey = formatDayKey(now);
+  const previousDay = new Date(now);
+  previousDay.setDate(now.getDate() - 1);
+  const targetKey = formatDayKey(date);
+  if (targetKey === currentDayKey) {
+    return '今天';
+  }
+  if (targetKey === formatDayKey(previousDay)) {
+    return '昨天';
+  }
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
 function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
