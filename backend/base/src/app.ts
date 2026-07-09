@@ -16,13 +16,17 @@ import { createVideoRemakeRouter } from './modules/video-remake/video-remake.rou
 import { createXingtuSearchDraftRouter } from './modules/xingtu-search-drafts/xingtu-search-draft.routes.js';
 import { requireAuth } from './shared/auth.middleware.js';
 
+const filesStaticMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
+
 export function createApp() {
   migrateDatabase();
 
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '20mb' }));
-  app.use('/files', express.static(path.join(dataDir, 'files')));
+  app.use('/files', express.static(path.join(dataDir, 'files'), {
+    maxAge: filesStaticMaxAgeMs,
+  }));
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, service: 'ai-marketing-desktop-server' });
