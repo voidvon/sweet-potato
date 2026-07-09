@@ -37,6 +37,8 @@ export type ChatAttachment = {
   size: number;
   kind: 'image' | 'file';
   url: string;
+  width?: number;
+  height?: number;
   imageGenerationSlotIndex?: number;
 };
 

@@ -437,6 +437,109 @@ function roundCreditCost(value: number) {
   return Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000;
 }
 
+function readUInt24LE(buffer: Buffer, offset: number) {
+  return buffer[offset] + (buffer[offset + 1] << 8) + (buffer[offset + 2] << 16);
+}
+
+function parsePngDimensions(buffer: Buffer) {
+  if (
+    buffer.length < 24
+    || buffer.readUInt32BE(0) !== 0x89504e47
+    || buffer.readUInt32BE(4) !== 0x0d0a1a0a
+    || buffer.toString('ascii', 12, 16) !== 'IHDR'
+  ) {
+    return null;
+  }
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function parseJpegDimensions(buffer: Buffer) {
+  if (buffer.length < 4 || buffer[0] !== 0xff || buffer[1] !== 0xd8) {
+    return null;
+  }
+  let offset = 2;
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) {
+      continue;
+    }
+    if (offset + 2 > buffer.length) {
+      return null;
+    }
+    const segmentLength = buffer.readUInt16BE(offset);
+    if (segmentLength < 2 || offset + segmentLength > buffer.length) {
+      return null;
+    }
+    if (
+      (marker >= 0xc0 && marker <= 0xc3)
+      || (marker >= 0xc5 && marker <= 0xc7)
+      || (marker >= 0xc9 && marker <= 0xcb)
+      || (marker >= 0xcd && marker <= 0xcf)
+    ) {
+      return {
+        width: buffer.readUInt16BE(offset + 5),
+        height: buffer.readUInt16BE(offset + 3),
+      };
+    }
+    offset += segmentLength;
+  }
+  return null;
+}
+
+function parseWebpDimensions(buffer: Buffer) {
+  if (
+    buffer.length < 30
+    || buffer.toString('ascii', 0, 4) !== 'RIFF'
+    || buffer.toString('ascii', 8, 12) !== 'WEBP'
+  ) {
+    return null;
+  }
+  const chunkType = buffer.toString('ascii', 12, 16);
+  if (chunkType === 'VP8X' && buffer.length >= 30) {
+    return {
+      width: readUInt24LE(buffer, 24) + 1,
+      height: readUInt24LE(buffer, 27) + 1,
+    };
+  }
+  if (chunkType === 'VP8 ' && buffer.length >= 30) {
+    return {
+      width: buffer.readUInt16LE(26) & 0x3fff,
+      height: buffer.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  if (chunkType === 'VP8L' && buffer.length >= 25 && buffer[20] === 0x2f) {
+    const bits = buffer.readUInt32LE(21);
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1,
+    };
+  }
+  return null;
+}
+
+function imageDimensions(buffer: Buffer, mimeType: string) {
+  const normalizedMimeType = mimeType.toLowerCase();
+  const dimensions = normalizedMimeType.includes('png')
+    ? parsePngDimensions(buffer)
+    : normalizedMimeType.includes('jpeg') || normalizedMimeType.includes('jpg')
+      ? parseJpegDimensions(buffer)
+      : normalizedMimeType.includes('webp')
+        ? parseWebpDimensions(buffer)
+        : parsePngDimensions(buffer) || parseJpegDimensions(buffer) || parseWebpDimensions(buffer);
+  if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) {
+    return null;
+  }
+  return dimensions;
+}
+
 function imageCreditsPerRequest(modelConfig: AiModelConfig) {
   const settings = modelConfig.settings && typeof modelConfig.settings === 'object' && !Array.isArray(modelConfig.settings)
     ? modelConfig.settings as Record<string, unknown>
@@ -1048,6 +1151,7 @@ async function persistGeneratedImageAttachment(input: {
   const extension = extensionForMimeType(generated.mimeType);
   const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
   const filePath = path.join(contentFilesDir, storedFileName);
+  const dimensions = imageDimensions(generated.buffer, generated.mimeType);
   await writeFile(filePath, generated.buffer);
   return {
     id: randomBytes(8).toString('hex'),
@@ -1056,6 +1160,7 @@ async function persistGeneratedImageAttachment(input: {
     type: generated.mimeType,
     size: generated.buffer.byteLength,
     url: fileUrlFor(storedFileName),
+    ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
   };
 }

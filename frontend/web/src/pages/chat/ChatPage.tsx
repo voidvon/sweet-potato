@@ -1,5 +1,6 @@
 import { Spin } from 'antd';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ClawDialogComposer } from './components/ClawDialogComposer';
 import { ChatMessageList } from './components/ChatMessageList';
 import { ClawSidebar } from './components/ClawSidebar';
@@ -13,7 +14,11 @@ import './ChatPage.scss';
 
 export function ChatPage() {
   const chat = useChatSession();
+  const location = useLocation();
   const { setHeaderExtra } = useWorkspaceHeader();
+  const showComposerHeading = chat.messages.length === 0
+    && location.pathname === '/app/image'
+    && !location.search;
 
   useEffect(() => {
     setHeaderExtra(
@@ -39,7 +44,7 @@ export function ChatPage() {
       onRemoveAttachment={chat.removeAttachment}
       onSend={(options) => void chat.sendCurrentMessage(options)}
       onStop={chat.stopSending}
-      showHeading={chat.messages.length === 0}
+      showHeading={showComposerHeading}
       sending={chat.sending}
     />
   );

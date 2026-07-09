@@ -320,6 +320,9 @@ export function useChatSession() {
   }, []);
 
   const scrollToBottom = useCallback((force = false) => {
+    if (force) {
+      setUserHasScrolledUp(false);
+    }
     if (!force && userHasScrolledUp) {
       return;
     }

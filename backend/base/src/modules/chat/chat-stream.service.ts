@@ -96,6 +96,8 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
     const url = String(attachment.url || '').trim();
     const size = Number(attachment.size || 0);
     const kind = attachment.kind === 'image' ? 'image' : 'file';
+    const width = Number(attachment.width || 0);
+    const height = Number(attachment.height || 0);
 
     if (!name || !url || !Number.isFinite(size) || size <= 0 || size > maxChatAttachmentBytes) {
       return [];
@@ -108,6 +110,8 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
       size,
       type,
       url,
+      ...(kind === 'image' && Number.isFinite(width) && width > 0 ? { width: Math.round(width) } : {}),
+      ...(kind === 'image' && Number.isFinite(height) && height > 0 ? { height: Math.round(height) } : {}),
     }];
   });
 }

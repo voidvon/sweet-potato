@@ -1,7 +1,7 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
 import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
-import { Children, cloneElement, useEffect, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
@@ -25,6 +25,10 @@ type ChatMessageListProps = {
 };
 
 type ImageGenerationContext = NonNullable<NonNullable<ChatMessage['capabilityContext']>['imageGeneration']>;
+
+type ImageGenerationCellStyle = CSSProperties & {
+  '--chat-image-aspect-ratio'?: string;
+};
 
 const imageGenerationModeToneMap: Record<string, string> = {
   dialog: 'blue',
@@ -509,9 +513,29 @@ export function ChatMessageList({
     );
   }
 
+  function imageGenerationCellClassName(attachment?: ChatAttachment) {
+    return [
+      'chat-image-generation-cell',
+      attachment?.width && attachment.height ? 'has-intrinsic-size' : '',
+    ].filter(Boolean).join(' ');
+  }
+
+  function imageGenerationCellStyle(attachment?: ChatAttachment): ImageGenerationCellStyle | undefined {
+    if (!attachment?.width || !attachment.height) {
+      return undefined;
+    }
+    return {
+      '--chat-image-aspect-ratio': `${attachment.width} / ${attachment.height}`,
+    };
+  }
+
   return (
     <>
-      <div className="chat-history" onScroll={onScroll} ref={scrollContainerRef}>
+      <div
+        className="chat-history"
+        onScroll={onScroll}
+        ref={scrollContainerRef}
+      >
         <div className="chat-history-content">
           {messages.map((item, messageIndex) => {
             const parsed = item.role === 'assistant' ? splitThinking(item.content) : null;
@@ -603,7 +627,11 @@ export function ChatMessageList({
                             const attachment = imageGenerationAttachmentsBySlot.get(index);
                             const failure = imageGenerationFailureBySlot.get(index);
                             return attachment ? (
-                              <div className="chat-image-generation-cell" key={attachment.id}>
+                              <div
+                                className={imageGenerationCellClassName(attachment)}
+                                key={attachment.id}
+                                style={imageGenerationCellStyle(attachment)}
+                              >
                                 <Image
                                   alt={attachment.name}
                                   className="chat-image-generation-image"

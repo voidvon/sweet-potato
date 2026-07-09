@@ -452,6 +452,15 @@
   aspect-ratio: 1 / 1;
 }
 
+.chat-image-generation-grid .chat-image-generation-cell.has-intrinsic-size {
+  aspect-ratio: var(--chat-image-aspect-ratio);
+}
+
+.chat-image-generation-grid.single .chat-image-generation-cell.has-intrinsic-size {
+  max-height: none;
+  min-height: 0;
+}
+
 .chat-image-generation-image,
 .chat-image-generation-grid .ant-image-img {
   border-radius: 10px;
