@@ -105,8 +105,8 @@ select_package_environment() {
     1|production|prod)
       PACKAGE_ENV="production"
       VITE_API_BASE_URL="/api/base"
-      WEB_ASSET_BASE="/web/"
-      WEB_ROUTER_BASENAME="/web"
+      WEB_ASSET_BASE="/"
+      WEB_ROUTER_BASENAME=""
       ADMIN_ASSET_BASE="/admin/"
       ADMIN_ROUTER_BASENAME="/admin"
       BASE_WORKER_URL="http://ai-worker:7073"
