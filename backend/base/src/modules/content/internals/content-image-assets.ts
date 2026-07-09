@@ -5,6 +5,7 @@ import {
 digitalHumanThreeViewPrompt
 } from '../../../config/env.js';
 import { recordImageGenerationUsage } from '../../billing/billing.service.js';
+import { UpstreamModelError, normalizeUpstreamModelError } from '../../model-providers/provider-error.js';
 import { contentRepository } from '../content.repository.js';
 import type {
 ContentAsset,
@@ -67,21 +68,28 @@ export async function parseGeneratedImageResponse(response: Response, config: { 
   }
 
   const text = await response.text();
+  const compactText = text.replace(/\s+/g, ' ').trim();
+  const preview = compactText.slice(0, 500);
   let data: unknown = {};
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    const preview = text.replace(/\s+/g, ' ').trim().slice(0, 500);
     if (!response.ok) {
-      throw new Error(preview || `图片模型请求失败：${response.status}`);
+      throw normalizeUpstreamModelError({
+        message: imageModelHttpErrorMessage(response.status, preview),
+        status: response.status,
+      });
     }
     throw new Error(preview ? `图片模型返回了无法解析的响应：${preview}` : '图片模型返回了无法解析的响应');
   }
   if (!response.ok) {
     const message = (data as { error?: { message?: string }; message?: string })?.error?.message
       || (data as { message?: string })?.message
-      || `图片模型请求失败：${response.status}`;
-    throw new Error(message);
+      || imageModelHttpErrorMessage(response.status, preview);
+    throw normalizeUpstreamModelError({
+      message,
+      status: response.status,
+    });
   }
   const first = (data as { data?: Array<{ b64_json?: string; url?: string }> }).data?.[0];
   if (first?.b64_json) {
@@ -107,6 +115,37 @@ export async function parseGeneratedImageResponse(response: Response, config: { 
   throw new Error('图片模型未返回图片数据');
 }
 
+function imageModelHttpErrorMessage(status: number, preview?: string) {
+  if (status === 524 || /524:\s*A timeout occurred/i.test(preview || '')) {
+    return '图片模型上游服务超时（524），请稍后重试或检查图片模型 Base URL/服务商可用性';
+  }
+  if (/^\s*<!doctype html/i.test(preview || '') || /<html[\s>]/i.test(preview || '')) {
+    return `图片模型上游返回了错误页：HTTP ${status}`;
+  }
+  return preview || `图片模型请求失败：${status}`;
+}
+
+function imageModelTimeoutMs(config: ImageModelConfig) {
+  const settings = config.settings && typeof config.settings === 'object' && !Array.isArray(config.settings)
+    ? config.settings
+    : {};
+  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object' && !Array.isArray(settings.imageGeneration)
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+  const configured = Number(
+    imageGeneration.requestTimeoutMs
+      ?? imageGeneration.timeoutMs
+      ?? settings.imageRequestTimeoutMs
+      ?? settings.timeoutMs
+      ?? process.env.IMAGE_MODEL_TIMEOUT_MS
+      ?? 300_000,
+  );
+  if (!Number.isFinite(configured) || configured <= 0) {
+    return 300_000;
+  }
+  return Math.min(Math.max(configured, 10_000), 600_000);
+}
+
 export async function withImageModelTimeout<T>(request: (input: { config: ReturnType<typeof resolveDefaultImageModel>; signal: AbortSignal }) => Promise<T>) {
   const config = resolveDefaultImageModel();
   return withSpecificImageModelTimeout(config, request);
@@ -117,12 +156,16 @@ export async function withSpecificImageModelTimeout<T>(
   request: (input: { config: ImageModelConfig; signal: AbortSignal }) => Promise<T>,
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 600_000);
+  const timeoutMs = imageModelTimeoutMs(config);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await request({ config, signal: controller.signal });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('图片模型请求超时，请检查默认图片模型配置或稍后重试');
+      throw new UpstreamModelError({
+        code: 'provider_timeout',
+        message: `图片模型请求超过 ${Math.round(timeoutMs / 1000)} 秒未响应，请检查图片模型配置或稍后重试`,
+      });
     }
     throw error;
   } finally {

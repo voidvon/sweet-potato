@@ -50,11 +50,16 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
         imageGenerationFailures: messageItem.imageGenerationFailures ?? item.imageGenerationFailures,
         creditCost: messageItem.creditCost ?? item.creditCost,
       }
-    : item));
+      : item));
+}
+
+function imageGenerationFailureContent(errorMessage: string) {
+  return errorMessage.startsWith('生成失败，') ? errorMessage : `图片生成失败：${errorMessage}`;
 }
 
 const maxAttachmentCount = 6;
-const maxAttachmentBytes = 3 * 1024 * 1024;
+const maxAttachmentSizeMb = 10;
+const maxAttachmentBytes = maxAttachmentSizeMb * 1024 * 1024;
 const bottomLockThreshold = 4;
 
 export function useChatSession() {
@@ -370,7 +375,7 @@ export function useChatSession() {
 
     const acceptedFiles = files.slice(0, remainingSlots).filter((file) => {
       if (file.size > maxAttachmentBytes) {
-        message.warning(`${file.name} 超过 3MB，已跳过`);
+        message.warning(`${file.name} 超过 ${maxAttachmentSizeMb}MB，已跳过`);
         return false;
       }
       return true;
@@ -665,7 +670,7 @@ export function useChatSession() {
               ? {
                   ...item,
                   capability: 'image_generation',
-                  content: `图片生成失败：${errorMessage}`,
+                  content: imageGenerationFailureContent(errorMessage),
                   imageGenerationExpectedCount: item.imageGenerationExpectedCount ?? failureCount,
                   imageGenerationFailures: Array.from({ length: failureCount }, (_, slotIndex) => ({
                     slotIndex,

@@ -11,11 +11,14 @@ import { userRepository } from '../users/user.repository.js';
 import { publishGenerationEvent } from '../generation/generation.events.js';
 import { generationRepository } from '../generation/generation.repository.js';
 import type { GenerationJob } from '../generation/generation.types.js';
+import { isUpstreamModelError } from '../model-providers/provider-error.js';
 import { dispatchChatCapability, resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { assertModelConfigReady, streamConfiguredModel } from './chat-completion.service.js';
 import { expectedImageGenerationOutputCount } from './capabilities/image-generation.workflow.js';
 import { chatRepository } from './chat.repository.js';
 import type { ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from './chat.types.js';
+
+const maxChatAttachmentBytes = 10 * 1024 * 1024;
 
 export type ChatStreamSink = {
   send: (event: unknown) => void;
@@ -68,6 +71,17 @@ function publishJob(job: GenerationJob | undefined) {
   });
 }
 
+function imageGenerationFailureContent(errorMessage: string) {
+  return errorMessage.startsWith('生成失败，') ? errorMessage : `图片生成失败：${errorMessage}`;
+}
+
+function imageGenerationErrorMessage(error: unknown) {
+  if (isUpstreamModelError(error, 'provider_insufficient_balance')) {
+    return '生成失败，积分不足';
+  }
+  return error instanceof Error ? error.message : '图片生成失败';
+}
+
 export function parseChatAttachments(value: unknown): ChatAttachment[] {
   if (!Array.isArray(value)) {
     return [];
@@ -84,7 +98,7 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
     const size = Number(attachment.size || 0);
     const kind = attachment.kind === 'image' ? 'image' : 'file';
 
-    if (!name || !url || !Number.isFinite(size) || size <= 0 || size > 3 * 1024 * 1024) {
+    if (!name || !url || !Number.isFinite(size) || size <= 0 || size > maxChatAttachmentBytes) {
       return [];
     }
 
@@ -392,7 +406,7 @@ export async function handleCapabilityConversation(input: {
     if (!streamingAssistantMessage) {
       throw error;
     }
-    const errorMessage = error instanceof Error ? error.message : '图片生成失败';
+    const errorMessage = imageGenerationErrorMessage(error);
     const failedConversation: ChatConversation = {
       ...conversation,
       metadata: {
@@ -403,7 +417,7 @@ export async function handleCapabilityConversation(input: {
     };
     streamingAssistantMessage = {
       ...streamingAssistantMessage,
-      content: `图片生成失败：${errorMessage}`,
+      content: imageGenerationFailureContent(errorMessage),
       generationJobId: generationJob?.id,
       imageGenerationExpectedCount,
       imageGenerationFailures: buildImageGenerationFailures(errorMessage),

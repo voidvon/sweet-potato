@@ -407,6 +407,20 @@ export function ChatMessageList({
     });
   }
 
+  function confirmDeleteUserMessage(messageItem: ChatMessage) {
+    Modal.confirm({
+      title: '删除消息',
+      centered: true,
+      content: '删除后这条消息将从当前对话中移除，确认删除？',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk() {
+        onDeleteMessage(messageItem);
+      },
+    });
+  }
+
   function formatCreditAmount(value: number) {
     if (Number.isInteger(value)) {
       return String(value);
@@ -760,6 +774,18 @@ export function ChatMessageList({
                           variant="filled"
                         >
                           重新编辑
+                        </Button>
+                        <Button
+                          className="chat-image-generation-action"
+                          color="default"
+                          danger
+                          disabled={sending}
+                          icon={<DeleteOutlined />}
+                          onClick={() => confirmDeleteUserMessage(item)}
+                          size="small"
+                          variant="filled"
+                        >
+                          删除
                         </Button>
                       </div>
                     </>

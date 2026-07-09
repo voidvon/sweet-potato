@@ -9,6 +9,7 @@ import {
   extensionForMimeType,
 } from '../../content/internals/content-image-assets.js';
 import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
+import { isUpstreamModelError } from '../../model-providers/provider-error.js';
 import type { ChatCapabilityExecutionInput } from '../chat-capability.types.js';
 import type { ChatAttachment, ChatImageGenerationFailure } from '../chat.types.js';
 import type { AiModelConfig } from '../../model-configs/model-config.types.js';
@@ -448,6 +449,13 @@ function imageCreditsPerRequest(modelConfig: AiModelConfig) {
 
 function imageGenerationCreditCost(modelConfig: AiModelConfig, generatedCount: number) {
   return roundCreditCost(imageCreditsPerRequest(modelConfig) * Math.max(0, generatedCount));
+}
+
+function imageGenerationFailureMessage(error: unknown) {
+  if (isUpstreamModelError(error, 'provider_insufficient_balance')) {
+    return '生成失败，积分不足';
+  }
+  return error instanceof Error ? error.message : String(error || '图片生成失败');
 }
 
 function accumulatedImageGenerationCreditCost(input: ChatCapabilityExecutionInput) {
@@ -1077,7 +1085,7 @@ async function generateAndPersistImageAttachments(input: {
       }
       imageGenerationFailures.push({
         slotIndex: index,
-        message: result.reason instanceof Error ? result.reason.message : String(result.reason || '图片生成失败'),
+        message: imageGenerationFailureMessage(result.reason),
       });
     });
   }
@@ -1236,9 +1244,11 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
         accumulatedImageGenerationCreditCost(input)
         + imageGenerationCreditCost(prepared.modelConfig, assistantAttachments.attachments.length),
       ),
-      assistantContent: failureCount
-        ? `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片，${failureCount} 张失败。`
-        : `已使用 ${prepared.modelConfig.name} / ${prepared.modelConfig.model} 生成 ${assistantAttachments.attachments.length} 张图片。`,
+      assistantContent: imageGenerationAssistantContent({
+        attachmentsCount: assistantAttachments.attachments.length,
+        failures: assistantAttachments.failures,
+        modelConfig: prepared.modelConfig,
+      }),
     };
   }
 
@@ -1251,4 +1261,21 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
     ),
     assistantContent: `已使用 ${result.modelConfig.name} / ${result.modelConfig.model} 生成 ${result.assistantAttachments.length} 张图片。`,
   };
+}
+
+function imageGenerationAssistantContent(input: {
+  attachmentsCount: number;
+  failures: ChatImageGenerationFailure[];
+  modelConfig: AiModelConfig;
+}) {
+  const failureCount = input.failures.length;
+  if (failureCount && !input.attachmentsCount) {
+    const failureMessages = new Set(input.failures.map((failure) => failure.message));
+    if (failureMessages.size === 1) {
+      return input.failures[0]?.message || '图片生成失败';
+    }
+  }
+  return failureCount
+    ? `已使用 ${input.modelConfig.name} / ${input.modelConfig.model} 生成 ${input.attachmentsCount} 张图片，${failureCount} 张失败。`
+    : `已使用 ${input.modelConfig.name} / ${input.modelConfig.model} 生成 ${input.attachmentsCount} 张图片。`;
 }

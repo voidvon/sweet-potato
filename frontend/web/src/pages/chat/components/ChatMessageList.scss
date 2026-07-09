@@ -86,12 +86,17 @@
   color: #182230;
   font-size: 14px;
   line-height: 1.55;
+  margin-left: auto;
   position: relative;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .chat-user-message-content p {
   margin: 0;
   white-space: pre-wrap;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .chat-user-message-content p + p {
@@ -478,6 +483,15 @@
   background: #eceff3;
   border-color: transparent;
   color: #182230;
+}
+
+.chat-image-generation-action.ant-btn-dangerous,
+.chat-image-generation-action.ant-btn-dangerous:hover {
+  color: #b42318;
+}
+
+.chat-image-generation-action.ant-btn-dangerous:hover {
+  background: #fff1f0;
 }
 
 .chat-image-generation-action.ant-btn {
