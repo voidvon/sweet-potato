@@ -6,7 +6,6 @@ import { agentRepository } from '../agents/agent.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
-import { resolveSkillInvocation } from '../skills/skill.service.js';
 import { userRepository } from '../users/user.repository.js';
 import { publishGenerationEvent } from '../generation/generation.events.js';
 import { generationRepository } from '../generation/generation.repository.js';
@@ -705,14 +704,6 @@ export function createChatStreamExecutor() {
       }
     }
 
-    let skillInvocation;
-    try {
-      skillInvocation = await resolveSkillInvocation({ content, userId });
-    } catch (error) {
-      sink.send({ type: 'error', message: error instanceof Error ? error.message : '技能读取失败' });
-      sink.end();
-      return;
-    }
     const history = existingHistory;
     const now = new Date().toISOString();
     const conversation: ChatConversation = existingConversation
@@ -722,18 +713,18 @@ export function createChatStreamExecutor() {
           modelConfigId: modelConfig.id,
           metadata: {
             ...(existingConversation.metadata || {}),
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           updatedAt: now,
         }
       : {
           id: randomBytes(12).toString('hex'),
           userId,
-          title: makeChatTitle(skillInvocation.titleContent),
+          title: makeChatTitle(content),
           agentId,
           modelConfigId: modelConfig.id,
           metadata: {
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           createdAt: now,
           updatedAt: now,
@@ -743,7 +734,7 @@ export function createChatStreamExecutor() {
       id: editTarget?.id || randomBytes(12).toString('hex'),
       conversationId: conversation.id,
       role: 'user',
-      content: skillInvocation.userContent,
+      content,
       agentId,
       modelConfigId: modelConfig.id,
       attachments,
@@ -771,7 +762,7 @@ export function createChatStreamExecutor() {
         agent,
         modelConfig,
         history,
-        content: skillInvocation.modelContent,
+        content,
         attachments,
         signal: sink.signal,
       })) {

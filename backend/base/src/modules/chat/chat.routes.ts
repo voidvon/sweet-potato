@@ -10,7 +10,6 @@ import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
-import { resolveSkillInvocation } from '../skills/skill.service.js';
 import { resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { askConfiguredModel, assertModelConfigReady } from './chat-completion.service.js';
 import { chatRepository } from './chat.repository.js';
@@ -376,14 +375,6 @@ export function createChatRouter() {
       }
     }
 
-    let skillInvocation;
-    try {
-      skillInvocation = await resolveSkillInvocation({ content, userId });
-    } catch (error) {
-      sendError(res, 400, error instanceof Error ? error.message : '技能读取失败');
-      return;
-    }
-
     const history = existingConversation ? chatRepository.listMessages(existingConversation.id) : [];
     const now = new Date().toISOString();
     const conversation: ChatConversation = existingConversation
@@ -393,18 +384,18 @@ export function createChatRouter() {
           modelConfigId: modelConfig.id,
           metadata: {
             ...(existingConversation.metadata || {}),
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           updatedAt: now,
         }
       : {
           id: randomBytes(12).toString('hex'),
           userId,
-          title: makeChatTitle(skillInvocation.titleContent),
+          title: makeChatTitle(content),
           agentId,
           modelConfigId: modelConfig.id,
           metadata: {
-            previewText: makeConversationPreview(skillInvocation.userContent),
+            previewText: makeConversationPreview(content),
           },
           createdAt: now,
           updatedAt: now,
@@ -418,7 +409,7 @@ export function createChatRouter() {
         agent,
         modelConfig,
         history,
-        content: skillInvocation.modelContent,
+        content,
         attachments,
       });
     } catch (error) {
@@ -430,7 +421,7 @@ export function createChatRouter() {
       id: randomBytes(12).toString('hex'),
       conversationId: conversation.id,
       role: 'user',
-      content: skillInvocation.userContent,
+      content,
       agentId,
       modelConfigId: modelConfig.id,
       attachments,

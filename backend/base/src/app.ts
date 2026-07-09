@@ -11,7 +11,6 @@ import { createGenerationRouter } from './modules/generation/generation.routes.j
 import { createModelConfigRouter } from './modules/model-configs/model-config.routes.js';
 import { createRouteResourceRouter } from './modules/route-resources/route-resource.routes.js';
 import { createRoleRouter } from './modules/roles/role.routes.js';
-import { createSkillRouter } from './modules/skills/skill.routes.js';
 import { createUserRouter } from './modules/users/user.routes.js';
 import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
 import { createXingtuSearchDraftRouter } from './modules/xingtu-search-drafts/xingtu-search-draft.routes.js';
@@ -23,7 +22,6 @@ export function createApp() {
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '20mb' }));
-  app.use('/files/skills', express.static(path.join(dataDir, 'skill-files')));
   app.use('/files', express.static(path.join(dataDir, 'files')));
 
   app.get('/api/health', (_req, res) => {
@@ -40,7 +38,6 @@ export function createApp() {
   app.use('/api/generation', createGenerationRouter());
   app.use('/api/content', createContentRouter());
   app.use('/api/video-remake', createVideoRemakeRouter());
-  app.use('/api/skills', createSkillRouter());
   app.use('/api/xingtu/search-drafts', createXingtuSearchDraftRouter());
   app.use('/api/billing', createBillingRouter());
   app.use('/api', createModelConfigRouter());

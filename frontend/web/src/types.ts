@@ -164,23 +164,6 @@ export type ChatStreamEvent =
   | { type: 'done'; conversation: ChatConversation; messages: ChatMessage[] }
   | { type: 'error'; message: string };
 
-export type SkillFile = {
-  category?: string;
-  command: string;
-  createdAt: string;
-  description: string;
-  enabled?: boolean;
-  fileUrl: string;
-  id: string;
-  isDefault?: boolean;
-  name: string;
-  originalFileName: string;
-  scenario?: string;
-  storedFileName: string;
-  updatedAt: string;
-  userId: string;
-};
-
 export type ModuleItem = {
   id: string;
   title: string;

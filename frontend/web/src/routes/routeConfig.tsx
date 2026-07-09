@@ -26,7 +26,6 @@ import {
 } from '../components/RouteLoadingFallback';
 import { isElectronEgg } from '../ipc';
 import { ProtectedLayout } from '../layouts/ProtectedLayout';
-import { modules } from '../modules';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { NoPermissionPage } from '../pages/NoPermissionPage';
 import { routePaths } from './paths';
@@ -36,7 +35,7 @@ import type { AuthSession, CreativeModuleCode, User } from '../types';
 
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
-const DashboardPage = lazy(() => import('../pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
 const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
 const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
@@ -194,16 +193,13 @@ function AuthRouteFrame({ children }: { children: ReactNode }) {
 
 const workspacePageDefinitions: WorkspacePageDefinition[] = [
   {
-    key: 'module-dashboard',
-    path: 'modules/:moduleId',
-    fullPath: routePaths.module(),
-    element: () => withChatSuspense(<DashboardPage />),
+    key: 'image-creation',
+    path: 'image',
+    fullPath: routePaths.defaultModule,
+    element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
     handle: {
-      title: (pathname) => {
-        const matchedModule = modules.find((item) => pathname === routePaths.module(item.id));
-        return matchedModule?.title || null;
-      },
+      title: '图片创作',
     },
   },
   {
@@ -880,11 +876,6 @@ export function canAccessRoutePath(currentUser: User, pathname: string) {
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
   if (matchedRoute) {
     return isVisibleWorkspacePage(matchedRoute, currentUser);
-  }
-
-  if (pathname.startsWith('/app/modules/')) {
-    const moduleId = pathname.slice('/app/modules/'.length);
-    return moduleId === 'claw' && hasRouteGrant(currentUser, chatRouteGrant);
   }
 
   return false;

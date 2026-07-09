@@ -24,11 +24,26 @@
 }
 
 .video-workbench-sidebar-title {
+  align-items: center;
   color: #667085;
+  display: flex;
   font-size: 13px;
   font-weight: 700;
+  justify-content: space-between;
   line-height: 1.4;
-  padding: 14px 15px 6px;
+  min-height: 42px;
+  padding: 10px 12px 6px 15px;
+}
+
+.video-workbench-sidebar-title .ant-btn {
+  color: #667085;
+  height: 28px;
+  padding: 0 8px;
+}
+
+.video-workbench-sidebar-title .ant-btn:hover {
+  background: #f2f4f7;
+  color: #101828;
 }
 
 .video-workbench-sidebar-body {

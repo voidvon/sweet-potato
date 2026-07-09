@@ -22,7 +22,7 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
 
 const webRouteMetaByPermission = {
   'web.module.chat': {
-    path: '/app/modules/claw',
+    path: '/app/image',
   },
   'web.module.content.video_remake': {
     path: '/app/content/video_remake',
