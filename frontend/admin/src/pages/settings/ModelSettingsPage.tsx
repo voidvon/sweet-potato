@@ -486,11 +486,30 @@ function ModelFormModal({
     if (!provider) {
       return;
     }
+    const currentSettings = (form.getFieldValue('settings') || {}) as Record<string, unknown>;
+    const defaultSettings = provider.defaultSettings && typeof provider.defaultSettings === 'object'
+      ? provider.defaultSettings
+      : {};
+    const currentImageGeneration = currentSettings.imageGeneration && typeof currentSettings.imageGeneration === 'object' && !Array.isArray(currentSettings.imageGeneration)
+      ? currentSettings.imageGeneration as Record<string, unknown>
+      : {};
+    const defaultImageGeneration = defaultSettings.imageGeneration && typeof defaultSettings.imageGeneration === 'object' && !Array.isArray(defaultSettings.imageGeneration)
+      ? defaultSettings.imageGeneration as Record<string, unknown>
+      : {};
     form.setFieldsValue({
       name: provider.name,
       provider: provider.id,
       model: provider.defaultModel,
       baseUrl: provider.defaultBaseUrl,
+      settings: {
+        ...currentSettings,
+        ...defaultSettings,
+        imageGeneration: {
+          ...currentImageGeneration,
+          ...defaultImageGeneration,
+        },
+        billing: currentSettings.billing,
+      },
     });
   }
 
@@ -732,7 +751,9 @@ function ModelFormModal({
             )}
             <Form.Item
               className="full-span"
-              extra={activeType === 'image' ? '图片模型填写 API 根地址即可，不要填写 /images/edits 或 /images/generations。' : undefined}
+              extra={activeType === 'image'
+                ? 'OpenAI/火山图片模型填写 API 根地址，不要填写 /images/edits 或 /images/generations；Gemini 图片模型填写到 /v1beta。'
+                : undefined}
               label="Base URL"
               name="baseUrl"
               rules={[{ required: true, message: '请输入 Base URL' }]}

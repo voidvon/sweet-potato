@@ -198,7 +198,10 @@ export function normalizeImageModelError(error: unknown): never {
 export async function editImageWithJsonReferences(input: {
   prompt: string;
   referenceAssets: Array<{ filePath: string; mimeType: string; originalFileName: string }>;
+  background?: string;
   modelConfig?: ImageModelConfig;
+  outputCompression?: number;
+  outputFormat?: string;
   size?: string;
   billingContext?: ImageBillingContext;
 }): Promise<GeneratedImage> {
@@ -219,12 +222,14 @@ export async function editImageWithJsonReferences(input: {
         body: JSON.stringify({
           model: config.model,
           prompt: input.prompt,
-          image: imageUrls[0],
-          image_urls: imageUrls,
+          image: imageUrls.length <= 1 ? imageUrls[0] : imageUrls,
           n: 1,
           size,
           response_format: 'b64_json',
           watermark: false,
+          ...(input.background ? { background: input.background } : {}),
+          ...(input.outputFormat ? { output_format: input.outputFormat } : {}),
+          ...(input.outputCompression !== undefined ? { output_compression: input.outputCompression } : {}),
         }),
       });
       const generated = await parseGeneratedImageResponse(response, config);
@@ -240,6 +245,9 @@ export async function editImageWithJsonReferences(input: {
             referenceAssetCount: input.referenceAssets.length,
             requestMode: 'json_references',
             size,
+            background: input.background,
+            outputFormat: input.outputFormat,
+            outputCompression: input.outputCompression,
           },
           responseSnapshot: {
             mimeType: generated.mimeType,
