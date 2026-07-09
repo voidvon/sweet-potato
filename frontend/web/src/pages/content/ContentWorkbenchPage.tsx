@@ -61,7 +61,7 @@ const moduleMeta: Record<string, {
   finished_assets: {
     accent: '#0891b2',
     icon: PlayCircle,
-    summary: '管理生成成片、上传视频和可复用成片素材',
+    summary: '管理图片创作和视频生成产出的作品',
     resourceType: 'finished_video',
   },
   video_remake: {

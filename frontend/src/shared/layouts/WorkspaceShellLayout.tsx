@@ -10,6 +10,7 @@ export type WorkspaceRouteState = {
   activeOpenKeys: string[];
   currentMenuTitle: string;
   defaultOpenKeys: string[];
+  hideWorkspaceHeader?: boolean;
   isChatPage: boolean;
   isContentStudioPage: boolean;
   isContentStudioVideoCreatePage: boolean;
@@ -186,14 +187,16 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       </aside>
 
       <section className={`workspace${routeState.isChatPage ? ' chat-workspace' : ''}${routeState.isContentStudioPage ? ' workspace-studio' : ''}${routeState.isContentStudioVideoCreatePage ? ' workspace-studio-video-create' : ''}`}>
-        <header className="workspace-header">
-          <h1>{routeState.currentMenuTitle}</h1>
-          {headerExtra ? (
-            <div className="workspace-header-extra">
-              {headerExtra}
-            </div>
-          ) : null}
-        </header>
+        {!routeState.hideWorkspaceHeader ? (
+          <header className="workspace-header">
+            <h1>{routeState.currentMenuTitle}</h1>
+            {headerExtra ? (
+              <div className="workspace-header-extra">
+                {headerExtra}
+              </div>
+            ) : null}
+          </header>
+        ) : null}
         <div className={`workspace-content${routeState.isImmersivePage ? ' workspace-content-immersive' : ''}${routeState.isContentStudioPage ? ' workspace-content-studio' : ''}`}>
           <div className={`workspace-surface${routeState.isImmersivePage ? ' workspace-surface-immersive' : ''}${routeState.isContentStudioPage ? ' workspace-surface-studio' : ''}`}>
             <WorkspaceHeaderContext.Provider value={workspaceHeaderContextValue}>

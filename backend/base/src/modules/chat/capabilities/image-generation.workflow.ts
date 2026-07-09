@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { assertSufficientStepCredits } from '../../billing/billing.service.js';
 import { contentFilesDir } from '../../content/internals/content-common.js';
 import {
+  createGeneratedImageWorkAsset,
   extensionForMimeType,
 } from '../../content/internals/content-image-assets.js';
 import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
@@ -24,10 +25,12 @@ type ImageGenerationPreparedInput = {
   generationOptions?: ImageGenerationModeOptions;
   modelConfig: AiModelConfig;
   modeKey: string;
+  modeTitle: string;
   outputCount: number;
   outputSize?: string;
   requestedResolution?: string;
   prompt: string;
+  userPrompt: string;
   redrawPromptTexts?: string[];
   referenceAssets: ImageGenerationReferenceAsset[];
   referenceAssetBatches?: ImageGenerationReferenceAsset[][];
@@ -1044,10 +1047,12 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     generationOptions: generationOptionsOf(modeSchema, input.capabilityContext),
     modelConfig,
     modeKey: modeSchema.key,
+    modeTitle: cleanText(input.capabilityContext?.imageGeneration?.modeTitle) || modeSchema.title,
     outputCount,
     outputSize: normalizedOutput.outputSize,
     requestedResolution: normalizedOutput.resolution,
     prompt,
+    userPrompt,
     redrawPromptTexts,
     referenceAssets,
     referenceAssetBatches,
@@ -1132,27 +1137,47 @@ async function generateImageItems(input: {
 async function persistGeneratedImageAttachments(input: {
   generatedItems: ImageGenerationProviderResult[];
   outputCount: number;
+  prepared: ImageGenerationPreparedInput;
+  userId: string;
+  conversationId?: string;
 }) {
-  const { generatedItems, outputCount } = input;
+  const { conversationId, generatedItems, outputCount, prepared, userId } = input;
   const assistantAttachments = await Promise.all(generatedItems.map((generated, index) => (
-    persistGeneratedImageAttachment({ generated, index, outputCount })
+    persistGeneratedImageAttachment({ conversationId, generated, index, outputCount, prepared, userId })
   )));
   return assistantAttachments;
 }
 
 async function persistGeneratedImageAttachment(input: {
+  conversationId?: string;
   generated: ImageGenerationProviderResult;
   index: number;
   outputCount: number;
+  prepared: ImageGenerationPreparedInput;
   slotIndex?: number;
+  userId: string;
 }) {
-  const { generated, index, outputCount } = input;
+  const { conversationId, generated, index, outputCount, prepared, userId } = input;
   const slotIndex = input.slotIndex ?? index;
   const extension = extensionForMimeType(generated.mimeType);
   const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
   const filePath = path.join(contentFilesDir, storedFileName);
   const dimensions = imageDimensions(generated.buffer, generated.mimeType);
   await writeFile(filePath, generated.buffer);
+  await createGeneratedImageWorkAsset({
+    userId,
+    buffer: generated.buffer,
+    mimeType: generated.mimeType,
+    originalFileName: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
+    provider: prepared.modelConfig.provider,
+    model: prepared.modelConfig.model,
+    mode: prepared.modeKey,
+    modeTitle: prepared.modeTitle,
+    prompt: prepared.userPrompt || prepared.prompt,
+    conversationId,
+    slotIndex,
+    ...(dimensions ? dimensions : {}),
+  });
   return {
     id: randomBytes(8).toString('hex'),
     kind: 'image' as const,
@@ -1187,7 +1212,10 @@ async function generateAndPersistImageAttachments(input: {
         generated,
         index: slotStartIndex + index,
         outputCount: prepared.outputCount,
+        prepared,
         slotIndex: slotStartIndex + index,
+        userId,
+        conversationId: prepared.sourceIdPrefix,
       })
     )));
     persistedAttachments.push(...attachments);
@@ -1297,6 +1325,9 @@ async function runPreparedImageGeneration(input: ChatCapabilityExecutionInput, p
     assistantAttachments: await persistGeneratedImageAttachments({
       generatedItems,
       outputCount: prepared.outputCount,
+      prepared,
+      userId: input.userId,
+      conversationId: input.conversation?.id,
     }),
     modelConfig: prepared.modelConfig,
   };

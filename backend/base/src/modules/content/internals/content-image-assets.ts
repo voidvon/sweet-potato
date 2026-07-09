@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile,rm,writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import {
 digitalHumanThreeViewPrompt
@@ -457,6 +458,66 @@ export function videoFileNameFromUrl(url: string) {
   } catch {
     return 'generated-video.mp4';
   }
+}
+
+function generatedImageFileUrl(storedFileName: string) {
+  return `/files/${encodeURIComponent(storedFileName)}`;
+}
+
+export async function createGeneratedImageWorkAsset(input: {
+  userId: string;
+  buffer: Buffer;
+  mimeType: string;
+  title?: string;
+  originalFileName?: string;
+  provider?: string;
+  model?: string;
+  mode?: string;
+  modeTitle?: string;
+  prompt?: string;
+  conversationId?: string;
+  slotIndex?: number;
+  width?: number;
+  height?: number;
+}) {
+  const extension = extensionForMimeType(input.mimeType);
+  const storedFileName = `work-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
+  const filePath = path.join(contentFilesDir, storedFileName);
+  await writeFile(filePath, input.buffer);
+
+  const group = ensureGeneratedAssetGroup(input.userId, 'finished_video', '生成图片', '图片创作自动产生的作品');
+  const generatedAt = new Date().toISOString();
+  const asset = createContentAssetRecord({
+    userId: input.userId,
+    groupId: group.id,
+    resourceType: 'finished_video',
+    name: input.title || `生成图片-${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+    description: '图片创作生成的作品',
+    originalFileName: input.originalFileName || `generated-image.${extension}`,
+    storedFileName,
+    mimeType: input.mimeType,
+    fileSize: input.buffer.byteLength,
+    filePath,
+    fileUrl: generatedImageFileUrl(storedFileName),
+    metadata: {
+      generatedBy: 'image_model',
+      generationStatus: 'completed',
+      provider: input.provider,
+      model: input.model,
+      mode: input.mode || 'image_generation',
+      modeTitle: input.modeTitle,
+      prompt: input.prompt,
+      conversationId: input.conversationId,
+      slotIndex: input.slotIndex,
+      width: input.width,
+      height: input.height,
+      generatedAt,
+    },
+  });
+  if (!asset) {
+    throw new Error('图片作品创建失败');
+  }
+  return asset;
 }
 
 export function createFinishedVideoAsset(input: {
