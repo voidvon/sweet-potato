@@ -382,6 +382,9 @@ function persistBillableUsageCharge(input: {
     }
     let nextCreditBalance = user.creditBalance;
     if (creditCost > 0) {
+      if (roundCredits(user.creditBalance) < creditCost) {
+        throw new InsufficientCreditsError();
+      }
       nextCreditBalance = roundCredits(nextCreditBalance - creditCost);
       userRepository.updateCreditBalance(user.id, nextCreditBalance);
       billingRepository.createLedgerEntry({

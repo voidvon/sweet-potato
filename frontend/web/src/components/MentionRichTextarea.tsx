@@ -759,14 +759,14 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       <Image
         alt={previewImage?.alt || '图片预览'}
         preview={{
-          visible: previewVisible,
-          onVisibleChange: (visible) => {
-            setPreviewVisible(visible);
+          open: previewVisible,
+          onOpenChange: (open) => {
+            setPreviewVisible(open);
           },
         }}
         src={previewImage?.src}
         style={{ display: 'none' }}
-        wrapperStyle={{ display: 'none' }}
+        styles={{ root: { display: 'none' } }}
       />
     </div>
   );

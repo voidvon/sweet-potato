@@ -775,18 +775,31 @@ export function ChatMessageList({
                         >
                           重新编辑
                         </Button>
-                        <Button
-                          className="chat-image-generation-action"
-                          color="default"
-                          danger
-                          disabled={sending}
-                          icon={<DeleteOutlined />}
-                          onClick={() => confirmDeleteUserMessage(item)}
-                          size="small"
-                          variant="filled"
+                        <Dropdown
+                          menu={{
+                            items: [
+                              {
+                                danger: true,
+                                key: 'delete',
+                                icon: <DeleteOutlined />,
+                                label: '删除',
+                                disabled: sending,
+                                onClick: () => confirmDeleteUserMessage(item),
+                              },
+                            ],
+                          }}
+                          trigger={['click']}
                         >
-                          删除
-                        </Button>
+                          <Button
+                            aria-label="更多操作"
+                            className="chat-image-generation-more"
+                            color="default"
+                            disabled={sending}
+                            icon={<MoreOutlined />}
+                            size="small"
+                            variant="filled"
+                          />
+                        </Dropdown>
                       </div>
                     </>
                   )}

@@ -2,8 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { z } from 'zod';
+import { assertSufficientStepCredits } from '../../billing/billing.service.js';
 import { contentFilesDir } from '../../content/internals/content-common.js';
 import {
   extensionForMimeType,
@@ -449,6 +449,19 @@ function imageCreditsPerRequest(modelConfig: AiModelConfig) {
 
 function imageGenerationCreditCost(modelConfig: AiModelConfig, generatedCount: number) {
   return roundCreditCost(imageCreditsPerRequest(modelConfig) * Math.max(0, generatedCount));
+}
+
+function assertSufficientImageGenerationCredits(input: {
+  modelConfig: AiModelConfig;
+  outputCount: number;
+  userId: string;
+}) {
+  assertSufficientStepCredits({
+    userId: input.userId,
+    requiredCredits: imageGenerationCreditCost(input.modelConfig, input.outputCount),
+    step: 'image_generation',
+    stepLabel: '图片生成',
+  });
 }
 
 function imageGenerationFailureMessage(error: unknown) {
@@ -1170,67 +1183,28 @@ async function generateAndPersistImageAttachments(input: {
   };
 }
 
-const ImageGenerationGraphState = Annotation.Root({
-  input: Annotation<ChatCapabilityExecutionInput>(),
-  prepared: Annotation<ImageGenerationPreparedInput | undefined>(),
-  generatedItems: Annotation<ImageGenerationProviderResult[] | undefined>(),
-  assistantAttachments: Annotation<ChatAttachment[] | undefined>(),
-});
-
-type ImageGenerationGraphStateValue = typeof ImageGenerationGraphState.State;
-
-let compiledImageGenerationGraph: ReturnType<ReturnType<typeof createImageGenerationGraph>['compile']> | null = null;
-
-function createImageGenerationGraph() {
-  return new StateGraph(ImageGenerationGraphState)
-    .addNode('prepare', async (state: ImageGenerationGraphStateValue) => ({
-      prepared: await prepareImageGeneration(state.input),
-    }))
-    .addNode('generate', async (state: ImageGenerationGraphStateValue) => {
-      if (!state.prepared) {
-        throw new Error('图片生成参数未准备完成');
-      }
-      return {
-        generatedItems: await generateImageItems({
-          prepared: state.prepared,
-          userId: state.input.userId,
-        }),
-      };
-    })
-    .addNode('persist', async (state: ImageGenerationGraphStateValue) => {
-      if (!state.prepared || !state.generatedItems) {
-        throw new Error('图片生成结果未准备完成');
-      }
-      return {
-        assistantAttachments: await persistGeneratedImageAttachments({
-          generatedItems: state.generatedItems,
-          outputCount: state.prepared.outputCount,
-        }),
-      };
-    })
-    .addEdge(START, 'prepare')
-    .addEdge('prepare', 'generate')
-    .addEdge('generate', 'persist')
-    .addEdge('persist', END);
-}
-
-async function runImageGenerationGraph(input: ChatCapabilityExecutionInput) {
-  if (!compiledImageGenerationGraph) {
-    compiledImageGenerationGraph = createImageGenerationGraph().compile();
-  }
-  const result = await compiledImageGenerationGraph.invoke({ input });
-  if (!result.prepared || !result.assistantAttachments) {
-    throw new Error('图片生成流程未返回有效结果');
-  }
+async function runPreparedImageGeneration(input: ChatCapabilityExecutionInput, prepared: ImageGenerationPreparedInput) {
+  const generatedItems = await generateImageItems({
+    prepared,
+    userId: input.userId,
+  });
   return {
-    assistantAttachments: result.assistantAttachments,
-    modelConfig: result.prepared.modelConfig,
+    assistantAttachments: await persistGeneratedImageAttachments({
+      generatedItems,
+      outputCount: prepared.outputCount,
+    }),
+    modelConfig: prepared.modelConfig,
   };
 }
 
 export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionInput) {
   if (input.onImageGenerationAttachmentsChange) {
     const prepared = await prepareImageGeneration(input);
+    assertSufficientImageGenerationCredits({
+      modelConfig: prepared.modelConfig,
+      outputCount: prepared.outputCount,
+      userId: input.userId,
+    });
     const assistantAttachments = await generateAndPersistImageAttachments({
       prepared,
       userId: input.userId,
@@ -1252,7 +1226,13 @@ export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionI
     };
   }
 
-  const result = await runImageGenerationGraph(input);
+  const prepared = await prepareImageGeneration(input);
+  assertSufficientImageGenerationCredits({
+    modelConfig: prepared.modelConfig,
+    outputCount: prepared.outputCount,
+    userId: input.userId,
+  });
+  const result = await runPreparedImageGeneration(input, prepared);
   return {
     assistantAttachments: result.assistantAttachments,
     creditCost: roundCreditCost(
