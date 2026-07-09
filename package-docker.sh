@@ -269,6 +269,7 @@ $BASE_EXTRA_HOSTS
     environment:
       NODE_ENV: production
       PORT: "7072"
+      DATA_DIR: /app/data
       PYTHON_AI_WORKER_URL: $BASE_WORKER_URL
       CONTENT_UPLOAD_LIMIT_MB: "200"
       VOD_UPLOAD_LIMIT_MB: "1000"
