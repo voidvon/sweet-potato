@@ -19,6 +19,7 @@ server.listen(env.port, () => {
   // console.log('-----------contentPublicBaseUrl:', contentPublicBaseUrl);
   logger.info('server started', { port: env.port });
   contentService.resumeRunningVideoGenerations();
+  contentService.resumePendingGeneratedVideoMirrors();
   videoRemakeService.resumeIncompleteSessionsOnStartup();
   videoRemakeService.startGenerationMonitorScheduler();
   contentService.startVirtualPortraitMirrorSyncScheduler();

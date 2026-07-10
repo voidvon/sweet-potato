@@ -152,6 +152,7 @@ function markAssetMirrorStatus(input: {
       localMirrorNextRetryAt: nextRetryAt,
       localMirroredAt: input.status === 'completed' ? new Date().toISOString() : asset.metadata.localMirroredAt,
     },
+    updatedAt: asset.updatedAt,
   });
 }
 
@@ -203,7 +204,11 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       originalFileName: originalVideoFileName(remoteVideoUrl, storedFileName),
       fileSize,
     });
-    const latestTask = contentRepository.markVideoTaskGenerated(input.taskId, localVideoUrl);
+    const taskBeforeLocalUrlUpdate = contentRepository.findVideoTask(input.taskId);
+    const preservedTaskUpdatedAt = taskBeforeLocalUrlUpdate?.updatedAt;
+    const latestTask = contentRepository.markVideoTaskGenerated(input.taskId, localVideoUrl, {
+      updatedAt: preservedTaskUpdatedAt,
+    });
     if (!latestTask || latestTask.userId !== input.userId) {
       return;
     }
@@ -221,6 +226,7 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       selectedDigitalHumanId: latestTask.selectedDigitalHumanId,
       selectedSceneId: latestTask.selectedSceneId,
       selectedVoiceId: latestTask.selectedVoiceId,
+      updatedAt: latestTask.updatedAt,
     }) || latestTask;
     const expertContext = isRecord(taskWithParse.expertContext) ? taskWithParse.expertContext : {};
     contentRepository.updateVideoTaskContext(input.taskId, {
@@ -237,6 +243,7 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
         generatedVideoMirroredAt: mirroredAt,
         updatedAt: mirroredAt,
       },
+      updatedAt: taskWithParse.updatedAt,
     });
     logger.info('generated video mirrored to local storage', {
       taskId: input.taskId,

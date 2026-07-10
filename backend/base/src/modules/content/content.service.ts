@@ -2082,6 +2082,10 @@ export const contentService = {
     this.resumePersistedRunningVideoGenerations();
   },
 
+  resumePendingGeneratedVideoMirrors() {
+    schedulePendingGeneratedVideoMirrors({ limit: 100 });
+  },
+
   async syncVirtualPortraitRemoteLibrary(input: {
     actor: { userId: string; role: UserRole };
     projectName?: string;

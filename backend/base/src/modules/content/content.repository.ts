@@ -529,12 +529,13 @@ export const contentRepository = {
     filePath?: string;
     fileUrl?: string;
     metadata?: Record<string, unknown>;
+    updatedAt?: string;
   }) {
     const current = this.findAsset(id);
     if (!current || current.resourceType !== 'finished_video') {
       return null;
     }
-    const updatedAt = new Date().toISOString();
+    const updatedAt = payload.updatedAt || new Date().toISOString();
     db.prepare(`
       UPDATE content_assets
       SET description = @description,
@@ -792,8 +793,8 @@ export const contentRepository = {
     return this.findVideoTask(id);
   },
 
-  updateVideoTaskParseResult(id: string, payload: UpdateVideoParsePayload) {
-    const updatedAt = new Date().toISOString();
+  updateVideoTaskParseResult(id: string, payload: UpdateVideoParsePayload & { updatedAt?: string }) {
+    const updatedAt = payload.updatedAt || new Date().toISOString();
     db.prepare(`
       UPDATE video_generation_tasks
       SET editable_parse_result = @editableParseResult,
@@ -813,7 +814,7 @@ export const contentRepository = {
     return this.findVideoTask(id);
   },
 
-  markVideoTaskGenerated(id: string, generatedVideoUrl: string) {
+  markVideoTaskGenerated(id: string, generatedVideoUrl: string, options: { updatedAt?: string } = {}) {
     const current = this.findVideoTask(id);
     if (!current) {
       return null;
@@ -822,7 +823,7 @@ export const contentRepository = {
     if (!nextGeneratedVideoUrl) {
       return current;
     }
-    const updatedAt = new Date().toISOString();
+    const updatedAt = options.updatedAt || new Date().toISOString();
     db.prepare(`
       UPDATE video_generation_tasks
       SET status = 'success',
@@ -888,8 +889,9 @@ export const contentRepository = {
 
   updateVideoTaskContext(id: string, payload: Required<Pick<UpdateVideoTaskContextPayload, 'selectedSkillIds'>> & {
     expertContext: Record<string, unknown>;
+    updatedAt?: string;
   }) {
-    const updatedAt = new Date().toISOString();
+    const updatedAt = payload.updatedAt || new Date().toISOString();
     db.prepare(`
       UPDATE video_generation_tasks
       SET selected_skill_ids = @selectedSkillIds,
