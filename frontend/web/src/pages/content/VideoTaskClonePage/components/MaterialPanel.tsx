@@ -5,6 +5,7 @@ import { MaterialUploadPopover } from './MaterialUploadPopover';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
+import { getVideoWorkSource } from '../../assets/worksAssetSource';
 
 type MaterialPanelProps = {
   activeUpload: MaterialKind | null;
@@ -73,11 +74,17 @@ export function MaterialPanel({
   const [playingAssetId, setPlayingAssetId] = useState<string | null>(null);
   const [activeAudioAssetId, setActiveAudioAssetId] = useState<string | null>(null);
   const [audioProgressByAssetId, setAudioProgressByAssetId] = useState<Record<string, number>>({});
-  const filteredWorksAssets = worksAssets.filter((asset) => {
-    if (worksTab === 'image') return asset.mimeType.startsWith('image/');
-    if (worksTab === 'video') return asset.mimeType.startsWith('video/');
-    return asset.mimeType.startsWith('image/') || asset.mimeType.startsWith('video/');
-  });
+  const [videoDurationByAssetId, setVideoDurationByAssetId] = useState<Record<string, number>>({});
+  const filteredWorksAssets = useMemo(() => worksAssets.filter((asset) => {
+    const isImage = asset.mimeType.startsWith('image/');
+    const isVideo = asset.mimeType.startsWith('video/');
+    if (isVideo && getVideoWorkSource(asset) !== 'video_creation') {
+      return false;
+    }
+    if (worksTab === 'image') return isImage;
+    if (worksTab === 'video') return isVideo;
+    return isImage || isVideo;
+  }), [worksAssets, worksTab]);
   const voiceAssetUrls = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, resolveAssetUrl(asset.fileUrl)])), [voiceAssets]);
 
   useEffect(() => {
@@ -397,21 +404,49 @@ export function MaterialPanel({
                     const isVideo = asset.mimeType.startsWith('video/');
                     const targetMaterial = isVideo ? videoMaterial : imageMaterial;
                     const name = getAssetName(asset, isVideo ? '视频作品' : '图片作品');
+                    const videoDurationLabel = getAssetDuration(asset, videoDurationByAssetId[asset.id]);
+                    const cardTitle = isVideo
+                      ? ['视频创作', videoDurationLabel === '--:--' ? '' : videoDurationLabel].filter(Boolean).join(' ')
+                      : name;
                     return (
                       <button
                         className="video-task-works-card"
                         disabled={!targetMaterial}
                         key={asset.id}
+                        onMouseEnter={(event) => {
+                          if (isVideo) {
+                            playMutedCardVideo(event.currentTarget);
+                          }
+                        }}
+                        onMouseLeave={(event) => {
+                          if (isVideo) {
+                            resetCardVideo(event.currentTarget);
+                          }
+                        }}
                         onClick={() => targetMaterial && onLibraryAssetChoose(targetMaterial, asset)}
-                        title={name}
+                        title={cardTitle}
                         type="button"
                       >
                         {isVideo ? (
                           <>
-                            <video muted playsInline preload="metadata" src={resolveAssetUrl(asset.fileUrl)} />
+                            <video
+                              muted
+                              onLoadedMetadata={(event) => {
+                                const nextDuration = event.currentTarget.duration;
+                                if (!Number.isFinite(nextDuration) || nextDuration <= 0) {
+                                  return;
+                                }
+                                setVideoDurationByAssetId((current) => (
+                                  current[asset.id] === nextDuration ? current : { ...current, [asset.id]: nextDuration }
+                                ));
+                              }}
+                              playsInline
+                              preload="metadata"
+                              src={resolveAssetUrl(asset.fileUrl)}
+                            />
                             <span className="video-task-works-video-badge">
-                              <Play size={10} fill="currentColor" />
-                              {getAssetDuration(asset)}
+                              {/* <Play size={10} fill="currentColor" /> */}
+                              {videoDurationLabel}
                             </span>
                           </>
                         ) : (
@@ -457,16 +492,64 @@ function getVoiceAssetName(asset: ContentAsset, voiceGroupNameById: Record<strin
   return voiceGroupNameById[asset.groupId] || asset.name || '人声素材';
 }
 
-function getAssetDuration(asset: ContentAsset) {
-  const duration = getAssetDurationSeconds(asset);
+function getAssetDuration(asset: ContentAsset, loadedDuration?: number) {
+  const duration = loadedDuration ?? getAssetDurationSeconds(asset);
   if (Number.isFinite(duration) && duration > 0) {
-    return `${Math.round(duration)}s`;
+    return formatVideoDuration(duration);
   }
-  return '0:15';
+  return '--:--';
 }
 
 function getAssetDurationSeconds(asset: ContentAsset) {
-  const rawDuration = asset.metadata?.duration;
-  const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
-  return Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const durationMs = numericDuration(asset.metadata?.durationMs);
+  if (durationMs > 0) {
+    return durationMs / 1000;
+  }
+  return numericDuration(asset.metadata?.durationSeconds)
+    || numericDuration(asset.metadata?.durationSecond)
+    || numericDuration(asset.metadata?.duration);
+}
+
+function numericDuration(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 0;
+  }
+  const matched = trimmed.match(/[\d.]+/);
+  if (!matched) {
+    return 0;
+  }
+  const parsed = Number(matched[0]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function formatVideoDuration(seconds: number) {
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const restSeconds = totalSeconds % 60;
+  return `${minutes}:${String(restSeconds).padStart(2, '0')}`;
+}
+
+function playMutedCardVideo(card: HTMLElement) {
+  const video = card.querySelector('video');
+  if (!video) {
+    return;
+  }
+  video.muted = true;
+  void video.play().catch(() => undefined);
+}
+
+function resetCardVideo(card: HTMLElement) {
+  const video = card.querySelector('video');
+  if (!video) {
+    return;
+  }
+  video.pause();
+  video.currentTime = 0;
 }

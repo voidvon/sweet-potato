@@ -358,7 +358,7 @@
 }
 
 .video-task-works-card {
-  aspect-ratio: 1.28;
+  aspect-ratio: 1;
   background: #f3f5f9;
   border: 1px solid rgba(226, 232, 240, 0.86);
   border-radius: 10px;
@@ -382,6 +382,11 @@
   height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+.video-task-works-card video {
+  object-fit: contain;
+  background-color: #000;
 }
 
 .video-task-works-video-badge {
