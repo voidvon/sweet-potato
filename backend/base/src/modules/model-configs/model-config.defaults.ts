@@ -16,6 +16,7 @@ export const defaultModelConfig: AiModelConfig = {
     },
   },
   isDefault: true,
+  sortOrder: 0,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -39,6 +40,7 @@ export const defaultImageModelConfig: AiModelConfig = {
     },
   },
   isDefault: true,
+  sortOrder: 0,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -63,6 +65,7 @@ export const openaiImageModelConfig: AiModelConfig = {
     },
   },
   isDefault: false,
+  sortOrder: 1,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

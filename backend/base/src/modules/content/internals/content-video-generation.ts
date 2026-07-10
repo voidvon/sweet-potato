@@ -66,6 +66,7 @@ export function resolveDefaultVideoModel(providerId?: string) {
       temperature: 0,
       settings: {},
       isDefault: true,
+      sortOrder: 0,
       createdAt: new Date(0).toISOString(),
       updatedAt: new Date().toISOString(),
     };

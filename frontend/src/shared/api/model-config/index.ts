@@ -9,6 +9,7 @@ enum Api {
   videoProviders = '/api/model-configs/video-providers',
   modelConfigDetail = '/api/model-configs/:id',
   defaultModelConfig = '/api/model-configs/:id/default',
+  modelConfigOrder = '/api/model-configs/order',
 }
 
 export function listModelConfigs(type?: ModelType) {
@@ -102,6 +103,13 @@ export function updateModelConfig(id: string, payload: ModelConfig) {
   return request<ModelConfig>(Api.modelConfigDetail.replace(':id', id), {
     method: 'PUT',
     body: JSON.stringify(payload),
+  });
+}
+
+export function reorderModelConfigs(type: ModelType, orderedIds: string[]) {
+  return request<ModelConfig[]>(Api.modelConfigOrder, {
+    method: 'PUT',
+    body: JSON.stringify({ type, orderedIds }),
   });
 }
 
