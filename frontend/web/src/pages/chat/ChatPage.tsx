@@ -16,7 +16,7 @@ export function ChatPage() {
   const chat = useChatSession();
   const location = useLocation();
   const { setHeaderExtra } = useWorkspaceHeader();
-  const showComposerHeading = chat.messages.length === 0
+  const showComposerHeading = chat.showWelcome
     && location.pathname === '/app/image'
     && !location.search;
 
