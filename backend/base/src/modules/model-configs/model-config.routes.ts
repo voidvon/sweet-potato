@@ -125,6 +125,32 @@ export function createModelConfigRouter() {
     }
   });
 
+  router.put('/model-configs/order', (req, res) => {
+    const type = String(req.body?.type || '');
+    const orderedIds = Array.isArray(req.body?.orderedIds)
+      ? req.body.orderedIds.map((id: unknown) => String(id))
+      : [];
+
+    if (!isModelType(type)) {
+      sendError(res, 400, '模型类型不支持');
+      return;
+    }
+
+    const currentIds = modelConfigRepository.list(type).map((item) => item.id);
+    const uniqueIds = new Set(orderedIds);
+    if (
+      orderedIds.length !== currentIds.length
+      || uniqueIds.size !== orderedIds.length
+      || currentIds.some((id) => !uniqueIds.has(id))
+    ) {
+      sendError(res, 400, '排序列表与当前模型配置不一致，请刷新后重试');
+      return;
+    }
+
+    modelConfigRepository.reorder(type, orderedIds);
+    res.json(modelConfigRepository.list(type).map(serializeModelConfig));
+  });
+
   router.put('/model-configs/:id', (req, res) => {
     const current = modelConfigRepository.find(req.params.id);
     if (!current) {

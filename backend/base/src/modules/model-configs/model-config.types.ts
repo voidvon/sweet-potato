@@ -11,6 +11,7 @@ export type AiModelConfig = {
   temperature: number;
   settings?: Record<string, unknown>;
   isDefault: boolean;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };

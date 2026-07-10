@@ -135,6 +135,7 @@ export function normalizeModelConfig(body: Record<string, unknown>, fallback?: A
     temperature: Number(body.temperature ?? fallback?.temperature ?? 0.7),
     settings: normalizedSettings,
     isDefault: Boolean(body.isDefault ?? fallback?.isDefault ?? false),
+    sortOrder: Number(body.sortOrder ?? fallback?.sortOrder ?? 0),
     createdAt: fallback?.createdAt || now,
     updatedAt: now,
   };
@@ -236,6 +237,9 @@ export function serializeModelConfig(config: AiModelConfig) {
 }
 
 export function persistModelConfig(config: AiModelConfig, mode: 'insert' | 'update') {
+  if (mode === 'insert') {
+    config.sortOrder = modelConfigRepository.nextSortOrder(config.type);
+  }
   if (config.type === 'audio' || config.type === 'video') {
     if (!config.name || !config.provider) {
       throw new Error('配置名称和服务商必填');

@@ -15,7 +15,7 @@ import {
   message,
 } from 'antd';
 import type { TableProps } from 'antd';
-import { PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
+import { ArrowDownOutlined, ArrowUpOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import {
   createLlmModelPricing,
@@ -27,6 +27,7 @@ import {
   listLlmModelPricing,
   listModelConfigs,
   listVideoModelProviders,
+  reorderModelConfigs,
   setDefaultModelConfig,
   updateLlmModelPricing,
   updateModelConfig,
@@ -1183,6 +1184,7 @@ export function ModelSettingsPage() {
   const [editingRecord, setEditingRecord] = useState<ModelConfig | null>(null);
   const [editingLlmPricing, setEditingLlmPricing] = useState<LlmModelPricing | null>(null);
   const [savingProviderId, setSavingProviderId] = useState('');
+  const [sortingImageModels, setSortingImageModels] = useState(false);
 
   const audioConfigRows = useMemo(
     () => audioProviders.map((provider) => audioProviderConfigRow(
@@ -1365,9 +1367,33 @@ export function ModelSettingsPage() {
     }
   }
 
+  async function handleMoveImageModel(record: ModelConfig, offset: -1 | 1) {
+    const rows = configsByType.image;
+    const currentIndex = rows.findIndex((item) => item.id === record.id);
+    const nextIndex = currentIndex + offset;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rows.length) {
+      return;
+    }
+
+    const nextRows = [...rows];
+    [nextRows[currentIndex], nextRows[nextIndex]] = [nextRows[nextIndex], nextRows[currentIndex]];
+    setConfigsByType((current) => ({ ...current, image: nextRows }));
+    setSortingImageModels(true);
+    try {
+      const savedRows = await reorderModelConfigs('image', nextRows.flatMap((item) => item.id ? [item.id] : []));
+      setConfigsByType((current) => ({ ...current, image: savedRows }));
+      message.success('图片模型顺序已保存');
+    } catch (error) {
+      setConfigsByType((current) => ({ ...current, image: rows }));
+      message.error(error instanceof Error ? error.message : '图片模型排序保存失败');
+    } finally {
+      setSortingImageModels(false);
+    }
+  }
+
   const operationColumn: ModelColumn = {
     title: '操作',
-    width: 260,
+    width: activeType === 'image' ? 360 : 260,
     render: (_, record) => (
       <Space>
         <Button
@@ -1391,6 +1417,27 @@ export function ModelSettingsPage() {
             <Button danger disabled={record.isDefault}>删除</Button>
           </Popconfirm>
         )}
+        {activeType === 'image' && (() => {
+          const index = configsByType.image.findIndex((item) => item.id === record.id);
+          return (
+            <>
+              <Button
+                aria-label={`上移 ${record.name}`}
+                disabled={sortingImageModels || index <= 0}
+                icon={<ArrowUpOutlined />}
+                onClick={() => void handleMoveImageModel(record, -1)}
+                title="上移"
+              />
+              <Button
+                aria-label={`下移 ${record.name}`}
+                disabled={sortingImageModels || index < 0 || index >= configsByType.image.length - 1}
+                icon={<ArrowDownOutlined />}
+                onClick={() => void handleMoveImageModel(record, 1)}
+                title="下移"
+              />
+            </>
+          );
+        })()}
       </Space>
     ),
   };

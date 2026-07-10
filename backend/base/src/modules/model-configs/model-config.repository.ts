@@ -13,6 +13,7 @@ const modelConfigSelect = `
     temperature,
     settings,
     is_default as isDefault,
+    sort_order as sortOrder,
     created_at as createdAt,
     updated_at as updatedAt
   FROM model_configs
@@ -40,12 +41,12 @@ export const modelConfigRepository = {
   list(type?: ModelType) {
     const listAllQuery = db.prepare(`
       ${modelConfigSelect}
-      ORDER BY type ASC, is_default DESC, updated_at DESC
+      ORDER BY type ASC, sort_order ASC, is_default DESC, updated_at DESC
     `);
     const listByTypeQuery = db.prepare(`
       ${modelConfigSelect}
       WHERE type = ?
-      ORDER BY is_default DESC, updated_at DESC
+      ORDER BY sort_order ASC, is_default DESC, updated_at DESC
     `);
 
     return ((type ? listByTypeQuery.all(type) : listAllQuery.all()) as Array<AiModelConfig & { settings?: string }>)
@@ -65,10 +66,10 @@ export const modelConfigRepository = {
   save(config: AiModelConfig, mode: 'insert' | 'update') {
     const insertQuery = db.prepare(`
       INSERT INTO model_configs (
-        id, type, name, provider, model, api_key, base_url, temperature, settings, is_default, created_at, updated_at
+        id, type, name, provider, model, api_key, base_url, temperature, settings, is_default, sort_order, created_at, updated_at
       )
       VALUES (
-        @id, @type, @name, @provider, @model, @apiKey, @baseUrl, @temperature, @settings, @isDefault, @createdAt, @updatedAt
+        @id, @type, @name, @provider, @model, @apiKey, @baseUrl, @temperature, @settings, @isDefault, @sortOrder, @createdAt, @updatedAt
       )
     `);
     const updateQuery = db.prepare(`
@@ -83,6 +84,7 @@ export const modelConfigRepository = {
         temperature = @temperature,
         settings = @settings,
         is_default = @isDefault,
+        sort_order = @sortOrder,
         updated_at = @updatedAt
       WHERE id = @id
     `);
@@ -108,6 +110,28 @@ export const modelConfigRepository = {
       }
     });
 
+    transaction();
+  },
+
+  nextSortOrder(type: ModelType) {
+    const row = db.prepare(`
+      SELECT COALESCE(MAX(sort_order), -1) + 1 AS nextSortOrder
+      FROM model_configs
+      WHERE type = ?
+    `).get(type) as { nextSortOrder: number };
+    return row.nextSortOrder;
+  },
+
+  reorder(type: ModelType, orderedIds: string[]) {
+    const updateQuery = db.prepare(`
+      UPDATE model_configs
+      SET sort_order = ?, updated_at = ?
+      WHERE id = ? AND type = ?
+    `);
+    const transaction = db.transaction(() => {
+      const updatedAt = new Date().toISOString();
+      orderedIds.forEach((id, index) => updateQuery.run(index, updatedAt, id, type));
+    });
     transaction();
   },
 

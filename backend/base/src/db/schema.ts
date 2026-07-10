@@ -236,6 +236,7 @@ export function migrateDatabase() {
       temperature REAL NOT NULL DEFAULT 0.7,
       settings TEXT NOT NULL DEFAULT '{}',
       is_default INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -603,6 +604,7 @@ export function migrateDatabase() {
   addColumnIfMissing('agents', 'web_search_enabled', 'web_search_enabled INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('agents', 'multimodal', 'multimodal TEXT NOT NULL DEFAULT \'{"imageUpload":false,"fileUpload":true}\'');
   addColumnIfMissing('model_configs', 'settings', "settings TEXT NOT NULL DEFAULT '{}'");
+  addColumnIfMissing('model_configs', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('content_assets', 'resource_type', "resource_type TEXT NOT NULL DEFAULT 'other'");
   addColumnIfMissing('content_assets', 'type', "type TEXT NOT NULL DEFAULT 'file'");
   addColumnIfMissing('content_assets', 'source_url', 'source_url TEXT');
