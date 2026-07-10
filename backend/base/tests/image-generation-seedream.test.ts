@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { editImageWithJsonReferences } from '../src/modules/content/internals/content-image-assets.js';
 import { resolveImageGenerationProviderAdapter } from '../src/modules/chat/capabilities/image-generation.provider-adapter.js';
+import { resolveSeedreamOutputSize } from '../src/modules/chat/capabilities/image-generation.workflow.js';
 import { volcengineSeedreamProvider } from '../src/modules/image-models/providers/volcengine-seedream.js';
 import { createUser } from '../src/modules/users/user.service.js';
 
@@ -19,6 +20,29 @@ test('volcengine seedream provider defaults to dedicated adapter', () => {
     volcengineSeedreamProvider.models.map((item) => item.id),
     ['doubao-seedream-5-0-pro-260628', 'doubao-seedream-5-0-lite-260128'],
   );
+});
+
+test('seedream custom sizes use the official resolution and aspect-ratio mapping', () => {
+  assert.deepEqual(
+    resolveSeedreamOutputSize('doubao-seedream-5-0-lite-260128', '2K', '9:16'),
+    { outputSize: '1600x2848', resolution: '2K' },
+  );
+  assert.deepEqual(
+    resolveSeedreamOutputSize('doubao-seedream-5-0-lite-260128', '4K', '21:9'),
+    { outputSize: '6240x2656', resolution: '4K' },
+  );
+  assert.deepEqual(
+    resolveSeedreamOutputSize('doubao-seedream-5-0-pro-260628', '4K', '16:9'),
+    { outputSize: '2720x1530', resolution: '2K' },
+  );
+  const proAspectRatios = ['auto', '21:9', '16:9', '3:2', '4:3', '1:1', '3:4', '2:3', '9:16'];
+  for (const aspectRatio of proAspectRatios) {
+    const result = resolveSeedreamOutputSize('doubao-seedream-5-0-pro-260628', '2K', aspectRatio);
+    assert.ok(result);
+    const [width, height] = result.outputSize.split('x').map(Number);
+    assert.ok(width * height >= 1280 * 720, `${aspectRatio} must meet the Pro minimum pixel count`);
+    assert.ok(width * height <= 2048 * 2048, `${aspectRatio} must meet the Pro maximum pixel count`);
+  }
 });
 
 test('seedream json reference flow sends generations payload with image urls and output options', async () => {
