@@ -3,7 +3,7 @@ import { message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
-import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
+import { formatTimeHM } from '../../../../utils/dateTime';
 import { filterGroups } from '../constants';
 import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
@@ -228,7 +228,7 @@ export function ResultPanel({
                           </div>
 
                           <time className="video-task-result-time" dateTime={task.updatedAt}>
-                            {formatRelativeCalendarDateTime(task.updatedAt)}
+                            {formatTimeHM(task.updatedAt)}
                           </time>
 
                           <div className="video-task-result-actions">
