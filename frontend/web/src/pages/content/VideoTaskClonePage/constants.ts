@@ -65,20 +65,18 @@ export const toolOptions: ToolOption[] = [
   },
 ];
 
-export const modelOptions = ['Seedance 2.0', 'Seedance 2.0 Fast', 'Seedance 2.0 Mini', 'Kling Omni'];
+export const modelOptions = ['Seedance 2.0', 'Seedance 2.0 Fast', 'Seedance 2.0 Mini'];
 
 export const modelDescriptions: Record<string, string> = {
   'Seedance 2.0': '适合画面表现、音画生成和通用短视频创作。',
   'Seedance 2.0 Fast': '适合更快出片和高频尝试。',
   'Seedance 2.0 Mini': '更轻量的 Seedance 档位，适合海量短片快速产出。',
-  'Kling Omni': '适合同款参考、稳定构图和高清成片。',
 };
 
 export const modelOptionIds: Record<string, string> = {
   'Seedance 2.0': 'doubao-seedance-2-0-260128',
   'Seedance 2.0 Fast': 'doubao-seedance-2-0-fast-260128',
   'Seedance 2.0 Mini': 'doubao-seedance-2-0-mini-260615',
-  'Kling Omni': 'kling-omni',
 };
 
 export const ratioOptions = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'];
