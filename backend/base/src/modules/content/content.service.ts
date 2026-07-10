@@ -302,26 +302,57 @@ function inferCharacterReferenceIndexes(prompt: string) {
   return Array.from(indexes).sort((left, right) => left - right);
 }
 
+export function resolveCharacterReferenceImageIds(input: {
+  prompt?: string;
+  referenceImageIds?: string[];
+  characterReferenceImageIds?: string[];
+}) {
+  const explicitIds = stringArray(input.characterReferenceImageIds);
+  const referenceImageIds = stringArray(input.referenceImageIds);
+  if (!referenceImageIds.length) {
+    return Array.from(new Set(explicitIds));
+  }
+  const inferredIndexes = inferCharacterReferenceIndexes(String(input.prompt || ''));
+  const inferredIds = inferredIndexes
+    .map((index) => referenceImageIds[index])
+    .filter(Boolean);
+  return Array.from(new Set([...explicitIds, ...inferredIds]));
+}
+
 function collectCharacterReferenceImageIds(input: {
   prompt?: string;
   referenceImageIds?: string[];
   explicitIds?: string[];
 }) {
-  const explicitIds = stringArray(input.explicitIds);
-  if (explicitIds.length) {
-    return Array.from(new Set(explicitIds));
-  }
-  const referenceImageIds = stringArray(input.referenceImageIds);
-  if (!referenceImageIds.length) {
+  return resolveCharacterReferenceImageIds({
+    prompt: input.prompt,
+    referenceImageIds: input.referenceImageIds,
+    characterReferenceImageIds: input.explicitIds,
+  });
+}
+
+export function resolveSeedanceRejectedSourceAssetIds(input: {
+  message?: string;
+  originalReferenceImageIds?: string[];
+  characterReferenceImageIds?: string[];
+}) {
+  const originalReferenceImageIds = stringArray(input.originalReferenceImageIds);
+  if (!originalReferenceImageIds.length) {
     return [];
   }
-  const inferredIndexes = inferCharacterReferenceIndexes(String(input.prompt || ''));
-  if (!inferredIndexes.length) {
-    return [];
+  const contentIndexMatch = String(input.message || '').match(/content\[(\d+)\]/i);
+  if (contentIndexMatch) {
+    const imageIndex = Number(contentIndexMatch[1]) - 1;
+    const assetId = Number.isFinite(imageIndex) && imageIndex >= 0
+      ? originalReferenceImageIds[imageIndex]
+      : undefined;
+    return assetId ? [assetId] : [];
   }
-  return inferredIndexes
-    .map((index) => referenceImageIds[index])
-    .filter(Boolean);
+  const characterReferenceImageIds = stringArray(input.characterReferenceImageIds);
+  if (characterReferenceImageIds.length) {
+    return Array.from(new Set(characterReferenceImageIds));
+  }
+  return originalReferenceImageIds;
 }
 
 function isSensitiveRealPersonError(error: unknown) {
@@ -2479,15 +2510,21 @@ export const contentService = {
       try {
         providerResult = await submitVideoRequest();
       } catch (error) {
+        const rejectedSourceAssetIds = resolveSeedanceRejectedSourceAssetIds({
+          message: error instanceof Error ? error.message : String(error || ''),
+          originalReferenceImageIds,
+          characterReferenceImageIds,
+        });
         if (
           isSensitiveRealPersonError(error)
-          && characterReferenceImageIds.length > 0
+          && rejectedSourceAssetIds.length > 0
           && !temporaryCharacterReferenceGroupId
         ) {
           logger.warn('video generation real person rejection detected, fallback upload started', {
             taskId: id,
             userId: current.userId,
             characterReferenceImageIds,
+            rejectedSourceAssetIds,
             referenceImageIds,
           });
           const temporaryReferences = await createTemporaryCharacterReferenceAssets({
@@ -2495,7 +2532,7 @@ export const contentService = {
             userId: current.userId,
             prompt: typeof taskContext.userPrompt === 'string' ? taskContext.userPrompt : prompt,
             referenceImageIds: originalReferenceImageIds,
-            characterReferenceImageIds,
+            characterReferenceImageIds: rejectedSourceAssetIds,
           });
           temporaryCharacterReferenceGroupId = temporaryReferences.groupId;
           referenceImageIds = referenceImageIds.map((assetId) => temporaryReferences.assetIdBySourceId[assetId] || assetId);
@@ -2503,7 +2540,7 @@ export const contentService = {
             ...taskContext,
             referenceImageIds,
             originalReferenceImageIds,
-            characterReferenceImageIds,
+            characterReferenceImageIds: Array.from(new Set([...characterReferenceImageIds, ...rejectedSourceAssetIds])),
             temporaryCharacterReferenceGroupId,
             temporaryCharacterReferenceAssetIds: temporaryReferences.assetIds,
             currentStep: 'video_generation_character_fallback_uploaded',

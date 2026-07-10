@@ -399,6 +399,30 @@ export function useVideoTaskCloneState(currentUser: User) {
     setFilters(defaultFilters);
   };
 
+  const resetCreationForm = useCallback(() => {
+    setPrompt('');
+    setTool(toolOptions[0]);
+    setSelectedMaterials((current) => {
+      Object.values(current).forEach((value) => revokeLocalMaterials(getLocalFiles(value)));
+      return {};
+    });
+    setVoiceEnabled(true);
+    setShowToolMenu(false);
+    setMaterialMode(null);
+    setActiveUpload(null);
+    setUploadAnchor(null);
+    setShowModelPicker(false);
+    setSelectedModelAvatar('');
+    setPromptPanel(null);
+    setExpandedPrompt(false);
+    setModel('Seedance 2.0');
+    setRatio('9:16');
+    setQuality('720P');
+    setDuration('5s');
+    setActiveParam(null);
+    setFilterOpen(false);
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     if (tool.label !== '视频') {
       message.warning('当前仅支持视频生成功能接入开始生成');
@@ -433,6 +457,7 @@ export function useVideoTaskCloneState(currentUser: User) {
         loadLibraryAssets(),
         loadVideoProductions(true),
       ]);
+      resetCreationForm();
       message.success('视频生成任务已提交');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '视频生成失败');
@@ -449,6 +474,7 @@ export function useVideoTaskCloneState(currentUser: User) {
     prompt,
     quality,
     ratio,
+    resetCreationForm,
     selectedMaterials,
     tool.label,
     voiceEnabled,

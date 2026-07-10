@@ -2404,7 +2404,7 @@ export async function callConfiguredVideoModel(input: {
       taskId: input.taskId,
       requestUrl,
       provider: config.provider,
-      model: config.model,
+      model: modelOption.id,
       status: result.status,
       hasVideoUrl: Boolean(result.videoUrl),
       jobId: result.jobId,
@@ -2433,7 +2433,7 @@ export async function callConfiguredVideoModel(input: {
       taskId: input.taskId,
       requestUrl,
       provider: config.provider,
-      model: config.model,
+      model: modelOption.id,
       error: errorLogContext(error),
     });
     throw error;
