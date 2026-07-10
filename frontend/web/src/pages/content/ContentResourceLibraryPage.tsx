@@ -22,6 +22,7 @@ import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload
 import type { ImagePreview } from './assets/AssetImageUpload';
 import { useCardGridPageSize } from './assets/useCardGridPageSize';
 import { WorksAssetCard, WorksAssetEmptyCard, WorksAssetSkeletonCard } from './assets/WorksAssetCard';
+import { getVideoWorkSource, stringMetadataValue } from './assets/worksAssetSource';
 import './assets/AssetLibraryPages.scss';
 
 type ContentResourceLibraryPageProps = {
@@ -86,6 +87,12 @@ const imageWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'image:detail-enhance', label: '细节增强', modeKeys: ['detail-enhance'], modeTitles: ['细节增强'] },
   { key: 'image:print-extract', label: '印花提取', modeKeys: ['print-extract'], modeTitles: ['印花提取'] },
   { key: 'image:face-enhance', label: '脸部增强', modeKeys: ['face-enhance'], modeTitles: ['脸部增强'] },
+];
+
+const videoWorksFunctionOptions: WorksFunctionOption[] = [
+  { key: 'video:all', label: '视频生成', modeKeys: [], modeTitles: [] },
+  { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
+  { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
 ];
 
 const showWorksBatchButton = false;
@@ -297,11 +304,6 @@ function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
   return asset.mimeType.startsWith(`${tab}/`);
 }
 
-function stringMetadataValue(asset: ContentAsset, key: string) {
-  const value = asset.metadata?.[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : '';
-}
-
 function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
   if (generatedBy !== 'image_model' && generatedBy !== 'video_model') {
@@ -313,18 +315,28 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
     return imageWorksFunctionOptions.find((option) => option.modeKeys.includes(mode) || option.modeTitles.includes(modeTitle))
       || null;
   }
-  const label = modeTitle || '视频生成';
-  return {
-    key: `${generatedBy}:${mode}`,
-    label,
-    modeKeys: [mode],
-    modeTitles: modeTitle ? [modeTitle] : [],
-  };
+  const source = getVideoWorkSource(asset);
+  if (source === 'video_creation') {
+    return videoWorksFunctionOptions[1];
+  }
+  if (source === 'video_remake') {
+    return videoWorksFunctionOptions[2];
+  }
+  return videoWorksFunctionOptions[0];
 }
 
 function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   if (functionKey === allWorksFunctionOption.key) {
     return true;
+  }
+  if (functionKey === 'video:all') {
+    return getVideoWorkSource(asset) !== null;
+  }
+  if (functionKey === 'video:creation') {
+    return getVideoWorkSource(asset) === 'video_creation';
+  }
+  if (functionKey === 'video:remake') {
+    return getVideoWorkSource(asset) === 'video_remake';
   }
   const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
   if (!option) {
@@ -509,6 +521,9 @@ export function ContentResourceLibraryPage({
   const worksFunctionOptions = useMemo(() => {
     const optionMap = new Map<string, WorksFunctionOption>();
     for (const option of imageWorksFunctionOptions) {
+      optionMap.set(option.key, option);
+    }
+    for (const option of videoWorksFunctionOptions) {
       optionMap.set(option.key, option);
     }
     for (const asset of assets) {

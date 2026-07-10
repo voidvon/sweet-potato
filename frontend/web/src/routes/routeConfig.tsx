@@ -371,12 +371,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '视频生成',
+      title: '视频创作',
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
         icon: <Video {...menuIconProps} />,
-        label: '视频生成',
+        label: '视频创作',
       },
       contentNavigation: {
         code: 'create_video',

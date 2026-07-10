@@ -293,7 +293,7 @@ export function MaterialPanel({
               <ChevronLeft size={20} />
             </button>
           </header>
-          <p>点击「填入」或拖动卡片到左侧参考音频槽位 ↙</p>
+          <p>点击「填入」到左侧参考音频槽位 ↙</p>
           <div className="video-task-audio-scroll">
             {isLoadingLibraryAssets && <div className="video-task-assets-empty">正在加载人声素材</div>}
             {!isLoadingLibraryAssets && voiceAssets.length === 0 && (
@@ -379,7 +379,7 @@ export function MaterialPanel({
               <ChevronLeft size={20} />
             </button>
           </header>
-          <p>点击或拖动卡片填入参考图 / 视频 ↙</p>
+          <p>点击卡片填入参考图 / 视频 ↙</p>
           <div className="video-task-assets-tabs">
             <button className={worksTab === 'all' ? 'is-active' : ''} onClick={() => onWorksTabChange('all')} type="button">全部</button>
             <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">图片</button>

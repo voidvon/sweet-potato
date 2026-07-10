@@ -5,6 +5,7 @@ import { Clapperboard, LoaderCircle, Play, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../../../api/request';
 import type { ContentAsset } from '../../../types';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
+import { getVideoWorkSource, getVideoWorkSourceLabel } from './worksAssetSource';
 
 type WorksAssetStatus = 'completed' | 'generating' | 'failed';
 
@@ -89,6 +90,8 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
   const url = fileUrl(asset);
   const isCompleted = status === 'completed' && Boolean(url);
   const isVideo = asset.mimeType.startsWith('video/');
+  const videoWorkSource = getVideoWorkSource(asset);
+  const videoWorkSourceLabel = getVideoWorkSourceLabel(videoWorkSource);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(() => durationSecondsFromMetadata(asset));
   const durationLabel = isVideo && videoDurationSeconds > 0 ? formatDurationLabel(videoDurationSeconds) : '';
@@ -152,6 +155,11 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
       {isCompleted && isVideo && (
         <span aria-hidden="true" className="works-asset-card__play">
           <Play fill="currentColor" size={30} />
+        </span>
+      )}
+      {isVideo && videoWorkSourceLabel && (
+        <span className={`works-asset-card__source-badge works-asset-card__source-badge--${videoWorkSource}`}>
+          {videoWorkSourceLabel}
         </span>
       )}
       {durationLabel && <span className="works-asset-card__duration">{durationLabel}</span>}

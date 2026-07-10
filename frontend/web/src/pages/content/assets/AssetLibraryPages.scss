@@ -1250,7 +1250,8 @@
 }
 
 .works-asset-card__play,
-.works-asset-card__duration {
+.works-asset-card__duration,
+.works-asset-card__source-badge {
   position: absolute;
   transition: opacity 0.3s ease, transform 0.24s ease;
   z-index: 1;
@@ -1276,6 +1277,49 @@
   line-height: 1;
   padding: 5px 8px;
   right: 8px;
+}
+
+.works-asset-card__source-badge {
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 5px;
+  left: 6px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  padding: 4px 8px 4px 6px;
+  top: 6px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+}
+
+.works-asset-card__source-badge::before {
+  border-radius: 9999px;
+  content: "";
+  flex: 0 0 auto;
+  height: 5px;
+  width: 5px;
+}
+
+.works-asset-card__source-badge--video_creation {
+  background: rgba(29, 78, 216, 0.42);
+}
+
+.works-asset-card__source-badge--video_remake {
+  background: rgba(13, 148, 136, 0.42);
+}
+
+.works-asset-card__source-badge--video_creation::before {
+  background: #60a5fa;
+}
+
+.works-asset-card__source-badge--video_remake::before {
+  background: #5eead4;
 }
 
 .works-asset-card__overlay {

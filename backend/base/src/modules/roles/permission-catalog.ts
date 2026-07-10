@@ -27,8 +27,8 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
   },
   {
     key: 'web.module.content.create_video',
-    label: '视频制作',
-    description: '允许访问视频制作与生成记录。',
+    label: '视频创作',
+    description: '允许访问视频创作与生成记录。',
     group: 'content',
     moduleCodes: ['create_video'] as const,
     resourceTypes: ['other'] as const,

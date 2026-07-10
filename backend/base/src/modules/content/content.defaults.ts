@@ -45,7 +45,7 @@ export const contentModules: ContentModule[] = [
   },
   {
     code: 'create_video',
-    name: '视频制作',
+    name: '视频创作',
     kind: 'video_generation',
     description: '选择画质、比例、时长和参考素材，通过提示词生成视频并保存生成记录。',
   },
