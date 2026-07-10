@@ -271,7 +271,7 @@ function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
-  const copyId = String(result?.jobId || task.id || '').trim();
+  const copyId = String(task.id || '').trim();
   const isOrphanPending = task.status !== 'generating'
     && !videoUrl
     && !String(result?.jobId || '').trim()
