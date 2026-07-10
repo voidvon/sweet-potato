@@ -1154,6 +1154,20 @@ function noOnScreenTextNegativePrompts() {
     '文字标签',
     '弹幕',
     '水印',
+    'AI生成',
+    'AI 生成',
+    'AI generated',
+    'AI-generated',
+    'AIGC',
+    'AI 角标',
+    'AI 下标',
+    '生成标记',
+    '生成水印',
+    '右下角水印',
+    '右下角角标',
+    '右下角下标',
+    'AI生成角标',
+    'AI生成下标',
     '无关 Logo',
     '新增 Logo',
     '拜拜',
@@ -1208,12 +1222,12 @@ function applySeedanceCopyrightSafePrompt(prompt: string, retry = false) {
       '# 原创表达重试',
       '人物素材只用于保持人物外观一致；画面按当前分镜重新组织自然镜头。',
       '保留人物动作节奏、表情和口播语义，使用自然拍摄角度和连贯场景表达。',
-      '不要添加来源标记、平台元素、Logo 或屏幕文字。',
+      '不要添加来源标记、平台元素、Logo、屏幕文字、水印、AI生成标记、AI generated 字样、右下角角标或下标。',
     ].join('\n')
     : [
       '# 原创性约束',
       '人物素材只用于保持人物外观一致；场景、镜头和动作按当前分镜自然表达。',
-      '画面保持真实拍摄感，不添加来源标记、平台元素、Logo 或屏幕文字。',
+      '画面保持真实拍摄感，不添加来源标记、平台元素、Logo、屏幕文字、水印、AI生成标记、AI generated 字样、右下角角标或下标。',
     ].join('\n');
   return `${sanitized.trim()}\n\n${guard}`;
 }
@@ -1221,6 +1235,20 @@ function applySeedanceCopyrightSafePrompt(prompt: string, retry = false) {
 function seedanceCopyrightSafeNegativePrompts(retry = false) {
   return [
     '平台水印',
+    'AI生成',
+    'AI 生成',
+    'AI generated',
+    'AI-generated',
+    'AIGC',
+    'AI生成角标',
+    'AI生成下标',
+    'AI 角标',
+    'AI 下标',
+    '生成标记',
+    '生成水印',
+    '右下角水印',
+    '右下角角标',
+    '右下角下标',
     '商标 Logo',
     '明星名人形象',
     retry ? '屏幕文字' : '',
@@ -1722,8 +1750,7 @@ export function buildVideoGenerationRequestBody(input: {
   if (input.provider.id === 'volcengine-seedance' || isArkSeedanceConfig(input.config)) {
     const durationSeconds = seedanceDurationSeconds(input.duration, input.modelOption, input.config.settings);
     const cameraFixed = seedanceBooleanSetting(input.config.settings, 'cameraFixed', false);
-    const watermark = input.seedanceOptions?.watermark
-      ?? seedanceBooleanSetting(input.config.settings, 'watermark', true);
+    const watermark = input.seedanceOptions?.watermark ?? false;
     const generateAudio = input.seedanceOptions?.generateAudio
       ?? seedanceBooleanSetting(
         input.config.settings,
