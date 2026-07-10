@@ -6,26 +6,26 @@
 }
 
 .content-studio-layout {
-  --bg-primary: #f5f7fa;
-  --bg-secondary: #ffffff;
-  --bg-hover: #f0f7ff;
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --accent-blue: #2b7fff;
-  --accent-blue-light: #e8f4ff;
-  --accent-green: #52c41a;
-  --accent-orange: #fa8c16;
-  --border-color: #e8e8e8;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --video-bg-primary: #f5f7fa;
-  --video-bg-secondary: #ffffff;
-  --video-border: #e8e8e8;
-  --video-blue: #2b7fff;
-  --video-blue-light: #e8f4ff;
-  --video-text: #1a1a1a;
-  --video-muted: #666666;
+  --bg-primary: var(--color-surface-subtle);
+  --bg-secondary: var(--color-surface);
+  --bg-hover: var(--color-brand-soft);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-secondary);
+  --text-muted: var(--color-text-muted);
+  --accent-blue: var(--color-brand);
+  --accent-blue-light: var(--color-brand-soft);
+  --accent-green: var(--color-success);
+  --accent-orange: var(--color-warning);
+  --border-color: var(--color-border);
+  --shadow-sm: var(--app-shadow-sm);
+  --shadow-md: var(--app-shadow-md);
+  --video-bg-primary: var(--color-surface-subtle);
+  --video-bg-secondary: var(--color-surface);
+  --video-border: var(--color-border);
+  --video-blue: var(--color-brand);
+  --video-blue-light: var(--color-brand-soft);
+  --video-text: var(--color-text);
+  --video-muted: var(--color-text-muted);
   background: #ffffff;
   height: calc(100% - 44px);
   min-height: 0;

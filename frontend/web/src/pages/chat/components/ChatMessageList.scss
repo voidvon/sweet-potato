@@ -358,75 +358,15 @@
 }
 
 .chat-image-generation-mode-tag.ant-tag {
-  background: var(--image-generation-tone-bg);
-  border: 1px solid var(--image-generation-tone-border);
+  background: var(--image-accent-soft, #eaf4ff);
+  border: 1px solid var(--image-accent-border, #b9ddff);
   border-radius: 6px;
-  color: var(--image-generation-tone-text);
+  color: var(--image-accent-hover, #1677ff);
   font-size: 12px;
   font-weight: 600;
   line-height: 22px;
   margin: 0;
   padding: 0 8px;
-}
-
-.chat-image-generation-mode-tag.tone-blue {
-  --image-generation-tone-bg: #e8f0ff;
-  --image-generation-tone-text: #1d4ed8;
-  --image-generation-tone-border: rgba(37, 99, 235, 0.2);
-}
-
-.chat-image-generation-mode-tag.tone-emerald {
-  --image-generation-tone-bg: #e6f7ef;
-  --image-generation-tone-text: #047857;
-  --image-generation-tone-border: rgba(16, 185, 129, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-amber {
-  --image-generation-tone-bg: #fff4e0;
-  --image-generation-tone-text: #b45309;
-  --image-generation-tone-border: rgba(245, 158, 11, 0.24);
-}
-
-.chat-image-generation-mode-tag.tone-violet {
-  --image-generation-tone-bg: #f0e9ff;
-  --image-generation-tone-text: #6d28d9;
-  --image-generation-tone-border: rgba(124, 58, 237, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-rose {
-  --image-generation-tone-bg: #ffe2eb;
-  --image-generation-tone-text: #be123c;
-  --image-generation-tone-border: rgba(225, 29, 72, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-cyan {
-  --image-generation-tone-bg: #def4fa;
-  --image-generation-tone-text: #0e7490;
-  --image-generation-tone-border: rgba(8, 145, 178, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-fuchsia {
-  --image-generation-tone-bg: #fbe6ff;
-  --image-generation-tone-text: #a21caf;
-  --image-generation-tone-border: rgba(192, 38, 211, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-lime {
-  --image-generation-tone-bg: #ecf7d0;
-  --image-generation-tone-text: #4d7c0f;
-  --image-generation-tone-border: rgba(101, 163, 13, 0.26);
-}
-
-.chat-image-generation-mode-tag.tone-orange {
-  --image-generation-tone-bg: #ffeada;
-  --image-generation-tone-text: #c2410c;
-  --image-generation-tone-border: rgba(234, 88, 12, 0.22);
-}
-
-.chat-image-generation-mode-tag.tone-indigo {
-  --image-generation-tone-bg: #e6e6ff;
-  --image-generation-tone-text: #4338ca;
-  --image-generation-tone-border: rgba(79, 70, 229, 0.22);
 }
 
 .chat-image-generation-header time {
@@ -571,8 +511,8 @@
 }
 
 .chat-thinking.streaming {
-  background: linear-gradient(180deg, #f4fbf8 0%, #eef8f4 100%);
-  border-color: #cfe5da;
+  background: linear-gradient(180deg, #f5faff 0%, #eaf4ff 100%);
+  border-color: #b9ddff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
@@ -608,7 +548,7 @@
 
 .chat-thinking.streaming summary::after {
   animation: thinking-pulse 1.2s infinite ease-in-out;
-  background: #12b76a;
+  background: var(--image-accent, #2f80ed);
   border-radius: 999px;
   content: "";
   display: inline-block;

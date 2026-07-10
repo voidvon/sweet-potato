@@ -1,0 +1,36 @@
+:root {
+  // 品牌主色及其交互、弱强调和边框状态。
+  --color-brand: #1677ff;
+  --color-brand-hover: #0958d9;
+  --color-brand-soft: #eaf4ff;
+  --color-brand-soft-strong: #dceeff;
+  --color-brand-border: #b9ddff;
+
+  // 页面、卡片和弱化区域使用的基础表面色。
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f5faff;
+  --color-surface-muted: #f3f7fb;
+  --color-surface-subtle-rgb: 245 250 255;
+
+  // 通用边框和弱分割线颜色。
+  --color-border: #dceafa;
+  --color-border-subtle: #e8eef5;
+
+  // 主文本、次级文本、辅助文本和禁用文本颜色。
+  --color-text: #101828;
+  --color-text-secondary: #475467;
+  --color-text-muted: #667085;
+  --color-text-disabled: #98a2b3;
+
+  // 成功、警告和失败等语义状态颜色及其弱背景。
+  --color-success: #15803d;
+  --color-success-soft: #ecfdf3;
+  --color-warning: #d97706;
+  --color-warning-soft: #fff8ea;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fff1f1;
+
+  // 通用卡片和浮层阴影。
+  --app-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --app-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+}

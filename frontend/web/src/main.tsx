@@ -19,7 +19,22 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN} modal={{ centered: true }}>
+    <ConfigProvider
+      locale={zhCN}
+      modal={{ centered: true }}
+      theme={{
+        token: {
+          colorBgLayout: '#f5faff',
+          colorError: '#dc2626',
+          colorInfo: '#1677ff',
+          colorPrimary: '#1677ff',
+          colorSuccess: '#15803d',
+          colorText: '#101828',
+          colorTextSecondary: '#667085',
+          colorWarning: '#d97706',
+        },
+      }}
+    >
       <App />
     </ConfigProvider>
   </React.StrictMode>,
