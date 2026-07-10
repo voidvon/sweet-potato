@@ -1,11 +1,15 @@
 .chat-page {
-  --chat-bg-rgb: 243 245 248;
-  --chat-bg: #f3f5f8;
-  --chat-panel: #ffffff;
-  --chat-border: #dfe4ea;
-  --chat-text: #101828;
-  --chat-muted: #667085;
-  background: white;
+  --chat-bg-rgb: var(--color-surface-subtle-rgb);
+  --chat-bg: var(--color-surface-subtle);
+  --chat-panel: var(--color-surface);
+  --chat-border: var(--color-border);
+  --chat-text: var(--color-text);
+  --chat-muted: var(--color-text-muted);
+  --image-accent: var(--color-brand);
+  --image-accent-hover: var(--color-brand-hover);
+  --image-accent-soft: var(--color-brand-soft);
+  --image-accent-border: var(--color-brand-border);
+  background: var(--chat-bg);
   color: var(--chat-text);
   display: flex;
   flex: 1 1 auto;
@@ -125,7 +129,7 @@
 }
 
 .workspace:has(.chat-page) .workspace-header {
-  border-bottom-color: rgba(223, 228, 234, 0.92);
+  border-bottom-color: color-mix(in srgb, var(--color-border) 92%, transparent);
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
   padding: 0 16px;

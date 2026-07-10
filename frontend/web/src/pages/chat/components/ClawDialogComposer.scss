@@ -10,13 +10,13 @@
 
 .claw-dialog-card {
   background: #ffffff;
-  border: 1px solid #dedede;
+  border: 1px solid var(--chat-border, #d7e8fa);
   border-radius: 18px;
   box-shadow: 0 8px 19px rgba(15, 23, 42, 0.06);
 }
 
 .claw-dialog-heading {
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e2eef9;
   color: #171717;
   font-size: 14px;
   line-height: 1.45;
@@ -25,7 +25,7 @@
 
 .claw-dialog-input-zone {
   align-items: start;
-  border-bottom: 1px solid #eeeeee;
+  border-bottom: 1px solid #e2eef9;
   display: grid;
   gap: 18px;
   grid-template-columns: auto minmax(0, 1fr);
@@ -33,7 +33,7 @@
 }
 
 .claw-dialog-hint {
-  background: #f5f7fa;
+  background: #f3f9ff;
   border-radius: 9px;
   color: #182230;
   font-size: 12px;
@@ -235,8 +235,9 @@
 }
 
 .claw-option-button.is-active.ant-btn {
-  background: #e5f6d7;
-  border-color: #e5f6d7;
+  background: var(--image-accent-soft, #eaf4ff);
+  border-color: var(--image-accent-border, #b9ddff);
+  color: var(--image-accent-hover, #1677ff);
 }
 
 .claw-option-button .ant-btn-icon {
@@ -269,7 +270,7 @@
 }
 
 .claw-mode-dropdown .ant-dropdown-menu-item-selected {
-  background: #e5f6d7;
+  background: #eaf4ff;
 }
 
 .claw-mode-menu-item {
@@ -342,7 +343,7 @@
 }
 
 .claw-image-model-dropdown .ant-dropdown-menu-item-selected {
-  background: #e5f6d7;
+  background: #eaf4ff;
 }
 
 .claw-size-popover .ant-popover-inner {
@@ -406,8 +407,9 @@
 
 .claw-aspect-option.selected,
 .claw-resolution-option.selected {
-  background: #ffffff;
-  border-color: #a8a8a8;
+  background: #eaf4ff;
+  border-color: #91caff;
+  color: #1677ff;
 }
 
 .claw-aspect-icon {
@@ -498,7 +500,7 @@
 }
 
 .claw-prompt-status.ready {
-  color: #0f766e;
+  color: var(--image-accent-hover, #1677ff);
 }
 
 .claw-credit {
@@ -531,8 +533,12 @@
 }
 
 .claw-send-button.ant-btn:not(:disabled) {
-  background: #111827;
+  background: var(--image-accent, #2f80ed);
   color: #ffffff;
+}
+
+.claw-send-button.ant-btn:not(:disabled):hover {
+  background: var(--image-accent-hover, #1677ff);
 }
 
 .claw-send-button.ant-btn:disabled {
@@ -564,9 +570,18 @@
 
 .claw-feature-card:hover,
 .claw-feature-card.selected {
-  border-color: #d0d5dd;
+  border-color: var(--image-accent-border, #b9ddff);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
   transform: translateY(-1px);
+}
+
+.claw-feature-card.selected {
+  background: #f5faff;
+}
+
+.claw-feature-card.selected .claw-feature-icon {
+  background: var(--image-accent-soft, #eaf4ff);
+  color: var(--image-accent-hover, #1677ff);
 }
 
 .claw-feature-icon {
@@ -600,7 +615,7 @@
 
 .claw-feature-check {
   align-items: center;
-  background: #050505;
+  background: var(--image-accent, #2f80ed);
   border-radius: 999px;
   color: #ffffff;
   display: inline-flex;

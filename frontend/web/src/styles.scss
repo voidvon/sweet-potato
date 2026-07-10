@@ -1,6 +1,8 @@
+@use './styles/tokens';
+
 :root {
-  color: #182230;
-  background: #f4f7fb;
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
@@ -77,10 +79,10 @@ h2 {
 }
 
 .notice {
-  background: #ecfdf3;
-  border: 1px solid #abefc6;
+  background: var(--color-success-soft);
+  border: 1px solid color-mix(in srgb, var(--color-success) 24%, #ffffff);
   border-radius: 7px;
-  color: #067647;
+  color: var(--color-success);
   margin: 18px 0 0;
   padding: 10px 12px;
 }

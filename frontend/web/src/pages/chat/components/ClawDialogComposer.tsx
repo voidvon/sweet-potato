@@ -146,7 +146,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Layers,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '为 图1 的模特生成正面 / 45 度侧面 / 背面三视图拼接图，可参考服装正反面和背景。',
+    promptHint: '为 图1 的模特生成正面 / 45 度侧面 / 背面三视图拼接图。人物必须保持自然站立姿势，完整呈现从头到脚的全身，不得裁切；可参考服装正反面和背景。',
     referenceGroups: [
       { key: 'model', label: '模特', maxCount: 1, required: true },
       { key: 'front', label: '服装正面', maxCount: 1 },
