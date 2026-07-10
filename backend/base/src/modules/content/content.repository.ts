@@ -93,6 +93,18 @@ function parseStringArray(value: string): string[] {
     .filter(Boolean);
 }
 
+function normalizeSearchToken(value: string) {
+  return value.trim().toLowerCase().replace(/：/g, ':');
+}
+
+function isAspectRatioSearchToken(value: string) {
+  return /^\d{1,2}:\d{1,2}$/.test(value);
+}
+
+function isVideoTaskIdSearchToken(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+}
+
 const emptyParseResult: VideoParseResult = {
   person: '',
   scene: '',
@@ -560,13 +572,78 @@ export const contentRepository = {
     return current;
   },
 
-  listVideoTasks(userId: string) {
+  listVideoTasks(userId: string, options: {
+    mode?: string;
+    search?: string;
+    updatedAtFrom?: string;
+    updatedAtTo?: string;
+    limit?: number;
+  } = {}) {
+    const clauses = ['user_id = @userId'];
+    const params: Record<string, unknown> = {
+      userId,
+      limit: Math.max(1, Math.min(500, Math.floor(options.limit || 80))),
+    };
+    if (options.mode) {
+      clauses.push("json_extract(expert_context, '$.mode') = @mode");
+      params.mode = options.mode;
+    }
+    if (options.updatedAtFrom) {
+      clauses.push('updated_at >= @updatedAtFrom');
+      params.updatedAtFrom = options.updatedAtFrom;
+    }
+    if (options.updatedAtTo) {
+      clauses.push('updated_at < @updatedAtTo');
+      params.updatedAtTo = options.updatedAtTo;
+    }
+    const searchTokens = Array.from(new Set(
+      String(options.search || '')
+        .split(/\s+/)
+        .map(normalizeSearchToken)
+        .filter(Boolean)
+        .slice(0, 6),
+    ));
+    const idTerms = searchTokens.filter(isVideoTaskIdSearchToken);
+    idTerms.forEach((term, index) => {
+      const key = `taskId${index}`;
+      params[key] = term;
+      clauses.push(`lower(id) = @${key}`);
+    });
+    const ratioTerms = searchTokens.filter(isAspectRatioSearchToken);
+    ratioTerms.forEach((term, index) => {
+      const key = `ratio${index}`;
+      params[key] = term;
+      clauses.push(`lower(coalesce(
+        nullif(json_extract(editable_parse_result, '$.videoGenerationResult.ratio'), ''),
+        nullif(json_extract(expert_context, '$.videoGenerationResult.ratio'), ''),
+        nullif(json_extract(expert_context, '$.viralUnderstanding.videoGenerationResult.ratio'), ''),
+        nullif(json_extract(expert_context, '$.ratio'), ''),
+        ''
+      )) = @${key}`);
+    });
+    const searchTerms = searchTokens.filter((term) => !isVideoTaskIdSearchToken(term) && !isAspectRatioSearchToken(term));
+    searchTerms.forEach((term, index) => {
+      const key = `search${index}`;
+      params[key] = `%${term}%`;
+      clauses.push(`(
+        lower(id) LIKE @${key}
+        OR lower(title) LIKE @${key}
+        OR lower(prompt) LIKE @${key}
+        OR lower(generated_video_url) LIKE @${key}
+        OR lower(coalesce(failure_reason, '')) LIKE @${key}
+        OR lower(raw_parse_result) LIKE @${key}
+        OR lower(editable_parse_result) LIKE @${key}
+        OR lower(expert_context) LIKE @${key}
+        OR lower(created_at) LIKE @${key}
+        OR lower(updated_at) LIKE @${key}
+      )`);
+    });
     const rows = db.prepare(`
       SELECT * FROM video_generation_tasks
-      WHERE user_id = @userId
+      WHERE ${clauses.join(' AND ')}
       ORDER BY created_at DESC
-      LIMIT 80
-    `).all({ userId }) as VideoTaskRow[];
+      LIMIT @limit
+    `).all(params) as VideoTaskRow[];
     return rows.map(serializeVideoTask);
   },
 

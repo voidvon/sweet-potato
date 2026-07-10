@@ -1725,16 +1725,17 @@
   border-radius: 999px;
   color: #46515f;
   font-size: 12px;
+  font-weight: 500;
   height: 30px;
   padding: 0 10px;
 }
 
 .video-task-param-popover.is-duration .video-task-param-options button.is-active,
 .video-task-filter-group button.is-active {
-  background: #f1eef9;
-  border-color: #a69ccc;
-  color: #4a3b8f;
-  font-weight: 650;
+  background: #e3f0ff;
+  border-color: #7db7ff;
+  color: #075bc7;
+  font-weight: 600;
 }
 
 .video-task-filter-panel {
@@ -1751,19 +1752,40 @@
 .video-task-search {
   align-items: center;
   background: #f6f7f9;
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   color: #8a94a3;
   display: flex;
   gap: 8px;
-  height: 34px;
-  padding: 0 12px;
+  min-height: 38px;
+  padding: 4px 4px 4px 11px;
 }
 
 .video-task-search input {
   background: transparent;
   border: 0;
+  color: #142033;
   flex: 1;
+  font-size: 12px;
+  font-weight: 400;
+  min-width: 0;
   outline: 0;
+}
+
+.video-task-search input::placeholder {
+  color: #a8b2c1;
+}
+
+.video-task-search button {
+  background: #0f63d8;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  height: 30px;
+  padding: 0 12px;
 }
 
 .video-task-filter-group {
@@ -2148,6 +2170,27 @@
   right: 24px;
   top: 58px;
   z-index: 120;
+}
+
+.video-task-filter.has-filters {
+  background: #e3f0ff;
+  border-color: #7db7ff;
+  color: #075bc7;
+  padding-right: 10px;
+}
+
+.video-task-filter-count {
+  align-items: center;
+  background: #075bc7;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 6px;
 }
 
 .video-task-empty-state {

@@ -798,7 +798,11 @@ export function createContentRouter() {
 
   router.get('/video-productions', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
-      void contentService.listVideoProductions(getCurrentUserId(req))
+      void contentService.listVideoProductions(getCurrentUserId(req), {
+        search: req.query.search,
+        time: req.query.time,
+        status: req.query.status,
+      })
         .then((tasks) => res.json(tasks))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '视频制作记录获取失败')));
     } catch (error) {

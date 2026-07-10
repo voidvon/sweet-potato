@@ -88,7 +88,11 @@ export function useVideoTaskCloneState(currentUser: User) {
       setIsLoadingProductions(true);
     }
     try {
-      const list = await listVideoProductions(currentUser.id);
+      const list = await listVideoProductions(currentUser.id, {
+        search: filters.搜索,
+        time: filters.时间,
+        status: filters.状态,
+      });
       setVideoProductions(list);
       return list;
     } catch (error) {
@@ -101,7 +105,7 @@ export function useVideoTaskCloneState(currentUser: User) {
         setIsLoadingProductions(false);
       }
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, filters]);
 
   useEffect(() => {
     void loadVideoProductions();
@@ -531,11 +535,6 @@ export function useVideoTaskCloneState(currentUser: User) {
     });
   }, [loadLibraryAssets, loadVideoProductions]);
 
-  const visibleVideoProductions = useMemo(
-    () => filterVideoProductions(videoProductions, filters),
-    [filters, videoProductions],
-  );
-
   return {
     activeParam,
     activeUpload,
@@ -643,7 +642,7 @@ export function useVideoTaskCloneState(currentUser: User) {
     showToolMenu,
     tool,
     uploadAnchor,
-    videoProductions: visibleVideoProductions,
+    videoProductions,
     voiceEnabled,
   };
 }
@@ -992,69 +991,4 @@ function isRunningVideoProduction(task: VideoGenerationTask) {
     || result?.status === 'running'
     || (result?.renderStatus === 'queued' && hasJobId)
     || result?.renderStatus === 'rendering';
-}
-
-function filterVideoProductions(tasks: VideoGenerationTask[], filters: FilterValues) {
-  return tasks.filter((task) => {
-    const keyword = String(filters.搜索 || '').trim().toLowerCase();
-    if (keyword) {
-      const result = taskVideoGenerationResult(task);
-      const haystack = [
-        task.title,
-        task.prompt,
-        task.failureReason,
-        task.generatedVideoUrl,
-        result?.jobId,
-        result?.errorMessage,
-        result?.ratio,
-        result?.duration,
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (!haystack.includes(keyword)) {
-        return false;
-      }
-    }
-
-    if (filters.时间 && filters.时间 !== '全部时间' && !matchesTimeFilter(task.updatedAt, filters.时间)) {
-      return false;
-    }
-
-    if (filters.状态 && filters.状态 !== '全部状态') {
-      const result = taskVideoGenerationResult(task);
-      const isOrphanPending = task.status !== 'generating'
-        && !task.generatedVideoUrl
-        && !result?.videoUrl
-        && !String(result?.jobId || '').trim()
-        && (result?.status === 'pending' || result?.renderStatus === 'queued');
-      const statusLabel = task.generatedVideoUrl || result?.videoUrl
-        ? '已完成'
-        : task.status === 'failed' || result?.status === 'failed' || isOrphanPending
-          ? '失败'
-          : '生成中';
-      if (statusLabel !== filters.状态) {
-        return false;
-      }
-    }
-    return true;
-  });
-}
-
-function matchesTimeFilter(updatedAt: string, filter: string) {
-  const updatedTime = new Date(updatedAt).getTime();
-  if (!Number.isFinite(updatedTime)) {
-    return false;
-  }
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const diffMs = now.getTime() - updatedTime;
-
-  if (filter === '今天') {
-    return updatedTime >= todayStart;
-  }
-  if (filter === '近 7 天') {
-    return diffMs <= 7 * 24 * 60 * 60 * 1000;
-  }
-  if (filter === '近 30 天') {
-    return diffMs <= 30 * 24 * 60 * 60 * 1000;
-  }
-  return true;
 }
