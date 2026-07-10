@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { contentPublicBaseUrl } from '../../../config/env.js';
+import { TosClient } from '@volcengine/tos-sdk';
+import { contentPublicBaseUrl, volcengineTosConfig } from '../../../config/env.js';
 import { createTraceId, logger, logsDir } from '../../../shared/logger.js';
 import { findBillableUsageRecordByCategoryAndSourceId, recordVideoGenerationUsage } from '../../billing/billing.service.js';
 import { modelConfigRepository } from '../../model-configs/model-config.repository.js';
@@ -1551,6 +1553,273 @@ function isPublicHttpUrl(value: string) {
   }
 }
 
+let cachedSeedanceReferenceTosClient: TosClient | null = null;
+const seedanceReferenceVideoMinPixels = 409_600;
+
+function assertSeedanceReferenceTosConfigured() {
+  if (!volcengineTosConfig.accessKey || !volcengineTosConfig.secretKey) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLC_ACCESSKEY 和 VOLC_SECRETKEY');
+  }
+  if (!volcengineTosConfig.endpoint) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_ENDPOINT');
+  }
+  if (!volcengineTosConfig.bucket) {
+    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_BUCKET');
+  }
+}
+
+function normalizeTosEndpoint(endpoint: string) {
+  return String(endpoint || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+}
+
+function seedanceReferenceTosClient() {
+  assertSeedanceReferenceTosConfigured();
+  if (!cachedSeedanceReferenceTosClient) {
+    cachedSeedanceReferenceTosClient = new TosClient({
+      accessKeyId: volcengineTosConfig.accessKey,
+      accessKeySecret: volcengineTosConfig.secretKey,
+      region: volcengineTosConfig.region,
+      endpoint: normalizeTosEndpoint(volcengineTosConfig.endpoint),
+    });
+  }
+  return cachedSeedanceReferenceTosClient;
+}
+
+function seedanceReferenceTosPublicBaseUrl() {
+  if (volcengineTosConfig.publicBaseUrl) {
+    return volcengineTosConfig.publicBaseUrl;
+  }
+  try {
+    const endpoint = new URL(volcengineTosConfig.endpoint);
+    return `https://${volcengineTosConfig.bucket}.${endpoint.host}`;
+  } catch {
+    return '';
+  }
+}
+
+function encodeTosKeyForUrl(key: string) {
+  return key.split('/').map((part) => encodeURIComponent(part)).join('/');
+}
+
+function seedanceReferenceVideoTosKey(asset: Record<string, unknown>, options: { reuseExisting?: boolean; anonymized?: boolean } = {}) {
+  const metadata = isRecord(asset.metadata) ? asset.metadata : {};
+  const existingKey = String(
+    options.anonymized
+      ? metadata.seedanceAnonymizedReferenceVideoTosKey
+      : metadata.seedanceReferenceVideoTosKey || metadata.tosKey || '',
+  ).trim();
+  if (options.reuseExisting && existingKey) {
+    return existingKey;
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  const sourceName = String(asset.originalFileName || asset.name || asset.id || 'reference-video.mp4');
+  const extension = path.extname(sourceName) || path.extname(String(asset.filePath || '')) || '.mp4';
+  const safeId = String(asset.id || 'asset').replace(/[^\w-]/g, '');
+  const keyPrefix = volcengineTosConfig.keyPrefix || 'video-generation-temp';
+  return [
+    keyPrefix,
+    options.anonymized ? 'seedance-reference-video-anonymized' : 'seedance-reference-video',
+    day,
+    `${safeId}-${Date.now()}-${randomUUID()}${extension.startsWith('.') ? extension : `.${extension}`}`,
+  ].filter(Boolean).join('/');
+}
+
+async function probeVideoDimensions(filePath: string) {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height',
+      '-of',
+      'json',
+      filePath,
+    ], { timeout: 60_000 });
+    const parsed = JSON.parse(String(stdout || '{}')) as { streams?: Array<{ width?: number; height?: number }> };
+    const stream = parsed.streams?.[0];
+    const width = Math.max(0, Math.floor(Number(stream?.width || 0)));
+    const height = Math.max(0, Math.floor(Number(stream?.height || 0)));
+    return {
+      width,
+      height,
+      pixelCount: width * height,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error('当前环境缺少 ffprobe，无法检查参考视频尺寸');
+    }
+    throw error;
+  }
+}
+
+function evenCeil(value: number) {
+  const rounded = Math.ceil(value);
+  return rounded % 2 === 0 ? rounded : rounded + 1;
+}
+
+async function prepareSeedanceReferenceVideoFile(input: {
+  asset: Record<string, unknown>;
+  filePath: string;
+  traceId: string;
+  anonymized?: boolean;
+}) {
+  const dimensions = await probeVideoDimensions(input.filePath);
+  if (!input.anonymized && dimensions.pixelCount >= seedanceReferenceVideoMinPixels) {
+    return {
+      filePath: input.filePath,
+      cleanup: false,
+      ...dimensions,
+    };
+  }
+  if (!dimensions.width || !dimensions.height) {
+    throw new Error('参考视频缺少有效画面尺寸，无法传给 Seedance');
+  }
+  const scale = Math.max(1, Math.sqrt(seedanceReferenceVideoMinPixels / dimensions.pixelCount));
+  const width = evenCeil(dimensions.width * scale);
+  const height = evenCeil(dimensions.height * scale);
+  const outputDir = path.join(contentFilesDir, 'seedance-reference-video');
+  await mkdir(outputDir, { recursive: true });
+  const outputPath = path.join(outputDir, `seedance-reference-video-${String(input.asset.id || 'asset')}-${randomUUID()}.mp4`);
+  const videoFilter = input.anonymized
+    ? `scale=${width}:${height}:flags=lanczos,scale=iw/18:ih/18,scale=${width}:${height}:flags=neighbor,gblur=sigma=10`
+    : `scale=${width}:${height}:flags=lanczos`;
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-i',
+      input.filePath,
+      '-vf',
+      videoFilter,
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      '-an',
+      outputPath,
+    ], { timeout: 180_000 });
+  } catch (error) {
+    await rm(outputPath, { force: true }).catch(() => undefined);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error('当前环境缺少 ffmpeg，无法将参考视频转码到 Seedance 要求尺寸');
+    }
+    throw error;
+  }
+  const nextDimensions = await probeVideoDimensions(outputPath);
+  logVideoGenerationFlow('info', input.anonymized
+    ? 'seedance reference video anonymized before tos upload'
+    : 'seedance reference video upscaled before tos upload', {
+    traceId: input.traceId,
+    assetId: String(input.asset.id || ''),
+    originalWidth: dimensions.width,
+    originalHeight: dimensions.height,
+    originalPixelCount: dimensions.pixelCount,
+    width: nextDimensions.width,
+    height: nextDimensions.height,
+    pixelCount: nextDimensions.pixelCount,
+  });
+  return {
+    filePath: outputPath,
+    cleanup: true,
+    ...nextDimensions,
+  };
+}
+
+async function uploadLocalReferenceVideoToTos(asset: Record<string, unknown>, traceId: string) {
+  const metadata = isRecord(asset.metadata) ? asset.metadata : {};
+  const anonymizeReferenceVideo = isRecord(asset.runtimeOptions) && asset.runtimeOptions.anonymizeReferenceVideo === true;
+  const reusablePixelCount = Number(anonymizeReferenceVideo
+    ? metadata.seedanceAnonymizedReferenceVideoPixelCount || 0
+    : metadata.seedanceReferenceVideoPixelCount || 0);
+  const reusableUrl = [
+    reusablePixelCount >= seedanceReferenceVideoMinPixels
+      ? anonymizeReferenceVideo
+        ? metadata.seedanceAnonymizedReferenceVideoUrl
+        : metadata.seedanceReferenceVideoUrl
+      : '',
+    anonymizeReferenceVideo ? '' : metadata.tosPublicUrl,
+    anonymizeReferenceVideo ? '' : metadata.publicUrl,
+  ].map((item) => String(item || '').trim()).find(isPublicHttpUrl);
+  if (reusableUrl) {
+    return reusableUrl;
+  }
+  const filePath = String(asset.filePath || '').trim();
+  if (!filePath || !existsSync(filePath)) {
+    return '';
+  }
+  const client = seedanceReferenceTosClient();
+  const prepared = await prepareSeedanceReferenceVideoFile({
+    asset,
+    filePath,
+    traceId,
+    anonymized: anonymizeReferenceVideo,
+  });
+  const key = seedanceReferenceVideoTosKey(asset, { anonymized: anonymizeReferenceVideo });
+  try {
+    await client.putObjectFromFile({
+      bucket: volcengineTosConfig.bucket,
+      key,
+      filePath: prepared.filePath,
+    });
+  } finally {
+    if (prepared.cleanup) {
+      await rm(prepared.filePath, { force: true }).catch(() => undefined);
+    }
+  }
+  const publicBaseUrl = seedanceReferenceTosPublicBaseUrl();
+  if (!publicBaseUrl) {
+    throw new Error('火山 TOS 公网访问地址缺失：请配置 VOLCENGINE_TOS_PUBLIC_BASE_URL');
+  }
+  const publicUrl = `${publicBaseUrl}/${encodeTosKeyForUrl(key)}`;
+  const assetId = String(asset.id || '').trim();
+  if (assetId) {
+    const current = contentRepository.findAsset(assetId);
+    if (current) {
+      contentRepository.updateAssetFileInfo(assetId, {
+        metadata: {
+          ...current.metadata,
+          ...(anonymizeReferenceVideo
+            ? {
+              seedanceAnonymizedReferenceVideoUrl: publicUrl,
+              seedanceAnonymizedReferenceVideoTosBucket: volcengineTosConfig.bucket,
+              seedanceAnonymizedReferenceVideoTosKey: key,
+              seedanceAnonymizedReferenceVideoSyncedAt: new Date().toISOString(),
+              seedanceAnonymizedReferenceVideoWidth: prepared.width,
+              seedanceAnonymizedReferenceVideoHeight: prepared.height,
+              seedanceAnonymizedReferenceVideoPixelCount: prepared.pixelCount,
+            }
+            : {
+              seedanceReferenceVideoUrl: publicUrl,
+              seedanceReferenceVideoTosBucket: volcengineTosConfig.bucket,
+              seedanceReferenceVideoTosKey: key,
+              seedanceReferenceVideoSyncedAt: new Date().toISOString(),
+              seedanceReferenceVideoWidth: prepared.width,
+              seedanceReferenceVideoHeight: prepared.height,
+              seedanceReferenceVideoPixelCount: prepared.pixelCount,
+              seedanceReferenceVideoUpscaled: prepared.cleanup,
+            }),
+        },
+        updatedAt: current.updatedAt,
+      });
+    }
+  }
+  logVideoGenerationFlow('info', 'seedance local reference video uploaded to tos', {
+    traceId,
+    assetId,
+    key,
+    publicUrl: summarizeReferenceUrl(publicUrl),
+    width: prepared.width,
+    height: prepared.height,
+    pixelCount: prepared.pixelCount,
+    upscaled: prepared.cleanup,
+    anonymized: anonymizeReferenceVideo,
+  });
+  return publicUrl;
+}
+
 export function assertSelectedReferencesResolved(input: {
   imageUrls: string[];
   videoUrls: string[];
@@ -1608,35 +1877,57 @@ export async function collectSeedanceImageUrls(context: Record<string, unknown>)
   return Array.from(new Set(urls.filter(Boolean)));
 }
 
-export function collectSeedanceVideoUrls(context: Record<string, unknown>) {
+export async function collectSeedanceVideoUrls(context: Record<string, unknown>) {
   const materialContext = isRecord(context.materialContext) ? context.materialContext : undefined;
   const references = isRecord(materialContext?.references) ? materialContext.references : undefined;
   const traceId = isRecord(context.videoGenerationFlow) ? String(context.videoGenerationFlow.traceId || '') : '';
-  const urls = (Array.isArray(references?.videos) ? references.videos : [])
+  const anonymizeReferenceVideos = context.seedanceAnonymizeReferenceVideos === true;
+  const urls = await Promise.all((Array.isArray(references?.videos) ? references.videos : [])
     .filter(isRecord)
-    .map((asset) => {
+    .map(async (asset) => {
+      const metadata = isRecord(asset.metadata) ? asset.metadata : {};
+      const seedanceReferenceVideoPixelCount = Number(anonymizeReferenceVideos
+        ? metadata.seedanceAnonymizedReferenceVideoPixelCount || 0
+        : metadata.seedanceReferenceVideoPixelCount || 0);
       const candidates = [
-        publicMaterialUrl(asset.fileUrl),
-        publicMaterialUrl(asset.url),
-        publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.url : undefined),
-        publicMaterialUrl(asset.metadata && isRecord(asset.metadata) ? asset.metadata.sourceUrl : undefined),
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(asset.fileUrl),
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(asset.url),
+        seedanceReferenceVideoPixelCount >= seedanceReferenceVideoMinPixels
+          ? publicMaterialUrl(anonymizeReferenceVideos
+            ? metadata.seedanceAnonymizedReferenceVideoUrl
+            : metadata.seedanceReferenceVideoUrl)
+          : '',
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.tosPublicUrl),
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.url),
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.sourceUrl),
       ].filter(Boolean);
       const resolved = candidates.find((candidate) => isPublicHttpUrl(candidate));
-      if (!resolved) {
-        logVideoGenerationFlow('warn', 'seedance video reference skipped because resolved url is not public', {
-          traceId,
-          assetId: String(asset.id || ''),
-          fileUrl: String(asset.fileUrl || ''),
-          url: String(asset.url || ''),
-          metadataUrl: asset.metadata && isRecord(asset.metadata) ? String(asset.metadata.url || '') : '',
-          metadataSourceUrl: asset.metadata && isRecord(asset.metadata) ? String(asset.metadata.sourceUrl || '') : '',
-          contentPublicBaseUrl,
-        });
+      if (resolved) {
+        return resolved;
       }
-      return resolved || '';
-    })
-    .filter(Boolean);
-  return Array.from(new Set(urls));
+      const uploaded = await uploadLocalReferenceVideoToTos({
+        ...asset,
+        runtimeOptions: {
+          ...(isRecord(asset.runtimeOptions) ? asset.runtimeOptions : {}),
+          anonymizeReferenceVideo: anonymizeReferenceVideos,
+        },
+      }, traceId);
+      if (uploaded) {
+        return uploaded;
+      }
+      logVideoGenerationFlow('warn', 'seedance video reference skipped because resolved url is not public', {
+        traceId,
+        assetId: String(asset.id || ''),
+        filePath: String(asset.filePath || ''),
+        fileUrl: String(asset.fileUrl || ''),
+        url: String(asset.url || ''),
+        metadataUrl: String(metadata.url || ''),
+        metadataSourceUrl: String(metadata.sourceUrl || ''),
+        contentPublicBaseUrl,
+      });
+      return '';
+    }));
+  return Array.from(new Set(urls.filter(Boolean)));
 }
 
 export async function collectSeedanceAudioUrls(context: Record<string, unknown>, audioUrl?: string) {
@@ -2242,7 +2533,7 @@ export async function callConfiguredVideoModel(input: {
     ? [...input.negativePrompts, ...seedanceCopyrightSafeNegativePrompts()]
     : input.negativePrompts;
   const imageUrls = await collectSeedanceImageUrls(input.context);
-  const videoUrls = collectSeedanceVideoUrls(input.context);
+  const videoUrls = await collectSeedanceVideoUrls(input.context);
   const audioUrls = await collectSeedanceAudioUrls(input.context, input.audioUrl);
   const selectedReferences = selectedReferenceSummary(input.context);
   const audioReferenceDisabledReason = input.context.allowSeedanceAudioReference === true

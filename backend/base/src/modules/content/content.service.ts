@@ -367,6 +367,13 @@ function isSensitiveRealPersonError(error: unknown) {
   return /InputImageSensitiveContentDetected\.PrivacyInformation|input image may contain real person/i.test(error.message);
 }
 
+function isSensitiveRealPersonVideoError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return /input video may contain real person/i.test(error.message);
+}
+
 let cachedTosClient: TosClient | null = null;
 
 function assertVolcengineTosConfigured() {
@@ -2642,6 +2649,18 @@ export const contentService = {
         referenceVideoIds,
         referenceAudioIds,
       });
+      const enableAnonymizedReferenceVideoRetry = () => {
+        taskContext = {
+          ...taskContext,
+          seedanceAnonymizeReferenceVideos: true,
+          currentStep: 'video_generation_reference_video_anonymized',
+          updatedAt: new Date().toISOString(),
+        };
+        contentRepository.updateVideoTaskContext(id, {
+          selectedSkillIds: current.selectedSkillIds,
+          expertContext: taskContext,
+        });
+      };
       const submitVideoRequest = async () => callConfiguredVideoModel({
         taskId: id,
         title: current.title,
@@ -2708,6 +2727,36 @@ export const contentService = {
             expertContext: taskContext,
           });
           materialContext = buildMaterialContext(referenceImageIds);
+          try {
+            providerResult = await submitVideoRequest();
+          } catch (retryError) {
+            if (
+              isSensitiveRealPersonVideoError(retryError)
+              && referenceVideoIds.length > 0
+              && taskContext.seedanceAnonymizeReferenceVideos !== true
+            ) {
+              logger.warn('video generation real person video rejection detected after image fallback, anonymized video retry started', {
+                taskId: id,
+                userId: current.userId,
+                referenceVideoIds,
+              });
+              enableAnonymizedReferenceVideoRetry();
+              providerResult = await submitVideoRequest();
+            } else {
+              throw retryError;
+            }
+          }
+        } else if (
+          isSensitiveRealPersonVideoError(error)
+          && referenceVideoIds.length > 0
+          && taskContext.seedanceAnonymizeReferenceVideos !== true
+        ) {
+          logger.warn('video generation real person video rejection detected, anonymized video retry started', {
+            taskId: id,
+            userId: current.userId,
+            referenceVideoIds,
+          });
+          enableAnonymizedReferenceVideoRetry();
           providerResult = await submitVideoRequest();
         } else {
           throw error;

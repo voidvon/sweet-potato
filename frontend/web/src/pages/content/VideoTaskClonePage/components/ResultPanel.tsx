@@ -1,5 +1,6 @@
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Trash2, Zap } from 'lucide-react';
-import { message } from 'antd';
+import { DeleteOutlined, DownloadOutlined, MoreOutlined } from '@ant-design/icons';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Zap } from 'lucide-react';
+import { Button, Dropdown, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
@@ -91,6 +92,32 @@ export function ResultPanel({
   const handleClearFilters = () => {
     setSearchDraft('');
     onClearFilters();
+  };
+
+  const handleDownloadVideo = async (task: VideoGenerationTask, videoUrl: string) => {
+    const normalizedUrl = String(videoUrl || '').trim();
+    if (!normalizedUrl) {
+      message.warning('暂无可下载的视频');
+      return;
+    }
+    try {
+      const response = await fetch(normalizedUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = downloadFileName(task);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      message.success('已开始下载');
+    } catch {
+      message.error('下载失败，请稍后重试');
+    }
   };
 
   return (
@@ -234,29 +261,54 @@ export function ResultPanel({
                           <div className="video-task-result-actions">
                             <div className="video-task-result-action-row">
                               {state.canRetry ? (
-                                <button
+                                <Button
                                   className="video-task-result-retry"
+                                  color="default"
                                   disabled={isRetrying || isDeleting}
+                                  icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
                                   onClick={() => void onRetry(task)}
-                                  type="button"
+                                  size="small"
+                                  variant="filled"
                                 >
-                                  {isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
                                   {isRetrying ? '提交中' : '再次生成'}
-                                </button>
+                                </Button>
                               ) : (
                                 <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
                               )}
 
                               {state.kind !== 'running' ? (
-                                <button
-                                  aria-label="删除记录"
-                                  className="video-task-result-delete"
+                                <Dropdown
+                                  overlayClassName="video-task-result-more-menu"
                                   disabled={isDeleting || isRetrying}
-                                  onClick={() => onDelete(task)}
-                                  type="button"
+                                  menu={{
+                                    items: [
+                                      {
+                                        key: 'download',
+                                        icon: <DownloadOutlined />,
+                                        label: '下载',
+                                        disabled: state.kind !== 'success' || !state.videoUrl,
+                                        onClick: () => void handleDownloadVideo(task, state.videoUrl),
+                                      },
+                                      {
+                                        danger: true,
+                                        key: 'delete',
+                                        icon: <DeleteOutlined />,
+                                        label: '删除',
+                                        onClick: () => onDelete(task),
+                                      },
+                                    ],
+                                  }}
+                                  trigger={['click']}
                                 >
-                                  {isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <Trash2 size={14} />}
-                                </button>
+                                  <Button
+                                    aria-label="更多操作"
+                                    className="video-task-result-more"
+                                    color="default"
+                                    icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
+                                    size="small"
+                                    variant="filled"
+                                  />
+                                </Dropdown>
                               ) : null}
                             </div>
                           </div>
@@ -479,4 +531,16 @@ function resetCardVideo(card: HTMLElement) {
   }
   video.pause();
   video.currentTime = 0;
+}
+
+function downloadFileName(task: VideoGenerationTask) {
+  const date = new Date(task.updatedAt);
+  const timestamp = Number.isNaN(date.getTime())
+    ? ''
+    : `${date.getFullYear()}${`${date.getMonth() + 1}`.padStart(2, '0')}${`${date.getDate()}`.padStart(2, '0')}-${`${date.getHours()}`.padStart(2, '0')}${`${date.getMinutes()}`.padStart(2, '0')}`;
+  const title = String(task.title || '生成视频')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+    .slice(0, 40);
+  return `${title || '生成视频'}${timestamp ? `-${timestamp}` : ''}.mp4`;
 }

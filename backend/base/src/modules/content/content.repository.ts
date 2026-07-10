@@ -484,12 +484,13 @@ export const contentRepository = {
     filePath?: string;
     fileUrl?: string;
     metadata?: Record<string, unknown>;
+    updatedAt?: string;
   }) {
     const current = this.findAsset(id);
     if (!current) {
       return null;
     }
-    const updatedAt = new Date().toISOString();
+    const updatedAt = payload.updatedAt || new Date().toISOString();
     db.prepare(`
       UPDATE content_assets
       SET name = @name,
