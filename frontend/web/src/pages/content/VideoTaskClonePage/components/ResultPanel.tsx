@@ -1,6 +1,7 @@
 import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Trash2, Zap } from 'lucide-react';
 import { message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
 import { filterGroups } from '../constants';
@@ -37,12 +38,18 @@ export function ResultPanel({
   retryingTaskId,
 }: ResultPanelProps) {
   const [previewVideo, setPreviewVideo] = useState<ConfirmedReferenceVideo | null>(null);
+  const [searchDraft, setSearchDraft] = useState(String(filters.搜索 || ''));
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
   const filterPanelRef = useRef<HTMLElement | null>(null);
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
   const dailyGroups = groupRecordsByDay(sortedRecords);
+  const activeFilterCount = activeResultFilterCount(filters);
+
+  useEffect(() => {
+    setSearchDraft(String(filters.搜索 || ''));
+  }, [filters.搜索]);
 
   useEffect(() => {
     if (!isFilterOpen) {
@@ -76,6 +83,16 @@ export function ResultPanel({
     }
   };
 
+  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    onFilterChange({ ...filters, 搜索: searchDraft.trim() });
+  };
+
+  const handleClearFilters = () => {
+    setSearchDraft('');
+    onClearFilters();
+  };
+
   return (
     <section className="video-task-result" aria-label="视频结果">
       <header className="video-task-result-header">
@@ -83,9 +100,15 @@ export function ResultPanel({
           <h1>视频结果</h1>
           <p>{sortedRecords.length > 0 ? '按时间倒序展示生成记录' : '生成完成后会显示在这里'}</p>
         </div>
-        <button className="video-task-filter" onClick={onFilterToggle} ref={filterButtonRef} type="button">
+        <button
+          className={activeFilterCount > 0 ? 'video-task-filter has-filters' : 'video-task-filter'}
+          onClick={onFilterToggle}
+          ref={filterButtonRef}
+          type="button"
+        >
           <Filter size={18} />
           筛选
+          {activeFilterCount > 0 ? <span className="video-task-filter-count">{activeFilterCount}</span> : null}
         </button>
       </header>
 
@@ -93,16 +116,17 @@ export function ResultPanel({
         <aside className="video-task-filter-panel" ref={filterPanelRef}>
           <div className="video-task-popover-head">
             <strong>筛选生成记录</strong>
-            <button onClick={onClearFilters} type="button">清空</button>
+            <button onClick={handleClearFilters} type="button">清空</button>
           </div>
-          <label className="video-task-search">
+          <form className="video-task-search" onSubmit={handleSearchSubmit}>
             <Search size={16} />
             <input
-              onChange={(event) => onFilterChange({ ...filters, 搜索: event.target.value })}
-              placeholder="搜索"
-              value={filters.搜索 || ''}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="搜索ID/比例/时长/时间"
+              value={searchDraft}
             />
-          </label>
+            <button type="submit">搜索</button>
+          </form>
           {filterGroups.map((group) => (
             <div className="video-task-filter-group" key={group.label}>
               <span>{group.label}</span>
@@ -271,7 +295,7 @@ function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
-  const copyId = String(result?.jobId || task.id || '').trim();
+  const copyId = String(task.id || '').trim();
   const isOrphanPending = task.status !== 'generating'
     && !videoUrl
     && !String(result?.jobId || '').trim()
@@ -381,6 +405,18 @@ function groupRecordsByDay(records: VideoGenerationTask[]) {
     });
   });
   return Array.from(groups.values());
+}
+
+function activeResultFilterCount(filters: FilterValues) {
+  let count = String(filters.搜索 || '').trim() ? 1 : 0;
+  filterGroups.forEach((group) => {
+    const value = String(filters[group.label] || '').trim();
+    const defaultValue = group.options[0] || '';
+    if (value && value !== defaultValue) {
+      count += 1;
+    }
+  });
+  return count;
 }
 
 function formatDayKey(date: Date) {

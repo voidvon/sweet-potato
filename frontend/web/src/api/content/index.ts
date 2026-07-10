@@ -339,9 +339,24 @@ export function renameVideoTask(id: string, payload: { userId: string; title: st
   });
 }
 
-export function listVideoProductions(userId: string) {
+export function listVideoProductions(userId: string, filters: {
+  search?: string;
+  time?: string;
+  status?: string;
+} = {}) {
   void userId;
-  return request<VideoGenerationTask[]>(Api.videoProductions);
+  const params = new URLSearchParams();
+  if (filters.search?.trim()) {
+    params.set('search', filters.search.trim());
+  }
+  if (filters.time?.trim() && filters.time !== '全部时间') {
+    params.set('time', filters.time.trim());
+  }
+  if (filters.status?.trim() && filters.status !== '全部状态') {
+    params.set('status', filters.status.trim());
+  }
+  const query = params.toString();
+  return request<VideoGenerationTask[]>(query ? `${Api.videoProductions}?${query}` : Api.videoProductions);
 }
 
 export function createVideoProduction(payload: {

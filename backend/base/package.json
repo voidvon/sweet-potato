@@ -17,6 +17,7 @@
     "@volcengine/tos-sdk": "^2.9.1",
     "better-sqlite3": "12.5.0",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.21",
     "express": "^5.2.1",
     "jsonrepair": "^3.14.0",
     "multer": "^2.1.1",

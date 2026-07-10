@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TosClient } from '@volcengine/tos-sdk';
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import {
   volcengineTosConfig,
   volcengineRealPersonConfig,
@@ -52,6 +54,8 @@ import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerati
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
+
+dayjs.extend(customParseFormat);
 
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) {
@@ -538,6 +542,71 @@ function clearTemporaryCharacterReferenceContext(task: VideoGenerationTask) {
       updatedAt: new Date().toISOString(),
     },
   }) || task;
+}
+
+function normalizeVideoProductionSearch(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  const dateMatch = raw.match(/(\d{4})\s*(?:年|-|\/|\.|年\s*)\s*(\d{1,2})\s*(?:月|-|\/|\.)\s*(\d{1,2})\s*(?:日|号)?/);
+  if (!dateMatch?.[0]) {
+    return raw;
+  }
+  const parsed = dayjs(`${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`, 'YYYY-M-D', true);
+  if (!parsed.isValid()) {
+    return raw;
+  }
+  const normalizedDate = parsed.format('YYYY-MM-DD');
+  return raw.replace(dateMatch[0], normalizedDate);
+}
+
+function videoProductionTimeRange(filter: unknown): {
+  updatedAtFrom?: string;
+  updatedAtTo?: string;
+} {
+  const value = String(filter || '').trim();
+  if (!value || value === '全部时间') {
+    return {};
+  }
+  const now = dayjs();
+  if (value === '今天') {
+    return { updatedAtFrom: now.startOf('day').toISOString() };
+  }
+  if (value === '近 7 天') {
+    return { updatedAtFrom: now.subtract(7, 'day').toISOString() };
+  }
+  if (value === '近 30 天') {
+    return { updatedAtFrom: now.subtract(30, 'day').toISOString() };
+  }
+  return {};
+}
+
+function videoProductionStatusLabel(task: VideoGenerationTask) {
+  const result = task.editableParseResult.videoGenerationResult
+    || (isRecord(task.expertContext?.videoGenerationResult) ? task.expertContext.videoGenerationResult as VideoGenerationResult : undefined);
+  const isOrphanPending = task.status !== 'generating'
+    && !task.generatedVideoUrl
+    && !result?.videoUrl
+    && !String(result?.jobId || '').trim()
+    && (result?.status === 'pending' || result?.renderStatus === 'queued');
+  if (task.generatedVideoUrl || result?.videoUrl) {
+    return '已完成';
+  }
+  if (task.status === 'failed' || result?.status === 'failed' || isOrphanPending) {
+    return '失败';
+  }
+  return '生成中';
+}
+
+function filterVideoProductionsOnServer(tasks: VideoGenerationTask[], input: {
+  status?: unknown;
+}) {
+  const status = String(input.status || '').trim();
+  if (!status || status === '全部状态') {
+    return tasks;
+  }
+  return tasks.filter((task) => videoProductionStatusLabel(task) === status);
 }
 
 async function waitForVirtualPortraitAssetReady(input: {
@@ -1412,11 +1481,21 @@ export const contentService = {
     return filterAssetsByPermissions(input.actor, assets);
   },
 
-  async listVideoProductions(userId: string) {
+  async listVideoProductions(userId: string, filters: {
+    search?: unknown;
+    time?: unknown;
+    status?: unknown;
+  } = {}) {
     assertUserId(userId);
+    const timeRange = videoProductionTimeRange(filters.time);
     const tasks = contentRepository
-      .listVideoTasks(userId)
-      .filter((task) => task.expertContext?.mode === 'video_create');
+      .listVideoTasks(userId, {
+        mode: 'video_create',
+        search: normalizeVideoProductionSearch(filters.search),
+        updatedAtFrom: timeRange.updatedAtFrom,
+        updatedAtTo: timeRange.updatedAtTo,
+        limit: 500,
+      });
     const refreshed = await Promise.all(tasks.map(async (task) => {
       try {
         const nextTask = await refreshVideoTaskGenerationStatus(task);
@@ -1437,7 +1516,10 @@ export const contentService = {
         return task;
       }
     }));
-    return refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task));
+    return filterVideoProductionsOnServer(
+      refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
+      { status: filters.status },
+    );
   },
 
   async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
