@@ -118,8 +118,8 @@ select_package_environment() {
       VITE_API_BASE_URL=""
       WEB_ASSET_BASE="/"
       WEB_ROUTER_BASENAME=""
-      ADMIN_ASSET_BASE="/"
-      ADMIN_ROUTER_BASENAME=""
+      ADMIN_ASSET_BASE="/admin/"
+      ADMIN_ROUTER_BASENAME="/admin"
       BASE_WORKER_URL="http://ai-worker:7073"
       BASE_EXTRA_HOSTS=""
       CONTENT_PUBLIC_BASE_URL="${CONTENT_PUBLIC_BASE_URL:-https://ai.0122.vip}"
@@ -363,6 +363,10 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 300s;
+  }
+
+  location = /admin {
+    return 301 /admin/;
   }
 
   location /admin/ {

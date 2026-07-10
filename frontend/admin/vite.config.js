@@ -6,10 +6,9 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export default defineConfig(({ command }) => {
-  const isBuild = command === 'build';
-  const base = process.env.VITE_ADMIN_ASSET_BASE || (isBuild ? '/admin/' : './');
-  const routerBasename = process.env.VITE_ADMIN_ROUTER_BASENAME ?? (isBuild ? '/admin' : '');
+export default defineConfig(() => {
+  const base = process.env.VITE_ADMIN_ASSET_BASE || '/admin/';
+  const routerBasename = process.env.VITE_ADMIN_ROUTER_BASENAME ?? '/admin';
   const devPort = Number(process.env.ADMIN_FRONTEND_PORT || process.env.FRONTEND_PORT || 9528);
 
   return {
