@@ -881,33 +881,35 @@ export function ClawDialogComposer({
         </footer>
       </div>
 
-      <div className="claw-feature-grid">
-        {visibleModeCards.map((item) => {
-          const FeatureIcon = item.Icon;
+      {showHeading ? (
+        <div className="claw-feature-grid">
+          {visibleModeCards.map((item) => {
+            const FeatureIcon = item.Icon;
 
-          return (
-            <button
-              className={`claw-feature-card${item.key === selectedModeKey ? ' selected' : ''}`}
-              key={item.key}
-              onClick={() => setSelectedModeKey(item.key)}
-              type="button"
-            >
-              <span className="claw-feature-icon">
-                <FeatureIcon size={14} />
-              </span>
-              <span className="claw-feature-copy">
-                <strong>{item.title}</strong>
-                <small>{item.description}</small>
-              </span>
-              {item.key === selectedModeKey ? (
-                <span className="claw-feature-check">
-                  <Check size={10} strokeWidth={3} />
+            return (
+              <button
+                className={`claw-feature-card${item.key === selectedModeKey ? ' selected' : ''}`}
+                key={item.key}
+                onClick={() => setSelectedModeKey(item.key)}
+                type="button"
+              >
+                <span className="claw-feature-icon">
+                  <FeatureIcon size={14} />
                 </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+                <span className="claw-feature-copy">
+                  <strong>{item.title}</strong>
+                  <small>{item.description}</small>
+                </span>
+                {item.key === selectedModeKey ? (
+                  <span className="claw-feature-check">
+                    <Check size={10} strokeWidth={3} />
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </section>
   );
 }
