@@ -1743,10 +1743,11 @@
   flex-direction: column;
   gap: 11px;
   padding: 12px;
-  position: fixed;
+  position: absolute;
   right: 24px;
-  top: 104px;
+  top: 64px;
   width: 286px;
+  z-index: 130;
 }
 
 .video-task-search {
@@ -2166,10 +2167,8 @@
   gap: 8px;
   height: 36px;
   padding: 0 14px;
-  position: fixed;
-  right: 24px;
-  top: 58px;
-  z-index: 120;
+  position: static;
+  z-index: 1;
 }
 
 .video-task-filter.has-filters {

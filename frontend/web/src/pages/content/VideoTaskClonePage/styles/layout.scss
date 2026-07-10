@@ -1322,6 +1322,9 @@
 @media (max-width: 1120px) {
   .video-task-clone-page {
     grid-template-columns: 1fr;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .video-task-left {
@@ -1339,10 +1342,12 @@
 
   .video-task-result {
     min-height: 60vh;
+    overflow: visible;
   }
 
   .video-task-result-flow {
     max-height: none;
+    overflow: visible;
   }
 }
 
