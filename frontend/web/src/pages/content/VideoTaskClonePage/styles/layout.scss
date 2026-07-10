@@ -1237,72 +1237,67 @@
 }
 
 .video-task-result-actions {
-  min-height: 34px;
+  min-height: 24px;
 }
 
 .video-task-result-action-row {
   align-items: center;
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: space-between;
 }
 
-.video-task-result-retry,
-.video-task-result-delete,
 .video-task-result-footnote {
   align-items: center;
   display: inline-flex;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   gap: 5px;
 }
 
-.video-task-result-retry {
-  background: #f6f8fb;
-  border: 1px solid #e6edf5;
-  border-radius: 12px;
-  color: #54657f;
-  cursor: pointer;
-  min-height: 34px;
-  padding: 0 14px;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+.video-task-result-retry.ant-btn,
+.video-task-result-more.ant-btn {
+  background: #f4f5f7;
+  border-color: transparent;
+  box-shadow: none;
+  color: #344054;
+  font-size: 12px;
 }
 
-.video-task-result-retry:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #d5dee9;
-  color: #1f2937;
+.video-task-result-retry.ant-btn {
+  border-radius: 8px;
+  height: 24px;
+  padding: 0 8px;
 }
 
-.video-task-result-delete:disabled,
-.video-task-result-retry:disabled {
-  cursor: default;
-  opacity: 0.68;
+.video-task-result-more.ant-btn {
+  border-radius: 8px;
+  height: 24px;
+  margin-left: auto;
+  min-width: 24px;
+  width: 24px;
 }
 
-.video-task-result-delete {
-  background: #fff;
-  border: 1px solid #fde2e2;
-  border-radius: 12px;
-  color: #dc2626;
-  cursor: pointer;
-  flex: 0 0 34px;
-  height: 34px;
-  justify-content: center;
-  padding: 0;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+.video-task-result-retry.ant-btn:hover,
+.video-task-result-more.ant-btn:hover {
+  background: #eceff3;
+  border-color: transparent;
+  color: #182230;
 }
 
-.video-task-result-delete:hover:not(:disabled) {
-  background: #fff5f5;
-  border-color: #fecaca;
-  color: #b91c1c;
+.video-task-result-retry.ant-btn .anticon,
+.video-task-result-more.ant-btn .anticon,
+.video-task-result-retry.ant-btn svg,
+.video-task-result-more.ant-btn svg {
+  font-size: 12px;
+  height: 12px;
+  width: 12px;
 }
 
 .video-task-result-footnote {
   color: #94a3b8;
   font-weight: 600;
-  min-height: 34px;
+  min-height: 24px;
 }
 
 .video-task-result-footnote.is-success {
@@ -1311,6 +1306,24 @@
 
 .video-task-result-footnote.is-running {
   color: #4f46e5;
+}
+
+.video-task-result-more-menu .ant-dropdown-menu {
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+  padding: 8px;
+}
+
+.video-task-result-more-menu .ant-dropdown-menu-item {
+  border-radius: 8px;
+  font-size: 14px;
+  gap: 8px;
+  min-width: 112px;
+  padding: 9px 12px;
+}
+
+.video-task-result-more-menu .ant-dropdown-menu-item-danger {
+  color: #ef1f25;
 }
 
 @media (max-width: 1200px) {
