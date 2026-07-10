@@ -247,15 +247,17 @@ export function ResultPanel({
                                 <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
                               )}
 
-                              <button
-                                aria-label="删除记录"
-                                className="video-task-result-delete"
-                                disabled={isDeleting || isRetrying}
-                                onClick={() => onDelete(task)}
-                                type="button"
-                              >
-                                {isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <Trash2 size={14} />}
-                              </button>
+                              {state.kind !== 'running' ? (
+                                <button
+                                  aria-label="删除记录"
+                                  className="video-task-result-delete"
+                                  disabled={isDeleting || isRetrying}
+                                  onClick={() => onDelete(task)}
+                                  type="button"
+                                >
+                                  {isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <Trash2 size={14} />}
+                                </button>
+                              ) : null}
                             </div>
                           </div>
                         </div>

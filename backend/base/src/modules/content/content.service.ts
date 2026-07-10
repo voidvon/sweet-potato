@@ -609,6 +609,58 @@ function filterVideoProductionsOnServer(tasks: VideoGenerationTask[], input: {
   return tasks.filter((task) => videoProductionStatusLabel(task) === status);
 }
 
+function appendVideoProductionFailureHistory(
+  nextContext: Record<string, unknown>,
+  previousTask: VideoGenerationTask | null,
+) {
+  if (!previousTask || previousTask.status !== 'failed') {
+    return nextContext;
+  }
+  const previousContext = isRecord(previousTask.expertContext) ? previousTask.expertContext : {};
+  const previousResult = generationResultForTask(previousTask);
+  const existingHistory = Array.isArray(previousContext.failureHistory)
+    ? previousContext.failureHistory.filter(isRecord)
+    : [];
+  const failedAt = previousTask.updatedAt || new Date().toISOString();
+  const snapshot = {
+    taskId: previousTask.id,
+    failedAt,
+    failureReason: previousTask.failureReason || previousResult?.errorMessage || '',
+    status: previousTask.status,
+    title: previousTask.title,
+    prompt: previousTask.prompt,
+    generatedVideoUrl: previousTask.generatedVideoUrl,
+    videoGenerationResult: previousResult,
+    context: {
+      mode: previousContext.mode,
+      ratio: previousContext.ratio,
+      duration: previousContext.duration,
+      quality: previousContext.quality,
+      videoModelProviderId: previousContext.videoModelProviderId,
+      videoModelId: previousContext.videoModelId,
+      currentStep: previousContext.currentStep,
+      requiredUserAction: previousContext.requiredUserAction,
+      temporaryCharacterReferenceGroupId: previousContext.temporaryCharacterReferenceGroupId,
+      temporaryCharacterReferenceAssetIds: previousContext.temporaryCharacterReferenceAssetIds,
+      referenceImageIds: previousContext.referenceImageIds,
+      referenceVideoIds: previousContext.referenceVideoIds,
+      referenceAudioIds: previousContext.referenceAudioIds,
+    },
+  };
+  const snapshotKey = `${snapshot.taskId}:${previousResult?.jobId || failedAt}`;
+  const nextHistory = existingHistory
+    .filter((item) => {
+      const result = isRecord(item.videoGenerationResult) ? item.videoGenerationResult : {};
+      return `${String(item.taskId || '')}:${String(result.jobId || item.failedAt || '')}` !== snapshotKey;
+    })
+    .slice(-9);
+  nextHistory.push(snapshot);
+  return {
+    ...nextContext,
+    failureHistory: nextHistory,
+  };
+}
+
 async function waitForVirtualPortraitAssetReady(input: {
   assetId: string;
   userId: string;
@@ -2390,6 +2442,9 @@ export const contentService = {
       };
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
       const shouldReuseRetryTask = retryTask?.status === 'failed';
+      const nextExpertContext = shouldReuseRetryTask
+        ? appendVideoProductionFailureHistory(expertContext, retryTask)
+        : expertContext;
       const task = shouldReuseRetryTask
         ? contentRepository.resetVideoTaskFromPrompt(retryTask.id, {
           userId: payload.userId,
@@ -2397,7 +2452,7 @@ export const contentService = {
           selectedSkillIds: retryTask.selectedSkillIds,
           title,
           parseResult,
-          expertContext,
+          expertContext: nextExpertContext,
         })
         : contentRepository.createVideoTaskFromPrompt({
           userId: payload.userId,
@@ -2405,7 +2460,7 @@ export const contentService = {
           selectedSkillIds: [],
           title,
           parseResult,
-          expertContext,
+          expertContext: nextExpertContext,
         });
       if (!task) {
         throw new Error('视频制作任务创建失败');
