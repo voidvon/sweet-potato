@@ -476,6 +476,19 @@ export function ChatMessageList({
     return config?.name || config?.model || '';
   }
 
+  function imageGenerationModelLabel(
+    messageItem: ChatMessage,
+    previousUserMessage: ChatMessage | undefined,
+    imageGeneration: ImageGenerationContext | undefined,
+  ) {
+    const modelName = imageModelName(messageItem, previousUserMessage);
+    const outputRequirement = [imageGeneration?.aspectRatio, imageGeneration?.resolution]
+      .map((value) => value?.trim())
+      .filter(Boolean)
+      .join(' ');
+    return [modelName, outputRequirement].filter(Boolean).join(' · ');
+  }
+
   function renderImageGenerationModeTag(imageGeneration: ImageGenerationContext | undefined) {
     const modeTitle = imageGeneration?.modeTitle || '图片生成';
     return <Tag className="chat-image-generation-mode-tag">{modeTitle}</Tag>;
@@ -483,29 +496,54 @@ export function ChatMessageList({
 
   function renderImageGenerationHeader(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
     const imageGeneration = previousUserMessage?.capabilityContext?.imageGeneration || messageItem.capabilityContext?.imageGeneration;
-    const modelName = imageModelName(messageItem, previousUserMessage);
+    const modelLabel = imageGenerationModelLabel(messageItem, previousUserMessage, imageGeneration);
     return (
       <div className="chat-image-generation-header">
         {renderImageGenerationModeTag(imageGeneration)}
-        {modelName ? <span className="chat-image-generation-model-name">{modelName}</span> : null}
+        {modelLabel ? <span className="chat-image-generation-model-name">{modelLabel}</span> : null}
         <time dateTime={messageItem.createdAt}>{formatRelativeCalendarDateTime(messageItem.createdAt)}</time>
       </div>
     );
   }
 
-  function imageGenerationCellClassName(attachment?: ChatAttachment) {
+  function imageGenerationAspectRatio(
+    attachment?: ChatAttachment,
+    imageGeneration?: ImageGenerationContext,
+  ) {
+    if (attachment?.width && attachment.height) {
+      return `${attachment.width} / ${attachment.height}`;
+    }
+    const outputSizeMatch = imageGeneration?.outputSize?.match(/^\s*(\d+)\s*[x×]\s*(\d+)\s*$/i);
+    if (outputSizeMatch) {
+      return `${outputSizeMatch[1]} / ${outputSizeMatch[2]}`;
+    }
+    const aspectRatioMatch = imageGeneration?.aspectRatio?.match(/^\s*(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)\s*$/);
+    if (aspectRatioMatch) {
+      return `${aspectRatioMatch[1]} / ${aspectRatioMatch[2]}`;
+    }
+    return '';
+  }
+
+  function imageGenerationCellClassName(
+    attachment?: ChatAttachment,
+    imageGeneration?: ImageGenerationContext,
+  ) {
     return [
       'chat-image-generation-cell',
-      attachment?.width && attachment.height ? 'has-intrinsic-size' : '',
+      imageGenerationAspectRatio(attachment, imageGeneration) ? 'has-intrinsic-size' : '',
     ].filter(Boolean).join(' ');
   }
 
-  function imageGenerationCellStyle(attachment?: ChatAttachment): ImageGenerationCellStyle | undefined {
-    if (!attachment?.width || !attachment.height) {
+  function imageGenerationCellStyle(
+    attachment?: ChatAttachment,
+    imageGeneration?: ImageGenerationContext,
+  ): ImageGenerationCellStyle | undefined {
+    const aspectRatio = imageGenerationAspectRatio(attachment, imageGeneration);
+    if (!aspectRatio) {
       return undefined;
     }
     return {
-      '--chat-image-aspect-ratio': `${attachment.width} / ${attachment.height}`,
+      '--chat-image-aspect-ratio': aspectRatio,
     };
   }
 
@@ -526,6 +564,7 @@ export function ChatMessageList({
             const imageGenerationFailures = item.imageGenerationFailures || [];
             const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
             const previousImageGenerationContext = previousUserMessage?.capabilityContext?.imageGeneration;
+            const imageGenerationContext = previousImageGenerationContext || item.capabilityContext?.imageGeneration;
             const isImageGenerationAssistant = item.role === 'assistant'
               && (
                 item.capability === 'image_generation'
@@ -608,9 +647,9 @@ export function ChatMessageList({
                             const failure = imageGenerationFailureBySlot.get(index);
                             return attachment ? (
                               <div
-                                className={imageGenerationCellClassName(attachment)}
+                                className={imageGenerationCellClassName(attachment, imageGenerationContext)}
                                 key={attachment.id}
-                                style={imageGenerationCellStyle(attachment)}
+                                style={imageGenerationCellStyle(attachment, imageGenerationContext)}
                               >
                                 <Image
                                   alt={attachment.name}
@@ -621,14 +660,22 @@ export function ChatMessageList({
                                 />
                               </div>
                             ) : failure || isLegacyImageGenerationFailed ? (
-                              <div className="chat-image-generation-cell failed" key={`failed-${index}`}>
+                              <div
+                                className={`${imageGenerationCellClassName(undefined, imageGenerationContext)} failed`}
+                                key={`failed-${index}`}
+                                style={imageGenerationCellStyle(undefined, imageGenerationContext)}
+                              >
                                 <Tooltip title={failure?.message || answerContent || '图片生成失败'}>
                                   <CloseCircleOutlined className="chat-image-generation-failed-icon" />
                                 </Tooltip>
                                 <span>生成失败</span>
                               </div>
                             ) : (
-                              <div className="chat-image-generation-cell loading" key={`loading-${index}`}>
+                              <div
+                                className={`${imageGenerationCellClassName(undefined, imageGenerationContext)} loading`}
+                                key={`loading-${index}`}
+                                style={imageGenerationCellStyle(undefined, imageGenerationContext)}
+                              >
                                 <span />
                               </div>
                             );
