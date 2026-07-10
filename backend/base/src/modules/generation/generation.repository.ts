@@ -97,6 +97,33 @@ function recountJob(jobId: string, status?: GenerationJobStatus, error?: string 
 }
 
 export const generationRepository = {
+  listIncompleteImageJobs() {
+    const rows = db.prepare(`
+      SELECT
+        id,
+        user_id as userId,
+        kind,
+        source_module as sourceModule,
+        conversation_id as conversationId,
+        user_message_id as userMessageId,
+        assistant_message_id as assistantMessageId,
+        status,
+        expected_count as expectedCount,
+        completed_count as completedCount,
+        failed_count as failedCount,
+        payload,
+        result,
+        error,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM generation_jobs
+      WHERE kind = 'image'
+        AND status IN ('queued', 'running')
+      ORDER BY created_at ASC
+    `).all() as GenerationJobRow[];
+    return rows.map(parseJob);
+  },
+
   createJob(input: {
     userId: string;
     kind: GenerationJob['kind'];
@@ -274,4 +301,3 @@ export const generationRepository = {
     return this.findJob(input.jobId);
   },
 };
-
