@@ -86,3 +86,24 @@
   text-align: center;
   z-index: 2;
 }
+
+.image-attachment-uploading {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.42);
+  color: #ffffff;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  z-index: 3;
+}
+
+.image-attachment-uploading svg {
+  animation: image-attachment-upload-spin 0.9s linear infinite;
+}
+
+@keyframes image-attachment-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

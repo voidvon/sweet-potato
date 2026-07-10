@@ -1,4 +1,5 @@
 import { Image } from 'antd';
+import { LoaderCircle } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
@@ -54,7 +55,7 @@ export function ImageAttachmentStack({
               className="image-attachment-grid-image"
               height="100%"
               preview={false}
-              src={resolveAssetUrl(attachment.url)}
+              src={resolveAssetUrl(attachment.previewUrl || attachment.url)}
               style={{ objectFit: 'contain' }}
               width="100%"
             />
@@ -111,6 +112,11 @@ export function ImageAttachmentStack({
                 <span className="image-attachment-stack-index">图{number}</span>
               ) : null}
               {isTopImage && renderTopAction ? renderTopAction(attachment) : null}
+              {attachment.uploadStatus === 'uploading' ? (
+                <span aria-label="图片上传中" className="image-attachment-uploading">
+                  <LoaderCircle size={15} />
+                </span>
+              ) : null}
             </span>
             <span className="image-attachment-stack-mask">
               <Image
@@ -118,7 +124,7 @@ export function ImageAttachmentStack({
                 className="image-attachment-stack-image"
                 height="100%"
                 preview={false}
-                src={resolveAssetUrl(attachment.url)}
+                src={resolveAssetUrl(attachment.previewUrl || attachment.url)}
                 style={{ objectFit: 'cover' }}
                 width="100%"
               />

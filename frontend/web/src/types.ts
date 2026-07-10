@@ -40,6 +40,9 @@ export type ChatAttachment = {
   width?: number;
   height?: number;
   imageGenerationSlotIndex?: number;
+  clientGroupKey?: string;
+  previewUrl?: string;
+  uploadStatus?: 'uploading';
 };
 
 export type ChatImageGenerationFailure = {
