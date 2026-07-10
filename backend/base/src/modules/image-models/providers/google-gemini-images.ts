@@ -12,11 +12,13 @@ export const googleGeminiImagesProvider: ImageModelProvider = {
   defaultSettings: {
     imageGeneration: {
       adapter: 'gemini',
+      supportsCustomResolution: true,
     },
   },
   models: [
     { id: 'gemini-3-pro-image-preview', name: 'Gemini 3 Pro Image Preview', description: 'Gemini Pro 图片生成预览模型，支持文本和参考图输入。' },
     { id: 'gemini-3.1-flash-image-preview', name: 'Gemini 3.1 Flash Image Preview', description: 'Gemini Flash 图片生成预览模型，支持文本和参考图输入。' },
     { id: 'gemini-3.1-flash-image', name: 'Gemini 3.1 Flash Image', description: 'Gemini Flash 图片生成模型，支持文本和参考图输入。' },
+    { id: 'gemini-3.1-flash-lite-image', name: 'Gemini 3.1 Flash Lite Image', description: '低延迟图片生成模型，支持文本和参考图输入，固定输出 1K。' },
   ],
 };

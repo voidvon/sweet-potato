@@ -20,9 +20,11 @@ export type ImageGenerationProviderRequest = {
   background?: string;
   modelConfig: AiModelConfig;
   modeKey?: string;
+  outputAspectRatio?: string;
   outputCount: number;
   outputCompression?: number;
   outputFormat?: string;
+  outputResolution?: string;
   outputSize?: string;
   prompt: string;
   referenceAssets: ImageGenerationReferenceAsset[];
@@ -448,6 +450,22 @@ function geminiErrorMessage(status: number, data: unknown, preview: string) {
   return preview || `Gemini 图片模型请求失败：${status}`;
 }
 
+export function resolveGeminiImageConfig(model: string, resolution?: string, aspectRatio?: string) {
+  const normalizedModel = model.replace(/^models\//, '').trim();
+  const isFlash = normalizedModel === 'gemini-3.1-flash-image';
+  const isFlashLite = normalizedModel === 'gemini-3.1-flash-lite-image';
+  if (!isFlash && !isFlashLite) {
+    return undefined;
+  }
+  const imageSize = isFlashLite
+    ? '1K'
+    : resolution === '4K' ? '4K' : resolution === '1K' ? '1K' : '2K';
+  return {
+    ...(aspectRatio && aspectRatio !== 'auto' ? { aspectRatio } : {}),
+    imageSize,
+  };
+}
+
 async function parseGeminiGeneratedImageResponse(response: Response, config: { model: string }): Promise<ImageGenerationProviderResult> {
   const text = await response.text();
   const compactText = text.replace(/\s+/g, ' ').trim();
@@ -500,6 +518,11 @@ const geminiProviderAdapter: ImageGenerationProviderAdapter = {
     return Promise.all(Array.from({ length: input.outputCount }, async (_, index) => {
       const sourceId = `${input.sourceIdPrefix}-${index + 1}`;
       const generated = await withSpecificImageModelTimeout(input.modelConfig, async ({ config, signal }) => {
+        const imageConfig = resolveGeminiImageConfig(
+          config.model,
+          input.outputResolution,
+          input.outputAspectRatio,
+        );
         const referenceParts = await Promise.all(input.referenceAssets.map(async (asset) => {
           const bytes = await readFile(asset.filePath);
           return {
@@ -527,6 +550,7 @@ const geminiProviderAdapter: ImageGenerationProviderAdapter = {
             }],
             generationConfig: {
               responseModalities: ['TEXT', 'IMAGE'],
+              ...(imageConfig ? { imageConfig } : {}),
             },
           }),
         });
@@ -545,6 +569,8 @@ const geminiProviderAdapter: ImageGenerationProviderAdapter = {
           referenceAssetCount: input.referenceAssets.length,
           requestMode: input.referenceAssets.length ? 'gemini_generate_content_with_references' : 'gemini_generate_content',
           referenceDecision: input.referenceDecision,
+          aspectRatio: input.outputAspectRatio,
+          resolution: input.outputResolution,
           size: input.outputSize,
         },
         responseSnapshot: {
