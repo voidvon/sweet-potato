@@ -129,7 +129,7 @@ Dev services are starting:
   Node backend:     http://localhost:${BACKEND_PORT:-7072}
   Frontend:         http://localhost:${FRONTEND_PORT:-9527}/
   Automation entry: http://localhost:${FRONTEND_PORT:-9527}/app/automation
-  Admin:            http://localhost:${FRONTEND_ADMIN_PORT:-9528}/
+  Admin:            http://localhost:${FRONTEND_PORT:-9527}/admin/
 
 Press Ctrl+C to stop all services started by this script.
 INFO

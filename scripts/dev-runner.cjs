@@ -375,7 +375,7 @@ function printSummary() {
   log(`  Frontend:         http://localhost:${ports.frontend}/`);
   log(`  Automation entry: http://localhost:${ports.frontend}/app/automation`);
   if (mode === 'electron') {
-    log(`  Admin:            http://localhost:${ports.frontendAdmin}/`);
+    log(`  Admin:            http://localhost:${ports.frontend}/admin/`);
   }
   log('');
   log('Press Ctrl+C to stop all services started by this script.');
