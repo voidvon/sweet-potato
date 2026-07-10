@@ -312,9 +312,15 @@ export function recordVideoGenerationUsageIfNeeded(input: {
     : input.duration
       ? seedanceDurationSeconds(input.duration, modelOption, config.settings)
       : modelOption.durationPolicy.defaultSeconds;
+  const billingModelConfig = {
+    ...config,
+    id: modelOption.id,
+    name: modelOption.name,
+    model: modelOption.id,
+  };
   return recordVideoGenerationUsage({
     userId: input.userId,
-    modelConfig: config,
+    modelConfig: billingModelConfig,
     sourceType: input.sourceType,
     sourceId,
     taskId: input.taskId,

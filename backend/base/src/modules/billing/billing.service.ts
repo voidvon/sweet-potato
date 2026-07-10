@@ -124,8 +124,26 @@ function stringFromRecord(record: Record<string, unknown>, keys: string[]) {
   return '';
 }
 
+function displayNameForModelId(model?: string | null) {
+  const value = String(model || '').trim();
+  const names: Record<string, string> = {
+    'doubao-seedance-2-0-260128': 'Seedance 2.0',
+    'doubao-seedance-2-0-fast-260128': 'Seedance 2.0 Fast',
+    'doubao-seedance-2-0-mini-260615': 'Seedance 2.0 Mini',
+  };
+  return names[value] || value;
+}
+
 function modelNameForLedgerEntry(entry: CreditLedgerEntry) {
   if (isRecord(entry.snapshot)) {
+    const category = stringFromRecord(entry.snapshot, ['category']);
+    if (category === 'video_generation' && entry.sourceId) {
+      const billableRecord = billingRepository.findBillableUsageRecordByCategoryAndSourceId('video_generation', entry.sourceId);
+      const modelName = displayNameForModelId(billableRecord?.model);
+      if (modelName) {
+        return modelName;
+      }
+    }
     const direct = stringFromRecord(entry.snapshot, ['modelName']);
     if (direct) {
       return direct;
