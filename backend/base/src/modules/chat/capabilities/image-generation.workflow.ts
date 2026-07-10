@@ -32,6 +32,7 @@ type ImageGenerationPreparedInput = {
   modelConfig: AiModelConfig;
   modeKey: string;
   modeTitle: string;
+  outputAspectRatio?: string;
   outputCount: number;
   outputSize?: string;
   requestedResolution?: string;
@@ -77,7 +78,7 @@ type ImageGenerationModeOptions = {
   businessOutputFormats?: string[];
 };
 
-type ImageGenerationResolutionKey = '2K' | '4K';
+type ImageGenerationResolutionKey = '1K' | '2K' | '4K';
 
 type ImageGenerationOutputConfig = {
   allowedOutputCounts: number[];
@@ -101,6 +102,7 @@ const defaultOutputConfig: ImageGenerationOutputConfig = {
   defaultOutputCount: 1,
   defaultResolution: '2K',
   maxLongEdgeByResolution: {
+    '1K': 1024,
     '2K': 2048,
     '4K': 4096,
   },
@@ -621,7 +623,11 @@ function imageModelSupportsCustomResolution(modelConfig: AiModelConfig) {
   const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
     ? settings.imageGeneration as Record<string, unknown>
     : {};
-  return imageGeneration.supportsCustomResolution === true;
+  return imageGeneration.supportsCustomResolution === true
+    || (
+      modelConfig.provider === 'google-gemini-images'
+      && ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'].includes(modelConfig.model.replace(/^models\//, ''))
+    );
 }
 
 function referenceGroupsBySchema(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema) {
@@ -921,6 +927,17 @@ function gcd(a: number, b: number): number {
 }
 
 const seedreamOutputSizes: Record<ImageGenerationResolutionKey, Record<string, string>> = {
+  '1K': {
+    auto: '1024x1024',
+    '21:9': '1568x672',
+    '16:9': '1312x736',
+    '3:2': '1248x832',
+    '4:3': '1152x864',
+    '1:1': '1024x1024',
+    '3:4': '864x1152',
+    '2:3': '832x1248',
+    '9:16': '736x1312',
+  },
   '2K': {
     auto: '2048x2048',
     '21:9': '3136x1344',
@@ -978,9 +995,18 @@ function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: Im
   }
   const outputConfig = imageGenerationOutputConfigOf(modeSchema);
   const requestedResolution = cleanText(input.capabilityContext?.imageGeneration?.resolution) as ImageGenerationResolutionKey | '';
-  const resolution = outputConfig.allowedResolutions.includes(requestedResolution as ImageGenerationResolutionKey)
+  let resolution = outputConfig.allowedResolutions.includes(requestedResolution as ImageGenerationResolutionKey)
     ? requestedResolution as ImageGenerationResolutionKey
     : outputConfig.defaultResolution;
+  if (modelConfig.provider === 'google-gemini-images') {
+    const normalizedModel = modelConfig.model.replace(/^models\//, '');
+    if (normalizedModel === 'gemini-3.1-flash-lite-image') {
+      return { outputSize: undefined, resolution: '1K' as const };
+    } else if (normalizedModel === 'gemini-3.1-flash-image') {
+      resolution = ['1K', '2K', '4K'].includes(requestedResolution) ? requestedResolution as ImageGenerationResolutionKey : '1K';
+      return { outputSize: undefined, resolution };
+    }
+  }
   if (modelConfig.provider === 'volcengine-seedream') {
     const seedreamOutput = resolveSeedreamOutputSize(
       modelConfig.model,
@@ -1108,6 +1134,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     modelConfig,
     modeKey: modeSchema.key,
     modeTitle: cleanText(input.capabilityContext?.imageGeneration?.modeTitle) || modeSchema.title,
+    outputAspectRatio: cleanText(input.capabilityContext?.imageGeneration?.aspectRatio) || 'auto',
     outputCount,
     outputSize: normalizedOutput.outputSize,
     requestedResolution: normalizedOutput.resolution,
@@ -1137,6 +1164,8 @@ async function generateImageItems(input: {
         outputCount: 1,
         outputCompression: prepared.generationOptions?.outputCompression,
         outputFormat: prepared.generationOptions?.outputFormat,
+        outputAspectRatio: prepared.outputAspectRatio,
+        outputResolution: prepared.requestedResolution,
         outputSize: prepared.outputSize,
         prompt: [
           redrawPrompt,
@@ -1162,6 +1191,8 @@ async function generateImageItems(input: {
         outputCount: 1,
         outputCompression: prepared.generationOptions?.outputCompression,
         outputFormat: prepared.generationOptions?.outputFormat,
+        outputAspectRatio: prepared.outputAspectRatio,
+        outputResolution: prepared.requestedResolution,
         outputSize: prepared.outputSize,
         prompt: [
           prepared.prompt,
@@ -1185,6 +1216,8 @@ async function generateImageItems(input: {
     outputCount: prepared.outputCount,
     outputCompression: prepared.generationOptions?.outputCompression,
     outputFormat: prepared.generationOptions?.outputFormat,
+    outputAspectRatio: prepared.outputAspectRatio,
+    outputResolution: prepared.requestedResolution,
     outputSize: prepared.outputSize,
     prompt: prepared.prompt,
     referenceAssets: prepared.referenceAssets,
@@ -1312,6 +1345,8 @@ async function generateAndPersistImageAttachments(input: {
         outputCount: 1,
         outputCompression: prepared.generationOptions?.outputCompression,
         outputFormat: prepared.generationOptions?.outputFormat,
+        outputAspectRatio: prepared.outputAspectRatio,
+        outputResolution: prepared.requestedResolution,
         outputSize: prepared.outputSize,
         prompt: [
           redrawPrompt,
@@ -1341,6 +1376,8 @@ async function generateAndPersistImageAttachments(input: {
         outputCount: 1,
         outputCompression: prepared.generationOptions?.outputCompression,
         outputFormat: prepared.generationOptions?.outputFormat,
+        outputAspectRatio: prepared.outputAspectRatio,
+        outputResolution: prepared.requestedResolution,
         outputSize: prepared.outputSize,
         prompt: [
           prepared.prompt,
@@ -1368,6 +1405,8 @@ async function generateAndPersistImageAttachments(input: {
     outputCount: prepared.outputCount,
     outputCompression: prepared.generationOptions?.outputCompression,
     outputFormat: prepared.generationOptions?.outputFormat,
+    outputAspectRatio: prepared.outputAspectRatio,
+    outputResolution: prepared.requestedResolution,
     outputSize: prepared.outputSize,
     prompt: prepared.prompt,
     referenceAssets: prepared.referenceAssets,
