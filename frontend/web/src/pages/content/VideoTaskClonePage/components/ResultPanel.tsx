@@ -161,6 +161,8 @@ export function ResultPanel({
                             <button
                               className="video-task-result-thumb"
                               onClick={() => state.previewVideo && setPreviewVideo(state.previewVideo)}
+                              onMouseEnter={(event) => playMutedCardVideo(event.currentTarget)}
+                              onMouseLeave={(event) => resetCardVideo(event.currentTarget)}
                               type="button"
                             >
                               <video muted playsInline poster={state.coverUrl || undefined} preload="metadata" src={state.videoUrl} />
@@ -421,4 +423,22 @@ function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
     return '生成完成后会自动刷新。';
   }
   return normalized;
+}
+
+function playMutedCardVideo(card: HTMLElement) {
+  const video = card.querySelector('video');
+  if (!video) {
+    return;
+  }
+  video.muted = true;
+  void video.play().catch(() => undefined);
+}
+
+function resetCardVideo(card: HTMLElement) {
+  const video = card.querySelector('video');
+  if (!video) {
+    return;
+  }
+  video.pause();
+  video.currentTime = 0;
 }
