@@ -314,6 +314,41 @@ const outputSizeMap: Record<ClawResolutionKey, Record<ClawAspectRatioKey, string
     '9:16': '2304 x 4096',
   },
 };
+const seedreamOutputSizeMap: Record<ClawResolutionKey, Record<ClawAspectRatioKey, string>> = {
+  '2K': {
+    auto: '2048 x 2048',
+    '21:9': '3136 x 1344',
+    '16:9': '2848 x 1600',
+    '3:2': '2496 x 1664',
+    '4:3': '2304 x 1728',
+    '1:1': '2048 x 2048',
+    '3:4': '1728 x 2304',
+    '2:3': '1664 x 2496',
+    '9:16': '1600 x 2848',
+  },
+  '4K': {
+    auto: '4096 x 4096',
+    '21:9': '6240 x 2656',
+    '16:9': '5504 x 3040',
+    '3:2': '4992 x 3328',
+    '4:3': '4704 x 3520',
+    '1:1': '4096 x 4096',
+    '3:4': '3520 x 4704',
+    '2:3': '3328 x 4992',
+    '9:16': '3040 x 5504',
+  },
+};
+const seedreamProOutputSizeMap: Record<ClawAspectRatioKey, string> = {
+  auto: '2048 x 2048',
+  '21:9': '3108 x 1332',
+  '16:9': '2720 x 1530',
+  '3:2': '2496 x 1664',
+  '4:3': '2304 x 1728',
+  '1:1': '2048 x 2048',
+  '3:4': '1728 x 2304',
+  '2:3': '1664 x 2496',
+  '9:16': '1530 x 2720',
+};
 const visibleModeCards = featuredModeKeys
   .map((key) => clawModeConfigs.find((mode) => mode.key === key))
   .filter((mode): mode is ClawModeConfig => Boolean(mode));
@@ -594,6 +629,9 @@ export function ClawDialogComposer({
     [imageConfigs, selectedImageModel?.config, selectedImageModelValue],
   );
   const supportsCustomResolution = imageModelSupportsCustomResolution(selectedRawImageConfig);
+  const isSeedreamModel = selectedRawImageConfig?.provider === 'volcengine-seedream';
+  const isSeedream5ProModel = isSeedreamModel
+    && /^doubao-seedream-5-0-pro-/i.test(selectedRawImageConfig?.model || '');
 
   const imageModelMenuItems = selectableImageModels.length
     ? selectableImageModels.map((item) => ({
@@ -602,9 +640,16 @@ export function ClawDialogComposer({
       disabled: false,
     }))
     : [{ key: 'empty', label: '请先配置图片模型', disabled: true }];
-  const selectableResolutions = selectedOutputConfig.allowedResolutions;
+  const selectableResolutions = isSeedream5ProModel
+    ? selectedOutputConfig.allowedResolutions.filter((resolution) => resolution === '2K')
+    : selectedOutputConfig.allowedResolutions;
   const selectableOutputCounts = selectedOutputConfig.allowedOutputCounts;
-  const outputSizeLabel = outputSizeMap[selectedResolution][selectedAspectRatio];
+  const effectiveResolution = selectableResolutions.includes(selectedResolution)
+    ? selectedResolution
+    : selectedOutputConfig.defaultResolution;
+  const outputSizeLabel = isSeedream5ProModel
+    ? seedreamProOutputSizeMap[selectedAspectRatio]
+    : (isSeedreamModel ? seedreamOutputSizeMap : outputSizeMap)[effectiveResolution][selectedAspectRatio];
   const selectedBackgroundOption = backgroundOptions.find((option) => option.key === selectedBackground) || backgroundOptions[0];
   const resolvedOutputCount = outputCountStrategy === 'fixedOne'
     ? 1
@@ -690,7 +735,7 @@ export function ClawDialogComposer({
             outputCount: resolvedOutputCount,
             outputBackground: showBackgroundControl ? selectedBackground : undefined,
             aspectRatio: selectedAspectRatio,
-            resolution: supportsCustomResolution ? selectedResolution : undefined,
+            resolution: supportsCustomResolution ? effectiveResolution : undefined,
             referenceGroups: selectedMode.referenceGroups.map((group) => ({
               key: group.key,
               label: group.label,

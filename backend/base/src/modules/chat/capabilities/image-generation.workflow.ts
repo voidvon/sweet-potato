@@ -920,6 +920,55 @@ function gcd(a: number, b: number): number {
   return left || 1;
 }
 
+const seedreamOutputSizes: Record<ImageGenerationResolutionKey, Record<string, string>> = {
+  '2K': {
+    auto: '2048x2048',
+    '21:9': '3136x1344',
+    '16:9': '2848x1600',
+    '3:2': '2496x1664',
+    '4:3': '2304x1728',
+    '1:1': '2048x2048',
+    '3:4': '1728x2304',
+    '2:3': '1664x2496',
+    '9:16': '1600x2848',
+  },
+  '4K': {
+    auto: '4096x4096',
+    '21:9': '6240x2656',
+    '16:9': '5504x3040',
+    '3:2': '4992x3328',
+    '4:3': '4704x3520',
+    '1:1': '4096x4096',
+    '3:4': '3520x4704',
+    '2:3': '3328x4992',
+    '9:16': '3040x5504',
+  },
+};
+const seedreamPro2KOutputSizes: Record<string, string> = {
+  auto: '2048x2048',
+  '21:9': '3108x1332',
+  '16:9': '2720x1530',
+  '3:2': '2496x1664',
+  '4:3': '2304x1728',
+  '1:1': '2048x2048',
+  '3:4': '1728x2304',
+  '2:3': '1664x2496',
+  '9:16': '1530x2720',
+};
+
+export function resolveSeedreamOutputSize(model: string, resolution: string, aspectRatio: string) {
+  if (!/^doubao-seedream-5-0-/i.test(model.trim())) {
+    return null;
+  }
+  const isPro = /^doubao-seedream-5-0-pro-/i.test(model.trim());
+  const resolvedResolution: ImageGenerationResolutionKey = isPro || resolution !== '4K' ? '2K' : '4K';
+  const sizes = isPro ? seedreamPro2KOutputSizes : seedreamOutputSizes[resolvedResolution];
+  return {
+    outputSize: sizes[aspectRatio] || sizes.auto,
+    resolution: resolvedResolution,
+  };
+}
+
 function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema, modelConfig: AiModelConfig) {
   if (!imageModelSupportsCustomResolution(modelConfig)) {
     return {
@@ -932,6 +981,16 @@ function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: Im
   const resolution = outputConfig.allowedResolutions.includes(requestedResolution as ImageGenerationResolutionKey)
     ? requestedResolution as ImageGenerationResolutionKey
     : outputConfig.defaultResolution;
+  if (modelConfig.provider === 'volcengine-seedream') {
+    const seedreamOutput = resolveSeedreamOutputSize(
+      modelConfig.model,
+      resolution,
+      cleanText(input.capabilityContext?.imageGeneration?.aspectRatio) || 'auto',
+    );
+    if (seedreamOutput) {
+      return seedreamOutput;
+    }
+  }
   const parsedSize = parseOutputSize(input.capabilityContext?.imageGeneration?.outputSize);
   if (!parsedSize) {
     return {

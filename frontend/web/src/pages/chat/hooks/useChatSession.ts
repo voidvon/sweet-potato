@@ -843,7 +843,10 @@ export function useChatSession() {
     regenerateImageMessage,
     sending,
     setInput,
-    showWelcome: !isResolvingConversation && !conversationOverlayLoading && !urlConversationId,
+    showWelcome: !isResolvingConversation
+      && !conversationOverlayLoading
+      && !urlConversationId
+      && !activeConversationId,
     startNewConversation,
     stopSending,
     updateUserMessage,
