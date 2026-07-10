@@ -30,7 +30,10 @@ type ClawDialogComposerProps = {
   composerDraftContext?: SendChatPayload['capabilityContext'];
   composerDraftImageModelConfigId?: string | null;
   input: string;
-  onAddFiles: (files: File[], options?: { maxCount?: number }) => Promise<ChatAttachment[]>;
+  onAddFiles: (files: File[], options?: {
+    clientGroupKey?: string;
+    maxCount?: number;
+  }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
@@ -523,7 +526,7 @@ export function ClawDialogComposer({
   const groupedAttachments = useMemo(() => {
     const groups = Object.fromEntries(referenceGroupKeys.map((key) => [key, [] as ChatAttachment[]]));
     attachments.forEach((attachment) => {
-      const mappedGroupKey = attachmentGroupById[attachment.id];
+      const mappedGroupKey = attachmentGroupById[attachment.id] || attachment.clientGroupKey;
       const groupKey = mappedGroupKey && referenceGroupKeys.includes(mappedGroupKey)
         ? mappedGroupKey
         : firstReferenceGroupKey;
@@ -554,11 +557,14 @@ export function ClawDialogComposer({
   const missingReferenceGroups = selectedMode.referenceGroups.filter(
     (group) => group.required && !groupedAttachments[group.key]?.length,
   );
-  const generationBlockReason = promptRequired && !hasPrompt
-    ? '还需输入提示词'
-    : missingReferenceGroups.length
-      ? `还需上传${missingReferenceGroups[0].label}`
-      : '';
+  const hasUploadingAttachments = attachments.some((attachment) => attachment.uploadStatus === 'uploading');
+  const generationBlockReason = hasUploadingAttachments
+    ? '图片上传中'
+    : promptRequired && !hasPrompt
+      ? '还需输入提示词'
+      : missingReferenceGroups.length
+        ? `还需上传${missingReferenceGroups[0].label}`
+        : '';
   const canStartGeneration = !generationBlockReason;
 
   useEffect(() => {
@@ -615,7 +621,7 @@ export function ClawDialogComposer({
       const groupCounts = Object.fromEntries(referenceGroupKeys.map((key) => [key, 0]));
 
       attachments.forEach((attachment) => {
-        const currentGroupKey = nextItems[attachment.id];
+        const currentGroupKey = nextItems[attachment.id] || attachment.clientGroupKey;
         if (currentGroupKey && referenceGroupKeys.includes(currentGroupKey)) {
           groupCounts[currentGroupKey] += 1;
           return;
@@ -824,7 +830,10 @@ export function ClawDialogComposer({
   }
 
   async function handleAddReferenceFiles(group: ClawReferenceGroupConfig, files: File[]) {
-    const nextAttachments = await onAddFiles(files, { maxCount: maxReferenceAttachmentCount });
+    const nextAttachments = await onAddFiles(files, {
+      clientGroupKey: group.key,
+      maxCount: maxReferenceAttachmentCount,
+    });
     if (nextAttachments.length) {
       setAttachmentGroupById((items) => ({
         ...items,

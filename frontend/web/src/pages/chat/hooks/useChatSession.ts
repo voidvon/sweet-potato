@@ -12,6 +12,7 @@ import {
   streamChatMessage,
   uploadChatAttachment,
 } from '../../../api/chat';
+import { resolveAssetUrl } from '../../../api/request';
 import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '../../../events/appRealtimeEvents';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
@@ -90,6 +91,7 @@ export function useChatSession() {
   const conversationOverlayLoadingVisibleRef = useRef(false);
   const conversationOverlayLoadingShownAtRef = useRef<number | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const attachmentObjectUrlsRef = useRef(new Map<string, string>());
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId),
@@ -114,6 +116,8 @@ export function useChatSession() {
 
   useEffect(() => () => {
     streamAbortControllerRef.current?.abort();
+    attachmentObjectUrlsRef.current.forEach((url) => window.URL.revokeObjectURL(url));
+    attachmentObjectUrlsRef.current.clear();
     if (conversationOverlayLoadingShowTimerRef.current !== null) {
       window.clearTimeout(conversationOverlayLoadingShowTimerRef.current);
     }
@@ -368,7 +372,10 @@ export function useChatSession() {
     syncConversationUrl,
   ]);
 
-  const addAttachments = useCallback(async (files: File[], options?: { maxCount?: number }) => {
+  const addAttachments = useCallback(async (files: File[], options?: {
+    clientGroupKey?: string;
+    maxCount?: number;
+  }) => {
     const attachmentLimit = options?.maxCount ?? maxAttachmentCount;
     const remainingSlots = attachmentLimit - attachments.length;
     if (remainingSlots <= 0) {
@@ -384,17 +391,83 @@ export function useChatSession() {
       return true;
     });
 
-    try {
-      const nextAttachments = await Promise.all(acceptedFiles.map((file) => uploadChatAttachment(file)));
-      setAttachments((items) => [...items, ...nextAttachments]);
-      return nextAttachments;
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '附件添加失败');
-      return [];
+    const pendingAttachments = acceptedFiles.map((file, index): ChatAttachment => {
+      const id = `uploading-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+      const url = window.URL.createObjectURL(file);
+      attachmentObjectUrlsRef.current.set(id, url);
+      return {
+        id,
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        kind: file.type.startsWith('image/') ? 'image' : 'file',
+        url,
+        clientGroupKey: options?.clientGroupKey,
+        uploadStatus: 'uploading',
+      };
+    });
+
+    setAttachments((items) => [...items, ...pendingAttachments]);
+
+    const uploadResults = await Promise.allSettled(acceptedFiles.map(async (file, index) => {
+      const pendingAttachment = pendingAttachments[index];
+      try {
+        const objectUrl = attachmentObjectUrlsRef.current.get(pendingAttachment.id);
+        const uploadedAttachment = {
+          ...await uploadChatAttachment(file),
+          clientGroupKey: pendingAttachment.clientGroupKey,
+          ...(pendingAttachment.kind === 'image' && objectUrl ? { previewUrl: objectUrl } : {}),
+        };
+        if (objectUrl && uploadedAttachment.previewUrl) {
+          attachmentObjectUrlsRef.current.delete(pendingAttachment.id);
+          attachmentObjectUrlsRef.current.set(uploadedAttachment.id, objectUrl);
+        }
+        setAttachments((items) => items.map((item) => (
+          item.id === pendingAttachment.id ? uploadedAttachment : item
+        )));
+
+        if (uploadedAttachment.previewUrl) {
+          const remoteImage = new window.Image();
+          const finishRemoteImageLoad = () => {
+            setAttachments((items) => items.map((item) => (
+              item.id === uploadedAttachment.id ? { ...item, previewUrl: undefined } : item
+            )));
+            const retainedObjectUrl = attachmentObjectUrlsRef.current.get(uploadedAttachment.id);
+            if (retainedObjectUrl) {
+              window.URL.revokeObjectURL(retainedObjectUrl);
+              attachmentObjectUrlsRef.current.delete(uploadedAttachment.id);
+            }
+          };
+          remoteImage.onload = finishRemoteImageLoad;
+          remoteImage.onerror = finishRemoteImageLoad;
+          remoteImage.src = resolveAssetUrl(uploadedAttachment.url);
+        }
+        return uploadedAttachment;
+      } catch (error) {
+        setAttachments((items) => items.filter((item) => item.id !== pendingAttachment.id));
+        throw error;
+      } finally {
+        const objectUrl = attachmentObjectUrlsRef.current.get(pendingAttachment.id);
+        if (objectUrl) {
+          window.URL.revokeObjectURL(objectUrl);
+          attachmentObjectUrlsRef.current.delete(pendingAttachment.id);
+        }
+      }
+    }));
+
+    const failedResult = uploadResults.find((result) => result.status === 'rejected');
+    if (failedResult?.status === 'rejected') {
+      message.error(failedResult.reason instanceof Error ? failedResult.reason.message : '附件添加失败');
     }
+    return uploadResults.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
   }, [attachments.length]);
 
   const removeAttachment = useCallback((attachmentId: string) => {
+    const objectUrl = attachmentObjectUrlsRef.current.get(attachmentId);
+    if (objectUrl) {
+      window.URL.revokeObjectURL(objectUrl);
+      attachmentObjectUrlsRef.current.delete(attachmentId);
+    }
     setAttachments((items) => items.filter((item) => item.id !== attachmentId));
   }, []);
 
