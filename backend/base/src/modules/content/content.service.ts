@@ -51,6 +51,7 @@ import {
 import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
+import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
@@ -1524,12 +1525,24 @@ export const contentService = {
         pageSize,
       });
       const items = filterAssetsByPermissions(input.actor, result.items);
+      if (resourceType === 'finished_video' || group?.resourceType === 'finished_video') {
+        schedulePendingGeneratedVideoMirrors({
+          userId: scope.userId,
+          limit: 20,
+        });
+      }
       return {
         ...result,
         items,
       };
     }
     const assets = contentRepository.listAssets(scope);
+    if (resourceType === 'finished_video' || group?.resourceType === 'finished_video') {
+      schedulePendingGeneratedVideoMirrors({
+        userId: scope.userId,
+        limit: 20,
+      });
+    }
     return filterAssetsByPermissions(input.actor, assets);
   },
 
@@ -1568,6 +1581,7 @@ export const contentService = {
         return task;
       }
     }));
+    schedulePendingGeneratedVideoMirrors({ userId, limit: 20 });
     return filterVideoProductionsOnServer(
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
       { status: filters.status },
@@ -2027,6 +2041,7 @@ export const contentService = {
 
   listVideoTasks(userId: string) {
     assertUserId(userId);
+    schedulePendingGeneratedVideoMirrors({ userId, limit: 20 });
     return contentRepository.listVideoTasks(userId);
   },
 
@@ -2043,6 +2058,7 @@ export const contentService = {
 
   async getVideoTaskView(id: string, userId?: string) {
     const task = this.getVideoTask(id, userId);
+    schedulePendingGeneratedVideoMirrors({ userId: task.userId, limit: 20 });
     try {
       const refreshed = await refreshVideoTaskGenerationStatus(task);
       if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
@@ -2814,6 +2830,16 @@ export const contentService = {
     });
     if (!savedTask) {
       throw new Error('视频生成结果保存失败');
+    }
+    if (providerResult.videoUrl) {
+      mirrorGeneratedVideoToLocalInBackground({
+        taskId: id,
+        userId: current.userId,
+        remoteVideoUrl: providerResult.videoUrl,
+        assetId: finishedVideoAsset?.id,
+        provider: providerResult.provider,
+        model: providerResult.model,
+      });
     }
     if (savedTask.status !== 'generating' && savedTask.expertContext?.temporaryCharacterReferenceGroupId) {
       await cleanupTemporaryCharacterReferenceGroup({

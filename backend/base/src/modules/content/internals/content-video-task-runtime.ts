@@ -12,6 +12,7 @@ VideoGenerationResult
 import { privateAssetId,stringMetadataField } from './content-common.js';
 import { appendVideoGenerationResultHistory,createFinishedVideoAsset,markFinishedVideoAssetFailed } from './content-image-assets.js';
 import { isSegmentedVideoGenerationState,queryConfiguredVideoModelTask,recordVideoGenerationUsageIfNeeded,resumeSegmentedSeedanceVideoGeneration } from './content-video-generation.js';
+import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { isRecord,normalizeParseResult } from './content-viral-analysis.js';
 import { logVideoGenerationFlow } from './content-viral-director.js';
 import { absolutizeMaterialUrl } from './content-voice-clone.js';
@@ -243,6 +244,14 @@ export function applyVideoGenerationStatusToTask(
       expertContext: nextExpertContext,
     });
     if (completedTask) {
+      mirrorGeneratedVideoToLocalInBackground({
+        taskId: task.id,
+        userId: task.userId,
+        remoteVideoUrl: providerResult.videoUrl,
+        assetId: finishedVideoAsset?.id,
+        provider: providerResult.provider,
+        model: providerResult.model,
+      });
       publishContentEvent({
         type: 'viral-video-analysis-complete',
         userId: task.userId,
