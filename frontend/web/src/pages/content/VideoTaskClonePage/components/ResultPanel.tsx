@@ -1,6 +1,6 @@
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Zap } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Trash2, Zap } from 'lucide-react';
 import { message } from 'antd';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
 import { filterGroups } from '../constants';
@@ -14,10 +14,12 @@ type ResultPanelProps = {
   isFilterOpen: boolean;
   isLoading: boolean;
   onClearFilters: () => void;
+  onDelete: (task: VideoGenerationTask) => void;
   onFilterChange: (filters: FilterValues) => void;
   onFilterToggle: () => void;
   onRetry: (task: VideoGenerationTask) => Promise<void>;
   records: VideoGenerationTask[];
+  deletingTaskId: string;
   retryingTaskId: string;
 };
 
@@ -26,17 +28,40 @@ export function ResultPanel({
   isFilterOpen,
   isLoading,
   onClearFilters,
+  onDelete,
   onFilterChange,
   onFilterToggle,
   onRetry,
   records,
+  deletingTaskId,
   retryingTaskId,
 }: ResultPanelProps) {
   const [previewVideo, setPreviewVideo] = useState<ConfirmedReferenceVideo | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
+  const filterPanelRef = useRef<HTMLElement | null>(null);
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
   const dailyGroups = groupRecordsByDay(sortedRecords);
+
+  useEffect(() => {
+    if (!isFilterOpen) {
+      return undefined;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (filterButtonRef.current?.contains(target) || filterPanelRef.current?.contains(target)) {
+        return;
+      }
+      onFilterToggle();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isFilterOpen, onFilterToggle]);
+
   const handleCopyId = async (value: string) => {
     const normalized = String(value || '').trim();
     if (!normalized) {
@@ -58,14 +83,14 @@ export function ResultPanel({
           <h1>视频结果</h1>
           <p>{sortedRecords.length > 0 ? '按时间倒序展示生成记录' : '生成完成后会显示在这里'}</p>
         </div>
-        <button className="video-task-filter" onClick={onFilterToggle} type="button">
+        <button className="video-task-filter" onClick={onFilterToggle} ref={filterButtonRef} type="button">
           <Filter size={18} />
           筛选
         </button>
       </header>
 
       {isFilterOpen && (
-        <aside className="video-task-filter-panel">
+        <aside className="video-task-filter-panel" ref={filterPanelRef}>
           <div className="video-task-popover-head">
             <strong>筛选生成记录</strong>
             <button onClick={onClearFilters} type="button">清空</button>
@@ -128,6 +153,7 @@ export function ResultPanel({
                   {group.records.map((task) => {
                     const state = viewState(task);
                     const isRetrying = retryingTaskId === task.id;
+                    const isDeleting = deletingTaskId === task.id;
                     return (
                       <article className={`video-task-result-card is-${state.kind}`} key={task.id}>
                         <div className="video-task-result-preview">
@@ -180,19 +206,31 @@ export function ResultPanel({
                           </time>
 
                           <div className="video-task-result-actions">
-                            {state.canRetry ? (
+                            <div className="video-task-result-action-row">
+                              {state.canRetry ? (
+                                <button
+                                  className="video-task-result-retry"
+                                  disabled={isRetrying || isDeleting}
+                                  onClick={() => void onRetry(task)}
+                                  type="button"
+                                >
+                                  {isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
+                                  {isRetrying ? '提交中' : '再次生成'}
+                                </button>
+                              ) : (
+                                <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
+                              )}
+
                               <button
-                                className="video-task-result-retry"
-                                disabled={isRetrying}
-                                onClick={() => void onRetry(task)}
+                                aria-label="删除记录"
+                                className="video-task-result-delete"
+                                disabled={isDeleting || isRetrying}
+                                onClick={() => onDelete(task)}
                                 type="button"
                               >
-                                {isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
-                                {isRetrying ? '提交中' : '再次生成'}
+                                {isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <Trash2 size={14} />}
                               </button>
-                            ) : (
-                              <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
-                            )}
+                            </div>
                           </div>
                         </div>
                       </article>

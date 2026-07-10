@@ -97,10 +97,12 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         isFilterOpen={state.filterOpen}
         isLoading={state.isLoadingProductions}
         onClearFilters={state.clearFilters}
+        onDelete={state.deleteVideoProduction}
         onFilterChange={state.setFilters}
         onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
         onRetry={state.retryVideoProduction}
         records={state.videoProductions}
+        deletingTaskId={state.deletingTaskId}
         retryingTaskId={state.retryingTaskId}
       />
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { message } from 'antd';
-import { createContentAssetGroup, createVideoProduction, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
+import { message, Modal } from 'antd';
+import { createContentAssetGroup, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
@@ -56,6 +56,7 @@ export function useVideoTaskCloneState(currentUser: User) {
   const [isLoadingProductions, setIsLoadingProductions] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [retryingTaskId, setRetryingTaskId] = useState('');
+  const [deletingTaskId, setDeletingTaskId] = useState('');
 
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
@@ -476,6 +477,34 @@ export function useVideoTaskCloneState(currentUser: User) {
     }
   }, [currentUser.id, loadVideoProductions]);
 
+  const deleteVideoProduction = useCallback((task: VideoGenerationTask) => {
+    Modal.confirm({
+      title: '删除生成记录',
+      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      async onOk() {
+        try {
+          setDeletingTaskId(task.id);
+          await deleteVideoTask(task.id);
+          await Promise.all([
+            loadLibraryAssets(),
+            loadVideoProductions(true),
+          ]);
+          message.success('生成记录已删除');
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除生成记录失败');
+        } finally {
+          setDeletingTaskId('');
+        }
+      },
+      onCancel() {
+        setDeletingTaskId('');
+      },
+    });
+  }, [loadLibraryAssets, loadVideoProductions]);
+
   const visibleVideoProductions = useMemo(
     () => filterVideoProductions(videoProductions, filters),
     [filters, videoProductions],
@@ -580,6 +609,8 @@ export function useVideoTaskCloneState(currentUser: User) {
       if (!enabled && hasSelectedAudio) return;
       setVoiceEnabled(enabled);
     },
+    deleteVideoProduction,
+    deletingTaskId,
     retryVideoProduction,
     retryingTaskId,
     showModelPicker,
