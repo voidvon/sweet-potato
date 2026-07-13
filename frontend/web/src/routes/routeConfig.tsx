@@ -195,16 +195,6 @@ function AuthRouteFrame({ children }: { children: ReactNode }) {
 
 const workspacePageDefinitions: WorkspacePageDefinition[] = [
   {
-    key: 'image-creation',
-    path: 'image',
-    fullPath: routePaths.defaultModule,
-    element: () => withChatSuspense(<ChatPage />),
-    routeResource: chatRouteGrant,
-    handle: {
-      title: '图片创作',
-    },
-  },
-  {
     key: 'content-root',
     path: 'content',
     fullPath: routePaths.contentRoot,
@@ -309,6 +299,16 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       contentNavigation: {
         code: 'product_assets',
       },
+    },
+  },
+  {
+    key: 'image-creation',
+    path: 'image',
+    fullPath: routePaths.defaultModule,
+    element: () => withChatSuspense(<ChatPage />),
+    routeResource: chatRouteGrant,
+    handle: {
+      title: '图片创作',
     },
   },
   {
