@@ -1,5 +1,15 @@
 export type MaterialKey = 'image' | 'video' | 'audio';
 
+export type ToolKey =
+  | 'video'
+  | 'video-upscale'
+  | 'talking-video'
+  | 'subject-replace'
+  | 'dance-remake'
+  | 'marketing-video'
+  | 'subtitle-removal'
+  | 'video-translation';
+
 export type MaterialKind = {
   hint: string;
   key: MaterialKey;
@@ -9,6 +19,7 @@ export type MaterialKind = {
 
 export type ToolOption = {
   description: string;
+  key: ToolKey;
   label: string;
   materialHint: string;
   materials: MaterialKind[];

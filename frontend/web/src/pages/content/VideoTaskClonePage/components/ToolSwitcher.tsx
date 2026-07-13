@@ -16,7 +16,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toolOptions } from '../constants';
-import type { ToolOption } from '../types';
+import type { ToolKey, ToolOption } from '../types';
 
 type ToolSwitcherProps = {
   currentTool: ToolOption;
@@ -25,21 +25,21 @@ type ToolSwitcherProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-const toolIcons: Record<string, LucideIcon> = {
-  视频: Video,
-  视频高清放大: ScanLine,
-  口播视频生成: Mic2,
-  '模特 / 商品替换': Replace,
-  跳舞复刻: PersonStanding,
-  营销视频生成: Megaphone,
-  字幕擦除: CaptionsOff,
-  视频翻译: Languages,
+export const toolIcons: Record<ToolKey, LucideIcon> = {
+  video: Video,
+  'video-upscale': ScanLine,
+  'talking-video': Mic2,
+  'subject-replace': Replace,
+  'dance-remake': PersonStanding,
+  'marketing-video': Megaphone,
+  'subtitle-removal': CaptionsOff,
+  'video-translation': Languages,
 };
 
 export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: ToolSwitcherProps) {
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const [dropdownWidth, setDropdownWidth] = useState<number>();
-  const CurrentToolIcon = toolIcons[currentTool.label] ?? Clapperboard;
+  const CurrentToolIcon = toolIcons[currentTool.key] ?? Clapperboard;
 
   useEffect(() => {
     const trigger = triggerRef.current;
@@ -64,11 +64,11 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
   }, []);
 
   const menuItems: MenuProps['items'] = toolOptions.map((option) => {
-    const isActive = option.label === currentTool.label;
-    const ToolIcon = toolIcons[option.label] ?? Clapperboard;
+    const isActive = option.key === currentTool.key;
+    const ToolIcon = toolIcons[option.key] ?? Clapperboard;
 
     return {
-      key: option.label,
+      key: option.key,
       icon: (
         <span className="video-task-tool-option-icon">
           <ToolIcon size={20} />
@@ -87,7 +87,7 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
   });
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    const selectedTool = toolOptions.find((option) => option.label === key);
+    const selectedTool = toolOptions.find((option) => option.key === key);
     if (selectedTool) {
       onSelect(selectedTool);
     }
@@ -99,7 +99,7 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
       menu={{
         items: menuItems,
         onClick: handleMenuClick,
-        selectedKeys: [currentTool.label],
+        selectedKeys: [currentTool.key],
       }}
       onOpenChange={onOpenChange}
       open={isOpen}

@@ -1,0 +1,144 @@
+import { Clock3 } from 'lucide-react';
+import type { User } from '../../../../types';
+import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
+import { MaterialPanel } from './MaterialPanel';
+import { ParameterPanel } from './ParameterPanel';
+import { PromptPanel } from './PromptPanel';
+import { ResultPanel } from './ResultPanel';
+import { toolIcons } from './ToolSwitcher';
+
+type ToolWorkspaceProps = {
+  currentUser: User;
+  state: VideoTaskCloneState;
+};
+
+export function ToolWorkspace({ currentUser, state }: ToolWorkspaceProps) {
+  if (state.tool.key !== 'video') {
+    return <PendingToolWorkspace state={state} />;
+  }
+
+  return <VideoCreationWorkspace currentUser={currentUser} state={state} />;
+}
+
+export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
+  if (state.tool.key !== 'video') {
+    const ToolIcon = toolIcons[state.tool.key];
+
+    return (
+      <section className="video-task-result video-task-tool-result-pending">
+        <span className="video-task-tool-pending-icon">
+          <ToolIcon size={28} />
+        </span>
+        <strong>{state.tool.label}结果</strong>
+        <p>该功能的任务记录与结果预览将在模块接入后显示。</p>
+      </section>
+    );
+  }
+
+  return (
+    <ResultPanel
+      filters={state.filters}
+      isFilterOpen={state.filterOpen}
+      isLoading={state.isLoadingProductions}
+      onClearFilters={state.clearFilters}
+      onDelete={state.deleteVideoProduction}
+      onFilterChange={state.setFilters}
+      onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
+      onRetry={state.retryVideoProduction}
+      records={state.videoProductions}
+      deletingTaskId={state.deletingTaskId}
+      retryingTaskId={state.retryingTaskId}
+    />
+  );
+}
+
+function VideoCreationWorkspace({ state }: ToolWorkspaceProps) {
+  return (
+    <>
+      <div className="video-task-left-scroll">
+        <MaterialPanel
+          activeUpload={state.activeUpload}
+          materialMode={state.materialMode}
+          onLibraryAssetChoose={state.chooseLibraryAsset}
+          onClosePopovers={state.closeMaterialPopovers}
+          onMaterialClear={state.clearMaterial}
+          onMaterialLocalFiles={state.fillMaterialFiles}
+          onMaterialRemoveOne={state.removeOneMaterial}
+          onMaterialReplaceFiles={state.replaceMaterialFiles}
+          onModelPickerOpen={state.openModelPicker}
+          onMaterialsClearAll={state.clearAllMaterials}
+          onMaterialFill={state.fillMaterial}
+          onTabChange={state.chooseMaterialTab}
+          onUploadClose={() => state.setActiveUpload(null)}
+          onUploadOpen={state.setActiveUploadWithAnchor}
+          onVoiceChange={state.setVoiceEnabled}
+          onWorksTabChange={state.setWorksTab}
+          selectedMaterials={state.selectedMaterials}
+          voiceAssets={state.voiceAssets}
+          voiceGroupNameById={state.voiceGroupNameById}
+          isLoadingLibraryAssets={state.isLoadingLibraryAssets}
+          tool={state.tool}
+          uploadAnchor={state.uploadAnchor}
+          voiceEnabled={state.voiceEnabled}
+          worksAssets={state.worksAssets}
+          worksTab={state.worksTab}
+        />
+
+        <PromptPanel
+          onExampleFill={state.fillExamplePrompt}
+          onExpand={() => state.setExpandedPrompt(true)}
+          onPanelChange={state.setPromptPanel}
+          onPromptChange={state.setPrompt}
+          panel={state.promptPanel}
+          prompt={state.prompt}
+          selectedMaterials={state.selectedMaterials}
+        />
+
+        <ParameterPanel
+          activeParam={state.activeParam}
+          canvas={state.canvas}
+          duration={state.duration}
+          model={state.model}
+          onCanvasQualityChoose={state.chooseCanvasQuality}
+          onCanvasRatioChoose={state.chooseCanvasRatio}
+          onParamChoose={state.chooseParam}
+          onParamToggle={state.setActiveParam}
+          quality={state.quality}
+          ratio={state.ratio}
+          summary={state.paramSummary}
+        />
+      </div>
+
+      <div className="video-task-generate-bar">
+        <button
+          className="video-task-generate"
+          disabled={!state.canGenerate || state.isGenerating}
+          onClick={() => void state.handleGenerate()}
+          type="button"
+        >
+          {state.tool.submitText}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function PendingToolWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
+  const ToolIcon = toolIcons[state.tool.key];
+
+  return (
+    <div className="video-task-tool-workspace">
+      <section className="video-task-tool-pending">
+        <span className="video-task-tool-pending-icon">
+          <ToolIcon size={26} />
+        </span>
+        <strong>{state.tool.label}</strong>
+        <p>{state.tool.description}</p>
+        <span className="video-task-tool-pending-status">
+          <Clock3 size={13} />
+          功能模块待接入
+        </span>
+      </section>
+    </div>
+  );
+}

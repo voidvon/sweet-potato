@@ -1,11 +1,12 @@
-import { MaterialPanel } from './components/MaterialPanel';
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ModelPicker } from './components/ModelPicker';
-import { ParameterPanel } from './components/ParameterPanel';
 import { PromptModal } from './components/PromptModal';
-import { PromptPanel } from './components/PromptPanel';
-import { ResultPanel } from './components/ResultPanel';
 import { ToolSwitcher } from './components/ToolSwitcher';
+import { ToolResultWorkspace, ToolWorkspace } from './components/ToolWorkspace';
+import { toolOptions } from './constants';
 import { useVideoTaskCloneState } from './useVideoTaskCloneState';
+import type { ToolOption } from './types';
 import type { User } from '../../../types';
 import './VideoTaskClonePage.scss';
 
@@ -14,7 +15,24 @@ type VideoTaskClonePageProps = {
 };
 
 export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
-  const state = useVideoTaskCloneState(currentUser);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTool = toolOptions.find((option) => option.key === searchParams.get('tool')) ?? toolOptions[0];
+  const state = useVideoTaskCloneState(currentUser, urlTool);
+
+  useEffect(() => {
+    if (state.tool.key !== urlTool.key) {
+      state.chooseTool(urlTool);
+    }
+  }, [state.chooseTool, state.tool.key, urlTool]);
+
+  const handleToolSelect = (tool: ToolOption) => {
+    state.chooseTool(tool);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('tool', tool.key);
+      return next;
+    });
+  };
 
   return (
     <div className="video-task-clone-page">
@@ -23,90 +41,15 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
           currentTool={state.tool}
           isOpen={state.showToolMenu}
           onOpenChange={state.setShowToolMenu}
-          onSelect={state.chooseTool}
+          onSelect={handleToolSelect}
         />
 
-        <div className="video-task-left-scroll">
-          <MaterialPanel
-            activeUpload={state.activeUpload}
-            materialMode={state.materialMode}
-            onLibraryAssetChoose={state.chooseLibraryAsset}
-            onClosePopovers={state.closeMaterialPopovers}
-            onMaterialClear={state.clearMaterial}
-            onMaterialLocalFiles={state.fillMaterialFiles}
-            onMaterialRemoveOne={state.removeOneMaterial}
-            onMaterialReplaceFiles={state.replaceMaterialFiles}
-            onModelPickerOpen={state.openModelPicker}
-            onMaterialsClearAll={state.clearAllMaterials}
-            onMaterialFill={state.fillMaterial}
-            onTabChange={state.chooseMaterialTab}
-            onUploadClose={() => state.setActiveUpload(null)}
-            onUploadOpen={state.setActiveUploadWithAnchor}
-            onVoiceChange={state.setVoiceEnabled}
-            onWorksTabChange={state.setWorksTab}
-            selectedMaterials={state.selectedMaterials}
-            voiceAssets={state.voiceAssets}
-            voiceGroupNameById={state.voiceGroupNameById}
-            isLoadingLibraryAssets={state.isLoadingLibraryAssets}
-            tool={state.tool}
-            uploadAnchor={state.uploadAnchor}
-            voiceEnabled={state.voiceEnabled}
-            worksAssets={state.worksAssets}
-            worksTab={state.worksTab}
-          />
-
-          <PromptPanel
-            onExampleFill={state.fillExamplePrompt}
-            onExpand={() => state.setExpandedPrompt(true)}
-            onPanelChange={state.setPromptPanel}
-            onPromptChange={state.setPrompt}
-            panel={state.promptPanel}
-            prompt={state.prompt}
-            selectedMaterials={state.selectedMaterials}
-          />
-
-          <ParameterPanel
-            activeParam={state.activeParam}
-            canvas={state.canvas}
-            duration={state.duration}
-            model={state.model}
-            onCanvasQualityChoose={state.chooseCanvasQuality}
-            onCanvasRatioChoose={state.chooseCanvasRatio}
-            onParamChoose={state.chooseParam}
-            onParamToggle={state.setActiveParam}
-            quality={state.quality}
-            ratio={state.ratio}
-            summary={state.paramSummary}
-          />
-        </div>
-
-        <div className="video-task-generate-bar">
-          <button
-            className="video-task-generate"
-            disabled={!state.canGenerate || state.isGenerating}
-            onClick={() => void state.handleGenerate()}
-            type="button"
-          >
-            {state.tool.submitText}
-          </button>
-        </div>
+        <ToolWorkspace currentUser={currentUser} state={state} />
       </section>
 
-      <ResultPanel
-        filters={state.filters}
-        isFilterOpen={state.filterOpen}
-        isLoading={state.isLoadingProductions}
-        onClearFilters={state.clearFilters}
-        onDelete={state.deleteVideoProduction}
-        onFilterChange={state.setFilters}
-        onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
-        onRetry={state.retryVideoProduction}
-        records={state.videoProductions}
-        deletingTaskId={state.deletingTaskId}
-        retryingTaskId={state.retryingTaskId}
-      />
+      <ToolResultWorkspace state={state} />
 
-      {state.showModelPicker && (
+      {state.tool.key === 'video' && state.showModelPicker && (
         <ModelPicker
           onClose={() => state.setShowModelPicker(false)}
           onSelect={state.chooseModelAsset}
@@ -115,7 +58,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         />
       )}
 
-      {state.expandedPrompt && (
+      {state.tool.key === 'video' && state.expandedPrompt && (
         <PromptModal
           onClose={() => state.setExpandedPrompt(false)}
           onPromptChange={state.setPrompt}

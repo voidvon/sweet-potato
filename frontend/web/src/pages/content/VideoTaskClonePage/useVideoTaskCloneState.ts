@@ -25,12 +25,12 @@ import type {
 } from './types';
 import { readVideoDuration } from './videoMetadata';
 
-export function useVideoTaskCloneState(currentUser: User) {
+export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [prompt, setPrompt] = useState('');
-  const [tool, setTool] = useState<ToolOption>(toolOptions[0]);
+  const [tool, setTool] = useState<ToolOption>(initialTool);
   const [showToolMenu, setShowToolMenu] = useState(false);
   const [materialMode, setMaterialMode] = useState<MaterialMode>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterials>({});
@@ -141,7 +141,7 @@ export function useVideoTaskCloneState(currentUser: User) {
   const canvas = `${ratio} · ${quality}`;
   const paramSummary = `${model} · ${canvas} · ${duration}`;
 
-  const chooseTool = (option: ToolOption) => {
+  const chooseTool = useCallback((option: ToolOption) => {
     setTool(option);
     setShowToolMenu(false);
     setMaterialMode(null);
@@ -154,7 +154,7 @@ export function useVideoTaskCloneState(currentUser: User) {
     setActiveParam(null);
     setPromptPanel(null);
     setFilterOpen(false);
-  };
+  }, []);
 
   const chooseMaterialTab = (mode: MaterialMode) => {
     setMaterialMode(mode);
@@ -428,7 +428,7 @@ export function useVideoTaskCloneState(currentUser: User) {
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (tool.label !== '视频') {
+    if (tool.key !== 'video') {
       message.warning('当前仅支持视频生成功能接入开始生成');
       return;
     }

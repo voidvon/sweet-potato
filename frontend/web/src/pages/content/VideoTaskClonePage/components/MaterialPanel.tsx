@@ -252,7 +252,7 @@ export function MaterialPanel({
             <Package size={12} />
             素材
           </button>
-          {tool.label === '视频' && (
+          {tool.key === 'video' && (
             <label
               className={`video-task-voice-toggle${hasSelectedAudio ? ' is-locked' : ''}`}
               title={hasSelectedAudio ? '已选择参考音频，声音必须开启' : '生成视频声音'}

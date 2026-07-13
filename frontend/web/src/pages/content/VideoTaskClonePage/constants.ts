@@ -8,6 +8,7 @@ export const defaultMaterials: MaterialKind[] = [
 
 export const toolOptions: ToolOption[] = [
   {
+    key: 'video',
     label: '视频',
     description: '文字、图片、视频和音频参考生成短视频。',
     materialHint: '上传参考素材',
@@ -15,6 +16,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '开始生成',
   },
   {
+    key: 'video-upscale',
     label: '视频高清放大',
     description: '上传已有视频，生成高清版本。',
     materialHint: '上传待放大视频',
@@ -22,6 +24,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '开始高清放大',
   },
   {
+    key: 'talking-video',
     label: '口播视频生成',
     description: '解析视频分镜与口播脚本，并继续生成口播视频。',
     materialHint: '上传口播参考素材',
@@ -29,6 +32,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '生成口播视频',
   },
   {
+    key: 'subject-replace',
     label: '模特 / 商品替换',
     description: '解析短视频链接并结合主体图生成同款。',
     materialHint: '上传替换主体素材',
@@ -36,6 +40,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '开始替换',
   },
   {
+    key: 'dance-remake',
     label: '跳舞复刻',
     description: '参考视频动作和音乐，生成主体角色跳舞视频。',
     materialHint: '上传动作与角色素材',
@@ -43,6 +48,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '开始复刻',
   },
   {
+    key: 'marketing-video',
     label: '营销视频生成',
     description: '围绕商品图生成分镜和营销视频。',
     materialHint: '上传商品图',
@@ -50,6 +56,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '生成营销视频',
   },
   {
+    key: 'subtitle-removal',
     label: '字幕擦除',
     description: '上传源视频，擦除画面中的硬字幕。',
     materialHint: '上传源视频',
@@ -57,6 +64,7 @@ export const toolOptions: ToolOption[] = [
     submitText: '开始擦除',
   },
   {
+    key: 'video-translation',
     label: '视频翻译',
     description: '上传源视频并选择目标语言，生成翻译视频。',
     materialHint: '上传源视频',
