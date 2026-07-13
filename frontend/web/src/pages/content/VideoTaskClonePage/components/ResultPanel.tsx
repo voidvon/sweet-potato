@@ -100,6 +100,12 @@ export function ResultPanel({
       message.warning('暂无可下载的视频');
       return;
     }
+    const fileName = downloadFileName(task);
+    if (shouldUseBrowserDownload(normalizedUrl)) {
+      triggerBrowserDownload(normalizedUrl, fileName, true);
+      message.success('已打开下载链接');
+      return;
+    }
     try {
       const response = await fetch(normalizedUrl);
       if (!response.ok) {
@@ -109,14 +115,15 @@ export function ResultPanel({
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = downloadFileName(task);
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
       message.success('已开始下载');
     } catch {
-      message.error('下载失败，请稍后重试');
+      triggerBrowserDownload(normalizedUrl, fileName, true);
+      message.success('已打开下载链接');
     }
   };
 
@@ -252,6 +259,12 @@ export function ResultPanel({
                               <Zap size={11} />
                               {state.metric}
                             </span>
+                            {state.creditCostText ? [
+                              <span className="video-task-result-copy-dot">·</span>,
+                              <span className="video-task-result-chip is-credit">
+                                消耗 <Zap size={11} /> {state.creditCostText}
+                              </span>
+                            ] : null}
                           </div>
 
                           <time className="video-task-result-time" dateTime={task.updatedAt}>
@@ -363,6 +376,7 @@ function viewState(task: VideoGenerationTask) {
       note: '',
       footnote: '成片已落盘，可继续筛选和复用。',
       metric: formatMetric(result),
+      creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl,
       coverUrl,
@@ -386,6 +400,7 @@ function viewState(task: VideoGenerationTask) {
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
       footnote: '当前任务失败，可直接重试。',
       metric: formatMetric(result),
+      creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl: '',
       coverUrl,
@@ -401,6 +416,7 @@ function viewState(task: VideoGenerationTask) {
       note: '任务未成功提交到生成队列，可直接再次生成。',
       footnote: '当前任务未真正开始生成，可直接重试。',
       metric: formatMetric(result),
+      creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl: '',
       coverUrl,
@@ -415,6 +431,7 @@ function viewState(task: VideoGenerationTask) {
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     footnote: '系统会自动刷新当前生成状态。',
     metric: formatMetric(result),
+    creditCostText: formatCreditCost(task.creditCost),
     copyId,
     videoUrl: '',
     coverUrl,
@@ -435,6 +452,37 @@ function formatMetric(result?: VideoGenerationResult) {
     return '等待参数';
   }
   return [result.ratio, result.duration].filter(Boolean).join(' · ') || '等待参数';
+}
+
+function formatCreditCost(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return '';
+  }
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function shouldUseBrowserDownload(url: string) {
+  if (!/^https?:\/\//i.test(url)) {
+    return false;
+  }
+  try {
+    return new URL(url).origin !== window.location.origin;
+  } catch {
+    return true;
+  }
+}
+
+function triggerBrowserDownload(url: string, fileName: string, openInNewTab: boolean) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  if (openInNewTab) {
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+  }
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function parseDurationSeconds(duration?: string | null) {

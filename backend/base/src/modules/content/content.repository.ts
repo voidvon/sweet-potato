@@ -63,6 +63,7 @@ type VideoTaskRow = {
   selected_voice_id: string | null;
   selected_scene_id: string | null;
   generated_video_url: string | null;
+  credit_cost?: number | null;
   failure_reason: string | null;
   created_at: string;
   updated_at: string;
@@ -201,11 +202,25 @@ function serializeVideoTask(row: VideoTaskRow): VideoGenerationTask {
     selectedVoiceId: row.selected_voice_id,
     selectedSceneId: row.selected_scene_id,
     generatedVideoUrl: row.generated_video_url,
+    creditCost: typeof row.credit_cost === 'number' ? Number(row.credit_cost || 0) : null,
     failureReason: row.failure_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
+
+const videoTaskSelectSql = `
+  v.*,
+  (
+    SELECT b.credit_cost
+    FROM billable_usage_records b
+    WHERE b.category = 'video_generation'
+      AND b.task_id = v.id
+      AND b.status = 'completed'
+    ORDER BY b.created_at DESC
+    LIMIT 1
+  ) AS credit_cost
+`;
 
 export const emptyVideoParseResult = emptyParseResult;
 
@@ -641,7 +656,8 @@ export const contentRepository = {
       )`);
     });
     const rows = db.prepare(`
-      SELECT * FROM video_generation_tasks
+      SELECT ${videoTaskSelectSql}
+      FROM video_generation_tasks v
       WHERE ${clauses.join(' AND ')}
       ORDER BY created_at DESC
       LIMIT @limit
@@ -651,7 +667,8 @@ export const contentRepository = {
 
   listGeneratingVideoTasks() {
     const rows = db.prepare(`
-      SELECT * FROM video_generation_tasks
+      SELECT ${videoTaskSelectSql}
+      FROM video_generation_tasks v
       WHERE status = 'generating'
       ORDER BY updated_at ASC
       LIMIT 80
@@ -660,16 +677,21 @@ export const contentRepository = {
   },
 
   findVideoTask(id: string) {
-    const row = db.prepare('SELECT * FROM video_generation_tasks WHERE id = ?').get(id) as VideoTaskRow | undefined;
+    const row = db.prepare(`
+      SELECT ${videoTaskSelectSql}
+      FROM video_generation_tasks v
+      WHERE v.id = ?
+    `).get(id) as VideoTaskRow | undefined;
     return row ? serializeVideoTask(row) : null;
   },
 
   findReusableParsedVideoTask(userId: string, sourceUrl: string) {
     const rows = db.prepare(`
-      SELECT * FROM video_generation_tasks
-      WHERE user_id = @userId
-        AND source_url = @sourceUrl
-        AND status IN ('waiting_edit', 'generating', 'success')
+      SELECT ${videoTaskSelectSql}
+      FROM video_generation_tasks v
+      WHERE v.user_id = @userId
+        AND v.source_url = @sourceUrl
+        AND v.status IN ('waiting_edit', 'generating', 'success')
       ORDER BY updated_at DESC
       LIMIT 10
     `).all({ userId, sourceUrl }) as VideoTaskRow[];

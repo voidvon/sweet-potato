@@ -1225,6 +1225,15 @@
   max-width: none;
 }
 
+.video-task-result-chip.is-credit {
+  color: #556273;
+  gap: 3px;
+  max-width: none;
+  >svg {
+    color: #fe9a00;
+  }
+}
+
 .video-task-result-time {
   color: #9ca7b8;
   font-size: 11px;
