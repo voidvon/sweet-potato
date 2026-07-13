@@ -127,8 +127,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, [hasRunningProduction, loadVideoProductions]);
 
   const canGenerate = useMemo(
-    () => prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0,
-    [prompt, selectedMaterials],
+    () => (
+      tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
+      && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
+    ),
+    [prompt, selectedMaterials, tool.materials],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
 
@@ -187,11 +190,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const fillMaterial = (kind: MaterialKind, value: string) => {
     setSelectedMaterials((current) => {
       if (kind.key === 'image' && current.image) {
-        return { ...current, image: `参考图 ${Math.min(getImageCount(current.image) + 1, 9)} 张` };
+        return { ...current, image: `参考图 ${Math.min(getImageCount(current.image) + 1, getLimit(kind))} 张` };
       }
 
       if (kind.key === 'audio' && current.audio) {
-        return { ...current, audio: `参考音频 ${Math.min(getAudioCount(current.audio) + 1, 3)} 个` };
+        return { ...current, audio: `参考音频 ${Math.min(getAudioCount(current.audio) + 1, getLimit(kind))} 个` };
       }
 
       return { ...current, [kind.key]: value };
@@ -428,8 +431,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (tool.key !== 'video') {
-      message.warning('当前仅支持视频生成功能接入开始生成');
+    if (tool.workspace.generate.handler === 'pending') {
+      message.warning(`${tool.label}功能正在接入生成能力`);
       return;
     }
     if (!canGenerate) {
@@ -708,11 +711,18 @@ function getAudioCount(value: SelectedMaterialValue) {
   return 1;
 }
 
+function getSelectedMaterialCount(kind: MaterialKind, value: SelectedMaterialValue) {
+  if (kind.key === 'image') return Math.min(getImageCount(value), getLimit(kind));
+  if (kind.key === 'audio') return Math.min(getAudioCount(value), getLimit(kind));
+  return value ? 1 : 0;
+}
+
 function getRemainingCapacity(kind: MaterialKind, current: SelectedMaterialValue) {
   return Math.max(getLimit(kind) - getLocalFiles(current).length, 0);
 }
 
 function getLimit(kind: MaterialKind) {
+  if (kind.maxCount !== undefined) return kind.maxCount;
   if (kind.key === 'image') return 9;
   if (kind.key === 'audio') return 3;
   return 1;

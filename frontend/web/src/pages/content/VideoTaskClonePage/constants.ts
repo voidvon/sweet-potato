@@ -1,9 +1,9 @@
 import type { FilterGroup, FilterValues, MaterialKind, ToolOption } from './types';
 
 export const defaultMaterials: MaterialKind[] = [
-  { key: 'image', label: '参考图', hint: '最多 9 张', meta: '可选' },
-  { key: 'video', label: '参考视频', hint: '限 1 个', meta: '可选' },
-  { key: 'audio', label: '参考音频', hint: '最多 3 段', meta: '可选' },
+  { key: 'image', label: '参考图', hint: '最多 9 张', maxCount: 9, meta: '可选' },
+  { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '可选' },
+  { key: 'audio', label: '参考音频', hint: '最多 3 段', maxCount: 3, meta: '可选' },
 ];
 
 export const toolOptions: ToolOption[] = [
@@ -14,14 +14,21 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传参考素材',
     materials: defaultMaterials,
     submitText: '开始生成',
+    workspace: {
+      generate: { handler: 'video-generation' },
+      material: { showVoiceToggle: true },
+      parameters: true,
+      prompt: true,
+    },
   },
   {
     key: 'video-upscale',
     label: '视频高清放大',
     description: '上传已有视频，生成高清版本。',
     materialHint: '上传待放大视频',
-    materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个', meta: '可选' }],
+    materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始高清放大',
+    workspace: { generate: { handler: 'pending' }, material: {} },
   },
   {
     key: 'talking-video',
@@ -30,6 +37,7 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传口播参考素材',
     materials: defaultMaterials,
     submitText: '生成口播视频',
+    workspace: { generate: { handler: 'pending' } },
   },
   {
     key: 'subject-replace',
@@ -38,38 +46,43 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传替换主体素材',
     materials: defaultMaterials,
     submitText: '开始替换',
+    workspace: { generate: { handler: 'pending' } },
   },
   {
     key: 'dance-remake',
     label: '跳舞复刻',
     description: '参考视频动作和音乐，生成主体角色跳舞视频。',
-    materialHint: '上传动作与角色素材',
-    materials: defaultMaterials,
+    materialHint: '上传人物素材',
+    materials: [{ key: 'image', label: '人物图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始复刻',
+    workspace: { generate: { handler: 'pending' }, material: {} },
   },
   {
     key: 'marketing-video',
     label: '营销视频生成',
     description: '围绕商品图生成分镜和营销视频。',
     materialHint: '上传商品图',
-    materials: [{ key: 'image', label: '商品图', hint: '最多 9 张', meta: '可选' }],
+    materials: [{ key: 'image', label: '商品图', hint: '1 至 5 张', maxCount: 5, meta: '必选', minCount: 1 }],
     submitText: '生成营销视频',
+    workspace: { generate: { handler: 'pending' }, material: {} },
   },
   {
     key: 'subtitle-removal',
     label: '字幕擦除',
     description: '上传源视频，擦除画面中的硬字幕。',
     materialHint: '上传源视频',
-    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', meta: '可选' }],
+    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始擦除',
+    workspace: { generate: { handler: 'pending' }, material: {} },
   },
   {
     key: 'video-translation',
     label: '视频翻译',
     description: '上传源视频并选择目标语言，生成翻译视频。',
     materialHint: '上传源视频',
-    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', meta: '可选' }],
+    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始翻译',
+    workspace: { generate: { handler: 'pending' }, material: {} },
   },
 ];
 

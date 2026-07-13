@@ -1,5 +1,4 @@
 import { Clock3 } from 'lucide-react';
-import type { User } from '../../../../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import { MaterialPanel } from './MaterialPanel';
 import { ParameterPanel } from './ParameterPanel';
@@ -8,16 +7,68 @@ import { ResultPanel } from './ResultPanel';
 import { toolIcons } from './ToolSwitcher';
 
 type ToolWorkspaceProps = {
-  currentUser: User;
   state: VideoTaskCloneState;
 };
 
-export function ToolWorkspace({ currentUser, state }: ToolWorkspaceProps) {
-  if (state.tool.key !== 'video') {
-    return <PendingToolWorkspace state={state} />;
-  }
+export function ToolWorkspace({ state }: ToolWorkspaceProps) {
+  const { workspace } = state.tool;
+  const hasWorkspaceContent = Boolean(workspace.material || workspace.prompt || workspace.parameters);
 
-  return <VideoCreationWorkspace currentUser={currentUser} state={state} />;
+  return (
+    <>
+      {hasWorkspaceContent ? (
+        <div className="video-task-left-scroll">
+          {workspace.material && (
+            <ToolMaterialPanel
+              showVoiceToggle={workspace.material.showVoiceToggle === true}
+              state={state}
+            />
+          )}
+
+          {workspace.prompt && (
+            <PromptPanel
+              onExampleFill={state.fillExamplePrompt}
+              onExpand={() => state.setExpandedPrompt(true)}
+              onPanelChange={state.setPromptPanel}
+              onPromptChange={state.setPrompt}
+              panel={state.promptPanel}
+              prompt={state.prompt}
+              selectedMaterials={state.selectedMaterials}
+            />
+          )}
+
+          {workspace.parameters && (
+            <ParameterPanel
+              activeParam={state.activeParam}
+              canvas={state.canvas}
+              duration={state.duration}
+              model={state.model}
+              onCanvasQualityChoose={state.chooseCanvasQuality}
+              onCanvasRatioChoose={state.chooseCanvasRatio}
+              onParamChoose={state.chooseParam}
+              onParamToggle={state.setActiveParam}
+              quality={state.quality}
+              ratio={state.ratio}
+              summary={state.paramSummary}
+            />
+          )}
+        </div>
+      ) : (
+        <PendingToolWorkspace state={state} />
+      )}
+
+      <div className="video-task-generate-bar">
+        <button
+          className="video-task-generate"
+          disabled={!state.canGenerate || state.isGenerating}
+          onClick={() => void state.handleGenerate()}
+          type="button"
+        >
+          {state.tool.submitText}
+        </button>
+      </div>
+    </>
+  );
 }
 
 export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
@@ -38,74 +89,36 @@ export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>
   );
 }
 
-function VideoCreationWorkspace({ state }: ToolWorkspaceProps) {
+function ToolMaterialPanel({ showVoiceToggle, state }: ToolWorkspaceProps & { showVoiceToggle: boolean }) {
   return (
-    <>
-      <div className="video-task-left-scroll">
-        <MaterialPanel
-          activeUpload={state.activeUpload}
-          materialMode={state.materialMode}
-          onLibraryAssetChoose={state.chooseLibraryAsset}
-          onClosePopovers={state.closeMaterialPopovers}
-          onMaterialClear={state.clearMaterial}
-          onMaterialLocalFiles={state.fillMaterialFiles}
-          onMaterialRemoveOne={state.removeOneMaterial}
-          onMaterialReplaceFiles={state.replaceMaterialFiles}
-          onModelPickerOpen={state.openModelPicker}
-          onMaterialsClearAll={state.clearAllMaterials}
-          onMaterialFill={state.fillMaterial}
-          onTabChange={state.chooseMaterialTab}
-          onUploadClose={() => state.setActiveUpload(null)}
-          onUploadOpen={state.setActiveUploadWithAnchor}
-          onVoiceChange={state.setVoiceEnabled}
-          onWorksTabChange={state.setWorksTab}
-          selectedMaterials={state.selectedMaterials}
-          voiceAssets={state.voiceAssets}
-          voiceGroupNameById={state.voiceGroupNameById}
-          isLoadingLibraryAssets={state.isLoadingLibraryAssets}
-          tool={state.tool}
-          uploadAnchor={state.uploadAnchor}
-          voiceEnabled={state.voiceEnabled}
-          worksAssets={state.worksAssets}
-          worksTab={state.worksTab}
-        />
-
-        <PromptPanel
-          onExampleFill={state.fillExamplePrompt}
-          onExpand={() => state.setExpandedPrompt(true)}
-          onPanelChange={state.setPromptPanel}
-          onPromptChange={state.setPrompt}
-          panel={state.promptPanel}
-          prompt={state.prompt}
-          selectedMaterials={state.selectedMaterials}
-        />
-
-        <ParameterPanel
-          activeParam={state.activeParam}
-          canvas={state.canvas}
-          duration={state.duration}
-          model={state.model}
-          onCanvasQualityChoose={state.chooseCanvasQuality}
-          onCanvasRatioChoose={state.chooseCanvasRatio}
-          onParamChoose={state.chooseParam}
-          onParamToggle={state.setActiveParam}
-          quality={state.quality}
-          ratio={state.ratio}
-          summary={state.paramSummary}
-        />
-      </div>
-
-      <div className="video-task-generate-bar">
-        <button
-          className="video-task-generate"
-          disabled={!state.canGenerate || state.isGenerating}
-          onClick={() => void state.handleGenerate()}
-          type="button"
-        >
-          {state.tool.submitText}
-        </button>
-      </div>
-    </>
+    <MaterialPanel
+      activeUpload={state.activeUpload}
+      materialMode={state.materialMode}
+      onLibraryAssetChoose={state.chooseLibraryAsset}
+      onClosePopovers={state.closeMaterialPopovers}
+      onMaterialClear={state.clearMaterial}
+      onMaterialLocalFiles={state.fillMaterialFiles}
+      onMaterialRemoveOne={state.removeOneMaterial}
+      onMaterialReplaceFiles={state.replaceMaterialFiles}
+      onModelPickerOpen={state.openModelPicker}
+      onMaterialsClearAll={state.clearAllMaterials}
+      onMaterialFill={state.fillMaterial}
+      onTabChange={state.chooseMaterialTab}
+      onUploadClose={() => state.setActiveUpload(null)}
+      onUploadOpen={state.setActiveUploadWithAnchor}
+      onVoiceChange={state.setVoiceEnabled}
+      onWorksTabChange={state.setWorksTab}
+      selectedMaterials={state.selectedMaterials}
+      voiceAssets={state.voiceAssets}
+      voiceGroupNameById={state.voiceGroupNameById}
+      isLoadingLibraryAssets={state.isLoadingLibraryAssets}
+      tool={state.tool}
+      uploadAnchor={state.uploadAnchor}
+      voiceEnabled={state.voiceEnabled}
+      showVoiceToggle={showVoiceToggle}
+      worksAssets={state.worksAssets}
+      worksTab={state.worksTab}
+    />
   );
 }
 

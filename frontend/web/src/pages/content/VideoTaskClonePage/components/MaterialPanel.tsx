@@ -5,7 +5,7 @@ import { MaterialUploadPopover } from './MaterialUploadPopover';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
-import { getVideoWorkSource } from '../../assets/worksAssetSource';
+import { getVideoWorkSource, getVideoWorkSourceLabel } from '../../assets/worksAssetSource';
 
 type MaterialPanelProps = {
   activeUpload: MaterialKind | null;
@@ -26,6 +26,7 @@ type MaterialPanelProps = {
   onVoiceChange: (enabled: boolean) => void;
   onWorksTabChange: (tab: WorksTab) => void;
   selectedMaterials: SelectedMaterials;
+  showVoiceToggle: boolean;
   tool: ToolOption;
   uploadAnchor: UploadAnchor | null;
   voiceEnabled: boolean;
@@ -54,6 +55,7 @@ export function MaterialPanel({
   onVoiceChange,
   onWorksTabChange,
   selectedMaterials,
+  showVoiceToggle,
   tool,
   uploadAnchor,
   voiceEnabled,
@@ -78,13 +80,13 @@ export function MaterialPanel({
   const filteredWorksAssets = useMemo(() => worksAssets.filter((asset) => {
     const isImage = asset.mimeType.startsWith('image/');
     const isVideo = asset.mimeType.startsWith('video/');
-    if (isVideo && getVideoWorkSource(asset) !== 'video_creation') {
+    if ((isImage && !imageMaterial) || (isVideo && !videoMaterial)) {
       return false;
     }
     if (worksTab === 'image') return isImage;
     if (worksTab === 'video') return isVideo;
     return isImage || isVideo;
-  }), [worksAssets, worksTab]);
+  }), [imageMaterial, videoMaterial, worksAssets, worksTab]);
   const voiceAssetUrls = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, resolveAssetUrl(asset.fileUrl)])), [voiceAssets]);
 
   useEffect(() => {
@@ -235,15 +237,17 @@ export function MaterialPanel({
             <Image size={12} />
             作品
           </button>
-          <button
-            aria-expanded={materialMode === 'audio'}
-            className={materialMode === 'audio' ? 'is-active' : ''}
-            onClick={() => onTabChange(materialMode === 'audio' ? null : 'audio')}
-            type="button"
-          >
-            <Music2 size={12} />
-            音频
-          </button>
+          {audioMaterial && (
+            <button
+              aria-expanded={materialMode === 'audio'}
+              className={materialMode === 'audio' ? 'is-active' : ''}
+              onClick={() => onTabChange(materialMode === 'audio' ? null : 'audio')}
+              type="button"
+            >
+              <Music2 size={12} />
+              音频
+            </button>
+          )}
           <button
             aria-expanded={false}
             onClick={onModelPickerOpen}
@@ -252,7 +256,7 @@ export function MaterialPanel({
             <Package size={12} />
             素材
           </button>
-          {tool.key === 'video' && (
+          {showVoiceToggle && (
             <label
               className={`video-task-voice-toggle${hasSelectedAudio ? ' is-locked' : ''}`}
               title={hasSelectedAudio ? '已选择参考音频，声音必须开启' : '生成视频声音'}
@@ -386,11 +390,15 @@ export function MaterialPanel({
               <ChevronLeft size={20} />
             </button>
           </header>
-          <p>点击卡片填入参考图 / 视频 ↙</p>
+          <p>点击卡片填入可用素材 ↙</p>
           <div className="video-task-assets-tabs">
             <button className={worksTab === 'all' ? 'is-active' : ''} onClick={() => onWorksTabChange('all')} type="button">全部</button>
-            <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">图片</button>
-            <button className={worksTab === 'video' ? 'is-active' : ''} onClick={() => onWorksTabChange('video')} type="button">视频</button>
+            {imageMaterial && (
+              <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">图片</button>
+            )}
+            {videoMaterial && (
+              <button className={worksTab === 'video' ? 'is-active' : ''} onClick={() => onWorksTabChange('video')} type="button">视频</button>
+            )}
           </div>
           <div className="video-task-works-scroll">
             {isLoadingLibraryAssets && <div className="video-task-assets-empty">正在加载作品</div>}
@@ -405,8 +413,9 @@ export function MaterialPanel({
                     const targetMaterial = isVideo ? videoMaterial : imageMaterial;
                     const name = getAssetName(asset, isVideo ? '视频作品' : '图片作品');
                     const videoDurationLabel = getAssetDuration(asset, videoDurationByAssetId[asset.id]);
+                    const videoSourceLabel = getVideoWorkSourceLabel(getVideoWorkSource(asset)) || '视频作品';
                     const cardTitle = isVideo
-                      ? ['视频创作', videoDurationLabel === '--:--' ? '' : videoDurationLabel].filter(Boolean).join(' ')
+                      ? [videoSourceLabel, videoDurationLabel === '--:--' ? '' : videoDurationLabel].filter(Boolean).join(' ')
                       : name;
                     return (
                       <button
