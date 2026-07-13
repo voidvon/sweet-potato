@@ -1,10 +1,10 @@
 import { DeleteOutlined, DownloadOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Zap } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search } from 'lucide-react';
 import { Button, Dropdown, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
-import { formatTimeHM } from '../../../../utils/dateTime';
+import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
 import { filterGroups } from '../constants';
 import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
@@ -69,20 +69,6 @@ export function ResultPanel({
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [isFilterOpen, onFilterToggle]);
-
-  const handleCopyId = async (value: string) => {
-    const normalized = String(value || '').trim();
-    if (!normalized) {
-      message.warning('暂无可复制的ID');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(normalized);
-      message.success('已复制ID');
-    } catch {
-      message.error('复制失败，请稍后重试');
-    }
-  };
 
   const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -203,8 +189,12 @@ export function ResultPanel({
             {dailyGroups.map((group) => (
               <section className="video-task-result-track" key={group.key}>
                 <div className="video-task-result-track-head">
-                  <span className="video-task-result-pill">{group.label}</span>
+                  <span className="video-task-result-chip is-metric">
+                    <span className="video-task-result-metric-dot" aria-hidden="true" />
+                    {viewState(group.records[0]).metric}
+                  </span>
                   <span className="video-task-result-track-count">{group.records.length}个</span>
+                  <span className="video-task-result-pill">{group.label}</span>
                 </div>
 
                 <div className="video-task-result-grid">
@@ -246,31 +236,6 @@ export function ResultPanel({
                         </div>
 
                         <div className="video-task-result-copy">
-                          <div className="video-task-result-copy-meta">
-                            <button
-                              className="video-task-result-chip is-copy"
-                              onClick={() => void handleCopyId(state.copyId)}
-                              type="button"
-                            >
-                              复制ID
-                            </button>
-                            <span className="video-task-result-copy-dot">·</span>
-                            <span className="video-task-result-chip is-metric">
-                              <Zap size={11} />
-                              {state.metric}
-                            </span>
-                            {state.creditCostText ? [
-                              <span className="video-task-result-copy-dot">·</span>,
-                              <span className="video-task-result-chip is-credit">
-                                消耗 <Zap size={11} /> {state.creditCostText}
-                              </span>
-                            ] : null}
-                          </div>
-
-                          <time className="video-task-result-time" dateTime={task.updatedAt}>
-                            {formatTimeHM(task.updatedAt)}
-                          </time>
-
                           <div className="video-task-result-actions">
                             <div className="video-task-result-action-row">
                               {state.canRetry ? (
@@ -507,7 +472,7 @@ function groupRecordsByDay(records: VideoGenerationTask[]) {
     }
     groups.set(key, {
       key,
-      label: formatDayLabel(date),
+      label: formatRelativeCalendarDateTime(date),
       records: [record],
     });
   });
@@ -531,24 +496,6 @@ function formatDayKey(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function formatDayLabel(date: Date) {
-  if (Number.isNaN(date.getTime())) {
-    return '未知时间';
-  }
-  const now = new Date();
-  const currentDayKey = formatDayKey(now);
-  const previousDay = new Date(now);
-  previousDay.setDate(now.getDate() - 1);
-  const targetKey = formatDayKey(date);
-  if (targetKey === currentDayKey) {
-    return '今天';
-  }
-  if (targetKey === formatDayKey(previousDay)) {
-    return '昨天';
-  }
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
 function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
