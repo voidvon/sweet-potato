@@ -21,20 +21,6 @@ export function ToolWorkspace({ currentUser, state }: ToolWorkspaceProps) {
 }
 
 export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
-  if (state.tool.key !== 'video') {
-    const ToolIcon = toolIcons[state.tool.key];
-
-    return (
-      <section className="video-task-result video-task-tool-result-pending">
-        <span className="video-task-tool-pending-icon">
-          <ToolIcon size={28} />
-        </span>
-        <strong>{state.tool.label}结果</strong>
-        <p>该功能的任务记录与结果预览将在模块接入后显示。</p>
-      </section>
-    );
-  }
-
   return (
     <ResultPanel
       filters={state.filters}
