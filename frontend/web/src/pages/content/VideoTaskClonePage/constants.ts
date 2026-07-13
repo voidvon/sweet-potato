@@ -28,7 +28,7 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传待放大视频',
     materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始高清放大',
-    workspace: { generate: { handler: 'pending' }, material: {} },
+    workspace: { generate: { handler: 'video-upscale' }, material: {} },
   },
   {
     key: 'talking-video',

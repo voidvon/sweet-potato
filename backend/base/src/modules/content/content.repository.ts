@@ -591,6 +591,7 @@ export const contentRepository = {
 
   listVideoTasks(userId: string, options: {
     mode?: string;
+    modes?: string[];
     search?: string;
     updatedAtFrom?: string;
     updatedAtTo?: string;
@@ -604,6 +605,17 @@ export const contentRepository = {
     if (options.mode) {
       clauses.push("json_extract(expert_context, '$.mode') = @mode");
       params.mode = options.mode;
+    }
+    if (options.modes?.length) {
+      const modes = Array.from(new Set(options.modes.map((item) => item.trim()).filter(Boolean)));
+      if (modes.length) {
+        const modeParams = modes.map((mode, index) => {
+          const key = `mode${index}`;
+          params[key] = mode;
+          return `@${key}`;
+        });
+        clauses.push(`json_extract(expert_context, '$.mode') IN (${modeParams.join(', ')})`);
+      }
     }
     if (options.updatedAtFrom) {
       clauses.push('updated_at >= @updatedAtFrom');

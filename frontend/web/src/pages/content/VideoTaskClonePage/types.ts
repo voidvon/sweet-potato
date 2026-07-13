@@ -28,7 +28,7 @@ export type ToolOption = {
   submitText: string;
   workspace: {
     generate: {
-      handler: 'video-generation' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'pending';
     };
     material?: {
       showVoiceToggle?: boolean;

@@ -360,6 +360,7 @@ function taskVideoGenerationResult(task: VideoGenerationTask) {
 
 function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
+  const isUpscale = task.expertContext?.mode === 'video_upscale';
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
   const copyId = String(task.id || '').trim();
@@ -372,10 +373,10 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'success' as const,
       label: '已完成',
-      posterText: '成片已生成',
+      posterText: isUpscale ? '高清放大已完成' : '成片已生成',
       note: '',
-      footnote: '成片已落盘，可继续筛选和复用。',
-      metric: formatMetric(result),
+      footnote: isUpscale ? '高清成片已落盘，可继续复用。' : '成片已落盘，可继续筛选和复用。',
+      metric: formatMetric(result, task),
       creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl,
@@ -396,10 +397,10 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'failed' as const,
       label: '失败',
-      posterText: '生成失败',
+      posterText: isUpscale ? '高清放大失败' : '生成失败',
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
       footnote: '当前任务失败，可直接重试。',
-      metric: formatMetric(result),
+      metric: formatMetric(result, task),
       creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl: '',
@@ -415,7 +416,7 @@ function viewState(task: VideoGenerationTask) {
       posterText: '提交失败',
       note: '任务未成功提交到生成队列，可直接再次生成。',
       footnote: '当前任务未真正开始生成，可直接重试。',
-      metric: formatMetric(result),
+      metric: formatMetric(result, task),
       creditCostText: formatCreditCost(task.creditCost),
       copyId,
       videoUrl: '',
@@ -426,11 +427,11 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : '生成中',
-    posterText: '正在生成视频',
+    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : '生成中',
+    posterText: isUpscale ? '正在进行高清放大' : '正在生成视频',
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     footnote: '系统会自动刷新当前生成状态。',
-    metric: formatMetric(result),
+    metric: formatMetric(result, task),
     creditCostText: formatCreditCost(task.creditCost),
     copyId,
     videoUrl: '',
@@ -447,7 +448,11 @@ function resolveTaskMediaUrl(value?: string | null) {
   return resolveAssetUrl(value);
 }
 
-function formatMetric(result?: VideoGenerationResult) {
+function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask) {
+  if (task?.expertContext?.mode === 'video_upscale') {
+    const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();
+    return `高清放大 · ${resolution}`;
+  }
   if (!result) {
     return '等待参数';
   }

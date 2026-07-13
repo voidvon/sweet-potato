@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message, Modal } from 'antd';
-import { createContentAssetGroup, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createVideoEnhancement, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
@@ -447,6 +447,24 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         uploadGroupIdsRef,
         voiceEnabled,
       });
+      if (tool.workspace.generate.handler === 'video-upscale') {
+        const sourceAssetId = prepared.referenceVideoIds[0];
+        if (!sourceAssetId) {
+          throw new Error('请选择待放大视频');
+        }
+        await createVideoEnhancement({
+          userId: currentUser.id,
+          sourceAssetId,
+          resolution: '1080p',
+        });
+        await Promise.all([
+          loadLibraryAssets(),
+          loadVideoProductions(true),
+        ]);
+        resetCreationForm();
+        message.success('视频高清放大任务已提交');
+        return;
+      }
       await createVideoProduction({
         userId: currentUser.id,
         prompt,
@@ -489,6 +507,31 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
   const retryVideoProduction = useCallback(async (task: VideoGenerationTask) => {
     if (retrySubmittingRef.current) {
+      return;
+    }
+    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    if (context.mode === 'video_upscale') {
+      const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
+      if (!sourceAssetId) {
+        message.warning('当前记录缺少源视频素材，无法重试');
+        return;
+      }
+      try {
+        retrySubmittingRef.current = true;
+        setRetryingTaskId(task.id);
+        await createVideoEnhancement({
+          userId: currentUser.id,
+          sourceAssetId,
+          resolution: (stringFromRecord(context, 'enhancementResolution', '1080p').toLowerCase() as '1080p' | '2k' | '4k'),
+        });
+        await loadVideoProductions(true);
+        message.success('已重新提交高清放大任务');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '高清放大重试失败');
+      } finally {
+        retrySubmittingRef.current = false;
+        setRetryingTaskId('');
+      }
       return;
     }
     const payload = buildRetryVideoProductionPayload(task, currentUser.id);

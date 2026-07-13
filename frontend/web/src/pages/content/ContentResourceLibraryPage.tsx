@@ -93,6 +93,7 @@ const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:all', label: '视频生成', modeKeys: [], modeTitles: [] },
   { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
   { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
+  { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
 ];
 
 const showWorksBatchButton = false;
@@ -294,7 +295,9 @@ function productGroupPreview(groupAssets: ContentAsset[], fallbackIcon: string) 
 
 function isGeneratedWorkAsset(asset: ContentAsset) {
   return asset.resourceType === 'finished_video'
-    && (asset.metadata?.generatedBy === 'video_model' || asset.metadata?.generatedBy === 'image_model');
+    && (asset.metadata?.generatedBy === 'video_model'
+      || asset.metadata?.generatedBy === 'video_enhancement'
+      || asset.metadata?.generatedBy === 'image_model');
 }
 
 function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
@@ -306,7 +309,7 @@ function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
 
 function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
-  if (generatedBy !== 'image_model' && generatedBy !== 'video_model') {
+  if (generatedBy !== 'image_model' && generatedBy !== 'video_model' && generatedBy !== 'video_enhancement') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode') || (generatedBy === 'image_model' ? 'image_generation' : 'video_generation');
@@ -321,6 +324,9 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   }
   if (source === 'video_remake') {
     return videoWorksFunctionOptions[2];
+  }
+  if (source === 'video_upscale') {
+    return videoWorksFunctionOptions[3];
   }
   return videoWorksFunctionOptions[0];
 }
@@ -337,6 +343,9 @@ function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   }
   if (functionKey === 'video:remake') {
     return getVideoWorkSource(asset) === 'video_remake';
+  }
+  if (functionKey === 'video:upscale') {
+    return getVideoWorkSource(asset) === 'video_upscale';
   }
   const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
   if (!option) {

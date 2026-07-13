@@ -17,6 +17,7 @@ enum Api {
   trimReferenceVideo = '/api/content/reference-video/trim',
   videoTasks = '/api/content/video-tasks',
   videoProductions = '/api/content/video-productions',
+  videoEnhancements = '/api/content/video-enhancements',
 }
 
 export type TrimReferenceVideoResult = {
@@ -378,6 +379,18 @@ export function createVideoProduction(payload: {
 }) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoGenerationTask>(Api.videoProductions, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
+export function createVideoEnhancement(payload: {
+  userId: string;
+  sourceAssetId: string;
+  resolution?: '1080p' | '2k' | '4k';
+}) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoGenerationTask>(Api.videoEnhancements, {
     method: 'POST',
     body: JSON.stringify(requestPayload),
   });
