@@ -1,45 +1,56 @@
-.video-task-tool-menu {
+.video-task-tool-dropdown {
+  z-index: 2400;
+}
+
+.video-task-tool-dropdown .ant-dropdown-menu {
+  backdrop-filter: blur(18px);
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(15, 23, 42, 0.07);
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  left: 14px;
   overflow: hidden;
   padding: 8px;
-  position: absolute;
-  top: 106px;
-  width: 391px;
-  z-index: 2400;
+  width: 100%;
 }
 
-.video-task-tool-option {
+.video-task-tool-dropdown.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item {
   align-items: center;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 13px;
+  border-radius: 16px;
   display: grid;
   gap: 10px;
-  grid-template-columns: 38px 1fr 16px;
+  grid-template-columns: 38px minmax(0, 1fr);
   height: 58px;
   min-height: 58px;
   padding: 9px;
   text-align: left;
   transition: background 0.16s ease, transform 0.16s ease;
-  width: 373px;
+  width: 100%;
 }
 
-.video-task-tool-option.is-active {
+.video-task-tool-dropdown.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item.ant-dropdown-menu-item-selected {
   background: #eaf4ff;
-  border-color: rgba(22, 119, 255, 0.24);
+  border-color: var(--color-brand-border);
 }
 
-.video-task-tool-option:hover {
-  background: #f5faff;
+.video-task-tool-dropdown.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item:hover {
   transform: translateX(2px);
+}
+
+.video-task-tool-dropdown.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item:not(.ant-dropdown-menu-item-selected):hover {
+  background: #f5faff;
+}
+
+.video-task-tool-dropdown .ant-dropdown-menu-item-icon {
+  margin-inline-end: 0;
+}
+
+.video-task-tool-dropdown .ant-dropdown-menu-title-content {
+  min-width: 0;
 }
 
 .video-task-tool-option-icon {
@@ -54,27 +65,44 @@
   width: 38px;
 }
 
-.video-task-tool-option.is-active .video-task-tool-option-icon {
+.video-task-tool-dropdown .ant-dropdown-menu-item-selected .video-task-tool-option-icon {
   background: #dceeff;
-  border-color: #91caff;
+  border-color: var(--color-brand-border);
 }
 
-.video-task-tool-option strong,
-.video-task-tool-option small {
+.video-task-tool-option-content {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  width: 100%;
+}
+
+.video-task-tool-option-copy {
+  display: block;
+  min-width: 0;
+}
+
+.video-task-tool-option-copy strong,
+.video-task-tool-option-copy small {
   display: block;
 }
 
-.video-task-tool-option strong {
+.video-task-tool-option-copy strong {
   font-size: 13px;
   font-weight: 500;
   line-height: 19.5px;
 }
 
-.video-task-tool-option small {
+.video-task-tool-option-copy small {
   color: #6f7783;
   font-size: 11px;
   line-height: 1.35;
   margin-top: 3px;
+}
+
+.video-task-tool-option-check {
+  color: var(--video-task-accent);
 }
 
 .video-task-library-popover {

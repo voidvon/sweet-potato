@@ -15,6 +15,7 @@ import { dispatchChatCapability, resolveChatCapabilityInvocation } from './chat-
 import { assertModelConfigReady, streamConfiguredModel } from './chat-completion.service.js';
 import { expectedImageGenerationOutputCount } from './capabilities/image-generation.workflow.js';
 import { chatRepository } from './chat.repository.js';
+import type { ChatCapabilityName } from './chat-capability.types.js';
 import type { ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from './chat.types.js';
 
 const maxChatAttachmentBytes = 10 * 1024 * 1024;
@@ -41,6 +42,24 @@ export type ParsedChatStreamPayload = {
 export function makeChatTitle(content: string) {
   const compact = content.replace(/\s+/g, ' ').trim();
   return compact.length > 24 ? `${compact.slice(0, 24)}...` : compact || '新的对话';
+}
+
+export function makeConversationTitle(input: {
+  content: string;
+  capability?: ChatCapabilityName;
+  capabilityContext?: SendChatPayload['capabilityContext'];
+}) {
+  const contentTitle = makeChatTitle(input.content);
+  if (input.content.trim()) {
+    return contentTitle;
+  }
+  if (input.capability === 'image_generation') {
+    const modeTitle = input.capabilityContext?.imageGeneration?.modeTitle?.replace(/\s+/g, ' ').trim();
+    if (modeTitle) {
+      return makeChatTitle(modeTitle);
+    }
+  }
+  return contentTitle;
 }
 
 function makeConversationPreview(content: string) {
@@ -244,7 +263,11 @@ export async function handleCapabilityConversation(input: {
     : {
         id: randomBytes(12).toString('hex'),
         userId: input.userId,
-        title: makeChatTitle(invocation.cleanedContent || input.content),
+        title: makeConversationTitle({
+          content: invocation.cleanedContent || input.content,
+          capability: resolvedInvocation.capability,
+          capabilityContext: input.capabilityContext,
+        }),
         agentId: input.agent.id,
         modelConfigId: input.modelConfig.id,
         metadata: {},

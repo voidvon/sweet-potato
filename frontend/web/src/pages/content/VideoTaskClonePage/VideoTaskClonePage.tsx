@@ -22,8 +22,8 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         <ToolSwitcher
           currentTool={state.tool}
           isOpen={state.showToolMenu}
+          onOpenChange={state.setShowToolMenu}
           onSelect={state.chooseTool}
-          onToggle={() => state.setShowToolMenu(!state.showToolMenu)}
         />
 
         <div className="video-task-left-scroll">
