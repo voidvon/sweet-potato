@@ -13,6 +13,7 @@
   "dependencies": {
     "@langchain/core": "^1.1.48",
     "@langchain/langgraph": "^1.3.5",
+    "@volcengine/ark-runtime": "^1.0.10",
     "@volcengine/openapi": "^1.36.2",
     "@volcengine/tos-sdk": "^2.9.1",
     "better-sqlite3": "12.5.0",

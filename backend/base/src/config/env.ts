@@ -96,6 +96,15 @@ export const volcengineTosConfig = {
   keyPrefix: String(process.env.VOLCENGINE_TOS_KEY_PREFIX || 'video-generation-temp').trim().replace(/^\/+|\/+$/g, ''),
 };
 
+export const arkVideoUnderstandingConfig = {
+  apiKey: String(process.env.OPENAI_API_KEY || '').trim(),
+  baseUrl: String(process.env.OPENAI_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3').trim().replace(/\/+$/, ''),
+  model: String(process.env.ARK_VIDEO_MODEL || 'doubao-seed-2-1-pro-260628').trim(),
+  timeoutMs: Number(process.env.ARK_VIDEO_TIMEOUT_MS || 300000),
+  filePollIntervalMs: Number(process.env.ARK_VIDEO_FILE_POLL_INTERVAL_MS || 2000),
+  filePollTimeoutMs: Number(process.env.ARK_VIDEO_FILE_POLL_TIMEOUT_MS || 600000),
+};
+
 // const defaultDigitalHumanThreeViewPrompt = `人物角色设计稿，
 // 一张图内包含全身三视图+面部细节三视图，
 // 上半部分为人物全身正面、左侧面、右侧面、背面三视图共三张图，
