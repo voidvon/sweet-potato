@@ -2,6 +2,7 @@ import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2 } from '
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
+import { WorkspaceSection } from './WorkspaceSection';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
@@ -215,12 +216,10 @@ export function MaterialPanel({
   };
 
   return (
-    <section className="video-task-card video-task-material-card" ref={panelRef}>
-      <div className="video-task-material-title">
-        <span className="video-task-material-title-text">
-          <strong>素材</strong>
-          <small>{tool.materialHint}</small>
-        </span>
+    <WorkspaceSection
+      className="video-task-material-card"
+      description={tool.materialHint}
+      headerExtra={(
         <div className="video-task-tabs" aria-label="素材类型">
           {Object.keys(selectedMaterials).length > 0 && (
             <button className="is-danger" onClick={onMaterialsClearAll} title="清空全部素材" type="button">
@@ -272,7 +271,11 @@ export function MaterialPanel({
             </label>
           )}
         </div>
-      </div>
+      )}
+      headerLayout="stacked"
+      ref={panelRef}
+      title="素材"
+    >
 
       <div className="video-task-material-grid">
         {tool.materials.map((item) => {
@@ -481,7 +484,7 @@ export function MaterialPanel({
           onLocalUpload={(item) => onMaterialFill(item, `${item.label} 01`)}
         />
       )}
-    </section>
+    </WorkspaceSection>
   );
 }
 

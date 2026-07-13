@@ -29,12 +29,7 @@ import { readVideoDuration } from './videoMetadata';
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
   mode: 'auto',
   contentType: 'subtitle',
-  locations: [{
-    topLeftX: 0.05,
-    topLeftY: 0.72,
-    bottomRightX: 0.95,
-    bottomRightY: 0.96,
-  }],
+  locations: [],
   clipFilter: { mode: 'all', start: 0, end: 0 },
 };
 

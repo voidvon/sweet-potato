@@ -43,6 +43,14 @@ export type MaterialKind = {
   minCount?: number;
 };
 
+export type WorkspaceBlock =
+  | { id: string; type: 'material'; showVoiceToggle?: boolean }
+  | { id: string; type: 'parameters' }
+  | { id: string; type: 'prompt'; title?: string }
+  | { id: string; type: 'subtitle-removal' };
+
+export type WorkspaceBlockType = WorkspaceBlock['type'];
+
 export type ToolOption = {
   description: string;
   key: ToolKey;
@@ -51,15 +59,10 @@ export type ToolOption = {
   materials: MaterialKind[];
   submitText: string;
   workspace: {
+    blocks: WorkspaceBlock[];
     generate: {
       handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'pending';
     };
-    material?: {
-      showVoiceToggle?: boolean;
-    };
-    parameters?: boolean;
-    prompt?: boolean;
-    subtitleRemoval?: boolean;
   };
 };
 

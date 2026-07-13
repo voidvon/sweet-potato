@@ -34,7 +34,9 @@
 }
 
 .video-task-left-scroll {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   gap: 12px;
   margin: 12px 0 0;
   min-height: 0;
@@ -43,6 +45,10 @@
   padding: 0 6px 18px 0;
   scrollbar-color: #d4d8df transparent;
   scrollbar-width: thin;
+}
+
+.video-task-left-scroll > * {
+  flex: 0 0 auto;
 }
 
 .video-task-left-scroll::-webkit-scrollbar {
@@ -118,7 +124,6 @@
 }
 
 .video-task-current-copy span,
-.video-task-section-heading p,
 .video-task-param-item small {
   color: var(--video-task-muted);
 }
@@ -138,7 +143,6 @@
 }
 
 .video-task-current-copy p,
-.video-task-section-heading p,
 .video-task-empty-state p {
   margin: 0;
 }
@@ -217,14 +221,11 @@
 
 .video-task-material-card {
   height: auto;
-  margin-bottom: 4px;
   min-height: 228px;
   position: relative;
   overflow: visible;
 }
 
-.video-task-section-heading h2,
-.video-task-prompt-title h2,
 .video-task-result-header h1 {
   font-size: 14px;
   font-weight: 700;
@@ -232,43 +233,19 @@
   margin: 0;
 }
 
-.video-task-section-heading p {
-  font-size: 12px;
-  font-weight: 500;
-  margin-top: 4px;
+.video-task-material-card {
+  --workspace-section-header-gap: 12px;
+  --workspace-section-title-size: 13px;
+  --workspace-section-title-weight: 500;
+  --workspace-section-title-line-height: 18.85px;
 }
 
-.video-task-material-title {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 77.84px;
-  margin: 0 0 12px;
-  width: 100%;
-}
-
-.video-task-material-title-text {
-  align-items: flex-start;
-  display: flex;
-  flex-direction: column;
+.video-task-material-card .video-task-workspace-section-copy {
   gap: 3px;
-  height: 39.84px;
 }
 
-.video-task-material-title-text strong {
-  color: #000;
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 18.85px;
-}
-
-.video-task-material-title-text small {
+.video-task-material-card .video-task-workspace-section-copy p {
   color: #6e6e6e;
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
 }
 
 .video-task-tabs {
@@ -630,22 +607,10 @@
 }
 
 .video-task-prompt-section {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  margin-bottom: 12px;
   margin-top: 0;
   position: relative;
   width: 100%;
   z-index: 5;
-}
-
-.video-task-prompt-title {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  height: 30px;
-  margin-bottom: 0;
 }
 
 .video-task-prompt-box {
@@ -771,6 +736,9 @@
 }
 
 .video-task-params-card {
+  --workspace-section-header-gap: 12px;
+  --workspace-section-title-line-height: 1.2;
+  --workspace-section-title-size: 14px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px rgba(15, 23, 42, 0.035);
   height: 201px;
   margin-top: 0;
@@ -778,11 +746,14 @@
   overflow: visible;
 }
 
+.video-task-params-card .video-task-workspace-section-copy p {
+  font-weight: 500;
+}
+
 .video-task-param-grid {
   display: grid;
   gap: 12px 10px;
   grid-template-columns: 1fr 1fr;
-  margin-top: 12px;
 }
 
 .video-task-param-item {
@@ -1095,11 +1066,16 @@
 
 .video-task-result-grid {
   display: grid;
-  gap: 0;
-  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  gap: 4px;
+  grid-template-columns: minmax(0, 212px);
+  justify-content: start;
   padding: 0 0 10px;
   width: 100%;
   max-width: 100%;
+}
+
+.video-task-result-grid.has-multiple {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .video-task-result-card {
@@ -1131,7 +1107,7 @@
   display: flex;
   height: auto;
   justify-content: center;
-  min-height: 170px;
+  min-height: 0;
   position: relative;
 }
 
@@ -1249,7 +1225,6 @@
 }
 
 .video-task-result-copy {
-  border-top: 1px solid #f4f6f9;
   display: grid;
   gap: 4px;
   padding: 8px 0;
@@ -1305,14 +1280,6 @@
   justify-content: space-between;
 }
 
-.video-task-result-footnote {
-  align-items: center;
-  display: inline-flex;
-  font-size: 11px;
-  font-weight: 600;
-  gap: 5px;
-}
-
 .video-task-result-retry.ant-btn,
 .video-task-result-more.ant-btn {
   background: #f4f5f7;
@@ -1350,20 +1317,6 @@
   font-size: 12px;
   height: 12px;
   width: 12px;
-}
-
-.video-task-result-footnote {
-  color: #94a3b8;
-  font-weight: 600;
-  min-height: 24px;
-}
-
-.video-task-result-footnote.is-success {
-  color: #15803d;
-}
-
-.video-task-result-footnote.is-running {
-  color: #4f46e5;
 }
 
 .video-task-result-more-menu .ant-dropdown-menu {

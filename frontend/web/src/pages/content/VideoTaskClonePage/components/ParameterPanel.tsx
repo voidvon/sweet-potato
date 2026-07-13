@@ -2,6 +2,7 @@ import { Check, ChevronDown, Clock3, Layers3 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { durationOptions, modelDescriptions, modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { ParamKind } from '../types';
+import { WorkspaceSection } from './WorkspaceSection';
 
 type ParameterPanelProps = {
   activeParam: ParamKind | null;
@@ -57,14 +58,7 @@ export function ParameterPanel({
   }, [activeParam, onParamToggle]);
 
   return (
-    <section className="video-task-card video-task-params-card" ref={panelRef}>
-      <div className="video-task-section-heading">
-        <div>
-          <h2>生成参数</h2>
-          <p>{summary}</p>
-        </div>
-      </div>
-
+    <WorkspaceSection className="video-task-params-card" description={summary} ref={panelRef} title="生成参数">
       <div className="video-task-param-grid">
         <button className={`video-task-param-item${activeParam === 'model' ? ' is-open' : ''}`} onClick={() => onParamToggle(activeParam === 'model' ? null : 'model')} type="button">
           <span className="video-task-param-icon">
@@ -156,6 +150,6 @@ export function ParameterPanel({
           )}
         </div>
       )}
-    </section>
+    </WorkspaceSection>
   );
 }

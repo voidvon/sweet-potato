@@ -45,7 +45,7 @@ export function ResultPanel({
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
-  const dailyGroups = groupRecordsByDay(sortedRecords);
+  const resultGroups = groupRecordsByDayAndModule(sortedRecords);
   const activeFilterCount = activeResultFilterCount(filters);
 
   useEffect(() => {
@@ -186,7 +186,7 @@ export function ResultPanel({
       ) : (
         <div className="video-task-result-flow">
           <div className="video-task-result-timeline">
-            {dailyGroups.map((group) => (
+            {resultGroups.map((group) => (
               <section className="video-task-result-track" key={group.key}>
                 <div className="video-task-result-track-head">
                   <span className="video-task-result-chip is-metric">
@@ -197,7 +197,7 @@ export function ResultPanel({
                   <span className="video-task-result-pill">{group.label}</span>
                 </div>
 
-                <div className="video-task-result-grid">
+                <div className={group.records.length > 1 ? 'video-task-result-grid has-multiple' : 'video-task-result-grid'}>
                   {group.records.map((task) => {
                     const state = viewState(task);
                     const isRetrying = retryingTaskId === task.id;
@@ -235,10 +235,10 @@ export function ResultPanel({
                           )}
                         </div>
 
-                        <div className="video-task-result-copy">
-                          <div className="video-task-result-actions">
-                            <div className="video-task-result-action-row">
-                              {state.canRetry ? (
+                        {state.kind !== 'running' ? (
+                          <div className="video-task-result-copy">
+                            <div className="video-task-result-actions">
+                              <div className="video-task-result-action-row">
                                 <Button
                                   className="video-task-result-retry"
                                   color="default"
@@ -250,11 +250,7 @@ export function ResultPanel({
                                 >
                                   {isRetrying ? '提交中' : '再次生成'}
                                 </Button>
-                              ) : (
-                                <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
-                              )}
 
-                              {state.kind !== 'running' ? (
                                 <Dropdown
                                   overlayClassName="video-task-result-more-menu"
                                   disabled={isDeleting || isRetrying}
@@ -287,10 +283,10 @@ export function ResultPanel({
                                     variant="filled"
                                   />
                                 </Dropdown>
-                              ) : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : null}
                       </article>
                     );
                   })}
@@ -340,11 +336,9 @@ function viewState(task: VideoGenerationTask) {
       label: '已完成',
       posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : '成片已生成',
       note: '',
-      footnote: isUpscale ? '高清成片已落盘，可继续复用。' : isSubtitleRemoval ? '无字幕成片已落盘，可继续复用。' : '成片已落盘，可继续筛选和复用。',
       metric: formatMetric(result, task),
       videoUrl,
       coverUrl,
-      canRetry: true,
       previewVideo: {
         duration: parseDurationSeconds(result?.duration),
         end: parseDurationSeconds(result?.duration),
@@ -362,11 +356,9 @@ function viewState(task: VideoGenerationTask) {
       label: '失败',
       posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : '生成失败',
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
-      footnote: '当前任务失败，可直接重试。',
       metric: formatMetric(result, task),
       videoUrl: '',
       coverUrl,
-      canRetry: true,
       previewVideo: null,
     };
   }
@@ -376,11 +368,9 @@ function viewState(task: VideoGenerationTask) {
       label: '失败',
       posterText: '提交失败',
       note: '任务未成功提交到生成队列，可直接再次生成。',
-      footnote: '当前任务未真正开始生成，可直接重试。',
       metric: formatMetric(result, task),
       videoUrl: '',
       coverUrl,
-      canRetry: true,
       previewVideo: null,
     };
   }
@@ -389,11 +379,9 @@ function viewState(task: VideoGenerationTask) {
     label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : '生成中',
     posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : '正在生成视频',
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
-    footnote: '系统会自动刷新当前生成状态。',
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,
-    canRetry: false,
     previewVideo: null,
   };
 }
@@ -450,11 +438,12 @@ function parseDurationSeconds(duration?: string | null) {
   return matched ? Number(matched[1]) : 0;
 }
 
-function groupRecordsByDay(records: VideoGenerationTask[]) {
+function groupRecordsByDayAndModule(records: VideoGenerationTask[]) {
   const groups = new Map<string, { key: string; label: string; records: VideoGenerationTask[] }>();
   records.forEach((record) => {
     const date = new Date(record.updatedAt);
-    const key = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
+    const dayKey = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
+    const key = `${dayKey}:${resultModuleKey(record)}`;
     const current = groups.get(key);
     if (current) {
       current.records.push(record);
@@ -467,6 +456,14 @@ function groupRecordsByDay(records: VideoGenerationTask[]) {
     });
   });
   return Array.from(groups.values());
+}
+
+function resultModuleKey(task: VideoGenerationTask) {
+  const mode = String(task.expertContext?.mode || '').trim();
+  if (!mode || mode === 'video_generation') {
+    return 'video_create';
+  }
+  return mode;
 }
 
 function activeResultFilterCount(filters: FilterValues) {
