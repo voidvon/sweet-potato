@@ -306,6 +306,12 @@ export type CreateVideoProductionPayload = {
   characterReferenceImageIds?: string[];
 };
 
+export type CreateVideoEnhancementPayload = {
+  userId: string;
+  sourceAssetId: string;
+  resolution?: '1080p' | '2k' | '4k';
+};
+
 export type GenerateDigitalHumanThreeViewPayload = {
   userId: string;
 };

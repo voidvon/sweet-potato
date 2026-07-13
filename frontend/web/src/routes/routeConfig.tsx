@@ -371,6 +371,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
+      hideWorkspaceHeader: true,
       title: '视频创作',
       surface: 'immersive',
       sidebar: {

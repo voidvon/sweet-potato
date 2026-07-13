@@ -1,6 +1,6 @@
 import type { ContentAsset } from '../../../types';
 
-export type VideoWorkSource = 'video_creation' | 'video_remake';
+export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale';
 
 export function stringMetadataValue(asset: ContentAsset, key: string) {
   const value = asset.metadata?.[key];
@@ -8,7 +8,8 @@ export function stringMetadataValue(asset: ContentAsset, key: string) {
 }
 
 export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null {
-  if (stringMetadataValue(asset, 'generatedBy') !== 'video_model') {
+  const generatedBy = stringMetadataValue(asset, 'generatedBy');
+  if (generatedBy !== 'video_model' && generatedBy !== 'video_enhancement') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode');
@@ -20,6 +21,9 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
   ) {
     return 'video_remake';
   }
+  if (generatedBy === 'video_enhancement' || mode === 'video_upscale') {
+    return 'video_upscale';
+  }
   return 'video_creation';
 }
 
@@ -29,6 +33,9 @@ export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   }
   if (source === 'video_remake') {
     return '爆款复刻';
+  }
+  if (source === 'video_upscale') {
+    return '高清放大';
   }
   return '';
 }

@@ -70,7 +70,7 @@ export function MaterialSlot({
         <input
           accept={getFileAccept(item)}
           className="video-task-native-file-input"
-          multiple={item.key !== 'video'}
+          multiple={getLimit(item) > 1}
           onChange={handleFileChange}
           ref={fileInputRef}
           type="file"
@@ -137,14 +137,14 @@ function getSelectedCount(item: MaterialKind, selected: SelectedMaterialValue) {
   if (Array.isArray(selected)) return Math.min(selected.length, getLimit(item));
   if (item.key === 'image') {
     const parsed = selected.match(/(\d+)\s*张/);
-    if (parsed) return Math.min(Number(parsed[1]), 9);
+    if (parsed) return Math.min(Number(parsed[1]), getLimit(item));
     const indexed = selected.match(/(\d+)/);
-    if (indexed) return Math.min(Number(indexed[1]), 9);
+    if (indexed) return Math.min(Number(indexed[1]), getLimit(item));
     return 1;
   }
   if (item.key === 'audio') {
     const parsed = selected.match(/参考音频\s*(\d+)\s*个/);
-    if (parsed) return Math.min(Number(parsed[1]), 3);
+    if (parsed) return Math.min(Number(parsed[1]), getLimit(item));
   }
   return 1;
 }
@@ -222,6 +222,7 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlo
 }
 
 function getLimit(item: MaterialKind) {
+  if (item.maxCount !== undefined) return item.maxCount;
   if (item.key === 'image') return 9;
   if (item.key === 'audio') return 3;
   return 1;

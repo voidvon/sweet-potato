@@ -823,5 +823,19 @@ export function createContentRouter() {
     }
   });
 
+  router.post('/video-enhancements', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      void contentService.createVideoEnhancement({
+        userId: getCurrentUserId(req),
+        sourceAssetId: String(req.body.sourceAssetId || ''),
+        resolution: req.body.resolution,
+      })
+        .then((task) => res.status(201).json(task))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '视频高清放大任务创建失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '视频高清放大任务创建失败'));
+    }
+  });
+
   return router;
 }

@@ -71,6 +71,10 @@ function parseSizeMb(value: string | undefined, fallbackMb: number) {
 export const contentUploadLimitBytes = parseSizeMb(process.env.CONTENT_UPLOAD_LIMIT_MB, 20);
 export const vodUploadLimitBytes = parseSizeMb(process.env.VOD_UPLOAD_LIMIT_MB, 500);
 
+export const volcengineVodConfig = {
+  playbackBaseUrl: String(process.env.VOLCENGINE_VOD_PLAYBACK_BASE_URL || '').trim().replace(/\/+$/, ''),
+};
+
 export const volcengineRealPersonConfig = {
   accessKey: String(process.env.VOLC_ACCESSKEY || '').trim(),
   secretKey: String(process.env.VOLC_SECRETKEY || '').trim(),

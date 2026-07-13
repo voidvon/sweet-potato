@@ -22,6 +22,7 @@ import type {
   CreateAssetPayload,
   CreateRealPersonAssetPayload,
   CreateRealPersonValidationSessionPayload,
+  CreateVideoEnhancementPayload,
   CreateVideoProductionPayload,
   GenerateDigitalHumanThreeViewPayload,
   GenerateVideoPayload,
@@ -52,6 +53,7 @@ import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealP
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
+import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
@@ -1562,7 +1564,7 @@ export const contentService = {
     const timeRange = videoProductionTimeRange(filters.time);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        mode: 'video_create',
+        modes: ['video_create', 'video_upscale'],
         search: normalizeVideoProductionSearch(filters.search),
         updatedAtFrom: timeRange.updatedAtFrom,
         updatedAtTo: timeRange.updatedAtTo,
@@ -1570,7 +1572,9 @@ export const contentService = {
       });
     const refreshed = await Promise.all(tasks.map(async (task) => {
       try {
-        const nextTask = await refreshVideoTaskGenerationStatus(task);
+        const nextTask = task.expertContext?.mode === 'video_upscale'
+          ? await refreshVideoEnhancementTask(task)
+          : await refreshVideoTaskGenerationStatus(task);
         if (nextTask && nextTask.status !== 'generating' && nextTask.expertContext?.temporaryCharacterReferenceGroupId) {
           await cleanupTemporaryCharacterReferenceGroup({
             groupId: String(nextTask.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -1593,6 +1597,11 @@ export const contentService = {
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
       { status: filters.status },
     );
+  },
+
+  async createVideoEnhancement(payload: CreateVideoEnhancementPayload) {
+    assertUserId(payload.userId);
+    return createVideoEnhancementTask(payload);
   },
 
   async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
@@ -2067,7 +2076,9 @@ export const contentService = {
     const task = this.getVideoTask(id, userId);
     schedulePendingGeneratedVideoMirrors({ userId: task.userId, limit: 20 });
     try {
-      const refreshed = await refreshVideoTaskGenerationStatus(task);
+      const refreshed = task.expertContext?.mode === 'video_upscale'
+        ? await refreshVideoEnhancementTask(task)
+        : await refreshVideoTaskGenerationStatus(task);
       if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
         await cleanupTemporaryCharacterReferenceGroup({
           groupId: String(refreshed.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -2087,6 +2098,7 @@ export const contentService = {
 
   resumeRunningVideoGenerations() {
     this.resumePersistedRunningVideoGenerations();
+    resumeVideoEnhancementTasks();
   },
 
   resumePendingGeneratedVideoMirrors() {
@@ -2345,6 +2357,9 @@ export const contentService = {
   resumePersistedRunningVideoGenerations() {
     const tasks = contentRepository.listGeneratingVideoTasks();
     const resumable = tasks.filter((task) => {
+      if (task.expertContext?.mode === 'video_upscale') {
+        return false;
+      }
       const segmentState = task.expertContext?.videoGenerationSegments;
       if (isSegmentedVideoGenerationState(segmentState) && segmentState.status === 'running') {
         return true;

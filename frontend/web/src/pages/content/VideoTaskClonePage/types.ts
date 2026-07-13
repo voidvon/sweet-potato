@@ -14,7 +14,9 @@ export type MaterialKind = {
   hint: string;
   key: MaterialKey;
   label: string;
+  maxCount?: number;
   meta: string;
+  minCount?: number;
 };
 
 export type ToolOption = {
@@ -24,6 +26,16 @@ export type ToolOption = {
   materialHint: string;
   materials: MaterialKind[];
   submitText: string;
+  workspace: {
+    generate: {
+      handler: 'video-generation' | 'video-upscale' | 'pending';
+    };
+    material?: {
+      showVoiceToggle?: boolean;
+    };
+    parameters?: boolean;
+    prompt?: boolean;
+  };
 };
 
 export type FilterGroup = {

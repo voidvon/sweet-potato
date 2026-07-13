@@ -7,11 +7,13 @@ from ai_worker.infra.cookie_pool import cookie_pool
 from ai_worker.infra import logger
 from ai_worker.services.video_inspection_service import VideoInspectionService
 from ai_worker.services.vod_upload_service import VodUploadService
+from ai_worker.services.vod_enhancement_service import VodEnhancementService
 from ai_worker.services.vod_understanding_service import VodUnderstandingService
 
 
 video_inspection_service = VideoInspectionService()
 vod_upload_service = VodUploadService()
+vod_enhancement_service = VodEnhancementService()
 vod_understanding_service = VodUnderstandingService()
 
 
@@ -42,6 +44,7 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
         if self.path == "/vod/credentials":
             payload = vod_upload_service.credentials_diagnostics()
             payload["understanding"] = vod_understanding_service.diagnostics()
+            payload["enhancement"] = vod_enhancement_service.diagnostics()
             self._send_json(200, payload)
             return
         if self.path == "/vod/understanding/agents":
@@ -65,6 +68,12 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/vod/understanding/get":
             self._handle_vod_understanding_get()
+            return
+        if self.path == "/vod/enhancement/start":
+            self._handle_vod_enhancement_start()
+            return
+        if self.path == "/vod/enhancement/get":
+            self._handle_vod_enhancement_get()
             return
         if self.path == "/generate":
             self._handle_legacy_generate()
@@ -149,6 +158,40 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             logger.error("http vod understanding get request crashed", {"traceId": trace_id, "error": str(error)})
             self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
 
+    def _handle_vod_enhancement_start(self):
+        trace_id = self.headers.get("X-Trace-Id", "")
+        try:
+            payload = self._read_json()
+            result = vod_enhancement_service.start(
+                vid=str(payload.get("vid") or ""),
+                resolution=str(payload.get("resolution") or "1080p"),
+                config=str(payload.get("config") or "aigc"),
+                repair_style=int(payload.get("repairStyle") if payload.get("repairStyle") is not None else 1),
+                repair_strength=int(payload.get("repairStrength") if payload.get("repairStrength") is not None else 0),
+                fps=float(payload["fps"]) if payload.get("fps") is not None else None,
+                space_name=str(payload.get("spaceName") or ""),
+            )
+            self._send_json(200, result)
+        except WorkerError as error:
+            logger.warning("http vod enhancement start failed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(error.status_code, {"ok": False, "message": str(error)})
+        except Exception as error:
+            logger.error("http vod enhancement start crashed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
+
+    def _handle_vod_enhancement_get(self):
+        trace_id = self.headers.get("X-Trace-Id", "")
+        try:
+            payload = self._read_json()
+            result = vod_enhancement_service.get_execution(str(payload.get("runId") or ""))
+            self._send_json(200, result)
+        except WorkerError as error:
+            logger.warning("http vod enhancement get failed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(error.status_code, {"ok": False, "message": str(error)})
+        except Exception as error:
+            logger.error("http vod enhancement get crashed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
+
     def _handle_legacy_generate(self):
         payload = self._read_json()
         workflow = payload.get("workflow") or []
@@ -179,6 +222,7 @@ def run():
         "port": settings.port,
         "vodCredentials": vod_upload_service.credentials_diagnostics(),
         "vodUnderstanding": vod_understanding_service.diagnostics(),
+        "vodEnhancement": vod_enhancement_service.diagnostics(),
     })
     server.serve_forever()
 

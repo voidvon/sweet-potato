@@ -15,7 +15,8 @@ type ContentWorkbenchPageProps = {
 };
 
 function isGeneratedFinishedVideoAsset(asset: ContentAsset) {
-  return asset.resourceType === 'finished_video' && asset.metadata?.generatedBy === 'video_model';
+  return asset.resourceType === 'finished_video'
+    && (asset.metadata?.generatedBy === 'video_model' || asset.metadata?.generatedBy === 'video_enhancement');
 }
 
 function assetResourceType(asset: ContentAsset): ContentAssetResourceType {

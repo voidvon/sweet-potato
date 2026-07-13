@@ -44,12 +44,12 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
           onSelect={handleToolSelect}
         />
 
-        <ToolWorkspace currentUser={currentUser} state={state} />
+        <ToolWorkspace state={state} />
       </section>
 
       <ToolResultWorkspace state={state} />
 
-      {state.tool.key === 'video' && state.showModelPicker && (
+      {state.showModelPicker && (
         <ModelPicker
           onClose={() => state.setShowModelPicker(false)}
           onSelect={state.chooseModelAsset}
@@ -58,7 +58,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         />
       )}
 
-      {state.tool.key === 'video' && state.expandedPrompt && (
+      {state.expandedPrompt && (
         <PromptModal
           onClose={() => state.setExpandedPrompt(false)}
           onPromptChange={state.setPrompt}
