@@ -118,7 +118,7 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
         </div>
         <Button className="video-task-switch" shape="round" size="small" type="primary">
           切换
-          <ChevronDown size={16} />
+          <ChevronDown className={`video-task-switch-icon${isOpen ? ' is-open' : ''}`} size={16} />
         </Button>
       </div>
     </Dropdown>
