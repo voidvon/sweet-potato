@@ -80,10 +80,20 @@
   max-width: 100%;
   background: #fff;
   border-color: rgba(15, 23, 42, 0.07);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.067), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  box-shadow: var(--app-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.92);
   flex: 0 0 auto;
   position: relative;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
   z-index: 70;
+}
+
+.video-task-current-card.ant-dropdown-trigger {
+  cursor: pointer;
+}
+
+.video-task-current-card.ant-dropdown-trigger:hover {
+  border-color: var(--color-brand-border);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.067), inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .video-task-feature-icon,
@@ -99,6 +109,15 @@
   justify-content: center;
   width: 44px;
 }
+
+.video-task-current-copy {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
 .video-task-current-copy span,
 .video-task-section-heading p,
 .video-task-param-item small {
@@ -107,6 +126,7 @@
 .video-task-current-copy span {
   font-size: 11px;
   font-weight: 400;
+  line-height: 14px;
 }
 
 
@@ -156,7 +176,6 @@
   color: var(--video-task-accent-text);
 }
 
-.video-task-switch:hover,
 .video-task-accent-button:hover,
 .video-task-filter:hover {
   border-color: var(--video-task-accent-strong);
@@ -164,8 +183,17 @@
   transform: translateY(-1px);
 }
 
+.video-task-switch.ant-btn:hover {
+  background: var(--video-task-accent);
+  border-color: var(--video-task-accent-strong);
+  box-shadow: none;
+  color: var(--video-task-accent-text);
+  transform: none;
+}
+
 .video-task-switch {
   font-size: 11px;
+  gap: 0px;
   height: 23px;
   padding: 2px 7px 2px 9px;
 }
