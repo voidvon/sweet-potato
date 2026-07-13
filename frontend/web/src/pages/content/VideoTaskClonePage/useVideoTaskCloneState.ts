@@ -945,7 +945,7 @@ async function prepareGenerationMaterials(input: {
   const [referenceImageIds, referenceVideoIds, referenceAudioIds] = await Promise.all([
     ensureMaterialAssetIds({
       currentUser: input.currentUser,
-      resourceType: 'product',
+      resourceType: 'other',
       files: imageFiles,
       uploadGroupIdsRef: input.uploadGroupIdsRef,
     }),
