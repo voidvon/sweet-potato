@@ -837,5 +837,22 @@ export function createContentRouter() {
     }
   });
 
+  router.post('/subtitle-removals', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      void contentService.createSubtitleRemoval({
+        userId: getCurrentUserId(req),
+        sourceAssetId: String(req.body.sourceAssetId || ''),
+        mode: req.body.mode,
+        contentType: req.body.contentType,
+        locations: req.body.locations,
+        clipFilter: req.body.clipFilter,
+      })
+        .then((task) => res.status(201).json(task))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '字幕擦除任务创建失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '字幕擦除任务创建失败'));
+    }
+  });
+
   return router;
 }

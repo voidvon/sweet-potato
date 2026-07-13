@@ -73,7 +73,7 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传源视频',
     materials: [{ key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始擦除',
-    workspace: { generate: { handler: 'pending' }, material: {} },
+    workspace: { generate: { handler: 'subtitle-removal' }, material: {}, subtitleRemoval: true },
   },
   {
     key: 'video-translation',

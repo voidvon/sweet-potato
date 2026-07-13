@@ -18,6 +18,7 @@ enum Api {
   videoTasks = '/api/content/video-tasks',
   videoProductions = '/api/content/video-productions',
   videoEnhancements = '/api/content/video-enhancements',
+  subtitleRemovals = '/api/content/subtitle-removals',
 }
 
 export type TrimReferenceVideoResult = {
@@ -391,6 +392,30 @@ export function createVideoEnhancement(payload: {
 }) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoGenerationTask>(Api.videoEnhancements, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
+export function createSubtitleRemoval(payload: {
+  userId: string;
+  sourceAssetId: string;
+  mode: 'auto' | 'auto_region' | 'manual';
+  contentType: 'subtitle' | 'text';
+  locations: Array<{
+    topLeftX: number;
+    topLeftY: number;
+    bottomRightX: number;
+    bottomRightY: number;
+  }>;
+  clipFilter: {
+    mode: 'all' | 'selected' | 'skip';
+    start: number;
+    end: number;
+  };
+}) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoGenerationTask>(Api.subtitleRemovals, {
     method: 'POST',
     body: JSON.stringify(requestPayload),
   });

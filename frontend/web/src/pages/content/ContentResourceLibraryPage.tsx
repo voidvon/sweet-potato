@@ -94,6 +94,7 @@ const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
   { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
   { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
+  { key: 'video:subtitle-removal', label: '视频生成-字幕擦除', modeKeys: [], modeTitles: [] },
 ];
 
 const showWorksBatchButton = false;
@@ -297,6 +298,7 @@ function isGeneratedWorkAsset(asset: ContentAsset) {
   return asset.resourceType === 'finished_video'
     && (asset.metadata?.generatedBy === 'video_model'
       || asset.metadata?.generatedBy === 'video_enhancement'
+      || asset.metadata?.generatedBy === 'video_subtitle_removal'
       || asset.metadata?.generatedBy === 'image_model');
 }
 
@@ -309,7 +311,7 @@ function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
 
 function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
-  if (generatedBy !== 'image_model' && generatedBy !== 'video_model' && generatedBy !== 'video_enhancement') {
+  if (generatedBy !== 'image_model' && generatedBy !== 'video_model' && generatedBy !== 'video_enhancement' && generatedBy !== 'video_subtitle_removal') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode') || (generatedBy === 'image_model' ? 'image_generation' : 'video_generation');
@@ -327,6 +329,9 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   }
   if (source === 'video_upscale') {
     return videoWorksFunctionOptions[3];
+  }
+  if (source === 'subtitle_removal') {
+    return videoWorksFunctionOptions[4];
   }
   return videoWorksFunctionOptions[0];
 }
@@ -346,6 +351,9 @@ function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   }
   if (functionKey === 'video:upscale') {
     return getVideoWorkSource(asset) === 'video_upscale';
+  }
+  if (functionKey === 'video:subtitle-removal') {
+    return getVideoWorkSource(asset) === 'subtitle_removal';
   }
   const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
   if (!option) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message, Modal } from 'antd';
-import { createContentAssetGroup, createVideoEnhancement, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
@@ -19,11 +19,24 @@ import type {
   LocalMaterialFile,
   SelectedMaterials,
   SelectedMaterialValue,
+  SubtitleRemovalConfig,
   ToolOption,
   UploadAnchor,
   WorksTab,
 } from './types';
 import { readVideoDuration } from './videoMetadata';
+
+const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
+  mode: 'auto',
+  contentType: 'subtitle',
+  locations: [{
+    topLeftX: 0.05,
+    topLeftY: 0.72,
+    bottomRightX: 0.95,
+    bottomRightY: 0.96,
+  }],
+  clipFilter: { mode: 'all', start: 0, end: 0 },
+};
 
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
@@ -57,6 +70,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [isGenerating, setIsGenerating] = useState(false);
   const [retryingTaskId, setRetryingTaskId] = useState('');
   const [deletingTaskId, setDeletingTaskId] = useState('');
+  const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
 
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
@@ -157,6 +171,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setActiveParam(null);
     setPromptPanel(null);
     setFilterOpen(false);
+    setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
   }, []);
 
   const chooseMaterialTab = (mode: MaterialMode) => {
@@ -465,6 +480,25 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         message.success('视频高清放大任务已提交');
         return;
       }
+      if (tool.workspace.generate.handler === 'subtitle-removal') {
+        const sourceAssetId = prepared.referenceVideoIds[0];
+        if (!sourceAssetId) {
+          throw new Error('请选择待擦除字幕的源视频');
+        }
+        validateSubtitleRemovalConfig(subtitleRemovalConfig);
+        await createSubtitleRemoval({
+          userId: currentUser.id,
+          sourceAssetId,
+          ...subtitleRemovalConfig,
+        });
+        await Promise.all([
+          loadLibraryAssets(),
+          loadVideoProductions(true),
+        ]);
+        resetCreationForm();
+        message.success('字幕擦除任务已提交');
+        return;
+      }
       await createVideoProduction({
         userId: currentUser.id,
         prompt,
@@ -501,7 +535,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     ratio,
     resetCreationForm,
     selectedMaterials,
+    subtitleRemovalConfig,
     tool.label,
+    tool.workspace.generate.handler,
     voiceEnabled,
   ]);
 
@@ -528,6 +564,33 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         message.success('已重新提交高清放大任务');
       } catch (error) {
         message.error(error instanceof Error ? error.message : '高清放大重试失败');
+      } finally {
+        retrySubmittingRef.current = false;
+        setRetryingTaskId('');
+      }
+      return;
+    }
+    if (context.mode === 'subtitle_removal') {
+      const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
+      if (!sourceAssetId) {
+        message.warning('当前记录缺少源视频素材，无法重试');
+        return;
+      }
+      try {
+        retrySubmittingRef.current = true;
+        setRetryingTaskId(task.id);
+        await createSubtitleRemoval({
+          userId: currentUser.id,
+          sourceAssetId,
+          mode: subtitleRemovalModeFromRecord(context),
+          contentType: stringFromRecord(context, 'subtitleRemovalContentType') === 'text' ? 'text' : 'subtitle',
+          locations: subtitleRemovalLocationsFromRecord(context),
+          clipFilter: subtitleRemovalClipFilterFromRecord(context),
+        });
+        await loadVideoProductions(true);
+        message.success('已重新提交字幕擦除任务');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '字幕擦除重试失败');
       } finally {
         retrySubmittingRef.current = false;
         setRetryingTaskId('');
@@ -680,6 +743,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       if (!enabled && hasSelectedAudio) return;
       setVoiceEnabled(enabled);
     },
+    setSubtitleRemovalConfig,
+    subtitleRemovalConfig,
     deleteVideoProduction,
     deletingTaskId,
     retryVideoProduction,
@@ -710,6 +775,52 @@ function stringArrayFromRecord(record: Record<string, unknown>, key: string) {
     return [];
   }
   return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function subtitleRemovalModeFromRecord(record: Record<string, unknown>): SubtitleRemovalConfig['mode'] {
+  const value = stringFromRecord(record, 'subtitleRemovalMode');
+  return value === 'auto_region' || value === 'manual' ? value : 'auto';
+}
+
+function subtitleRemovalLocationsFromRecord(record: Record<string, unknown>): SubtitleRemovalConfig['locations'] {
+  const value = record.subtitleRemovalLocations;
+  if (!Array.isArray(value)) return defaultSubtitleRemovalConfig.locations;
+  const locations = value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const topLeftX = Number(item.topLeftX);
+    const topLeftY = Number(item.topLeftY);
+    const bottomRightX = Number(item.bottomRightX);
+    const bottomRightY = Number(item.bottomRightY);
+    return [topLeftX, topLeftY, bottomRightX, bottomRightY].every(Number.isFinite)
+      ? [{ topLeftX, topLeftY, bottomRightX, bottomRightY }]
+      : [];
+  });
+  return locations.length ? locations : defaultSubtitleRemovalConfig.locations;
+}
+
+function subtitleRemovalClipFilterFromRecord(record: Record<string, unknown>): SubtitleRemovalConfig['clipFilter'] {
+  const value = record.subtitleRemovalClipFilter;
+  if (!isRecord(value)) return defaultSubtitleRemovalConfig.clipFilter;
+  const mode = value.mode === 'selected' || value.mode === 'skip' ? value.mode : 'all';
+  return { mode, start: Number(value.start || 0), end: Number(value.end || 0) };
+}
+
+function validateSubtitleRemovalConfig(config: SubtitleRemovalConfig) {
+  if (config.mode !== 'auto' && config.locations.length === 0) {
+    throw new Error('请先打开视频编辑器框选字幕擦除区域');
+  }
+  config.locations.forEach((location) => {
+    const values = [location.topLeftX, location.topLeftY, location.bottomRightX, location.bottomRightY];
+    if (!values.every((value) => Number.isFinite(value) && value >= 0 && value <= 1)
+      || location.topLeftX >= location.bottomRightX
+      || location.topLeftY >= location.bottomRightY) {
+      throw new Error('字幕擦除区域坐标无效，请重新框选');
+    }
+  });
+  if (config.clipFilter.mode !== 'all'
+    && (config.clipFilter.start < 0 || config.clipFilter.end <= config.clipFilter.start)) {
+    throw new Error('字幕擦除时间范围无效，请确保结束时间晚于开始时间');
+  }
 }
 
 function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: string) {

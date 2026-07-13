@@ -10,6 +10,30 @@ export type ToolKey =
   | 'subtitle-removal'
   | 'video-translation';
 
+export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
+
+export type SubtitleRemovalContentType = 'subtitle' | 'text';
+
+export type SubtitleRemovalLocation = {
+  topLeftX: number;
+  topLeftY: number;
+  bottomRightX: number;
+  bottomRightY: number;
+};
+
+export type SubtitleRemovalClipFilter = {
+  mode: 'all' | 'selected' | 'skip';
+  start: number;
+  end: number;
+};
+
+export type SubtitleRemovalConfig = {
+  mode: SubtitleRemovalMode;
+  contentType: SubtitleRemovalContentType;
+  locations: SubtitleRemovalLocation[];
+  clipFilter: SubtitleRemovalClipFilter;
+};
+
 export type MaterialKind = {
   hint: string;
   key: MaterialKey;
@@ -28,13 +52,14 @@ export type ToolOption = {
   submitText: string;
   workspace: {
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'pending';
     };
     material?: {
       showVoiceToggle?: boolean;
     };
     parameters?: boolean;
     prompt?: boolean;
+    subtitleRemoval?: boolean;
   };
 };
 

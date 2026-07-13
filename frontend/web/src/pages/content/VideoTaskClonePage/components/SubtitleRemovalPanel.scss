@@ -1,0 +1,208 @@
+.subtitle-removal-card {
+  padding: 18px;
+}
+
+.subtitle-removal-heading h2 {
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0 0 14px;
+}
+
+.subtitle-removal-modes {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.subtitle-removal-modes > button {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  color: var(--video-task-ink);
+  cursor: pointer;
+  padding: 9px 10px;
+  text-align: left;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.subtitle-removal-modes > button:hover {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+}
+
+.subtitle-removal-modes > button.is-active {
+  background: var(--color-brand-soft-strong);
+  border-color: var(--color-brand);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-brand) 12%, transparent);
+}
+
+.subtitle-removal-modes strong,
+.subtitle-removal-modes span {
+  display: block;
+}
+
+.subtitle-removal-modes strong {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.subtitle-removal-modes > button.is-active strong {
+  color: var(--color-brand-hover);
+}
+
+.subtitle-removal-modes span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.subtitle-removal-editor-entry {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e4e8;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.subtitle-removal-editor-entry > span:first-child,
+.subtitle-removal-editor-entry strong,
+.subtitle-removal-editor-entry small {
+  display: block;
+}
+
+.subtitle-removal-editor-entry strong {
+  color: var(--video-task-ink);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.subtitle-removal-editor-entry small {
+  color: #73767d;
+  font-size: 12px;
+  line-height: 18px;
+  margin-top: 2px;
+}
+
+.subtitle-removal-editor-badge {
+  align-items: center;
+  background: #f2f3f5;
+  border-radius: 999px;
+  color: #73767d;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  gap: 5px;
+  margin-left: 12px;
+  padding: 8px 12px;
+}
+
+.subtitle-removal-editor-layout {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  padding-top: 8px;
+}
+
+.subtitle-removal-video-stage {
+  align-items: center;
+  background: #15171b;
+  border-radius: 12px;
+  cursor: crosshair;
+  display: flex;
+  justify-content: center;
+  max-height: 58vh;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+}
+
+.subtitle-removal-video-stage.is-readonly {
+  cursor: default;
+}
+
+.subtitle-removal-video-stage video {
+  height: 100%;
+  object-fit: contain;
+  pointer-events: auto;
+  width: 100%;
+}
+
+.subtitle-removal-empty-preview {
+  color: #c7cad0;
+}
+
+.subtitle-removal-region {
+  align-items: center;
+  background: rgba(185, 221, 131, 0.18);
+  border: 2px solid #b9dd83;
+  color: #fff;
+  display: flex;
+  font-size: 12px;
+  justify-content: center;
+  pointer-events: none;
+  position: absolute;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.subtitle-removal-preview-column > p {
+  color: #73767d;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.subtitle-removal-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.subtitle-removal-controls > label > span,
+.subtitle-removal-coordinate-grid label > span,
+.subtitle-removal-time-grid label > span {
+  color: #555960;
+  display: block;
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+
+.subtitle-removal-coordinate-grid,
+.subtitle-removal-time-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.subtitle-removal-coordinate-grid .ant-input-number,
+.subtitle-removal-time-grid .ant-input-number {
+  width: 100%;
+}
+
+.subtitle-removal-editor-done {
+  background: var(--video-task-accent);
+  border: 0;
+  border-radius: 9px;
+  color: var(--video-task-accent-text);
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: auto;
+  padding: 10px 14px;
+}
+
+@media (max-width: 720px) {
+  .subtitle-removal-modes,
+  .subtitle-removal-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .subtitle-removal-modes > button {
+    min-height: auto;
+  }
+}

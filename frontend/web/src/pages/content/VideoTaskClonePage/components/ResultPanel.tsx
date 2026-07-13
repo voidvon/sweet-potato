@@ -326,9 +326,9 @@ function taskVideoGenerationResult(task: VideoGenerationTask) {
 function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
   const isUpscale = task.expertContext?.mode === 'video_upscale';
+  const isSubtitleRemoval = task.expertContext?.mode === 'subtitle_removal';
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
-  const copyId = String(task.id || '').trim();
   const isOrphanPending = task.status !== 'generating'
     && !videoUrl
     && !String(result?.jobId || '').trim()
@@ -338,12 +338,10 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'success' as const,
       label: '已完成',
-      posterText: isUpscale ? '高清放大已完成' : '成片已生成',
+      posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : '成片已生成',
       note: '',
-      footnote: isUpscale ? '高清成片已落盘，可继续复用。' : '成片已落盘，可继续筛选和复用。',
+      footnote: isUpscale ? '高清成片已落盘，可继续复用。' : isSubtitleRemoval ? '无字幕成片已落盘，可继续复用。' : '成片已落盘，可继续筛选和复用。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl,
       coverUrl,
       canRetry: true,
@@ -362,12 +360,10 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'failed' as const,
       label: '失败',
-      posterText: isUpscale ? '高清放大失败' : '生成失败',
+      posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : '生成失败',
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
       footnote: '当前任务失败，可直接重试。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl: '',
       coverUrl,
       canRetry: true,
@@ -382,8 +378,6 @@ function viewState(task: VideoGenerationTask) {
       note: '任务未成功提交到生成队列，可直接再次生成。',
       footnote: '当前任务未真正开始生成，可直接重试。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl: '',
       coverUrl,
       canRetry: true,
@@ -392,13 +386,11 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : '生成中',
-    posterText: isUpscale ? '正在进行高清放大' : '正在生成视频',
+    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : '生成中',
+    posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : '正在生成视频',
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     footnote: '系统会自动刷新当前生成状态。',
     metric: formatMetric(result, task),
-    creditCostText: formatCreditCost(task.creditCost),
-    copyId,
     videoUrl: '',
     coverUrl,
     canRetry: false,
@@ -418,17 +410,15 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();
     return `高清放大 · ${resolution}`;
   }
+  if (task?.expertContext?.mode === 'subtitle_removal') {
+    const mode = String(task.expertContext.subtitleRemovalMode || 'auto');
+    const label = mode === 'manual' ? 'Manual 框选' : mode === 'auto_region' ? 'Auto 指定区域' : '智能识别';
+    return `字幕擦除 · ${label}`;
+  }
   if (!result) {
     return '等待参数';
   }
   return [result.ratio, result.duration].filter(Boolean).join(' · ') || '等待参数';
-}
-
-function formatCreditCost(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return '';
-  }
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function shouldUseBrowserDownload(url: string) {

@@ -4,6 +4,7 @@ import { MaterialPanel } from './MaterialPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
+import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
 import { toolIcons } from './ToolSwitcher';
 
 type ToolWorkspaceProps = {
@@ -22,6 +23,14 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
             <ToolMaterialPanel
               showVoiceToggle={workspace.material.showVoiceToggle === true}
               state={state}
+            />
+          )}
+
+          {workspace.subtitleRemoval && (
+            <SubtitleRemovalPanel
+              config={state.subtitleRemovalConfig}
+              onChange={state.setSubtitleRemovalConfig}
+              selectedMaterials={state.selectedMaterials}
             />
           )}
 

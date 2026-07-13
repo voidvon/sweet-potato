@@ -1,6 +1,6 @@
 import type { ContentAsset } from '../../../types';
 
-export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale';
+export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale' | 'subtitle_removal';
 
 export function stringMetadataValue(asset: ContentAsset, key: string) {
   const value = asset.metadata?.[key];
@@ -9,7 +9,7 @@ export function stringMetadataValue(asset: ContentAsset, key: string) {
 
 export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
-  if (generatedBy !== 'video_model' && generatedBy !== 'video_enhancement') {
+  if (generatedBy !== 'video_model' && generatedBy !== 'video_enhancement' && generatedBy !== 'video_subtitle_removal') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode');
@@ -24,6 +24,9 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
   if (generatedBy === 'video_enhancement' || mode === 'video_upscale') {
     return 'video_upscale';
   }
+  if (generatedBy === 'video_subtitle_removal' || mode === 'subtitle_removal') {
+    return 'subtitle_removal';
+  }
   return 'video_creation';
 }
 
@@ -36,6 +39,9 @@ export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   }
   if (source === 'video_upscale') {
     return '高清放大';
+  }
+  if (source === 'subtitle_removal') {
+    return '字幕擦除';
   }
   return '';
 }
