@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { message, Modal } from 'antd';
+import { message } from 'antd';
 import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
@@ -706,32 +706,22 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
   }, [currentUser.id, loadVideoProductions]);
 
-  const deleteVideoProduction = useCallback((task: VideoGenerationTask) => {
-    Modal.confirm({
-      title: '删除生成记录',
-      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      async onOk() {
-        try {
-          setDeletingTaskId(task.id);
-          await deleteVideoTask(task.id);
-          await Promise.all([
-            loadLibraryAssets(),
-            loadVideoProductions(true),
-          ]);
-          message.success('生成记录已删除');
-        } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除生成记录失败');
-        } finally {
-          setDeletingTaskId('');
-        }
-      },
-      onCancel() {
-        setDeletingTaskId('');
-      },
-    });
+  const deleteVideoProduction = useCallback(async (task: VideoGenerationTask) => {
+    try {
+      setDeletingTaskId(task.id);
+      await deleteVideoTask(task.id);
+      await Promise.all([
+        loadLibraryAssets(),
+        loadVideoProductions(true),
+      ]);
+      message.success('生成记录已删除');
+      return true;
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '删除生成记录失败');
+      return false;
+    } finally {
+      setDeletingTaskId('');
+    }
   }, [loadLibraryAssets, loadVideoProductions]);
 
   return {

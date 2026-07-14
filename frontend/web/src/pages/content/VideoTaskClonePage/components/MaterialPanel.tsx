@@ -37,6 +37,78 @@ type MaterialPanelProps = {
   worksTab: WorksTab;
 };
 
+export type ReferenceMaterialPreviewAsset = Pick<
+  ContentAsset,
+  'id' | 'name' | 'originalFileName' | 'mimeType' | 'fileUrl' | 'metadata'
+>;
+
+type ReferenceMaterialPreviewListProps = {
+  assets: ReferenceMaterialPreviewAsset[];
+  isLoading?: boolean;
+  onVideoPreview: (asset: ReferenceMaterialPreviewAsset) => void;
+};
+
+export function ReferenceMaterialPreviewList({
+  assets,
+  isLoading = false,
+  onVideoPreview,
+}: ReferenceMaterialPreviewListProps) {
+  if (isLoading) {
+    return (
+      <div className="result-reference-materials is-loading" aria-label="正在加载参考素材">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  if (assets.length === 0) {
+    return <p className="result-reference-materials-empty">暂无参考素材</p>;
+  }
+
+  return (
+    <div className="result-reference-materials">
+      {assets.map((asset) => {
+        const name = asset.name || asset.originalFileName || '参考素材';
+        const isVideo = asset.mimeType.startsWith('video/');
+        const isImage = asset.mimeType.startsWith('image/');
+        const content = isVideo ? (
+          <>
+            <video muted playsInline preload="metadata" src={resolveAssetUrl(asset.fileUrl)} />
+            <i className="result-reference-materials__play" aria-hidden="true">
+              <Play size={15} fill="currentColor" />
+            </i>
+          </>
+        ) : isImage ? (
+          <img alt={name} src={resolveAssetUrl(asset.fileUrl)} />
+        ) : (
+          <i className="result-reference-materials__audio" aria-hidden="true">
+            <Music2 size={22} />
+          </i>
+        );
+
+        return isVideo ? (
+          <button
+            aria-label={`预览${name}`}
+            className="result-reference-materials__item"
+            key={asset.id}
+            onClick={() => onVideoPreview(asset)}
+            title={name}
+            type="button"
+          >
+            {content}
+          </button>
+        ) : (
+          <div className="result-reference-materials__item" key={asset.id} title={name}>
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MaterialPanel({
   activeUpload,
   isLoadingLibraryAssets,

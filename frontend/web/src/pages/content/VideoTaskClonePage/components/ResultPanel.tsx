@@ -1,22 +1,22 @@
 import { DeleteOutlined, DownloadOutlined, MoreOutlined } from '@ant-design/icons';
 import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search } from 'lucide-react';
-import { Button, Dropdown, message } from 'antd';
+import { Button, Dropdown, Modal, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
+import { downloadUrlAsFile } from '@shared/utils/download';
 import { filterGroups } from '../constants';
 import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
-import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
-import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
+import { ResultVideoPreviewModal, type ResultVideoPreview } from './ResultVideoPreviewModal';
 
 type ResultPanelProps = {
   filters: FilterValues;
   isFilterOpen: boolean;
   isLoading: boolean;
   onClearFilters: () => void;
-  onDelete: (task: VideoGenerationTask) => void;
+  onDelete: (task: VideoGenerationTask) => Promise<boolean>;
   onFilterChange: (filters: FilterValues) => void;
   onFilterToggle: () => void;
   onRetry: (task: VideoGenerationTask) => Promise<void>;
@@ -38,7 +38,7 @@ export function ResultPanel({
   deletingTaskId,
   retryingTaskId,
 }: ResultPanelProps) {
-  const [previewVideo, setPreviewVideo] = useState<ConfirmedReferenceVideo | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<ResultVideoPreview | null>(null);
   const [searchDraft, setSearchDraft] = useState(String(filters.搜索 || ''));
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
   const filterPanelRef = useRef<HTMLElement | null>(null);
@@ -80,6 +80,17 @@ export function ResultPanel({
     onClearFilters();
   };
 
+  const confirmDeleteVideo = (task: VideoGenerationTask) => {
+    Modal.confirm({
+      cancelText: '取消',
+      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
+      okButtonProps: { danger: true },
+      okText: '删除',
+      onOk: () => onDelete(task),
+      title: '删除生成记录',
+    });
+  };
+
   const handleDownloadVideo = async (task: VideoGenerationTask, videoUrl: string) => {
     const normalizedUrl = String(videoUrl || '').trim();
     if (!normalizedUrl) {
@@ -87,29 +98,11 @@ export function ResultPanel({
       return;
     }
     const fileName = downloadFileName(task);
-    if (shouldUseBrowserDownload(normalizedUrl)) {
-      triggerBrowserDownload(normalizedUrl, fileName, true);
-      message.success('已打开下载链接');
-      return;
-    }
     try {
-      const response = await fetch(normalizedUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
+      await downloadUrlAsFile(normalizedUrl, fileName);
       message.success('已开始下载');
-    } catch {
-      triggerBrowserDownload(normalizedUrl, fileName, true);
-      message.success('已打开下载链接');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频下载失败');
     }
   };
 
@@ -268,7 +261,7 @@ export function ResultPanel({
                                         key: 'delete',
                                         icon: <DeleteOutlined />,
                                         label: '删除',
-                                        onClick: () => onDelete(task),
+                                        onClick: () => confirmDeleteVideo(task),
                                       },
                                     ],
                                   }}
@@ -298,8 +291,9 @@ export function ResultPanel({
       )}
 
       {previewVideo ? (
-        <ReferenceVideoPreviewModal
+        <ResultVideoPreviewModal
           onClose={() => setPreviewVideo(null)}
+          onDelete={previewVideo.task ? () => onDelete(previewVideo.task!) : undefined}
           video={previewVideo}
         />
       ) : null}
@@ -342,11 +336,9 @@ function viewState(task: VideoGenerationTask) {
       coverUrl,
       previewVideo: {
         duration: parseDurationSeconds(result?.duration),
-        end: parseDurationSeconds(result?.duration),
-        fileUrl: videoUrl,
         name: task.title,
-        start: 0,
-        storedFileName: task.title,
+        task,
+        taskId: task.id,
         videoUrl,
       },
     };
@@ -417,30 +409,6 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     return '等待参数';
   }
   return [result.ratio, result.duration].filter(Boolean).join(' · ') || '等待参数';
-}
-
-function shouldUseBrowserDownload(url: string) {
-  if (!/^https?:\/\//i.test(url)) {
-    return false;
-  }
-  try {
-    return new URL(url).origin !== window.location.origin;
-  } catch {
-    return true;
-  }
-}
-
-function triggerBrowserDownload(url: string, fileName: string, openInNewTab: boolean) {
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  if (openInNewTab) {
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-  }
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
 }
 
 function parseDurationSeconds(duration?: string | null) {

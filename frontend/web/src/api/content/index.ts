@@ -321,6 +321,10 @@ export function deleteContentAsset(id: string) {
   return request<{ ok: boolean }>(`${Api.assets}/${id}`, { method: 'DELETE' });
 }
 
+export function getContentAsset(id: string) {
+  return request<ContentAsset>(`${Api.assets}/${id}`);
+}
+
 export function listVideoTasks(userId: string) {
   void userId;
   return request<VideoGenerationTask[]>(Api.videoTasks);

@@ -18,7 +18,8 @@ import type { ContentAsset, ContentAssetGroup, ContentResourceType, User } from 
 import { formatRelativeCalendarDateTime } from '../../utils/dateTime';
 import { withAuthToken } from '../../utils/session';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import { ReferenceVideoPreviewModal } from './VideoTaskClonePage/components/ReferenceVideoPreviewModal';
+import { ResultVideoPreviewModal } from './VideoTaskClonePage/components/ResultVideoPreviewModal';
+import type { ReferenceMaterialPreviewAsset } from './VideoTaskClonePage/components/MaterialPanel';
 import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload';
 import type { ImagePreview } from './assets/AssetImageUpload';
 import { useCardGridPageSize } from './assets/useCardGridPageSize';
@@ -819,8 +820,10 @@ export function ContentResourceLibraryPage({
       await deleteContentAsset(asset.id);
       await loadData();
       message.success('作品记录已删除');
+      return true;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '作品删除失败');
+      return false;
     }
   }
 
@@ -931,9 +934,10 @@ export function ContentResourceLibraryPage({
           </div>
         </section>
         {previewAsset?.mimeType.startsWith('video/') && (
-          <ReferenceVideoPreviewModal
+          <ResultVideoPreviewModal
             onClose={closePreviewAsset}
-            video={toReferenceVideoPreview(previewAsset)}
+            onDelete={() => handleDeleteFinishedAsset(previewAsset)}
+            video={toResultVideoPreview(previewAsset)}
           />
         )}
         <Image
@@ -1192,15 +1196,57 @@ export function ContentResourceLibraryPage({
   );
 }
 
-function toReferenceVideoPreview(asset: ContentAsset) {
+function toResultVideoPreview(asset: ContentAsset) {
   const videoUrl = fileUrl(asset);
   return {
+    completedAt: metadataDate(asset, 'completedAt') || metadataDate(asset, 'generatedAt') || asset.updatedAt,
+    createdAt: asset.createdAt,
     duration: 0,
-    end: 0,
-    fileUrl: videoUrl,
     name: asset.name,
-    start: 0,
-    storedFileName: asset.storedFileName,
+    referenceAssetIds: materialReferenceAssetIds(asset.metadata.materialContext),
+    referenceAssets: materialReferenceAssets(asset.metadata.materialContext),
+    taskId: stringMetadataValue(asset, 'videoTaskId'),
     videoUrl,
   };
+}
+
+function metadataDate(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function materialReferenceAssetIds(value: unknown) {
+  if (!isMetadataRecord(value)) return [];
+  const references = isMetadataRecord(value.references) ? value.references : {};
+  const ids = [
+    value.sourceAssetId,
+    ...materialReferenceRecords(references.images).map((item) => item.id),
+    ...materialReferenceRecords(references.videos).map((item) => item.id),
+    ...materialReferenceRecords(references.audios).map((item) => item.id),
+  ];
+  return Array.from(new Set(ids.filter((item): item is string => typeof item === 'string' && item.length > 0)));
+}
+
+function materialReferenceAssets(value: unknown): ReferenceMaterialPreviewAsset[] {
+  if (!isMetadataRecord(value)) return [];
+  const references = isMetadataRecord(value.references) ? value.references : {};
+  return [references.images, references.videos, references.audios]
+    .flatMap(materialReferenceRecords)
+    .filter((item) => typeof item.id === 'string' && typeof item.fileUrl === 'string' && typeof item.mimeType === 'string')
+    .map((item) => ({
+      id: String(item.id),
+      fileUrl: String(item.fileUrl),
+      metadata: isMetadataRecord(item.metadata) ? item.metadata : {},
+      mimeType: String(item.mimeType),
+      name: typeof item.name === 'string' ? item.name : '',
+      originalFileName: typeof item.originalFileName === 'string' ? item.originalFileName : '',
+    }));
+}
+
+function materialReferenceRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter(isMetadataRecord) : [];
+}
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
