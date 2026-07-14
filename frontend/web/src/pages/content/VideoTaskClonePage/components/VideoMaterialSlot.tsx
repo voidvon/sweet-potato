@@ -29,22 +29,32 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
       file: selection.file,
       start: Number(selection.start.toFixed(1)),
     });
-    const nextFile = {
-      id: `video-${crypto.randomUUID()}`,
-      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
-      type: 'video',
-      url: resolveAssetUrl(result.fileUrl),
-      serverFileUrl: result.fileUrl,
-      storedFileName: result.storedFileName,
-      trimDuration: result.duration,
-      trimEnd: result.end,
-      trimStart: result.start,
-    } satisfies LocalMaterialFile;
+    try {
+      const trimmedFile = await downloadTrimmedVideo(
+        result.fileUrl,
+        result.originalFileName || selection.file.name,
+      );
+      const nextFile = {
+        file: trimmedFile,
+        id: `video-${crypto.randomUUID()}`,
+        name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+        type: 'video',
+        url: URL.createObjectURL(trimmedFile),
+        trimDuration: result.duration,
+        trimEnd: result.end,
+        trimStart: result.start,
+      } satisfies LocalMaterialFile;
 
-    onTrimmed(nextFile);
-    setTrimFile(null);
-    if (previousVideo) {
-      void deleteServerReferenceVideo(previousVideo);
+      onTrimmed(nextFile);
+      setTrimFile(null);
+      if (previousVideo) {
+        void deleteServerReferenceVideo(previousVideo);
+      }
+    } finally {
+      void deleteReferenceVideo({
+        fileUrl: result.fileUrl,
+        storedFileName: result.storedFileName,
+      }).catch(() => undefined);
     }
   };
 
@@ -140,4 +150,26 @@ async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
   } catch {
     // Best-effort cleanup: the visual state should not be blocked by stale temporary files.
   }
+}
+
+async function downloadTrimmedVideo(fileUrl: string, originalFileName: string) {
+  let response: Response;
+  try {
+    response = await fetch(resolveAssetUrl(fileUrl), { cache: 'no-store' });
+  } catch {
+    throw new Error('裁剪结果读取失败，请重试');
+  }
+  if (!response.ok) {
+    throw new Error('裁剪结果读取失败，请重试');
+  }
+  const blob = await response.blob();
+  return new File([blob], trimmedVideoFileName(originalFileName), {
+    lastModified: Date.now(),
+    type: blob.type || 'video/mp4',
+  });
+}
+
+function trimmedVideoFileName(originalFileName: string) {
+  const baseName = originalFileName.replace(/\.[^./\\]+$/, '') || 'reference-video';
+  return `${baseName}-trimmed.mp4`;
 }
