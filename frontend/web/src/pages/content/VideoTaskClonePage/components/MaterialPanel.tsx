@@ -1,4 +1,4 @@
-import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
@@ -70,6 +70,7 @@ export function MaterialPanel({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioAssetIdRef = useRef<string | null>(null);
   const hasOpenPopover = Boolean(materialMode || activeUpload);
+  const isVideoTranslation = tool.key === 'video-translation';
   const audioMaterial = tool.materials.find((item) => item.key === 'audio');
   const imageMaterial = tool.materials.find((item) => item.key === 'image');
   const videoMaterial = tool.materials.find((item) => item.key === 'video');
@@ -252,8 +253,8 @@ export function MaterialPanel({
             onClick={onModelPickerOpen}
             type="button"
           >
-            <Package size={12} />
-            素材
+            {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
+            {isVideoTranslation ? '模特' : '素材'}
           </button>
           {showVoiceToggle && (
             <label
@@ -278,7 +279,7 @@ export function MaterialPanel({
     >
 
       <div className="video-task-material-grid">
-        {tool.materials.map((item) => {
+        {tool.materials.filter((item) => !isVideoTranslation || item.key === 'video').map((item) => {
           const selected = selectedMaterials[item.key];
           return (
             <MaterialSlot
@@ -295,6 +296,10 @@ export function MaterialPanel({
           );
         })}
       </div>
+
+      {isVideoTranslation && selectedMaterials.video && (
+        <p className="video-task-translation-storage-note">视频同步存储中，任务提交后会自动处理</p>
+      )}
 
       {materialMode === 'audio' && (
         <aside className="video-task-library-popover is-audio" ref={popoverRef}>

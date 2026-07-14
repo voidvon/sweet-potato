@@ -9,6 +9,7 @@ import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
 import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
 import { toolIcons } from './ToolSwitcher';
+import { VideoTranslationPanel } from './VideoTranslationPanel';
 
 type ToolWorkspaceProps = {
   state: VideoTaskCloneState;
@@ -81,6 +82,13 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
     <SubtitleRemovalPanel
       config={state.subtitleRemovalConfig}
       onChange={state.setSubtitleRemovalConfig}
+      selectedMaterials={state.selectedMaterials}
+    />
+  ) : null,
+  'video-translation': (block, state) => block.type === 'video-translation' ? (
+    <VideoTranslationPanel
+      config={state.videoTranslationConfig}
+      onChange={state.setVideoTranslationConfig}
       selectedMaterials={state.selectedMaterials}
     />
   ) : null,

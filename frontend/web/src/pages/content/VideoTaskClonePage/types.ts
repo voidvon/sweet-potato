@@ -36,6 +36,22 @@ export type SubtitleRemovalConfig = {
   clipFilter: SubtitleRemovalClipFilter;
 };
 
+export type VideoTranslationMode = 'subtitle' | 'voice' | 'face';
+
+export type VideoTranslationSubtitleSource = 'ocr' | 'asr';
+
+export type VideoTranslationConfig = {
+  sourceLanguage: string;
+  targetLanguage: string;
+  modes: Record<VideoTranslationMode, boolean>;
+  subtitleSource: VideoTranslationSubtitleSource;
+  hardSubtitles: boolean;
+  eraseOriginalSubtitles: boolean;
+  subtitlePlacementConfig: SubtitleRemovalConfig;
+  fontSize: number;
+  showLines: number;
+};
+
 export type MaterialKind = {
   hint: string;
   key: MaterialKey;
@@ -49,7 +65,8 @@ export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
   | { id: string; type: 'parameters' }
   | { id: string; type: 'prompt'; title?: string }
-  | { id: string; type: 'subtitle-removal' };
+  | { id: string; type: 'subtitle-removal' }
+  | { id: string; type: 'video-translation' };
 
 export type WorkspaceBlockType = WorkspaceBlock['type'];
 
@@ -63,7 +80,7 @@ export type ToolOption = {
   workspace: {
     blocks: WorkspaceBlock[];
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'pending';
     };
   };
 };

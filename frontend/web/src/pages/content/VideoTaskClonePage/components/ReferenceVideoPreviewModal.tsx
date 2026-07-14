@@ -2,6 +2,7 @@ import { Modal } from 'antd';
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
+import './ReferenceVideoPreviewModal.scss';
 
 type ReferenceVideoPreviewModalProps = {
   onClose: () => void;

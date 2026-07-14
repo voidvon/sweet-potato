@@ -854,5 +854,23 @@ export function createContentRouter() {
     }
   });
 
+  router.post('/video-translations', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      void contentService.createVideoTranslation({
+        userId: getCurrentUserId(req),
+        sourceAssetId: String(req.body.sourceAssetId || ''),
+        sourceLanguage: String(req.body.sourceLanguage || ''),
+        targetLanguage: String(req.body.targetLanguage || ''),
+        translationTypes: req.body.translationTypes,
+        subtitleSource: req.body.subtitleSource,
+        subtitleConfig: req.body.subtitleConfig,
+      })
+        .then((task) => res.status(201).json(task))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '视频翻译任务创建失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '视频翻译任务创建失败'));
+    }
+  });
+
   return router;
 }

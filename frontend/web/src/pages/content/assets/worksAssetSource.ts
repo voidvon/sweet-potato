@@ -1,6 +1,6 @@
 import type { ContentAsset } from '../../../types';
 
-export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale' | 'subtitle_removal';
+export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
 
 export function stringMetadataValue(asset: ContentAsset, key: string) {
   const value = asset.metadata?.[key];
@@ -9,10 +9,17 @@ export function stringMetadataValue(asset: ContentAsset, key: string) {
 
 export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
+  const mode = stringMetadataValue(asset, 'mode');
+  const model = stringMetadataValue(asset, 'model');
+  const isVideoTranslation = generatedBy === 'video_translation'
+    || mode === 'video_translation'
+    || model === 'ai-video-translation';
+  if (isVideoTranslation) {
+    return 'video_translation';
+  }
   if (generatedBy !== 'video_model' && generatedBy !== 'video_enhancement' && generatedBy !== 'video_subtitle_removal') {
     return null;
   }
-  const mode = stringMetadataValue(asset, 'mode');
   const modeTitle = stringMetadataValue(asset, 'modeTitle');
   if (
     mode.startsWith('viral_replication_')
@@ -42,6 +49,9 @@ export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   }
   if (source === 'subtitle_removal') {
     return '字幕擦除';
+  }
+  if (source === 'video_translation') {
+    return '视频翻译';
   }
   return '';
 }

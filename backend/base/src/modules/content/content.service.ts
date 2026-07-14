@@ -24,6 +24,7 @@ import type {
   CreateRealPersonValidationSessionPayload,
   CreateSubtitleRemovalPayload,
   CreateVideoEnhancementPayload,
+  CreateVideoTranslationPayload,
   CreateVideoProductionPayload,
   GenerateDigitalHumanThreeViewPayload,
   GenerateVideoPayload,
@@ -56,6 +57,7 @@ import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerati
 import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
 import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRemovalTasks } from './internals/content-subtitle-removal.js';
+import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
@@ -1566,7 +1568,7 @@ export const contentService = {
     const timeRange = videoProductionTimeRange(filters.time);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'video_upscale', 'subtitle_removal'],
+        modes: ['video_create', 'video_upscale', 'subtitle_removal', 'video_translation'],
         search: normalizeVideoProductionSearch(filters.search),
         updatedAtFrom: timeRange.updatedAtFrom,
         updatedAtTo: timeRange.updatedAtTo,
@@ -1578,6 +1580,8 @@ export const contentService = {
           ? await refreshVideoEnhancementTask(task)
           : task.expertContext?.mode === 'subtitle_removal'
             ? await refreshSubtitleRemovalTask(task)
+            : task.expertContext?.mode === 'video_translation'
+              ? await refreshVideoTranslationTask(task)
             : await refreshVideoTaskGenerationStatus(task);
         if (nextTask && nextTask.status !== 'generating' && nextTask.expertContext?.temporaryCharacterReferenceGroupId) {
           await cleanupTemporaryCharacterReferenceGroup({
@@ -1611,6 +1615,11 @@ export const contentService = {
   async createSubtitleRemoval(payload: CreateSubtitleRemovalPayload) {
     assertUserId(payload.userId);
     return createSubtitleRemovalTask(payload);
+  },
+
+  async createVideoTranslation(payload: CreateVideoTranslationPayload) {
+    assertUserId(payload.userId);
+    return createVideoTranslationTask(payload);
   },
 
   async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
@@ -2089,6 +2098,8 @@ export const contentService = {
         ? await refreshVideoEnhancementTask(task)
         : task.expertContext?.mode === 'subtitle_removal'
           ? await refreshSubtitleRemovalTask(task)
+          : task.expertContext?.mode === 'video_translation'
+            ? await refreshVideoTranslationTask(task)
           : await refreshVideoTaskGenerationStatus(task);
       if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
         await cleanupTemporaryCharacterReferenceGroup({
@@ -2111,6 +2122,7 @@ export const contentService = {
     this.resumePersistedRunningVideoGenerations();
     resumeVideoEnhancementTasks();
     resumeSubtitleRemovalTasks();
+    resumeVideoTranslationTasks();
   },
 
   resumePendingGeneratedVideoMirrors() {
@@ -2369,7 +2381,9 @@ export const contentService = {
   resumePersistedRunningVideoGenerations() {
     const tasks = contentRepository.listGeneratingVideoTasks();
     const resumable = tasks.filter((task) => {
-      if (task.expertContext?.mode === 'video_upscale') {
+      if (task.expertContext?.mode === 'video_upscale'
+        || task.expertContext?.mode === 'subtitle_removal'
+        || task.expertContext?.mode === 'video_translation') {
         return false;
       }
       const segmentState = task.expertContext?.videoGenerationSegments;

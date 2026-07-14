@@ -338,6 +338,26 @@ export type CreateSubtitleRemovalPayload = {
   };
 };
 
+export type VideoTranslationType = 'subtitle' | 'voice' | 'face';
+
+export type CreateVideoTranslationPayload = {
+  userId: string;
+  sourceAssetId: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  translationTypes: VideoTranslationType[];
+  subtitleSource: 'ocr' | 'asr';
+  subtitleConfig: {
+    isHardSubtitle: boolean;
+    isEraseSource: boolean;
+    fontSize?: number;
+    marginL?: number;
+    marginR?: number;
+    marginV?: number;
+    showLines?: number;
+  };
+};
+
 export type GenerateDigitalHumanThreeViewPayload = {
   userId: string;
 };

@@ -18,6 +18,7 @@ import type { ContentAsset, ContentAssetGroup, ContentResourceType, User } from 
 import { formatRelativeCalendarDateTime } from '../../utils/dateTime';
 import { withAuthToken } from '../../utils/session';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import { ReferenceVideoPreviewModal } from './VideoTaskClonePage/components/ReferenceVideoPreviewModal';
 import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload';
 import type { ImagePreview } from './assets/AssetImageUpload';
 import { useCardGridPageSize } from './assets/useCardGridPageSize';
@@ -95,6 +96,7 @@ const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
   { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
   { key: 'video:subtitle-removal', label: '视频生成-字幕擦除', modeKeys: [], modeTitles: [] },
+  { key: 'video:translation', label: '视频生成-视频翻译', modeKeys: [], modeTitles: [] },
 ];
 
 const showWorksBatchButton = false;
@@ -299,6 +301,7 @@ function isGeneratedWorkAsset(asset: ContentAsset) {
     && (asset.metadata?.generatedBy === 'video_model'
       || asset.metadata?.generatedBy === 'video_enhancement'
       || asset.metadata?.generatedBy === 'video_subtitle_removal'
+      || asset.metadata?.generatedBy === 'video_translation'
       || asset.metadata?.generatedBy === 'image_model');
 }
 
@@ -311,7 +314,11 @@ function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
 
 function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
-  if (generatedBy !== 'image_model' && generatedBy !== 'video_model' && generatedBy !== 'video_enhancement' && generatedBy !== 'video_subtitle_removal') {
+  if (generatedBy !== 'image_model'
+    && generatedBy !== 'video_model'
+    && generatedBy !== 'video_enhancement'
+    && generatedBy !== 'video_subtitle_removal'
+    && generatedBy !== 'video_translation') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode') || (generatedBy === 'image_model' ? 'image_generation' : 'video_generation');
@@ -332,6 +339,9 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   }
   if (source === 'subtitle_removal') {
     return videoWorksFunctionOptions[4];
+  }
+  if (source === 'video_translation') {
+    return videoWorksFunctionOptions[5];
   }
   return videoWorksFunctionOptions[0];
 }
@@ -354,6 +364,9 @@ function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   }
   if (functionKey === 'video:subtitle-removal') {
     return getVideoWorkSource(asset) === 'subtitle_removal';
+  }
+  if (functionKey === 'video:translation') {
+    return getVideoWorkSource(asset) === 'video_translation';
   }
   const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
   if (!option) {
@@ -917,21 +930,12 @@ export function ContentResourceLibraryPage({
             </div>
           </div>
         </section>
-        <Modal
-          footer={null}
-          onCancel={closePreviewAsset}
-          open={Boolean(previewAsset)}
-          title={previewAsset?.name || '作品预览'}
-          width={960}
-        >
-          {previewAsset && (
-            <div className="asset-detail asset-detail--video">
-              <video autoPlay controls preload="metadata" ref={previewVideoRef} src={fileUrl(previewAsset)} />
-              <p><strong>文件名：</strong>{previewAsset.originalFileName}</p>
-              <p><strong>类型：</strong>{previewAsset.mimeType}</p>
-            </div>
-          )}
-        </Modal>
+        {previewAsset?.mimeType.startsWith('video/') && (
+          <ReferenceVideoPreviewModal
+            onClose={closePreviewAsset}
+            video={toReferenceVideoPreview(previewAsset)}
+          />
+        )}
         <Image
           alt={previewImage?.name || '图片预览'}
           preview={{
@@ -1186,4 +1190,17 @@ export function ContentResourceLibraryPage({
       />
     </ContentStudioLayout>
   );
+}
+
+function toReferenceVideoPreview(asset: ContentAsset) {
+  const videoUrl = fileUrl(asset);
+  return {
+    duration: 0,
+    end: 0,
+    fileUrl: videoUrl,
+    name: asset.name,
+    start: 0,
+    storedFileName: asset.storedFileName,
+    videoUrl,
+  };
 }

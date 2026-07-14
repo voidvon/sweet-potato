@@ -323,6 +323,7 @@ function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
   const isUpscale = task.expertContext?.mode === 'video_upscale';
   const isSubtitleRemoval = task.expertContext?.mode === 'subtitle_removal';
+  const isVideoTranslation = task.expertContext?.mode === 'video_translation';
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
   const isOrphanPending = task.status !== 'generating'
@@ -334,7 +335,7 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'success' as const,
       label: '已完成',
-      posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : '成片已生成',
+      posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : isVideoTranslation ? '视频翻译已完成' : '成片已生成',
       note: '',
       metric: formatMetric(result, task),
       videoUrl,
@@ -354,7 +355,7 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'failed' as const,
       label: '失败',
-      posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : '生成失败',
+      posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : isVideoTranslation ? '视频翻译失败' : '生成失败',
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
       metric: formatMetric(result, task),
       videoUrl: '',
@@ -376,8 +377,8 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : '生成中',
-    posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : '正在生成视频',
+    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
+    posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     metric: formatMetric(result, task),
     videoUrl: '',
@@ -402,6 +403,15 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     const mode = String(task.expertContext.subtitleRemovalMode || 'auto');
     const label = mode === 'manual' ? 'Manual 框选' : mode === 'auto_region' ? 'Auto 指定区域' : '智能识别';
     return `字幕擦除 · ${label}`;
+  }
+  if (task?.expertContext?.mode === 'video_translation') {
+    const source = String(task.expertContext.videoTranslationSourceLanguage || 'zh').toUpperCase();
+    const target = String(task.expertContext.videoTranslationTargetLanguage || 'en').toUpperCase();
+    const types = Array.isArray(task.expertContext.videoTranslationTypes)
+      ? task.expertContext.videoTranslationTypes.map(String)
+      : ['subtitle'];
+    const level = types.includes('face') ? '面容翻译' : types.includes('voice') ? '语音翻译' : '字幕翻译';
+    return `视频翻译 · ${source} → ${target} · ${level}`;
   }
   if (!result) {
     return '等待参数';

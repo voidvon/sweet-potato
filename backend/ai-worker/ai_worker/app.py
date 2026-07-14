@@ -9,6 +9,7 @@ from ai_worker.services.video_inspection_service import VideoInspectionService
 from ai_worker.services.vod_upload_service import VodUploadService
 from ai_worker.services.vod_enhancement_service import VodEnhancementService
 from ai_worker.services.vod_subtitle_removal_service import VodSubtitleRemovalService
+from ai_worker.services.vod_video_translation_service import VodVideoTranslationService
 from ai_worker.services.vod_understanding_service import VodUnderstandingService
 
 
@@ -16,6 +17,7 @@ video_inspection_service = VideoInspectionService()
 vod_upload_service = VodUploadService()
 vod_enhancement_service = VodEnhancementService()
 vod_subtitle_removal_service = VodSubtitleRemovalService()
+vod_video_translation_service = VodVideoTranslationService()
 vod_understanding_service = VodUnderstandingService()
 
 
@@ -48,6 +50,7 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             payload["understanding"] = vod_understanding_service.diagnostics()
             payload["enhancement"] = vod_enhancement_service.diagnostics()
             payload["subtitleRemoval"] = vod_subtitle_removal_service.diagnostics()
+            payload["videoTranslation"] = vod_video_translation_service.diagnostics()
             self._send_json(200, payload)
             return
         if self.path == "/vod/understanding/agents":
@@ -83,6 +86,12 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/vod/subtitle-removal/get":
             self._handle_vod_subtitle_removal_get()
+            return
+        if self.path == "/vod/video-translation/start":
+            self._handle_vod_video_translation_start()
+            return
+        if self.path == "/vod/video-translation/get":
+            self._handle_vod_video_translation_get()
             return
         if self.path == "/generate":
             self._handle_legacy_generate()
@@ -234,6 +243,43 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             logger.error("http vod subtitle removal get crashed", {"traceId": trace_id, "error": str(error)})
             self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
 
+    def _handle_vod_video_translation_start(self):
+        trace_id = self.headers.get("X-Trace-Id", "")
+        try:
+            payload = self._read_json()
+            result = vod_video_translation_service.start(
+                vid=str(payload.get("vid") or ""),
+                source_language=str(payload.get("sourceLanguage") or ""),
+                target_language=str(payload.get("targetLanguage") or ""),
+                translation_types=payload.get("translationTypes") if isinstance(payload.get("translationTypes"), list) else [],
+                subtitle_source=str(payload.get("subtitleSource") or "ocr"),
+                subtitle_config=payload.get("subtitleConfig") if isinstance(payload.get("subtitleConfig"), dict) else {},
+                space_name=str(payload.get("spaceName") or ""),
+            )
+            self._send_json(200, result)
+        except WorkerError as error:
+            logger.warning("http vod video translation start failed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(error.status_code, {"ok": False, "message": str(error)})
+        except Exception as error:
+            logger.error("http vod video translation start crashed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
+
+    def _handle_vod_video_translation_get(self):
+        trace_id = self.headers.get("X-Trace-Id", "")
+        try:
+            payload = self._read_json()
+            result = vod_video_translation_service.get_project(
+                project_id=str(payload.get("projectId") or ""),
+                space_name=str(payload.get("spaceName") or ""),
+            )
+            self._send_json(200, result)
+        except WorkerError as error:
+            logger.warning("http vod video translation get failed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(error.status_code, {"ok": False, "message": str(error)})
+        except Exception as error:
+            logger.error("http vod video translation get crashed", {"traceId": trace_id, "error": str(error)})
+            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
+
     def _handle_legacy_generate(self):
         payload = self._read_json()
         workflow = payload.get("workflow") or []
@@ -266,6 +312,7 @@ def run():
         "vodUnderstanding": vod_understanding_service.diagnostics(),
         "vodEnhancement": vod_enhancement_service.diagnostics(),
         "vodSubtitleRemoval": vod_subtitle_removal_service.diagnostics(),
+        "vodVideoTranslation": vod_video_translation_service.diagnostics(),
     })
     server.serve_forever()
 

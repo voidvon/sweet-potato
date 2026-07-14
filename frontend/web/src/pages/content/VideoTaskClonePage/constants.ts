@@ -88,9 +88,18 @@ export const toolOptions: ToolOption[] = [
     label: '视频翻译',
     description: '上传源视频并选择目标语言，生成翻译视频。',
     materialHint: '上传源视频',
-    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
+    materials: [
+      { key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'audio', label: '参考音频', hint: '最多 1 段', maxCount: 1, meta: '可选' },
+    ],
     submitText: '开始翻译',
-    workspace: { blocks: [{ id: 'material', type: 'material' }], generate: { handler: 'pending' } },
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'video-translation', type: 'video-translation' },
+      ],
+      generate: { handler: 'video-translation' },
+    },
   },
 ];
 
