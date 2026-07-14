@@ -1,6 +1,6 @@
-import { Pause, Play, Volume2, VolumeX, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from 'antd';
+import { Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 
 type ReferenceVideoPreviewModalProps = {
@@ -11,6 +11,7 @@ type ReferenceVideoPreviewModalProps = {
 export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPreviewModalProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [open, setOpen] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [volume, setVolume] = useState(0.72);
   const [duration, setDuration] = useState(video.duration || Math.max(0, video.end - video.start) || 15);
@@ -18,14 +19,6 @@ export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPre
   const [isPlaying, setIsPlaying] = useState(true);
   const playableDuration = useMemo(() => Math.max(0.1, duration), [duration]);
   const progressValue = Math.min(1000, Math.max(0, Math.round((currentTime / playableDuration) * 1000)));
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
 
   const syncMetadata = () => {
     const element = videoRef.current;
@@ -86,11 +79,22 @@ export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPre
     void target.requestFullscreen();
   };
 
-  return createPortal(
-    <div className="vc-create__preview-modal" role="dialog" aria-modal="true" aria-label="视频预览">
-      <button type="button" className="vc-create__preview-close" aria-label="关闭预览" onClick={onClose}>
-        <X size={22} />
-      </button>
+  return (
+    <Modal
+      centered
+      className="vc-create__preview-modal"
+      afterOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+      footer={null}
+      mask={{ closable: true }}
+      onCancel={() => setOpen(false)}
+      open={open}
+      rootClassName="vc-create__preview-modal-root"
+      title={null}
+      width={1500}
+      zIndex={13000}
+    >
       <div className="vc-create__preview-shell">
         <div className="vc-create__preview-video-frame">
           <div ref={frameRef} className="video-task-asset-player">
@@ -171,8 +175,7 @@ export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPre
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 
