@@ -1002,11 +1002,6 @@
   width: min(82vw, 1500px) !important;
 }
 
-.vc-create__preview-modal-root .ant-modal-mask {
-  backdrop-filter: blur(10px);
-  background: rgba(31, 41, 55, 0.68);
-}
-
 .vc-create__preview-modal .ant-modal-container {
   background: transparent;
   box-shadow: none;

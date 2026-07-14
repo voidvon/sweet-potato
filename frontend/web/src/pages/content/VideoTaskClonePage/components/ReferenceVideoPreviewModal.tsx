@@ -90,7 +90,6 @@ export function ReferenceVideoPreviewModal({ onClose, video }: ReferenceVideoPre
       mask={{ closable: true }}
       onCancel={() => setOpen(false)}
       open={open}
-      rootClassName="vc-create__preview-modal-root"
       title={null}
       width={1500}
       zIndex={13000}
