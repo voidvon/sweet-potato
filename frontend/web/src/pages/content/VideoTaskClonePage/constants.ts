@@ -48,7 +48,10 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传替换主体素材',
     materials: defaultMaterials,
     submitText: '开始替换',
-    workspace: { blocks: [], generate: { handler: 'pending' } },
+    workspace: {
+      blocks: [{ id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false }],
+      generate: { handler: 'pending' },
+    },
   },
   {
     key: 'dance-remake',

@@ -63,7 +63,7 @@ export type MaterialKind = {
 
 export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
-  | { id: string; type: 'parameters' }
+  | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
   | { id: string; type: 'subtitle-removal' }
   | { id: string; type: 'video-translation' };

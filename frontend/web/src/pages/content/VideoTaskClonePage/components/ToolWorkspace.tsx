@@ -63,6 +63,9 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       onParamToggle={state.setActiveParam}
       quality={state.quality}
       ratio={state.ratio}
+      showDuration={block.showDuration}
+      showHeader={block.showHeader}
+      showRatio={block.showRatio}
       summary={state.paramSummary}
     />
   ) : null,
