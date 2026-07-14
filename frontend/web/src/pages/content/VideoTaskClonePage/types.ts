@@ -23,8 +23,10 @@ export type SubtitleRemovalLocation = {
 
 export type SubtitleRemovalClipFilter = {
   mode: 'all' | 'selected' | 'skip';
-  start: number;
-  end: number;
+  clips: Array<{
+    start: number;
+    end: number;
+  }>;
 };
 
 export type SubtitleRemovalConfig = {

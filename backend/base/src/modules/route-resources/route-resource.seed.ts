@@ -72,7 +72,7 @@ export const seededRouteResources: SeedRouteResource[] = [
     path: '/app/content',
     permissionCode: 'web.directory.content',
     status: true,
-    sortOrder: 20,
+    sortOrder: 10,
     isSystem: true,
   },
   {
@@ -117,7 +117,7 @@ export const seededRouteResources: SeedRouteResource[] = [
       return 'rr-web-root-content';
     })();
     const sortOrderByKey: Partial<Record<(typeof permissionCatalog)[number]['key'], number>> = {
-      'web.module.chat': 10,
+      'web.module.chat': 20,
       'web.module.content.virtual_portrait_assets': 10,
       'web.module.content.ai_voice': 20,
       'web.module.content.scene_library': 30,

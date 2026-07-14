@@ -1,6 +1,6 @@
 import { InputNumber, Modal, Segmented, Slider } from 'antd';
 import { Pause, Play, Plus, Trash2, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type {
   SelectedMaterials,
@@ -12,6 +12,7 @@ type SubtitleRemovalEditorProps = {
   config: SubtitleRemovalConfig;
   onCancel: () => void;
   onConfirm: (config: SubtitleRemovalConfig) => void;
+  open: boolean;
   selectedMaterials: SelectedMaterials;
 };
 
@@ -31,6 +32,7 @@ type DragAction = {
 };
 
 type ResizeHandle = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+type ClipTimeField = 'start' | 'end';
 
 const MIN_REGION_SIZE = 0.02;
 
@@ -58,6 +60,7 @@ export function SubtitleRemovalEditor({
   config,
   onCancel,
   onConfirm,
+  open,
   selectedMaterials,
 }: SubtitleRemovalEditorProps) {
   const [draft, setDraft] = useState<SubtitleRemovalConfig>(() => createEditorDraft(config));
@@ -68,6 +71,7 @@ export function SubtitleRemovalEditor({
   const [videoDuration, setVideoDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [clipTimeDrafts, setClipTimeDrafts] = useState<Record<string, string>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragActionRef = useRef<DragAction | null>(null);
   const video = Array.isArray(selectedMaterials.video) ? selectedMaterials.video[0] : undefined;
@@ -76,12 +80,26 @@ export function SubtitleRemovalEditor({
   const safeDuration = Math.max(duration, 1);
   const activeLocation = draft.locations[activeRegionIndex];
 
+  useEffect(() => {
+    if (!open) {
+      videoRef.current?.pause();
+      dragActionRef.current = null;
+      setIsPlaying(false);
+      return;
+    }
+    setDraft(createEditorDraft(config));
+    setActiveRegionIndex(config.mode === 'auto' ? 0 : Math.max(0, config.locations.length - 1));
+    setCurrentTime(0);
+    setVideoDuration(0);
+    setClipTimeDrafts({});
+  }, [config, open]);
+
   const editorSummary = useMemo(() => {
     const content = draft.contentType === 'text' ? '所有渲染文字' : '仅字幕';
     const area = draft.mode === 'auto' ? '自动识别' : `${draft.locations.length} 个区域`;
     const time = draft.clipFilter.mode === 'all'
       ? '处理全时段'
-      : `${draft.clipFilter.mode === 'selected' ? '仅处理' : '跳过'} 1 段`;
+      : `${draft.clipFilter.mode === 'selected' ? '仅处理' : '跳过'} ${draft.clipFilter.clips.length} 段`;
     return `${content} · ${area} · ${time}`;
   }, [draft]);
 
@@ -195,25 +213,109 @@ export function SubtitleRemovalEditor({
       clipFilter: {
         ...current.clipFilter,
         mode,
-        start: mode === 'all' ? 0 : Math.min(current.clipFilter.start, Math.max(0, duration - 0.1)),
-        end: mode === 'all'
-          ? 0
-          : (current.clipFilter.end > current.clipFilter.start
-            ? Math.min(current.clipFilter.end, duration || current.clipFilter.end)
-            : (duration || Math.max(1, current.clipFilter.start + 1))),
+        clips: mode === 'all' || current.clipFilter.clips.length
+          ? current.clipFilter.clips
+          : [defaultClipRange(duration)],
       },
     }));
   };
+
+  const addClipRange = () => {
+    setDraft((current) => ({
+      ...current,
+      clipFilter: {
+        ...current.clipFilter,
+        clips: [...current.clipFilter.clips, nextClipRange(current.clipFilter.clips, duration)],
+      },
+    }));
+  };
+
+  const removeClipRange = (index: number) => {
+    setDraft((current) => ({
+      ...current,
+      clipFilter: {
+        ...current.clipFilter,
+        clips: current.clipFilter.clips.filter((_, currentIndex) => currentIndex !== index),
+      },
+    }));
+    setClipTimeDrafts((current) => reindexClipTimeDrafts(current, index));
+  };
+
+  const updateClipRange = (index: number, range: number[]) => {
+    const [start = 0, end = safeDuration] = range;
+    const currentClip = draft.clipFilter.clips[index] || { start, end };
+    const previewTime = Math.abs(start - currentClip.start) >= Math.abs(end - currentClip.end)
+      ? start
+      : end;
+    setDraft((current) => ({
+      ...current,
+      clipFilter: {
+        ...current.clipFilter,
+        clips: current.clipFilter.clips.map((clip, currentIndex) => (
+          currentIndex === index ? { start, end } : clip
+        )),
+      },
+    }));
+    setCurrentTime(previewTime);
+    if (videoRef.current) videoRef.current.currentTime = previewTime;
+    setClipTimeDrafts((current) => omitClipTimeDrafts(current, index));
+  };
+
+  const commitClipTime = (index: number, field: ClipTimeField) => {
+    const clip = draft.clipFilter.clips[index];
+    const inputKey = clipTimeInputKey(index, field);
+    const text = clipTimeDrafts[inputKey];
+    if (!clip || text === undefined || !isValidClipTimeInput(text, field, clip, duration)) return;
+    const value = parseTimeInput(text);
+    if (value === null) return;
+    updateClipRange(index, field === 'start' ? [value, clip.end] : [clip.start, value]);
+  };
+
+  const changeClipTime = (index: number, field: ClipTimeField, text: string) => {
+    const clip = draft.clipFilter.clips[index];
+    const inputKey = clipTimeInputKey(index, field);
+    setClipTimeDrafts((current) => ({ ...current, [inputKey]: text }));
+    if (!clip || !isValidClipTimeInput(text, field, clip, duration)) return;
+    const value = parseTimeInput(text);
+    if (value === null) return;
+    setDraft((current) => ({
+      ...current,
+      clipFilter: {
+        ...current.clipFilter,
+        clips: current.clipFilter.clips.map((currentClip, currentIndex) => (
+          currentIndex === index ? { ...currentClip, [field]: value } : currentClip
+        )),
+      },
+    }));
+    setCurrentTime(value);
+    if (videoRef.current) videoRef.current.currentTime = value;
+  };
+
+  const resetClipTime = (index: number, field: ClipTimeField) => {
+    const inputKey = clipTimeInputKey(index, field);
+    setClipTimeDrafts((current) => {
+      const next = { ...current };
+      delete next[inputKey];
+      return next;
+    });
+  };
+
+  const hasInvalidTimeInput = hasInvalidClipTimeDraft(
+    clipTimeDrafts,
+    draft.clipFilter.clips,
+    duration,
+  );
 
   return (
     <Modal
       centered
       className="subtitle-editor-modal"
       closable={false}
+      destroyOnHidden
       footer={null}
       mask={{ closable: true }}
       onCancel={onCancel}
-      open
+      open={open}
       rootClassName="subtitle-editor-modal-root"
       title={null}
       width={1280}
@@ -397,7 +499,14 @@ export function SubtitleRemovalEditor({
             </section>
 
             <section className="subtitle-editor-control-section subtitle-editor-time-section">
-              <h3>处理时段</h3>
+              <div className="subtitle-editor-section-heading">
+                <h3>处理时段</h3>
+                {draft.clipFilter.mode !== 'all' && (
+                  <button disabled={!videoUrl || duration <= 0} onClick={addClipRange} type="button">
+                    <Plus size={14} />新增时段
+                  </button>
+                )}
+              </div>
               <Segmented
                 block
                 onChange={(value) => chooseClipMode(value as SubtitleRemovalConfig['clipFilter']['mode'])}
@@ -409,25 +518,65 @@ export function SubtitleRemovalEditor({
                 value={draft.clipFilter.mode}
               />
               {draft.clipFilter.mode !== 'all' && (
-                <div className="subtitle-editor-time-grid">
-                  <TimeInput
-                    duration={duration}
-                    label="开始（秒）"
-                    onChange={(value) => setDraft((current) => ({
-                      ...current,
-                      clipFilter: { ...current.clipFilter, start: value },
-                    }))}
-                    value={draft.clipFilter.start}
-                  />
-                  <TimeInput
-                    duration={duration}
-                    label="结束（秒）"
-                    onChange={(value) => setDraft((current) => ({
-                      ...current,
-                      clipFilter: { ...current.clipFilter, end: value },
-                    }))}
-                    value={draft.clipFilter.end}
-                  />
+                <div className="subtitle-editor-time-list">
+                  {draft.clipFilter.clips.length === 0 && (
+                    <button className="subtitle-editor-add-empty" disabled={!videoUrl || duration <= 0} onClick={addClipRange} type="button">
+                      <Plus size={16} />添加处理时段
+                    </button>
+                  )}
+                  {draft.clipFilter.clips.map((clip, index) => (
+                    <div className="subtitle-editor-time-range" key={`clip-${index}`}>
+                      <Slider
+                        ariaLabelForHandle={[`时段 ${index + 1} 开始时间`, `时段 ${index + 1} 结束时间`]}
+                        disabled={!videoUrl || duration <= 0}
+                        max={safeDuration}
+                        min={0}
+                        onChange={(range: number[]) => updateClipRange(index, range)}
+                        range={{ draggableTrack: true }}
+                        step={0.1}
+                        tooltip={{ formatter: (value) => formatTime(Number(value ?? 0)) }}
+                        value={[
+                          Math.min(clip.start, safeDuration),
+                          Math.min(Math.max(clip.end, clip.start), safeDuration),
+                        ]}
+                      />
+                      <div className="subtitle-editor-time-values">
+                        <strong className="subtitle-editor-time-name">时段 {index + 1}</strong>
+                        {(['start', 'end'] as const).map((field) => {
+                          const inputKey = clipTimeInputKey(index, field);
+                          const inputValue = clipTimeDrafts[inputKey] ?? formatTime(clip[field]);
+                          const isInvalid = clipTimeDrafts[inputKey] !== undefined
+                            && !isValidClipTimeInput(inputValue, field, clip, duration);
+                          return (
+                            <span key={field}>
+                              <small>{field === 'start' ? '开始' : '结束'}</small>
+                              <input
+                                aria-invalid={isInvalid}
+                                aria-label={`时段 ${index + 1} ${field === 'start' ? '开始' : '结束'}时间`}
+                                className={isInvalid ? 'is-invalid' : ''}
+                                inputMode="decimal"
+                                onBlur={() => commitClipTime(index, field)}
+                                onChange={(event) => changeClipTime(index, field, event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') event.currentTarget.blur();
+                                  if (event.key === 'Escape') {
+                                    event.preventDefault();
+                                    resetClipTime(index, field);
+                                  }
+                                }}
+                                spellCheck={false}
+                                title={isInvalid ? '请输入正确的秒数或 mm:ss.s 格式，并确保开始时间早于结束时间' : undefined}
+                                value={inputValue}
+                              />
+                            </span>
+                          );
+                        })}
+                        <button aria-label={`删除时段 ${index + 1}`} onClick={() => removeClipRange(index)} title="删除时段" type="button">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -436,7 +585,7 @@ export function SubtitleRemovalEditor({
 
         <footer className="subtitle-editor-footer">
           <button
-            disabled={!isDraftValid(draft, duration)}
+            disabled={hasInvalidTimeInput || !isDraftValid(draft, duration)}
             onClick={() => onConfirm(cloneConfig(draft))}
             type="button"
           >
@@ -473,47 +622,29 @@ function ContentOption({
   );
 }
 
-function CoordinateInput({ label, onChange, value }: { label: string; onChange: (value: number) => void; value: number }) {
-  return (
-    <label onClick={(event) => event.stopPropagation()}>
-      <span>{label}</span>
-      <InputNumber
-        controls={false}
-        max={1}
-        min={0}
-        onChange={(nextValue) => onChange(clamp01(Number(nextValue ?? 0)))}
-        precision={2}
-        step={0.01}
-        value={Number(value.toFixed(2))}
-      />
-    </label>
-  );
-}
-
-function TimeInput({
-  duration,
+function CoordinateInput({
   label,
   onChange,
   value,
 }: {
-  duration: number;
   label: string;
   onChange: (value: number) => void;
   value: number;
 }) {
   return (
-    <label>
-      <span>{label}</span>
-      <InputNumber
-        controls={false}
-        max={duration || undefined}
-        min={0}
-        onChange={(nextValue) => onChange(Math.max(0, Number(nextValue ?? 0)))}
-        precision={1}
-        step={0.1}
-        value={value}
-      />
-    </label>
+    <InputNumber
+      aria-label={label}
+      controls={false}
+      max={1}
+      min={0}
+      onChange={(nextValue) => onChange(clamp01(Number(nextValue ?? 0)))}
+      onClick={(event) => event.stopPropagation()}
+      precision={3}
+      prefix={label}
+      size="small"
+      step={0.001}
+      value={Number(value.toFixed(3))}
+    />
   );
 }
 
@@ -594,16 +725,21 @@ function locationStyle(location: SubtitleRemovalLocation): CSSProperties {
 function isDraftValid(config: SubtitleRemovalConfig, duration: number) {
   if (config.mode !== 'auto' && config.locations.length === 0) return false;
   if (config.clipFilter.mode === 'all') return true;
-  return config.clipFilter.start >= 0
-    && config.clipFilter.end > config.clipFilter.start
-    && (!duration || config.clipFilter.end <= duration);
+  return config.clipFilter.clips.length > 0 && config.clipFilter.clips.every((clip) => (
+    clip.start >= 0
+    && clip.end > clip.start
+    && (!duration || clip.end <= duration)
+  ));
 }
 
 function cloneConfig(config: SubtitleRemovalConfig): SubtitleRemovalConfig {
   return {
     ...config,
     locations: config.locations.map((location) => ({ ...location })),
-    clipFilter: { ...config.clipFilter },
+    clipFilter: {
+      ...config.clipFilter,
+      clips: config.clipFilter.clips.map((clip) => ({ ...clip })),
+    },
   };
 }
 
@@ -617,6 +753,92 @@ function formatTime(value: number) {
   const minutes = Math.floor(safeValue / 60);
   const seconds = safeValue - minutes * 60;
   return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`;
+}
+
+function defaultClipRange(duration: number) {
+  return { start: 0, end: duration || 1 };
+}
+
+function nextClipRange(
+  clips: SubtitleRemovalConfig['clipFilter']['clips'],
+  duration: number,
+) {
+  const safeEnd = duration || 1;
+  const sorted = clips
+    .map((clip) => ({ start: clamp(clip.start, 0, safeEnd), end: clamp(clip.end, 0, safeEnd) }))
+    .sort((left, right) => left.start - right.start);
+  let cursor = 0;
+  for (const clip of sorted) {
+    if (clip.start - cursor >= 0.1) return { start: cursor, end: clip.start };
+    cursor = Math.max(cursor, clip.end);
+  }
+  if (safeEnd - cursor >= 0.1) return { start: cursor, end: safeEnd };
+  return defaultClipRange(duration);
+}
+
+function clipTimeInputKey(index: number, field: ClipTimeField) {
+  return `${index}-${field}`;
+}
+
+function parseTimeInput(text: string) {
+  const normalized = text.trim().replaceAll('：', ':');
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const seconds = Number(normalized);
+    return Number.isFinite(seconds) ? Number(seconds.toFixed(3)) : null;
+  }
+
+  const parts = normalized.split(':');
+  if (parts.length !== 2 && parts.length !== 3) return null;
+  const secondsText = parts.at(-1) || '';
+  if (!/^\d+(?:\.\d+)?$/.test(secondsText)) return null;
+  const wholeParts = parts.slice(0, -1);
+  if (wholeParts.some((part) => !/^\d+$/.test(part))) return null;
+  const seconds = Number(secondsText);
+  if (seconds >= 60) return null;
+  if (parts.length === 2) {
+    return Number((Number(parts[0]) * 60 + seconds).toFixed(3));
+  }
+  const minutes = Number(parts[1]);
+  if (minutes >= 60) return null;
+  return Number((Number(parts[0]) * 3600 + minutes * 60 + seconds).toFixed(3));
+}
+
+function isValidClipTimeInput(
+  text: string,
+  field: ClipTimeField,
+  clip: SubtitleRemovalConfig['clipFilter']['clips'][number],
+  duration: number,
+) {
+  const value = parseTimeInput(text);
+  if (value === null || value < 0 || (duration > 0 && value > duration)) return false;
+  return field === 'start' ? value < clip.end : value > clip.start;
+}
+
+function hasInvalidClipTimeDraft(
+  drafts: Record<string, string>,
+  clips: SubtitleRemovalConfig['clipFilter']['clips'],
+  duration: number,
+) {
+  return Object.entries(drafts).some(([key, text]) => {
+    const match = /^(\d+)-(start|end)$/.exec(key);
+    if (!match) return true;
+    const clip = clips[Number(match[1])];
+    return !clip || !isValidClipTimeInput(text, match[2] as ClipTimeField, clip, duration);
+  });
+}
+
+function omitClipTimeDrafts(drafts: Record<string, string>, index: number) {
+  return Object.fromEntries(Object.entries(drafts).filter(([key]) => !key.startsWith(`${index}-`)));
+}
+
+function reindexClipTimeDrafts(drafts: Record<string, string>, removedIndex: number) {
+  return Object.fromEntries(Object.entries(drafts).flatMap(([key, value]) => {
+    const match = /^(\d+)-(start|end)$/.exec(key);
+    if (!match) return [];
+    const index = Number(match[1]);
+    if (index === removedIndex) return [];
+    return [[clipTimeInputKey(index > removedIndex ? index - 1 : index, match[2] as ClipTimeField), value]];
+  }));
 }
 
 function clamp01(value: number) {

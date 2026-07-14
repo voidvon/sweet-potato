@@ -33,13 +33,6 @@ const modeOptions: Array<{ key: SubtitleRemovalMode; title: string; description:
   },
 ];
 
-const defaultLocation = {
-  topLeftX: 0.1,
-  topLeftY: 0.85,
-  bottomRightX: 0.9,
-  bottomRightY: 0.95,
-};
-
 export function SubtitleRemovalPanel({ config, onChange, selectedMaterials }: SubtitleRemovalPanelProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const summary = useMemo(() => {
@@ -49,7 +42,7 @@ export function SubtitleRemovalPanel({ config, onChange, selectedMaterials }: Su
       : `${config.locations.length} 个区域`;
     const time = config.clipFilter.mode === 'all'
       ? '处理全时段'
-      : `${config.clipFilter.mode === 'selected' ? '仅处理' : '跳过'} 1 段`;
+      : `${config.clipFilter.mode === 'selected' ? '仅处理' : '跳过'} ${config.clipFilter.clips.length} 段`;
     return `${content} · ${area} · ${time}`;
   }, [config]);
 
@@ -57,9 +50,6 @@ export function SubtitleRemovalPanel({ config, onChange, selectedMaterials }: Su
     onChange({
       ...config,
       mode,
-      locations: mode === 'auto'
-        ? config.locations
-        : (config.locations.length ? config.locations : [defaultLocation]),
     });
   };
 
@@ -81,28 +71,29 @@ export function SubtitleRemovalPanel({ config, onChange, selectedMaterials }: Su
         ))}
       </div>
 
-      <button className="subtitle-removal-editor-entry" onClick={() => setEditorOpen(true)} type="button">
-        <span>
-          <strong>打开视频编辑器</strong>
-          <small>{summary}</small>
-        </span>
-        <span className="subtitle-removal-editor-badge">
-          <SlidersHorizontal size={14} />
-          精细配置
-        </span>
-      </button>
-
-      {editorOpen && (
-        <SubtitleRemovalEditor
-          config={config}
-          onCancel={() => setEditorOpen(false)}
-          onConfirm={(nextConfig) => {
-            onChange(nextConfig);
-            setEditorOpen(false);
-          }}
-          selectedMaterials={selectedMaterials}
-        />
+      {config.mode !== 'auto' && (
+        <button className="subtitle-removal-editor-entry" onClick={() => setEditorOpen(true)} type="button">
+          <span>
+            <strong>打开视频编辑器</strong>
+            <small>{summary}</small>
+          </span>
+          <span className="subtitle-removal-editor-badge">
+            <SlidersHorizontal size={14} />
+            {config.locations.length > 0 ? '已配置' : '未配置'}
+          </span>
+        </button>
       )}
+
+      <SubtitleRemovalEditor
+        config={config}
+        onCancel={() => setEditorOpen(false)}
+        onConfirm={(nextConfig) => {
+          onChange(nextConfig);
+          setEditorOpen(false);
+        }}
+        open={editorOpen}
+        selectedMaterials={selectedMaterials}
+      />
     </WorkspaceSection>
   );
 }

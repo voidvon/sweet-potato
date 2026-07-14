@@ -53,6 +53,27 @@ def _normalized_location(value: Any) -> dict:
     return location
 
 
+def _normalized_clips(value: dict) -> list[dict]:
+    raw_clips = value.get("clips")
+    if not isinstance(raw_clips, list):
+        raw_clips = [{"start": value.get("start"), "end": value.get("end")}]
+    clips = []
+    for item in raw_clips:
+        if not isinstance(item, dict):
+            raise ValidationError("字幕擦除时间范围格式无效")
+        try:
+            start = float(item.get("start"))
+            end = float(item.get("end"))
+        except (TypeError, ValueError) as error:
+            raise ValidationError("字幕擦除时间范围格式无效") from error
+        if start < 0 or end <= start:
+            raise ValidationError("字幕擦除时间范围无效")
+        clips.append({"start": start, "end": end})
+    if not clips:
+        raise ValidationError("字幕擦除时间范围不能为空")
+    return clips
+
+
 class VodSubtitleRemovalService:
     def _client(self):
         try:
@@ -144,14 +165,14 @@ class VodSubtitleRemovalService:
         ]
         erase_option = None
         if clip_mode != "all":
-            start = float(normalized_clip_filter.get("start", 0))
-            end = float(normalized_clip_filter.get("end", 0))
-            if start < 0 or end <= start:
-                raise ValidationError("字幕擦除时间范围无效")
+            clips = _normalized_clips(normalized_clip_filter)
             erase_option = EraseOptionForStartExecutionInput(
                 clip_filter=ClipFilterForStartExecutionInput(
                     mode="Selected" if clip_mode == "selected" else "Skip",
-                    clips=[ClipForStartExecutionInput(start=start, end=end)],
+                    clips=[
+                        ClipForStartExecutionInput(start=clip["start"], end=clip["end"])
+                        for clip in clips
+                    ],
                 )
             )
 

@@ -30,7 +30,7 @@ const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
   mode: 'auto',
   contentType: 'subtitle',
   locations: [],
-  clipFilter: { mode: 'all', start: 0, end: 0 },
+  clipFilter: { mode: 'all', clips: [] },
 };
 
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
@@ -139,8 +139,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     () => (
       tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
       && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
+      && (tool.workspace.generate.handler !== 'subtitle-removal'
+        || subtitleRemovalConfig.mode === 'auto'
+        || subtitleRemovalConfig.locations.length > 0)
     ),
-    [prompt, selectedMaterials, tool.materials],
+    [prompt, selectedMaterials, subtitleRemovalConfig, tool.materials, tool.workspace.generate.handler],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
 
@@ -797,7 +800,19 @@ function subtitleRemovalClipFilterFromRecord(record: Record<string, unknown>): S
   const value = record.subtitleRemovalClipFilter;
   if (!isRecord(value)) return defaultSubtitleRemovalConfig.clipFilter;
   const mode = value.mode === 'selected' || value.mode === 'skip' ? value.mode : 'all';
-  return { mode, start: Number(value.start || 0), end: Number(value.end || 0) };
+  if (mode === 'all') return { mode, clips: [] };
+  const storedClips = Array.isArray(value.clips) ? value.clips : [];
+  const clips = storedClips.flatMap((clip) => {
+    if (!isRecord(clip)) return [];
+    const start = Number(clip.start);
+    const end = Number(clip.end);
+    return Number.isFinite(start) && Number.isFinite(end) ? [{ start, end }] : [];
+  });
+  if (clips.length) return { mode, clips };
+
+  const start = Number(value.start || 0);
+  const end = Number(value.end || 0);
+  return { mode, clips: end > start ? [{ start, end }] : [] };
 }
 
 function validateSubtitleRemovalConfig(config: SubtitleRemovalConfig) {
@@ -812,9 +827,13 @@ function validateSubtitleRemovalConfig(config: SubtitleRemovalConfig) {
       throw new Error('字幕擦除区域坐标无效，请重新框选');
     }
   });
-  if (config.clipFilter.mode !== 'all'
-    && (config.clipFilter.start < 0 || config.clipFilter.end <= config.clipFilter.start)) {
-    throw new Error('字幕擦除时间范围无效，请确保结束时间晚于开始时间');
+  if (config.clipFilter.mode !== 'all') {
+    if (config.clipFilter.clips.length === 0) {
+      throw new Error('请至少添加一个字幕擦除时间段');
+    }
+    if (config.clipFilter.clips.some((clip) => clip.start < 0 || clip.end <= clip.start)) {
+      throw new Error('字幕擦除时间范围无效，请确保每段结束时间晚于开始时间');
+    }
   }
 }
 

@@ -289,6 +289,29 @@ function validateLocation(location: SubtitleRemovalLocation) {
   }
 }
 
+function normalizeClipFilter(payload: CreateSubtitleRemovalPayload) {
+  const filter = payload.clipFilter;
+  if (filter?.mode !== 'selected' && filter?.mode !== 'skip') {
+    return { mode: 'all' as const, clips: [] };
+  }
+  const rawClips = Array.isArray(filter.clips)
+    ? filter.clips
+    : [{ start: filter.start, end: filter.end }];
+  const clips = rawClips.map((clip) => ({
+    start: Number(clip?.start),
+    end: Number(clip?.end),
+  }));
+  if (clips.length === 0 || clips.some((clip) => (
+    !Number.isFinite(clip.start)
+    || !Number.isFinite(clip.end)
+    || clip.start < 0
+    || clip.end <= clip.start
+  ))) {
+    throw new Error('字幕擦除时间范围无效');
+  }
+  return { mode: filter.mode, clips };
+}
+
 export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPayload) {
   validatePlaybackBaseUrl();
   const sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
@@ -298,12 +321,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
   const mode = payload.mode === 'auto_region' || payload.mode === 'manual' ? payload.mode : 'auto';
   const contentType = payload.contentType === 'text' ? 'text' : 'subtitle';
   const locations = normalizeLocations({ ...payload, mode });
-  const clipFilter = payload.clipFilter?.mode === 'selected' || payload.clipFilter?.mode === 'skip'
-    ? payload.clipFilter
-    : { mode: 'all' as const, start: 0, end: 0 };
-  if (clipFilter.mode !== 'all' && (clipFilter.start < 0 || clipFilter.end <= clipFilter.start)) {
-    throw new Error('字幕擦除时间范围无效');
-  }
+  const clipFilter = normalizeClipFilter(payload);
 
   const modeLabel = mode === 'auto' ? '智能识别' : mode === 'auto_region' ? '智能框选' : '强制框选';
   const title = `${path.parse(sourceAsset.name || sourceAsset.originalFileName).name || '视频'}-字幕擦除`;

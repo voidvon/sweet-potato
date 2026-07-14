@@ -329,8 +329,12 @@ export type CreateSubtitleRemovalPayload = {
   locations?: SubtitleRemovalLocation[];
   clipFilter?: {
     mode: 'all' | 'selected' | 'skip';
-    start: number;
-    end: number;
+    clips?: Array<{
+      start: number;
+      end: number;
+    }>;
+    start?: number;
+    end?: number;
   };
 };
 

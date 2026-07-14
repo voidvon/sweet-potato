@@ -410,8 +410,10 @@ export function createSubtitleRemoval(payload: {
   }>;
   clipFilter: {
     mode: 'all' | 'selected' | 'skip';
-    start: number;
-    end: number;
+    clips: Array<{
+      start: number;
+      end: number;
+    }>;
   };
 }) {
   const { userId: _userId, ...requestPayload } = payload;

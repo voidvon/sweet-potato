@@ -113,6 +113,29 @@ class VodSubtitleRemovalServiceTest(unittest.TestCase):
         self.assertEqual(len(erase.manual.locations), 1)
         self.assertIsNone(erase.auto)
 
+    def test_selected_mode_maps_multiple_clips(self):
+        api = FakeApi()
+        with patch.object(VodSubtitleRemovalService, "_client", lambda self: api):
+            VodSubtitleRemovalService().start(
+                vid="vid_4",
+                mode="auto",
+                clip_filter={
+                    "mode": "selected",
+                    "clips": [
+                        {"start": 2, "end": 8.5},
+                        {"start": 15, "end": 24},
+                    ],
+                },
+                space_name="space_1",
+            )
+
+        clips = api.requests[0].operation.task.erase.erase_option.clip_filter.clips
+        self.assertEqual(len(clips), 2)
+        self.assertEqual(clips[0].start, 2)
+        self.assertEqual(clips[0].end, 8.5)
+        self.assertEqual(clips[1].start, 15)
+        self.assertEqual(clips[1].end, 24)
+
     def test_get_execution_extracts_output_file(self):
         api = FakeApi({
             "status": "Success",
