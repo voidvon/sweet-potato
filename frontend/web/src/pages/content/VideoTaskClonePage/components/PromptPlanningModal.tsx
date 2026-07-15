@@ -888,8 +888,7 @@ export function PromptPlanningModal({
             })}
           </nav>
 
-          <div className="video-task-epa-content">
-            <main className="video-task-epa-main">
+          <main className={`video-task-epa-main video-task-epa-step-shell-${activeStep}`}>
               {errorMessage ? (
                 <div className="video-task-epa-alert is-error">
                   <AlertCircle size={16} />
@@ -897,8 +896,7 @@ export function PromptPlanningModal({
                 </div>
               ) : null}
 
-              <div className="video-task-epa-scroll">
-                {activeStep === 'step1' && (
+              {activeStep === 'step1' && (
                   showStep1Loading ? (
                     <CenteredLoadingCard
                       description={analyzeCopy.description}
@@ -906,7 +904,7 @@ export function PromptPlanningModal({
                       title={analyzeCopy.title}
                     />
                   ) : (
-                    <div className="video-task-epa-step-shell video-task-epa-step-shell-step1">
+                    <>
                       <FieldHeading title="商品素材" subtitle="必填 · 1-9 张 · 可拖入/粘贴" />
                       <div className="video-task-epa-product-slot">
                         <MaterialSlot
@@ -972,12 +970,12 @@ export function PromptPlanningModal({
                         type="text"
                         value={productName}
                       />
-                    </div>
+                    </>
                   )
                 )}
 
-                {activeStep === 'step2' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step2">
+              {activeStep === 'step2' && session && (
+                  <>
                     <section className="video-task-epa-analysis-section">
                       <div className="video-task-epa-section-head">
                         <div>
@@ -1154,11 +1152,11 @@ export function PromptPlanningModal({
                         />
                       </div>
                     </section>
-                  </div>
+                  </>
                 )}
 
-                {activeStep === 'step3' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step3">
+              {activeStep === 'step3' && session && (
+                  <>
                     <section className="video-task-epa-settings-section">
                       <FieldHeading title="业务场景" subtitle="选填 · 影响话术与结尾引导" />
                       <div className="video-task-epa-pill-line">
@@ -1332,11 +1330,11 @@ export function PromptPlanningModal({
                         />
                       </div>
                     </section>
-                  </div>
+                  </>
                 )}
 
-                {activeStep === 'step4' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step4">
+              {activeStep === 'step4' && session && (
+                  <>
                     {showStep4Loading ? (
                       <WideLoadingCard
                         description={generateCopy.description}
@@ -1436,12 +1434,11 @@ export function PromptPlanningModal({
                     ) : !showStep4Loading ? (
                       <div className="video-task-epa-empty-hint">脚本生成完成后，这里会展示候选脚本与逐秒分镜。</div>
                     ) : null}
-                  </div>
+                  </>
                 )}
-              </div>
-            </main>
+          </main>
 
-            <footer className="video-task-epa-footer">
+          <footer className="video-task-epa-footer">
               <div className="video-task-epa-footer-left">
                 <button className="video-task-epa-clear" onClick={clearAll} type="button">
                   <Trash2 size={15} />
@@ -1586,8 +1583,7 @@ export function PromptPlanningModal({
                   </>
                 ) : null}
               </div>
-            </footer>
-          </div>
+          </footer>
         </div>
       </section>
 
@@ -1892,7 +1888,7 @@ function SwitchRow({
 }) {
   return (
     <button
-      className={`video-task-epa-switch-row${emphasis ? ' is-emphasis' : ''}`}
+      className={`video-task-epa-switch-row`}
       onClick={() => onChange(!checked)}
       type="button"
     >
