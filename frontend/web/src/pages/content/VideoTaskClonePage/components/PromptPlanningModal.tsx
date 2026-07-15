@@ -9,6 +9,7 @@ import {
   Music4,
   Play,
   Plus,
+  Video,
   RefreshCcw,
   Trash2,
   X,
@@ -282,6 +283,8 @@ export function PromptPlanningModal({
       session?.generation.validatorSummary,
     ],
   );
+  const isWaitingForThinkingDelta = session?.status === 'generating'
+    && isReasoningStreamWaiting(session.generation);
   const captionDraftCards = useMemo(
     () => buildCaptionDraftCards(analysisDraft.materialCaptions),
     [analysisDraft.materialCaptions],
@@ -930,11 +933,9 @@ export function PromptPlanningModal({
                         />
                       ) : (
                         <button className="video-task-epa-upload-bar" onClick={triggerVideoInput} type="button">
-                          <Plus size={20} />
-                          <div>
-                            <strong>点击上传参考视频</strong>
-                            <span>支持 mp4 / mov，识别时会自动拆解节奏与镜头结构</span>
-                          </div>
+                          <Video size={20} />
+                          <strong>点击上传参考视频</strong>
+                          <span>支持 mp4 / mov，识别时会自动拆解节奏与镜头结构</span>
                         </button>
                       )}
 
@@ -953,7 +954,7 @@ export function PromptPlanningModal({
                       ) : (
                         <button className="video-task-epa-audio-upload" onClick={triggerAudioInput} type="button">
                           <div className="video-task-epa-audio-upload-main">
-                            <Music4 size={24} />
+                            <Music4 size={16} />
                             <strong>点击上传参考音色</strong>
                           </div>
                           <span>mp3 / wav · 口播对口型用该音色</span>
@@ -1361,7 +1362,27 @@ export function PromptPlanningModal({
                           <span>{isThinkingCollapsed ? '展开' : '收起'} {isThinkingCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>
                         </button>
                         {!isThinkingCollapsed ? (
-                          <pre className="video-task-epa-thinking-body" ref={thinkingBodyRef}>{thinkingText}</pre>
+                          <pre
+                            aria-busy={isWaitingForThinkingDelta}
+                            aria-live="polite"
+                            className="video-task-epa-thinking-body"
+                            ref={thinkingBodyRef}
+                          >
+                            {thinkingText}
+                            {isWaitingForThinkingDelta ? (
+                              <>
+                                {'\n'}
+                                <span className="video-task-epa-thinking-placeholder">
+                                  思考中
+                                  <span aria-hidden="true" className="video-task-epa-thinking-dots">
+                                    <i />
+                                    <i />
+                                    <i />
+                                  </span>
+                                </span>
+                              </>
+                            ) : null}
+                          </pre>
                         ) : null}
                       </section>
                     ) : null}
@@ -2092,6 +2113,14 @@ function buildReasoningText(generation?: PlanningGeneration) {
     return visibleContents.join('\n\n');
   }
   return generation.validatorSummary.trim();
+}
+
+function isReasoningStreamWaiting(generation?: PlanningGeneration) {
+  const content = generation?.reasoningStream?.content.trim();
+  if (!content) {
+    return false;
+  }
+  return content.split('\n').filter((line) => line.trim()).length === 1;
 }
 
 function formatStoredStageOutputs(outputs: Record<string, unknown>) {

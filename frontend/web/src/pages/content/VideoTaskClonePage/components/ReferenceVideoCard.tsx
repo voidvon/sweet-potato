@@ -37,7 +37,7 @@ export function ReferenceVideoCard({ video, onPreview, onRemove, onReplace }: Re
           src={video.videoUrl}
         />
         <span className="video-task-reference-play">
-          <Play size={26} fill="currentColor" />
+          <Play size={16} fill="currentColor" />
         </span>
       </button>
       <div className="video-task-reference-info">

@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { env, volcengineRealPersonConfig, contentPublicBaseUrl } from './config/env.js';
 import { attachChatWebSocketServer } from './modules/chat/chat-stream.service.js';
 import { contentService } from './modules/content/content.service.js';
+import { contentPlanningService } from './modules/content-planning/content-planning.service.js';
 import { recoverInterruptedImageGenerations } from './modules/generation/generation-recovery.service.js';
 import { videoRemakeService } from './modules/video-remake/video-remake.service.js';
 import { logger } from './shared/logger.js';
@@ -19,6 +20,7 @@ server.listen(env.port, () => {
   // console.log('-----------contentPublicBaseUrl:', contentPublicBaseUrl);
   logger.info('server started', { port: env.port });
   contentService.resumeRunningVideoGenerations();
+  contentPlanningService.resumeInterruptedGenerationsOnStartup();
   contentService.resumePendingGeneratedVideoMirrors();
   videoRemakeService.resumeIncompleteSessionsOnStartup();
   videoRemakeService.startGenerationMonitorScheduler();
