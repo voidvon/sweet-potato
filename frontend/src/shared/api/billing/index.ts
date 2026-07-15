@@ -29,6 +29,8 @@ export function updateBillingSettings(payload: Pick<
   BillingSettings,
   | 'videoUploadCreditsPerMb'
   | 'videoUnderstandingCreditsPer1MTokens'
+  | 'contentPlanningAnalysisCreditsPerRequest'
+  | 'contentPlanningGenerationCreditsPerRequest'
   | 'videoUpscaleCreditsPerRequest'
   | 'subtitleRemovalCreditsPerSecond'
   | 'videoTranslationSubtitleCreditsPerSecond'

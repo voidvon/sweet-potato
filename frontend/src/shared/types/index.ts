@@ -116,6 +116,8 @@ export type BillingSettings = {
   id: number;
   videoUploadCreditsPerMb: number;
   videoUnderstandingCreditsPer1MTokens: number;
+  contentPlanningAnalysisCreditsPerRequest: number;
+  contentPlanningGenerationCreditsPerRequest: number;
   videoUpscaleCreditsPerRequest: number;
   subtitleRemovalCreditsPerSecond: number;
   videoTranslationSubtitleCreditsPerSecond: number;

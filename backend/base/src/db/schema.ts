@@ -96,6 +96,8 @@ export function migrateDatabase() {
       enabled INTEGER NOT NULL DEFAULT 1,
       video_upload_credits_per_mb REAL NOT NULL DEFAULT 0,
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
+      content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2,
+      content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3,
       video_upscale_credits_per_request REAL NOT NULL DEFAULT 20,
       subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2,
       video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1,
@@ -583,6 +585,8 @@ export function migrateDatabase() {
   addColumnIfMissing('users', 'last_login_at', 'last_login_at TEXT');
   addColumnIfMissing('billing_settings', 'video_upload_credits_per_mb', 'video_upload_credits_per_mb REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'video_understanding_credits_per_1m_tokens', 'video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0');
+  addColumnIfMissing('billing_settings', 'content_planning_analysis_credits_per_request', 'content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2');
+  addColumnIfMissing('billing_settings', 'content_planning_generation_credits_per_request', 'content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3');
   addColumnIfMissing('billing_settings', 'video_upscale_credits_per_request', 'video_upscale_credits_per_request REAL NOT NULL DEFAULT 20');
   addColumnIfMissing('billing_settings', 'subtitle_removal_credits_per_second', 'subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'video_translation_subtitle_credits_per_second', 'video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1');

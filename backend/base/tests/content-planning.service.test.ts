@@ -13,7 +13,7 @@ import {
   DeterministicContentPlanningAnalysisProvider,
   normalizeContentPlanningTimeRange,
 } from '../src/modules/content-planning/content-planning-analysis-runtime.js';
-import { contentPlanningBillingConfig } from '../src/config/env.js';
+import { getContentPlanningBillingCredits } from '../src/modules/billing/billing.service.js';
 import { contentRepository } from '../src/modules/content/content.repository.js';
 import { contentPlanningRepository } from '../src/modules/content-planning/content-planning.repository.js';
 import { ContentPlanningService } from '../src/modules/content-planning/content-planning.service.js';
@@ -113,10 +113,7 @@ test('production planning provider is not the deterministic test provider', () =
 });
 
 test('planning client config exposes the configured fixed charges', () => {
-  assert.deepEqual(contentPlanningService.getClientConfig(), {
-    analysisCredits: contentPlanningBillingConfig.analysisCredits,
-    generationCredits: contentPlanningBillingConfig.generationCredits,
-  });
+  assert.deepEqual(contentPlanningService.getClientConfig(), getContentPlanningBillingCredits());
 });
 
 test('reference breakdown time ranges are normalized to seconds', () => {

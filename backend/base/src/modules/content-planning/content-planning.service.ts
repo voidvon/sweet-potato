@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { arkVideoUnderstandingConfig, contentPlanningBillingConfig } from '../../config/env.js';
+import { arkVideoUnderstandingConfig } from '../../config/env.js';
 import {
   findReservedFixedBillableUsage,
+  getContentPlanningBillingCredits,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
@@ -65,7 +66,8 @@ export type ContentPlanningAnalysisBilling = {
 
 const defaultContentPlanningAnalysisBilling: ContentPlanningAnalysisBilling = {
   reserve(input) {
-    if (contentPlanningBillingConfig.analysisCredits <= 0) {
+    const { analysisCredits } = getContentPlanningBillingCredits();
+    if (analysisCredits <= 0) {
       return null;
     }
     return reserveFixedBillableUsage({
@@ -74,7 +76,7 @@ const defaultContentPlanningAnalysisBilling: ContentPlanningAnalysisBilling = {
       sourceType: 'content_planning_analysis',
       sourceId: `${input.sessionId}:analysis:${randomUUID()}`,
       sessionId: input.sessionId,
-      credits: contentPlanningBillingConfig.analysisCredits,
+      credits: analysisCredits,
       step: 'content_planning_analysis',
       stepLabel: '爆款策划素材识别',
       requestSnapshot: {
@@ -113,7 +115,8 @@ export type ContentPlanningGenerationBilling = {
 
 const defaultContentPlanningGenerationBilling: ContentPlanningGenerationBilling = {
   reserve(input) {
-    if (contentPlanningBillingConfig.generationCredits <= 0) {
+    const { generationCredits } = getContentPlanningBillingCredits();
+    if (generationCredits <= 0) {
       return null;
     }
     return reserveFixedBillableUsage({
@@ -122,7 +125,7 @@ const defaultContentPlanningGenerationBilling: ContentPlanningGenerationBilling 
       sourceType: 'content_planning_generation',
       sourceId: `${input.sessionId}:generation:${randomUUID()}`,
       sessionId: input.sessionId,
-      credits: contentPlanningBillingConfig.generationCredits,
+      credits: generationCredits,
       step: 'content_planning_generation',
       stepLabel: '爆款策划脚本生成',
       requestSnapshot: {
@@ -448,10 +451,7 @@ export class ContentPlanningService {
   ) {}
 
   getClientConfig() {
-    return {
-      analysisCredits: contentPlanningBillingConfig.analysisCredits,
-      generationCredits: contentPlanningBillingConfig.generationCredits,
-    };
+    return getContentPlanningBillingCredits();
   }
 
   createSession(input: CreateContentPlanningSessionPayload) {

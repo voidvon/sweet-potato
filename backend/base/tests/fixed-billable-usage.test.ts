@@ -4,6 +4,7 @@ import { db } from '../src/db/database.js';
 import {
   findReservedFixedBillableUsage,
   InsufficientStepCreditsError,
+  normalizeBillingSettings,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
@@ -36,6 +37,12 @@ function cleanupBillingTestUser(userId: string) {
   db.prepare('DELETE FROM user_role_assignments WHERE user_id = ?').run(userId);
   db.prepare('DELETE FROM users WHERE id = ?').run(userId);
 }
+
+test('billing settings include default content planning request prices', () => {
+  const settings = normalizeBillingSettings({});
+  assert.equal(settings.contentPlanningAnalysisCreditsPerRequest, 2);
+  assert.equal(settings.contentPlanningGenerationCreditsPerRequest, 3);
+});
 
 test('fixed billable usage reserves credits and settles one completed record', () => {
   const userId = createBillingTestUser(10);

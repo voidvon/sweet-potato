@@ -24,6 +24,8 @@ type BillingSettingsRow = {
   video_understanding_credits_per_1m_tokens?: number;
   video_understanding_usd_per_1m_tokens?: number;
   usd_to_credit_rate?: number;
+  content_planning_analysis_credits_per_request: number;
+  content_planning_generation_credits_per_request: number;
   video_upscale_credits_per_request: number;
   subtitle_removal_credits_per_second: number;
   video_translation_subtitle_credits_per_second: number;
@@ -120,6 +122,8 @@ function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
       ? Number(row.video_upload_credits_per_mb || 0)
       : Number(row.video_upload_credits_per_second || 0),
     videoUnderstandingCreditsPer1MTokens: understandingCreditsPer1MTokens,
+    contentPlanningAnalysisCreditsPerRequest: Number(row.content_planning_analysis_credits_per_request ?? 2),
+    contentPlanningGenerationCreditsPerRequest: Number(row.content_planning_generation_credits_per_request ?? 3),
     videoUpscaleCreditsPerRequest: Number(row.video_upscale_credits_per_request ?? 20),
     subtitleRemovalCreditsPerSecond: Number(row.subtitle_removal_credits_per_second ?? 2),
     videoTranslationSubtitleCreditsPerSecond: Number(row.video_translation_subtitle_credits_per_second ?? 1),
@@ -231,6 +235,7 @@ export const billingRepository = {
     db.prepare(`
       INSERT INTO billing_settings (
         id, video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens,
+        content_planning_analysis_credits_per_request, content_planning_generation_credits_per_request,
         video_upscale_credits_per_request, subtitle_removal_credits_per_second,
         video_translation_subtitle_credits_per_second, video_translation_voice_credits_per_second,
         video_translation_face_credits_per_second, video_translation_erase_source_credits_per_second,
@@ -238,6 +243,7 @@ export const billingRepository = {
       )
       VALUES (
         @id, @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens,
+        @contentPlanningAnalysisCreditsPerRequest, @contentPlanningGenerationCreditsPerRequest,
         @videoUpscaleCreditsPerRequest, @subtitleRemovalCreditsPerSecond,
         @videoTranslationSubtitleCreditsPerSecond, @videoTranslationVoiceCreditsPerSecond,
         @videoTranslationFaceCreditsPerSecond, @videoTranslationEraseSourceCreditsPerSecond,
@@ -246,6 +252,8 @@ export const billingRepository = {
       ON CONFLICT(id) DO UPDATE SET
         video_upload_credits_per_mb = excluded.video_upload_credits_per_mb,
         video_understanding_credits_per_1m_tokens = excluded.video_understanding_credits_per_1m_tokens,
+        content_planning_analysis_credits_per_request = excluded.content_planning_analysis_credits_per_request,
+        content_planning_generation_credits_per_request = excluded.content_planning_generation_credits_per_request,
         video_upscale_credits_per_request = excluded.video_upscale_credits_per_request,
         subtitle_removal_credits_per_second = excluded.subtitle_removal_credits_per_second,
         video_translation_subtitle_credits_per_second = excluded.video_translation_subtitle_credits_per_second,
@@ -257,6 +265,8 @@ export const billingRepository = {
       id: 1,
       videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
       videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
+      contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
+      contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
       videoUpscaleCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,
       subtitleRemovalCreditsPerSecond: settings.subtitleRemovalCreditsPerSecond,
       videoTranslationSubtitleCreditsPerSecond: settings.videoTranslationSubtitleCreditsPerSecond,

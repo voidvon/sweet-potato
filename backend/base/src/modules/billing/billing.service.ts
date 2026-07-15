@@ -986,6 +986,14 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
             0,
           ),
       ),
+    contentPlanningAnalysisCreditsPerRequest: normalizeNumber(
+      input.contentPlanningAnalysisCreditsPerRequest,
+      normalizeNumber(fallbackRecord.contentPlanningAnalysisCreditsPerRequest, 2),
+    ),
+    contentPlanningGenerationCreditsPerRequest: normalizeNumber(
+      input.contentPlanningGenerationCreditsPerRequest,
+      normalizeNumber(fallbackRecord.contentPlanningGenerationCreditsPerRequest, 3),
+    ),
     videoUpscaleCreditsPerRequest: normalizeNumber(
       input.videoUpscaleCreditsPerRequest,
       normalizeNumber(fallbackRecord.videoUpscaleCreditsPerRequest, 20),
@@ -1119,6 +1127,14 @@ export function getBillingSettings() {
   return billingRepository.getSettings();
 }
 
+export function getContentPlanningBillingCredits() {
+  const settings = assertSystemBillingReady();
+  return {
+    analysisCredits: roundCredits(Math.max(0, settings.contentPlanningAnalysisCreditsPerRequest)),
+    generationCredits: roundCredits(Math.max(0, settings.contentPlanningGenerationCreditsPerRequest)),
+  };
+}
+
 export function getSiteConfig(): SiteConfig | null {
   const settings = getBillingSettings();
   if (!settings) {
@@ -1132,6 +1148,8 @@ export function saveBillingSettings(settings: BillingSettings) {
   const prices = [
     settings.videoUploadCreditsPerMb,
     settings.videoUnderstandingCreditsPer1MTokens,
+    settings.contentPlanningAnalysisCreditsPerRequest,
+    settings.contentPlanningGenerationCreditsPerRequest,
     settings.videoUpscaleCreditsPerRequest,
     settings.subtitleRemovalCreditsPerSecond,
     settings.videoTranslationSubtitleCreditsPerSecond,
@@ -1163,7 +1181,7 @@ export function reserveFixedBillableUsage(input: {
   const quantitySnapshot = {
     requests: 1,
     configuredCreditsPerRequest: credits,
-    priceSource: 'environment',
+    priceSource: 'system-billing-settings',
   };
   const snapshot = buildBillableSnapshot({
     settings,

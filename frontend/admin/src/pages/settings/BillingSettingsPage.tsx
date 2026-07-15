@@ -8,6 +8,8 @@ type BillingFormValues = Pick<
   BillingSettings,
   | 'videoUploadCreditsPerMb'
   | 'videoUnderstandingCreditsPer1MTokens'
+  | 'contentPlanningAnalysisCreditsPerRequest'
+  | 'contentPlanningGenerationCreditsPerRequest'
   | 'videoUpscaleCreditsPerRequest'
   | 'subtitleRemovalCreditsPerSecond'
   | 'videoTranslationSubtitleCreditsPerSecond'
@@ -39,6 +41,8 @@ export function BillingSettingsPage() {
       form.setFieldsValue({
         videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
         videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
+        contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
+        contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
         videoUpscaleCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,
         subtitleRemovalCreditsPerSecond: settings.subtitleRemovalCreditsPerSecond,
         videoTranslationSubtitleCreditsPerSecond: settings.videoTranslationSubtitleCreditsPerSecond,
@@ -86,6 +90,8 @@ export function BillingSettingsPage() {
             initialValues={{
               videoUploadCreditsPerMb: 0,
               videoUnderstandingCreditsPer1MTokens: 0,
+              contentPlanningAnalysisCreditsPerRequest: 2,
+              contentPlanningGenerationCreditsPerRequest: 3,
               videoUpscaleCreditsPerRequest: 20,
               subtitleRemovalCreditsPerSecond: 2,
               videoTranslationSubtitleCreditsPerSecond: 1,
@@ -115,6 +121,28 @@ export function BillingSettingsPage() {
               rules={[
                 { required: true, message: '请输入视频理解 token 单价' },
                 { validator: nonNegativePriceValidator('视频理解 token 单价') },
+              ]}
+            >
+              <InputNumber min={0} precision={6} style={priceInputStyle} />
+            </Form.Item>
+            <Form.Item
+              label="爆款策划 · 素材识别 (Credit / 次)"
+              extra="点击“开始识别”并成功完成素材分析时收取的固定积分。"
+              name="contentPlanningAnalysisCreditsPerRequest"
+              rules={[
+                { required: true, message: '请输入爆款策划素材识别单次价格' },
+                { validator: nonNegativePriceValidator('爆款策划素材识别单次价格') },
+              ]}
+            >
+              <InputNumber min={0} precision={6} style={priceInputStyle} />
+            </Form.Item>
+            <Form.Item
+              label="爆款策划 · 脚本生成 (Credit / 次)"
+              extra="点击“生成脚本”并成功完成候选脚本生成时收取的固定积分。"
+              name="contentPlanningGenerationCreditsPerRequest"
+              rules={[
+                { required: true, message: '请输入爆款策划脚本生成单次价格' },
+                { validator: nonNegativePriceValidator('爆款策划脚本生成单次价格') },
               ]}
             >
               <InputNumber min={0} precision={6} style={priceInputStyle} />
