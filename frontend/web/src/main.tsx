@@ -20,9 +20,23 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <React.StrictMode>
     <ConfigProvider
+      button={{ autoInsertSpace: false }}
       locale={zhCN}
-      modal={{ centered: true }}
+      modal={{
+        cancelButtonProps: { size: 'large' },
+        centered: true,
+        okButtonProps: { size: 'large' },
+      }}
       theme={{
+        components: {
+          Button: {
+            contentFontSizeLG: 13,
+            controlHeightLG: 38,
+          },
+          Modal: {
+            borderRadiusLG: 22,
+          },
+        },
         token: {
           colorBgLayout: '#f5faff',
           colorError: '#dc2626',
