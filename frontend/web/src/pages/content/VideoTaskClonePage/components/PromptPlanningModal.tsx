@@ -282,6 +282,8 @@ export function PromptPlanningModal({
       session?.generation.validatorSummary,
     ],
   );
+  const isWaitingForThinkingDelta = session?.status === 'generating'
+    && isReasoningStreamWaiting(session.generation);
   const captionDraftCards = useMemo(
     () => buildCaptionDraftCards(analysisDraft.materialCaptions),
     [analysisDraft.materialCaptions],
@@ -1361,7 +1363,27 @@ export function PromptPlanningModal({
                           <span>{isThinkingCollapsed ? '展开' : '收起'} {isThinkingCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>
                         </button>
                         {!isThinkingCollapsed ? (
-                          <pre className="video-task-epa-thinking-body" ref={thinkingBodyRef}>{thinkingText}</pre>
+                          <pre
+                            aria-busy={isWaitingForThinkingDelta}
+                            aria-live="polite"
+                            className="video-task-epa-thinking-body"
+                            ref={thinkingBodyRef}
+                          >
+                            {thinkingText}
+                            {isWaitingForThinkingDelta ? (
+                              <>
+                                {'\n'}
+                                <span className="video-task-epa-thinking-placeholder">
+                                  思考中
+                                  <span aria-hidden="true" className="video-task-epa-thinking-dots">
+                                    <i />
+                                    <i />
+                                    <i />
+                                  </span>
+                                </span>
+                              </>
+                            ) : null}
+                          </pre>
                         ) : null}
                       </section>
                     ) : null}
@@ -2092,6 +2114,14 @@ function buildReasoningText(generation?: PlanningGeneration) {
     return visibleContents.join('\n\n');
   }
   return generation.validatorSummary.trim();
+}
+
+function isReasoningStreamWaiting(generation?: PlanningGeneration) {
+  const content = generation?.reasoningStream?.content.trim();
+  if (!content) {
+    return false;
+  }
+  return content.split('\n').filter((line) => line.trim()).length === 1;
 }
 
 function formatStoredStageOutputs(outputs: Record<string, unknown>) {

@@ -1637,7 +1637,9 @@
 }
 
 .video-task-epa-stage-pill.is-running {
-  background: #111827;
+  animation: video-task-epa-stage-flow 1.8s ease-in-out infinite;
+  background: linear-gradient(105deg, #111827 25%, #253149 50%, #111827 75%);
+  background-size: 220% 100%;
   color: #fff;
 }
 
@@ -1689,7 +1691,17 @@
   border-radius: 999px;
   display: block;
   height: 8px;
+  position: relative;
   width: 8px;
+}
+
+.video-task-epa-thinking-dot::after {
+  animation: video-task-epa-thinking-pulse 1.6s ease-out infinite;
+  border: 1px solid rgba(124, 156, 45, 0.55);
+  border-radius: inherit;
+  content: '';
+  inset: -1px;
+  position: absolute;
 }
 
 .video-task-epa-thinking-body {
@@ -1702,6 +1714,67 @@
   overflow: auto;
   padding: 0 18px 18px;
   white-space: pre-wrap;
+}
+
+.video-task-epa-thinking-placeholder {
+  align-items: center;
+  color: #718566;
+  display: inline-flex;
+  font-weight: 600;
+  gap: 7px;
+  min-height: 22px;
+}
+
+.video-task-epa-thinking-dots {
+  align-items: center;
+  display: inline-flex;
+  gap: 3px;
+  height: 12px;
+}
+
+.video-task-epa-thinking-dots i {
+  animation: video-task-epa-thinking-dot 1.1s ease-in-out infinite;
+  background: currentColor;
+  border-radius: 999px;
+  display: block;
+  height: 4px;
+  opacity: 0.28;
+  width: 4px;
+}
+
+.video-task-epa-thinking-dots i:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.video-task-epa-thinking-dots i:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes video-task-epa-stage-flow {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: 0 0; }
+}
+
+@keyframes video-task-epa-thinking-pulse {
+  0% { opacity: 0.7; transform: scale(0.9); }
+  70%, 100% { opacity: 0; transform: scale(2.2); }
+}
+
+@keyframes video-task-epa-thinking-dot {
+  0%, 70%, 100% { opacity: 0.28; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-task-epa-stage-pill.is-running,
+  .video-task-epa-thinking-dot::after,
+  .video-task-epa-thinking-dots i {
+    animation: none;
+  }
+
+  .video-task-epa-thinking-dots i {
+    opacity: 0.7;
+  }
 }
 
 .video-task-epa-candidate-row {
