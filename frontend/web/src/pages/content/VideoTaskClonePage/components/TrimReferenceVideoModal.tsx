@@ -1,10 +1,13 @@
+import { Slider } from 'antd';
 import { X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 
 const MIN_SELECTION_SECONDS = 4;
 const MAX_SELECTION_SECONDS = 15;
 const DEFAULT_DURATION_SECONDS = 33.1;
+const sliderBehaviorProps = { allowCross: false };
 
 export type TrimSelection = {
   duration: number;
@@ -20,68 +23,91 @@ type TrimReferenceVideoModalProps = {
 };
 
 export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimReferenceVideoModalProps) {
+  const activeRangeHandleRef = useRef<'end' | 'start' | null>(null);
+  const lastRangeHandleValueRef = useRef<number | null>(null);
   const processingTimerRef = useRef<number | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [duration, setDuration] = useState(DEFAULT_DURATION_SECONDS);
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(MAX_SELECTION_SECONDS);
   const [errorMessage, setErrorMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const rangeValueRef = useRef({ end: MAX_SELECTION_SECONDS, start: 0 });
   const videoUrl = useObjectUrl(file);
 
   const safeDuration = Math.max(duration, MIN_SELECTION_SECONDS);
   const selectionLength = Math.max(end - start, 0);
-  const selectionLeft = (start / safeDuration) * 100;
-  const selectionRight = Math.max(0, 100 - (end / safeDuration) * 100);
   const isSelectionInvalid = selectionLength < MIN_SELECTION_SECONDS || selectionLength > MAX_SELECTION_SECONDS;
 
-  const handleLoadedMetadata = () => {
-    const nextDuration = videoRef.current?.duration;
-    if (!Number.isFinite(nextDuration) || !nextDuration) return;
+  const updateRange = (nextStart: number, nextEnd: number) => {
+    rangeValueRef.current = { end: nextEnd, start: nextStart };
+    setStart(nextStart);
+    setEnd(nextEnd);
+  };
 
+  const handleDurationChange = (nextDuration: number) => {
     const normalizedDuration = Math.max(nextDuration, MIN_SELECTION_SECONDS);
     const nextEnd = Math.min(MAX_SELECTION_SECONDS, normalizedDuration);
     setDuration(normalizedDuration);
-    setStart(0);
-    setEnd(nextEnd);
-    if (videoRef.current) videoRef.current.currentTime = 0;
+    updateRange(0, nextEnd);
   };
 
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) return;
+  const handleRangeChange = (value: number[]) => {
+    const currentRange = rangeValueRef.current;
+    const activeHandle = activeRangeHandleRef.current;
+    const lastHandleValue = lastRangeHandleValueRef.current;
+    if (activeHandle && lastHandleValue !== null) {
+      const rawHandleValue = activeHandle === 'start'
+        ? value[0] ?? lastHandleValue
+        : value[1] ?? lastHandleValue;
+      const delta = rawHandleValue - lastHandleValue;
+      lastRangeHandleValueRef.current = rawHandleValue;
 
-    if (video.currentTime < start || video.currentTime >= end) {
-      video.currentTime = start;
-      if (!video.paused) {
-        void video.play();
+      if (activeHandle === 'start') {
+        const nextStart = clamp(currentRange.start + delta, 0, currentRange.end - MIN_SELECTION_SECONDS);
+        const nextEnd = currentRange.end - nextStart > MAX_SELECTION_SECONDS
+          ? nextStart + MAX_SELECTION_SECONDS
+          : currentRange.end;
+        updateRange(nextStart, nextEnd);
+      } else {
+        const nextEnd = clamp(currentRange.end + delta, currentRange.start + MIN_SELECTION_SECONDS, safeDuration);
+        const nextStart = nextEnd - currentRange.start > MAX_SELECTION_SECONDS
+          ? nextEnd - MAX_SELECTION_SECONDS
+          : currentRange.start;
+        updateRange(nextStart, nextEnd);
       }
+      return;
     }
+
+    let nextStart = clamp(value[0] ?? currentRange.start, 0, safeDuration);
+    let nextEnd = clamp(value[1] ?? currentRange.end, 0, safeDuration);
+    const startMoved = Math.abs(nextStart - currentRange.start) >= Math.abs(nextEnd - currentRange.end);
+    const nextLength = nextEnd - nextStart;
+
+    if (nextLength > MAX_SELECTION_SECONDS) {
+      if (startMoved) nextEnd = nextStart + MAX_SELECTION_SECONDS;
+      else nextStart = nextEnd - MAX_SELECTION_SECONDS;
+    } else if (nextLength < MIN_SELECTION_SECONDS) {
+      if (startMoved) nextStart = Math.max(0, nextEnd - MIN_SELECTION_SECONDS);
+      else nextEnd = Math.min(safeDuration, nextStart + MIN_SELECTION_SECONDS);
+    }
+
+    updateRange(nextStart, nextEnd);
   };
 
-  const handleStartChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value = Number(event.currentTarget.value);
-    const maxStart = Math.max(0, end - MIN_SELECTION_SECONDS);
-    const nextStart = clamp(value, 0, maxStart);
-    const nextEnd = end - nextStart > MAX_SELECTION_SECONDS ? nextStart + MAX_SELECTION_SECONDS : end;
-    setStart(nextStart);
-    setEnd(Math.min(nextEnd, safeDuration));
-    seekTo(nextStart);
-  };
-
-  const handleEndChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value = Number(event.currentTarget.value);
-    const minEnd = Math.min(safeDuration, start + MIN_SELECTION_SECONDS);
-    const nextEnd = clamp(value, minEnd, safeDuration);
-    const nextStart = nextEnd - start > MAX_SELECTION_SECONDS ? nextEnd - MAX_SELECTION_SECONDS : start;
-    setStart(Math.max(0, nextStart));
-    setEnd(nextEnd);
-    seekTo(Math.max(0, nextStart));
-  };
-
-  const seekTo = (time: number) => {
-    if (videoRef.current) videoRef.current.currentTime = time;
+  const captureActiveRangeHandle = (event: FocusEvent<HTMLDivElement> | PointerEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const label = event.target.closest('[role="slider"]')?.getAttribute('aria-label');
+    if (label === '剪辑起点') {
+      activeRangeHandleRef.current = 'start';
+      lastRangeHandleValueRef.current = rangeValueRef.current.start;
+    } else if (label === '剪辑终点') {
+      activeRangeHandleRef.current = 'end';
+      lastRangeHandleValueRef.current = rangeValueRef.current.end;
+    } else {
+      activeRangeHandleRef.current = null;
+      lastRangeHandleValueRef.current = null;
+    }
   };
 
   const confirmTrim = async () => {
@@ -114,14 +140,6 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
     };
   }, []);
 
-  const timelineStyle = useMemo(
-    () => ({
-      '--trim-selection-left': `${selectionLeft}%`,
-      '--trim-selection-right': `${selectionRight}%`,
-    }) as CSSProperties,
-    [selectionLeft, selectionRight],
-  );
-
   const modal = (
     <div aria-label="剪辑参考视频" aria-modal="true" className="trim-modal" role="dialog">
       <div className="trim-modal__backdrop" />
@@ -141,45 +159,38 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
         </p>
 
         <div className="trim-modal__video">
-          <video
-            ref={videoRef}
-            autoPlay
-            controls
-            controlsList="nodownload noremoteplayback"
-            disablePictureInPicture
-            disableRemotePlayback
-            draggable={false}
-            loop
-            muted
-            onLoadedMetadata={handleLoadedMetadata}
-            onTimeUpdate={handleTimeUpdate}
-            playsInline
-            src={videoUrl}
+          <VideoPreviewPlayer
+            duration={duration}
+            loopAtEnd
+            name={file.name || '参考视频'}
+            onDurationChange={handleDurationChange}
+            playbackEnd={end}
+            playbackStart={start}
+            variant="reference"
+            videoUrl={videoUrl}
           />
         </div>
 
-        <div className="trim-modal__timeline" style={timelineStyle}>
-          <div className="trim-modal__track">
-            <div className="trim-modal__selection" />
-            <input
-              aria-label="剪辑起点"
-              className="trim-modal__range trim-modal__range--start"
+        <div className="trim-modal__timeline">
+          <div
+            className="trim-modal__track"
+            onFocusCapture={captureActiveRangeHandle}
+            onPointerDownCapture={captureActiveRangeHandle}
+          >
+            <Slider
+              {...sliderBehaviorProps}
+              ariaLabelForHandle={['剪辑起点', '剪辑终点']}
               max={safeDuration}
               min={0}
-              onChange={handleStartChange}
+              onChange={handleRangeChange}
+              onChangeComplete={() => {
+                activeRangeHandleRef.current = null;
+                lastRangeHandleValueRef.current = null;
+              }}
+              range
               step={0.1}
-              type="range"
-              value={start}
-            />
-            <input
-              aria-label="剪辑终点"
-              className="trim-modal__range trim-modal__range--end"
-              max={safeDuration}
-              min={0}
-              onChange={handleEndChange}
-              step={0.1}
-              type="range"
-              value={end}
+              tooltip={{ formatter: (value) => formatTime(value ?? 0) }}
+              value={[start, end]}
             />
           </div>
           <div className="trim-modal__codes">

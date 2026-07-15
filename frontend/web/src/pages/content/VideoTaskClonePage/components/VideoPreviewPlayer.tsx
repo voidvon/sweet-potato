@@ -6,7 +6,10 @@ type VideoPreviewPlayerProps = {
   duration?: number;
   loopAtEnd?: boolean;
   name: string;
+  onDurationChange?: (duration: number) => void;
   paused?: boolean;
+  playbackEnd?: number;
+  playbackStart?: number;
   variant: 'reference' | 'result';
   videoUrl: string;
 };
@@ -20,7 +23,10 @@ export function VideoPreviewPlayer({
   duration: initialDuration = 0,
   loopAtEnd = false,
   name,
+  onDurationChange,
   paused = false,
+  playbackEnd,
+  playbackStart = 0,
   variant,
   videoUrl,
 }: VideoPreviewPlayerProps) {
@@ -60,6 +66,10 @@ export function VideoPreviewPlayer({
   const progressValue = playableDuration > 0
     ? Math.min(1000, Math.max(0, Math.round((currentTime / playableDuration) * 1000)))
     : 0;
+  const rangeStart = Math.min(Math.max(0, playbackStart), playableDuration);
+  const rangeEnd = playbackEnd === undefined
+    ? playableDuration
+    : Math.min(playableDuration, Math.max(rangeStart, playbackEnd));
 
   useEffect(() => {
     if (!isResult) return undefined;
@@ -84,17 +94,25 @@ export function VideoPreviewPlayer({
     if (paused) videoRef.current?.pause();
   }, [paused]);
 
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || playbackEnd === undefined) return;
+    element.currentTime = rangeStart;
+    setCurrentTime(rangeStart);
+  }, [playbackEnd, rangeStart]);
+
   const syncMetadata = () => {
     const element = videoRef.current;
     if (!element) return;
     if (Number.isFinite(element.duration) && element.duration > 0) {
       setDuration(element.duration);
+      onDurationChange?.(element.duration);
     }
     if (element.videoWidth > 0 && element.videoHeight > 0) {
       setVideoSize({ height: element.videoHeight, width: element.videoWidth });
     }
     element.volume = volume;
-    element.currentTime = 0;
+    element.currentTime = rangeStart;
     void element.play().catch(() => setIsPlaying(false));
   };
 
@@ -104,8 +122,9 @@ export function VideoPreviewPlayer({
     const nextTime = Math.min(element.currentTime, playableDuration);
     setCurrentTime(nextTime);
     setIsPlaying(!element.paused);
-    if (loopAtEnd && element.currentTime >= playableDuration) {
-      element.currentTime = 0;
+    if (loopAtEnd && (element.currentTime < rangeStart || element.currentTime >= rangeEnd)) {
+      element.currentTime = rangeStart;
+      setCurrentTime(rangeStart);
       if (!element.paused) void element.play();
     }
   };
@@ -123,7 +142,10 @@ export function VideoPreviewPlayer({
   const seekToProgress = (value: number) => {
     const element = videoRef.current;
     if (!element || playableDuration <= 0) return;
-    const nextTime = (value / 1000) * playableDuration;
+    const requestedTime = (value / 1000) * playableDuration;
+    const nextTime = playbackEnd === undefined
+      ? requestedTime
+      : Math.min(rangeEnd, Math.max(rangeStart, requestedTime));
     element.currentTime = nextTime;
     setCurrentTime(nextTime);
   };
