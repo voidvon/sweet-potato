@@ -23,6 +23,7 @@ import {
   generatedMediaRelativePath,
 } from './content-common.js';
 import { createPendingFinishedVideoAsset, ensureGeneratedAssetGroup } from './content-image-assets.js';
+import { DEFAULT_VIDEO_PROCESSING_TIMEOUT_MS, defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { updateVideoTaskParseResult } from './content-video-task-runtime.js';
 import { isRecord } from './content-viral-analysis.js';
 import { ViralDirectorStatus, logVideoGenerationFlow, normalizeViralConversationMessages, stringValue } from './content-viral-director.js';
@@ -2552,7 +2553,7 @@ export async function callConfiguredVideoModel(input: {
     throw new Error(`${modelOption.name} 至少需要 1 张参考图片`);
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 600_000);
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_VIDEO_PROCESSING_TIMEOUT_MS);
   const requestUrl = videoGenerationUrl(config.baseUrl, config);
   const requestBody = buildVideoGenerationRequestBody({
     config,
@@ -2794,7 +2795,9 @@ export async function waitForVideoModelCompletion(input: {
     throw new Error('视频分段任务缺少 jobId，无法轮询结果');
   }
   const intervalMs = Number(process.env.VIDEO_GENERATION_POLL_INTERVAL_MS || 30000);
-  const maxAttempts = Number(process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || 120);
+  const maxAttempts = Math.max(1, Number(
+    process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || defaultVideoPollMaxAttempts(intervalMs),
+  ));
   const maxTransientErrors = Number(process.env.VIDEO_GENERATION_POLL_MAX_TRANSIENT_ERRORS || 8);
   let transientErrors = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

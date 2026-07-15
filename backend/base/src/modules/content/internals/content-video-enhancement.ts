@@ -7,6 +7,7 @@ import { contentRepository, emptyVideoParseResult } from '../content.repository.
 import type { CreateVideoEnhancementPayload, VideoGenerationResult, VideoGenerationTask } from '../content.types.js';
 import { createFinishedVideoAsset, createPendingFinishedVideoAsset, markFinishedVideoAssetFailed } from './content-image-assets.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
+import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
 import { uploadLocalVideoToVodWithWorker } from './content-viral-director.js';
 
@@ -239,7 +240,9 @@ export async function pollVideoEnhancementTask(taskId: string) {
   runningEnhancementTaskIds.add(taskId);
   try {
     const intervalMs = Math.max(1000, Number(process.env.VIDEO_ENHANCEMENT_POLL_INTERVAL_MS || 10000));
-    const maxAttempts = Math.max(1, Number(process.env.VIDEO_ENHANCEMENT_POLL_MAX_ATTEMPTS || 720));
+    const maxAttempts = Math.max(1, Number(
+      process.env.VIDEO_ENHANCEMENT_POLL_MAX_ATTEMPTS || defaultVideoPollMaxAttempts(intervalMs),
+    ));
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const task = contentRepository.findVideoTask(taskId);
       if (!task || task.status !== 'generating') return;
