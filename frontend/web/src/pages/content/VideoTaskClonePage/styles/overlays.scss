@@ -2969,6 +2969,8 @@
   background: #fff;
   border: 1px solid #e2e4e7;
   border-radius: 12px;
+  contain-intrinsic-size: auto 152px;
+  content-visibility: auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -2995,14 +2997,7 @@
   width: 100%;
 }
 
-.vc-model-picker__thumb .ant-image {
-  display: block;
-  height: 100%;
-  width: 100%;
-}
-
-.vc-model-picker__thumb img,
-.vc-model-picker__thumb .ant-image-img {
+.vc-model-picker__thumb img {
   display: block;
   height: 100%;
   object-fit: cover;

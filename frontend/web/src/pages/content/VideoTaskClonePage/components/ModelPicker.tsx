@@ -1,10 +1,11 @@
-import { Image, message, Modal, Spin } from 'antd';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { UIEvent } from 'react';
+import { message, Modal, Spin } from 'antd';
+import { memo, startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import type { SyntheticEvent, UIEvent } from 'react';
 import { Package, Trees, UserRound, X } from 'lucide-react';
 import { listContentAssetGroups, listContentAssetsPage } from '../../../../api/content';
 import { API_BASE_URL, resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User } from '../../../../types';
+import { withAuthToken } from '../../../../utils/session';
 
 type ModelPickerProps = {
   onClose: () => void;
@@ -58,6 +59,7 @@ export function ModelPicker({
     product: defaultTabState,
   });
   const [groupNameById, setGroupNameById] = useState<Record<string, string>>({});
+  const [visibleAssetIds, setVisibleAssetIds] = useState<Set<string>>(() => new Set());
   const tabStatesRef = useRef(tabStates);
 
   useEffect(() => {
@@ -150,6 +152,42 @@ export function ModelPicker({
     }
   }, [activeTab, loadTabPage, tabStates]);
 
+  const activeState = tabStates[activeTab];
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || typeof IntersectionObserver === 'undefined') {
+      setVisibleAssetIds((current) => {
+        const next = new Set(current);
+        activeState.items.forEach((asset) => next.add(asset.id));
+        return next;
+      });
+      return undefined;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      const intersectingIds = entries
+        .filter((entry) => entry.isIntersecting)
+        .map((entry) => (entry.target as HTMLElement).dataset.assetId)
+        .filter((assetId): assetId is string => Boolean(assetId));
+      if (!intersectingIds.length) return;
+      startTransition(() => {
+        setVisibleAssetIds((current) => {
+          if (intersectingIds.every((assetId) => current.has(assetId))) {
+            return current;
+          }
+          const next = new Set(current);
+          intersectingIds.forEach((assetId) => next.add(assetId));
+          return next;
+        });
+      });
+    }, {
+      root: body,
+      rootMargin: '160px 0px',
+    });
+    body.querySelectorAll<HTMLElement>('[data-asset-id]').forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, [activeState.items]);
+
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     const currentState = tabStates[activeTab];
@@ -158,8 +196,6 @@ export function ModelPicker({
       void loadTabPage(activeTab, currentState.page + 1);
     }
   };
-
-  const activeState = tabStates[activeTab];
 
   return (
     <Modal
@@ -210,23 +246,14 @@ export function ModelPicker({
             {activeState.items.map((asset) => {
               const name = getModelAssetName(asset, groupNameById);
               return (
-              <button
-                className={`vc-model-picker__card${selectedModelAvatar === asset.id ? ' is-active' : ''}`}
-                key={asset.id}
-                onClick={() => onSelect(asset)}
-                type="button"
-              >
-                <span className="vc-model-picker__thumb">
-                  <Image
-                    alt={name}
-                    loading="lazy"
-                    preview={false}
-                    src={modelPickerAssetUrl(asset)}
-                    style={{ height: '100%', objectFit: 'cover', width: '100%' }}
-                  />
-                </span>
-                <small title={name}>{name}</small>
-              </button>
+                <ModelAssetCard
+                  asset={asset}
+                  isSelected={selectedModelAvatar === asset.id}
+                  isVisible={visibleAssetIds.has(asset.id)}
+                  key={asset.id}
+                  name={name}
+                  onSelect={onSelect}
+                />
               );
             })}
             {activeState.isLoading && (
@@ -248,6 +275,42 @@ export function ModelPicker({
   );
 }
 
+const ModelAssetCard = memo(function ModelAssetCard({
+  asset,
+  isSelected,
+  isVisible,
+  name,
+  onSelect,
+}: {
+  asset: ContentAsset;
+  isSelected: boolean;
+  isVisible: boolean;
+  name: string;
+  onSelect: (asset: ContentAsset) => void;
+}) {
+  return (
+    <button
+      className={`vc-model-picker__card${isSelected ? ' is-active' : ''}`}
+      data-asset-id={asset.id}
+      onClick={() => onSelect(asset)}
+      type="button"
+    >
+      <span className="vc-model-picker__thumb">
+        {isVisible ? (
+          <img
+            alt={name}
+            decoding="async"
+            loading="lazy"
+            onError={(event) => handleThumbnailError(event, modelPickerAssetUrl(asset))}
+            src={modelPickerThumbnailUrl(asset)}
+          />
+        ) : null}
+      </span>
+      <small title={name}>{name}</small>
+    </button>
+  );
+});
+
 function getModelAssetName(asset: ContentAsset, groupNameById: Record<string, string>) {
   if (asset.resourceType === 'real_person' || asset.resourceType === 'virtual_portrait') {
     return groupNameById[asset.groupId] || asset.name || asset.originalFileName || asset.storedFileName || '素材';
@@ -263,6 +326,23 @@ function modelPickerAssetUrl(asset: ContentAsset) {
   return resolveAssetUrl(asset.fileUrl);
 }
 
+function modelPickerThumbnailUrl(asset: ContentAsset) {
+  const params = new URLSearchParams({
+    size: '256',
+    version: asset.updatedAt,
+  });
+  return withAuthToken(`${API_BASE_URL}/api/content/assets/${encodeURIComponent(asset.id)}/thumbnail?${params.toString()}`);
+}
+
+function handleThumbnailError(event: SyntheticEvent<HTMLImageElement>, fallbackUrl: string) {
+  const image = event.currentTarget;
+  if (!fallbackUrl || image.dataset.fallback === 'true') {
+    return;
+  }
+  image.dataset.fallback = 'true';
+  image.src = fallbackUrl;
+}
+
 async function loadAssetGroups(userId: string, resourceTypes: ContentAssetResourceType[]) {
   const results = await Promise.all(resourceTypes.map((resourceType) => listContentAssetGroups(userId, resourceType)));
   return results.flat();
@@ -274,10 +354,22 @@ async function loadAssetTabResult(input: {
   resourceTypes: ContentAssetResourceType[];
   userId: string;
 }) {
-  const results = await Promise.all(input.resourceTypes.map((resourceType) => (
+  if (!input.resourceTypes.length) {
+    return {
+      hasMore: false,
+      items: [],
+      page: input.page,
+      pageSize: 0,
+      total: 0,
+    };
+  }
+  const effectivePageSize = Math.max(input.pageSize, input.resourceTypes.length);
+  const basePageSize = Math.floor(effectivePageSize / input.resourceTypes.length);
+  const pageSizeRemainder = effectivePageSize % input.resourceTypes.length;
+  const results = await Promise.all(input.resourceTypes.map((resourceType, index) => (
     listContentAssetsPage({
       page: input.page,
-      pageSize: input.pageSize,
+      pageSize: basePageSize + (index < pageSizeRemainder ? 1 : 0),
       resourceType,
       userId: input.userId,
     })
@@ -286,7 +378,7 @@ async function loadAssetTabResult(input: {
     hasMore: results.some((result) => result.page * result.pageSize < result.total),
     items: results.flatMap((result) => result.items),
     page: input.page,
-    pageSize: input.pageSize,
+    pageSize: results.reduce((sum, result) => sum + result.pageSize, 0),
     total: results.reduce((sum, result) => sum + result.total, 0),
   };
 }

@@ -13,6 +13,10 @@ import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
 import { contentService } from './content.service.js';
 import {
+  contentAssetThumbnailPath,
+  normalizeContentThumbnailSize,
+} from './internals/content-asset-thumbnail.js';
+import {
   contentFilePathForRelativePath,
   execFileAsync,
   fileUrlForContentRelativePath,
@@ -636,6 +640,22 @@ export function createContentRouter() {
         .catch((error) => sendError(res, 404, getErrorMessage(error, '素材获取失败')));
     } catch (error) {
       sendError(res, 404, getErrorMessage(error, '素材获取失败'));
+    }
+  });
+
+  router.get('/assets/:id/thumbnail', async (req, res) => {
+    try {
+      const asset = await contentService.getAsset(String(req.params.id || ''), {
+        ...getCurrentActor(req),
+      });
+      const filePath = await contentAssetThumbnailPath(
+        asset,
+        normalizeContentThumbnailSize(req.query.size),
+      );
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+      res.type('image/webp').sendFile(filePath);
+    } catch (error) {
+      sendError(res, 404, getErrorMessage(error, '素材缩略图生成失败'));
     }
   });
 
