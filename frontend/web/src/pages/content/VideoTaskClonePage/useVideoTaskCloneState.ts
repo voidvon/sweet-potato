@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
+import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
-import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
+import type { ContentAsset, ContentAssetResourceType, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
   defaultFilters,
   examplePrompt,
@@ -26,7 +27,7 @@ import type {
   VideoTranslationConfig,
   WorksTab,
 } from './types';
-import { readVideoDuration } from './videoMetadata';
+import { readVideoDuration, readVideoUrlDuration } from './videoMetadata';
 import { planningApplyPayloadToFormState } from './planningHelpers';
 
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
@@ -92,6 +93,26 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [deletingTaskId, setDeletingTaskId] = useState('');
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
+  const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    void getSiteConfig()
+      .then((config) => {
+        if (!ignore) {
+          setSiteConfig(config);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setSiteConfig(null);
+          message.error(error instanceof Error ? error.message : '站点价格配置加载失败');
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
@@ -176,6 +197,38 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     [prompt, selectedMaterials, subtitleRemovalConfig, tool.materials, tool.workspace.generate.handler, videoTranslationConfig],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
+  const selectedVideoDuration = getLocalFiles(selectedMaterials.video)[0]?.trimDuration;
+
+  const videoPriceLabel = useMemo(() => {
+    const billing = siteConfig?.billing;
+    if (!billing) {
+      return '';
+    }
+    if (tool.workspace.generate.handler === 'video-upscale') {
+      return formatCreditAmount(billing.videoUpscaleCreditsPerRequest);
+    }
+    if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
+      return '';
+    }
+    const billedVideoSeconds = Math.ceil(selectedVideoDuration);
+    if (tool.workspace.generate.handler === 'subtitle-removal') {
+      return formatCreditAmount(
+        billedVideoSeconds * billing.subtitleRemovalCreditsPerSecond,
+      );
+    }
+    if (tool.workspace.generate.handler === 'video-translation') {
+      const creditsPerSecond = (videoTranslationConfig.modes.subtitle
+        ? billing.videoTranslationSubtitleCreditsPerSecond
+        : 0)
+        + (videoTranslationConfig.modes.voice ? billing.videoTranslationVoiceCreditsPerSecond : 0)
+        + (videoTranslationConfig.modes.face ? billing.videoTranslationFaceCreditsPerSecond : 0)
+        + (videoTranslationConfig.eraseOriginalSubtitles
+          ? billing.videoTranslationEraseSourceCreditsPerSecond
+          : 0);
+      return formatCreditAmount(billedVideoSeconds * creditsPerSecond);
+    }
+    return '';
+  }, [selectedVideoDuration, siteConfig, tool.workspace.generate.handler, videoTranslationConfig]);
 
   useEffect(() => {
     if (hasSelectedAudio) {
@@ -391,17 +444,21 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMaterialMode(null);
   };
 
-  const chooseLibraryAsset = (kind: MaterialKind, asset: ContentAsset) => {
+  const chooseLibraryAsset = async (kind: MaterialKind, asset: ContentAsset) => {
     if (kind.key === 'audio' && !isAllowedAudioAsset(asset)) {
       message.warning('参考音频仅支持 MP3 或 WAV 格式');
       return;
     }
     const url = resolveAssetUrl(asset.fileUrl);
+    const videoDuration = kind.key === 'video'
+      ? getAssetDurationSeconds(asset) ?? await readVideoUrlDuration(url)
+      : undefined;
     const localMaterial = {
       assetId: asset.id,
       audioDuration: kind.key === 'audio' ? getAssetDurationSeconds(asset) : undefined,
       id: `${kind.key}-${asset.id}-${crypto.randomUUID()}`,
       name: asset.name || asset.originalFileName || asset.storedFileName || kind.label,
+      trimDuration: videoDuration,
       type: kind.key,
       url,
     } satisfies LocalMaterialFile;
@@ -860,6 +917,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     tool,
     uploadAnchor,
     videoProductions,
+    videoPriceLabel,
     voiceEnabled,
   };
 }
@@ -1093,6 +1151,13 @@ function getLimit(kind: MaterialKind) {
   if (kind.key === 'image') return 9;
   if (kind.key === 'audio') return 3;
   return 1;
+}
+
+function formatCreditAmount(value: number) {
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return value.toFixed(6).replace(/\.?0+$/, '');
 }
 
 function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {

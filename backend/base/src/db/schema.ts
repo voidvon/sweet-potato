@@ -96,6 +96,12 @@ export function migrateDatabase() {
       enabled INTEGER NOT NULL DEFAULT 1,
       video_upload_credits_per_mb REAL NOT NULL DEFAULT 0,
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
+      video_upscale_credits_per_request REAL NOT NULL DEFAULT 20,
+      subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2,
+      video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1,
+      video_translation_voice_credits_per_second REAL NOT NULL DEFAULT 2,
+      video_translation_face_credits_per_second REAL NOT NULL DEFAULT 2,
+      video_translation_erase_source_credits_per_second REAL NOT NULL DEFAULT 2,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -577,6 +583,12 @@ export function migrateDatabase() {
   addColumnIfMissing('users', 'last_login_at', 'last_login_at TEXT');
   addColumnIfMissing('billing_settings', 'video_upload_credits_per_mb', 'video_upload_credits_per_mb REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'video_understanding_credits_per_1m_tokens', 'video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0');
+  addColumnIfMissing('billing_settings', 'video_upscale_credits_per_request', 'video_upscale_credits_per_request REAL NOT NULL DEFAULT 20');
+  addColumnIfMissing('billing_settings', 'subtitle_removal_credits_per_second', 'subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2');
+  addColumnIfMissing('billing_settings', 'video_translation_subtitle_credits_per_second', 'video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1');
+  addColumnIfMissing('billing_settings', 'video_translation_voice_credits_per_second', 'video_translation_voice_credits_per_second REAL NOT NULL DEFAULT 2');
+  addColumnIfMissing('billing_settings', 'video_translation_face_credits_per_second', 'video_translation_face_credits_per_second REAL NOT NULL DEFAULT 2');
+  addColumnIfMissing('billing_settings', 'video_translation_erase_source_credits_per_second', 'video_translation_erase_source_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('llm_usage_records', 'credit_base_cost', 'credit_base_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('llm_usage_records', 'credit_billed_cost', 'credit_billed_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('credit_ledger', 'credit_base_cost', 'credit_base_cost REAL');
@@ -695,6 +707,27 @@ export function migrateDatabase() {
   `).run(defaultModelConfig);
 
   const now = new Date().toISOString();
+
+  const videoUpscaleDefaultPriceMigrationId = '20260715-video-upscale-default-price-20';
+  const videoUpscaleDefaultPriceMigrationApplied = db.prepare(`
+    SELECT 1
+    FROM app_migrations
+    WHERE id = ?
+  `).get(videoUpscaleDefaultPriceMigrationId);
+  if (!videoUpscaleDefaultPriceMigrationApplied) {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE billing_settings
+        SET video_upscale_credits_per_request = 20,
+            updated_at = @updatedAt
+        WHERE video_upscale_credits_per_request = 0
+      `).run({ updatedAt: now });
+      db.prepare(`
+        INSERT INTO app_migrations (id, applied_at)
+        VALUES (?, ?)
+      `).run(videoUpscaleDefaultPriceMigrationId, now);
+    })();
+  }
 
   const defaultRoleId = 'role-default-full-access';
   const onboardingRoleId = 'role-default-onboarding';

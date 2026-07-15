@@ -912,6 +912,18 @@
   color: var(--video-task-accent-text);
 }
 
+.video-task-generate-price {
+  align-items: center;
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 7px;
+  vertical-align: middle;
+}
+
+.video-task-generate-price svg {
+  color: #ff9500;
+}
+
 .video-task-tool-workspace {
   align-items: flex-start;
   display: flex;

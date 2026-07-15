@@ -23,6 +23,7 @@ const sourceTypeMap: Record<string, string> = {
   timed_storyboard: '定时分镜',
   chat_image_generation: '图片创作',
   video_generation: '视频创作',
+  video_upscale: '视频高清放大',
   video_remake_generation: '视频重制 · 成片生成',
   video_remake_segment_regeneration: '视频重制 · 分段重生成',
   viral_director_confirm_generate: '爆款复刻 · 最终生成',

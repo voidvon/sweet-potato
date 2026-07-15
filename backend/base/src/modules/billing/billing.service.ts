@@ -17,6 +17,7 @@ import type {
   LlmUsageRecord,
   ModelBillingSettings,
   NormalizedLlmUsage,
+  SiteConfig,
 } from './billing.types.js';
 
 type OpenAiUsagePayload = Record<string, unknown> | undefined;
@@ -471,6 +472,190 @@ export function estimateVodUnderstandingCredits(tokenCount: number) {
   return roundCredits(Math.max(0, tokenCount) / 1_000_000 * settings.videoUnderstandingCreditsPer1MTokens);
 }
 
+export function estimateVideoUpscaleCredits() {
+  const settings = assertSystemBillingReady();
+  return roundCredits(Math.max(0, settings.videoUpscaleCreditsPerRequest));
+}
+
+export function reserveVideoUpscaleCredits(input: {
+  userId: string;
+  taskId: string;
+  resolution: string;
+}) {
+  const settings = assertSystemBillingReady();
+  const reservedCredits = estimateVideoUpscaleCredits();
+  const now = new Date().toISOString();
+  const snapshot = {
+    category: 'video_upscale',
+    pricingMode: 'per_request',
+    quantitySnapshot: {
+      requests: 1,
+      resolution: input.resolution,
+      configuredCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,
+      priceSource: 'system-billing-settings',
+    },
+  };
+  const reservation: CreditReservation = {
+    id: randomBytes(12).toString('hex'),
+    userId: input.userId,
+    sourceType: 'video_upscale',
+    sourceId: input.taskId,
+    reservedCredits,
+    status: 'reserved',
+    snapshot,
+    createdAt: now,
+    settledAt: null,
+  };
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    const currentCredits = roundCredits(user.creditBalance);
+    if (currentCredits < reservedCredits) {
+      throw new InsufficientStepCreditsError({
+        step: 'video_upscale',
+        stepLabel: '视频高清放大',
+        currentCredits,
+        requiredCredits: reservedCredits,
+      });
+    }
+    const nextCreditBalance = roundCredits(currentCredits - reservedCredits);
+    if (reservedCredits > 0) {
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'reserve_debit',
+        creditDelta: -reservedCredits,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost: reservedCredits,
+        creditBilledCost: reservedCredits,
+        sourceType: 'video_upscale',
+        sourceId: input.taskId,
+        snapshot,
+        createdAt: now,
+      });
+    }
+    billingRepository.createReservation(reservation);
+    return {
+      reservation,
+      nextCreditBalance,
+    };
+  });
+  return transaction();
+}
+
+export function settleVideoUpscaleCredits(input: {
+  reservationId: string;
+  userId: string;
+  taskId: string;
+  resolution: string;
+  runId?: string;
+  requestSnapshot?: Record<string, unknown>;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const transaction = db.transaction(() => {
+    const existing = billingRepository.findBillableUsageRecordByCategoryAndSourceId('video_upscale', input.taskId);
+    if (existing) {
+      return existing;
+    }
+    const reservation = billingRepository.findReservation(input.reservationId);
+    if (!reservation || reservation.userId !== input.userId || reservation.sourceId !== input.taskId) {
+      throw new Error('视频高清放大积分预扣记录不存在');
+    }
+    if (reservation.status === 'released') {
+      throw new Error('视频高清放大积分已退回，无法重复结算');
+    }
+    const now = new Date().toISOString();
+    const creditCost = roundCredits(reservation.reservedCredits);
+    const record: BillableUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: input.userId,
+      category: 'video_upscale',
+      modelConfigId: null,
+      provider: 'volcengine-vod',
+      model: 'moe-aigc-enhance',
+      sourceType: 'video_upscale',
+      sourceId: input.taskId,
+      taskId: input.taskId,
+      sessionId: null,
+      groupId: null,
+      pricingMode: 'per_request',
+      quantitySnapshot: {
+        requests: 1,
+        resolution: input.resolution,
+        configuredCreditsPerRequest: creditCost,
+        priceSource: 'system-billing-settings',
+      },
+      usageRaw: {
+        directCreditPricing: true,
+        directCreditCost: creditCost,
+        runId: input.runId || null,
+      },
+      requestSnapshot: input.requestSnapshot || {},
+      responseSnapshot: input.responseSnapshot || {},
+      creditBaseCost: creditCost,
+      creditBilledCost: creditCost,
+      creditCost,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.updateReservationStatus(reservation.id, 'settled', now);
+    billingRepository.createBillableUsageRecord(record);
+    return record;
+  });
+  return transaction();
+}
+
+export function releaseVideoUpscaleCredits(input: {
+  reservationId: string;
+  userId: string;
+  taskId: string;
+  reason: string;
+}) {
+  const transaction = db.transaction(() => {
+    const reservation = billingRepository.findReservation(input.reservationId);
+    if (
+      !reservation
+      || reservation.userId !== input.userId
+      || reservation.sourceId !== input.taskId
+      || reservation.status !== 'reserved'
+    ) {
+      return false;
+    }
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    const now = new Date().toISOString();
+    const refundedCredits = roundCredits(reservation.reservedCredits);
+    const nextCreditBalance = roundCredits(user.creditBalance + refundedCredits);
+    if (refundedCredits > 0) {
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'reserve_refund',
+        creditDelta: refundedCredits,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost: refundedCredits,
+        creditBilledCost: refundedCredits,
+        sourceType: 'video_upscale',
+        sourceId: input.taskId,
+        snapshot: {
+          ...reservation.snapshot,
+          releaseReason: input.reason,
+        },
+        createdAt: now,
+      });
+    }
+    billingRepository.updateReservationStatus(reservation.id, 'released', now);
+    return true;
+  });
+  return transaction();
+}
+
 export function assertSufficientStepCredits(input: {
   userId: string;
   requiredCredits: number;
@@ -801,6 +986,30 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
             0,
           ),
       ),
+    videoUpscaleCreditsPerRequest: normalizeNumber(
+      input.videoUpscaleCreditsPerRequest,
+      normalizeNumber(fallbackRecord.videoUpscaleCreditsPerRequest, 20),
+    ),
+    subtitleRemovalCreditsPerSecond: normalizeNumber(
+      input.subtitleRemovalCreditsPerSecond,
+      normalizeNumber(fallbackRecord.subtitleRemovalCreditsPerSecond, 2),
+    ),
+    videoTranslationSubtitleCreditsPerSecond: normalizeNumber(
+      input.videoTranslationSubtitleCreditsPerSecond,
+      normalizeNumber(fallbackRecord.videoTranslationSubtitleCreditsPerSecond, 1),
+    ),
+    videoTranslationVoiceCreditsPerSecond: normalizeNumber(
+      input.videoTranslationVoiceCreditsPerSecond,
+      normalizeNumber(fallbackRecord.videoTranslationVoiceCreditsPerSecond, 2),
+    ),
+    videoTranslationFaceCreditsPerSecond: normalizeNumber(
+      input.videoTranslationFaceCreditsPerSecond,
+      normalizeNumber(fallbackRecord.videoTranslationFaceCreditsPerSecond, 2),
+    ),
+    videoTranslationEraseSourceCreditsPerSecond: normalizeNumber(
+      input.videoTranslationEraseSourceCreditsPerSecond,
+      normalizeNumber(fallbackRecord.videoTranslationEraseSourceCreditsPerSecond, 2),
+    ),
     createdAt: fallback?.createdAt || now,
     updatedAt: now,
   };
@@ -910,9 +1119,28 @@ export function getBillingSettings() {
   return billingRepository.getSettings();
 }
 
+export function getSiteConfig(): SiteConfig | null {
+  const settings = getBillingSettings();
+  if (!settings) {
+    return null;
+  }
+  const { id: _id, createdAt: _createdAt, ...billing } = settings;
+  return { billing };
+}
+
 export function saveBillingSettings(settings: BillingSettings) {
-  if (settings.videoUploadCreditsPerMb < 0 || settings.videoUnderstandingCreditsPer1MTokens < 0) {
-    throw new Error('视频上传和视频理解单价不能小于 0');
+  const prices = [
+    settings.videoUploadCreditsPerMb,
+    settings.videoUnderstandingCreditsPer1MTokens,
+    settings.videoUpscaleCreditsPerRequest,
+    settings.subtitleRemovalCreditsPerSecond,
+    settings.videoTranslationSubtitleCreditsPerSecond,
+    settings.videoTranslationVoiceCreditsPerSecond,
+    settings.videoTranslationFaceCreditsPerSecond,
+    settings.videoTranslationEraseSourceCreditsPerSecond,
+  ];
+  if (prices.some((price) => !Number.isFinite(price) || price < 0)) {
+    throw new Error('计费单价必须是大于或等于 0 的数字');
   }
   billingRepository.saveSettings(settings);
   return settings;

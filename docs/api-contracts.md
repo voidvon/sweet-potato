@@ -2,6 +2,29 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-15 视频站点价格配置
+
+- 新增普通登录用户可读的 `GET /api/site-config`，用于前端统一获取站点公开的视频计费配置。
+- 当前响应为 `{ "billing": BillingSettingsWithoutIdAndCreatedAt }`，只包含公开积分价格和更新时间，不包含模型 API Key 等敏感配置。
+- `GET /api/billing/settings` 和 `PUT /api/billing/settings` 仍仅限管理员使用。
+- 图片生成价格不属于站点视频计费配置，继续读取各图片模型的 `settings.billing.creditsPerRequest`。
+- `/app/content/create_video` 页面加载时请求 `GET /api/site-config`；视频高清放大显示固定单次价格，字幕擦除和视频翻译仅在选择源视频并取得时长后显示预计扣费总积分，不展示每秒单价。
+- 字幕擦除和视频翻译按秒计费时，视频时长先向上取整到整数秒再计算总积分，例如 `1.1` 秒按 `2` 秒计算。
+
+## 2026-07-15 管理端视频处理计费配置
+
+- `GET /api/billing/settings` 和 `PUT /api/billing/settings` 新增视频处理积分单价字段。
+- `videoUpscaleCreditsPerRequest`：视频高清放大固定单次积分，默认为 `20`。
+- `subtitleRemovalCreditsPerSecond`：字幕擦除每秒积分，默认为 `2`。
+- `videoTranslationSubtitleCreditsPerSecond`：字幕翻译每秒积分，默认为 `1`。
+- `videoTranslationVoiceCreditsPerSecond`：语音翻译每秒追加积分，默认为 `2`。
+- `videoTranslationFaceCreditsPerSecond`：面容翻译每秒追加积分，默认为 `2`。
+- `videoTranslationEraseSourceCreditsPerSecond`：擦除原字幕每秒追加积分，默认为 `2`。
+- 所有新增单价必须是大于或等于 `0` 的有限数字。
+- 视频高清放大任务在提交时按 `videoUpscaleCreditsPerRequest` 预扣固定积分；任务成功后结算，任务失败或超时则退回预扣积分。
+- 提交高清放大任务前会同时检查高清放大固定积分和本次 VOD 上传预估积分。
+- 高清放大成功后新增 `video_upscale` 业务消费记录，计价方式为 `per_request`，并以任务 ID 作为幂等键避免重复扣费。
+
 ## 2026-07-15 视频制作任务超时契约
 
 - `/app/content/create_video` 当前已接入的视频生成、视频高清放大、字幕擦除和视频翻译任务，默认处理超时统一为 15 分钟。

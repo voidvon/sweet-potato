@@ -1,4 +1,4 @@
-import { Clock3 } from 'lucide-react';
+import { Clock3, Zap } from 'lucide-react';
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -39,6 +39,12 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           type="button"
         >
           {state.tool.submitText}
+          {state.videoPriceLabel ? (
+            <span className="video-task-generate-price">
+              <Zap aria-hidden="true" fill="currentColor" size={12} />
+              {state.videoPriceLabel}
+            </span>
+          ) : null}
         </button>
       </div>
     </>

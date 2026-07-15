@@ -4,8 +4,18 @@ export type BillingSettings = {
   id: 1;
   videoUploadCreditsPerMb: number;
   videoUnderstandingCreditsPer1MTokens: number;
+  videoUpscaleCreditsPerRequest: number;
+  subtitleRemovalCreditsPerSecond: number;
+  videoTranslationSubtitleCreditsPerSecond: number;
+  videoTranslationVoiceCreditsPerSecond: number;
+  videoTranslationFaceCreditsPerSecond: number;
+  videoTranslationEraseSourceCreditsPerSecond: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SiteConfig = {
+  billing: Omit<BillingSettings, 'id' | 'createdAt'>;
 };
 
 export type CreditLedgerType =
@@ -68,6 +78,7 @@ export type BillableUsageCategory =
   | 'content_planning_generation'
   | 'image_generation'
   | 'video_generation'
+  | 'video_upscale'
   | 'voice_clone'
   | 'speech_synthesis'
   | 'vod_upload'
