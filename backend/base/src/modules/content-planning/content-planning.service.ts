@@ -387,11 +387,14 @@ function stageReasoningContent(role: AgentStage['role'], output: unknown) {
     candidates: ContentPlanningCandidate[];
     selectedCandidateId: string;
     summary: string;
+    repairApplied?: boolean;
+    validationPassed?: boolean;
   };
   const selectedCandidate = validation.candidates.find((candidate) => candidate.id === validation.selectedCandidateId);
   return [
     '6. 校验、修正与最终选择',
     `综合结论：${readablePlanningText(validation.summary)}`,
+    `自动修复：${validation.repairApplied ? '已执行一轮并完成最终复核' : '无需修复'}`,
     `推荐方案：${selectedCandidate?.title || '未选出可执行方案'}`,
     ...validation.candidates.flatMap((candidate, index) => [
       '',
@@ -908,6 +911,10 @@ export class ContentPlanningService {
         selectedCandidateId: validated.selectedCandidateId,
         validatorSummary: validated.summary,
       };
+      if (!validated.validationPassed) {
+        contentPlanningRepository.updateSession(sessionId, { generation });
+        throw new Error('候选脚本自动修复后仍未通过最终校验，请调整设置或素材后重新生成');
+      }
       const completed = contentPlanningRepository.updateSession(sessionId, {
         status: 'ready_to_apply',
         uiStep: 'step4',
@@ -962,8 +969,12 @@ export class ContentPlanningService {
 
   selectCandidate(userId: string, sessionId: string, candidateId: string) {
     const session = this.getSession(userId, sessionId);
-    if (!session.generation.candidates.some((candidate) => candidate.id === candidateId)) {
+    const candidate = session.generation.candidates.find((item) => item.id === candidateId);
+    if (!candidate) {
       throw new Error('planning candidate not found');
+    }
+    if (candidate.issues.length) {
+      throw new Error('该候选仍有未修复问题，无法选择');
     }
     return contentPlanningRepository.updateSession(sessionId, {
       generation: { ...session.generation, selectedCandidateId: candidateId },
@@ -979,6 +990,9 @@ export class ContentPlanningService {
     const candidate = session.generation.candidates.find((item) => item.id === selectedId);
     if (!candidate) {
       throw new Error('select a planning candidate before applying');
+    }
+    if (candidate.issues.length) {
+      throw new Error('该候选仍有未修复问题，无法回填视频表单');
     }
     const prompt = buildContentPlanningPrompt(session, candidate.storyboard, {
       title: candidate.title,

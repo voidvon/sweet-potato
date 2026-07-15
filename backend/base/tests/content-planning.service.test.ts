@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   createContentPlanningAgentProvider,
+  contentPlanningCandidateInvariantIssues,
   DeterministicContentPlanningAgentProvider,
   extractPartialJsonStringField,
   normalizePlanningTimelineSegments,
+  orderContentPlanningRepairSegments,
   projectPlanningAuditStream,
   type PlanningRuntimeContext,
 } from '../src/modules/content-planning/content-planning-agent-runtime.js';
@@ -168,6 +170,32 @@ test('planning timelines reject large duration mismatches and discontinuities', 
       { startSecond: 2.5, endSecond: 10 },
     ], 10),
     /不连续或无效/u,
+  );
+});
+
+test('repair segments use stable indexes instead of ambiguous timeline and shot ids', () => {
+  assert.deepEqual(
+    orderContentPlanningRepairSegments(3, [
+      { segmentIndex: 3, value: 'third' },
+      { segmentIndex: 1, value: 'first' },
+      { segmentIndex: 2, value: 'second' },
+    ]).map((segment) => segment.value),
+    ['first', 'second', 'third'],
+  );
+  assert.throws(
+    () => orderContentPlanningRepairSegments(3, [
+      { segmentIndex: 1 },
+      { segmentIndex: 1 },
+      { segmentIndex: 3 },
+    ]),
+    /segmentIndex 存在重复/u,
+  );
+  assert.throws(
+    () => orderContentPlanningRepairSegments(3, [
+      { segmentIndex: 1 },
+      { segmentIndex: 2 },
+    ]),
+    /分镜数量发生变化/u,
   );
 });
 
@@ -613,6 +641,90 @@ test('fallback agent pipeline produces candidates and an allowlist apply payload
   contentPlanningRepository.deleteSession(created.id);
 });
 
+test('display-only candidates accept empty dialogue while spoken candidates require it', async () => {
+  const userId = `planning-test-${Date.now()}-display-only-validation`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  const candidate = ready.generation.candidates[0];
+  assert.ok(candidate);
+
+  const displayOnlyIssues = contentPlanningCandidateInvariantIssues(ready, candidate);
+  assert.doesNotMatch(displayOnlyIssues.join('\n'), /口播/u);
+
+  const spokenIssues = contentPlanningCandidateInvariantIssues({
+    ...ready,
+    settings: { ...ready.settings, displayOnly: false },
+  }, candidate);
+  assert.match(spokenIssues.join('\n'), /必须包含口播/u);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('candidate validation rejects material refs detached from the visual description', async () => {
+  const userId = `planning-test-${Date.now()}-detached-material-ref`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  const candidate = ready.generation.candidates[0];
+  assert.ok(candidate);
+  const firstSegment = candidate.storyboard[0];
+  assert.ok(firstSegment);
+  const detachedCandidate = {
+    ...candidate,
+    storyboard: candidate.storyboard.map((segment, index) => index === 0
+      ? { ...segment, visual: segment.visual.replace(/@image1/gu, ''), materialRefs: ['@image1'] }
+      : segment),
+  };
+
+  assert.match(
+    contentPlanningCandidateInvariantIssues(ready, detachedCandidate).join('\n'),
+    /素材引用未出现在对应画面描述中/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('candidate validation allows explicit no-screen-text instructions', async () => {
+  const userId = `planning-test-${Date.now()}-no-screen-text`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  const candidate = ready.generation.candidates[0];
+  assert.ok(candidate);
+  const guardedCandidate = {
+    ...candidate,
+    storyboard: candidate.storyboard.map((segment, index) => index === 0
+      ? { ...segment, action: `${segment.action}，不要显示字幕或屏幕文字` }
+      : segment),
+  };
+
+  assert.doesNotMatch(
+    contentPlanningCandidateInvariantIssues(ready, guardedCandidate).join('\n'),
+    /包含屏幕文字或字幕展示指令/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('candidates with unresolved validation issues cannot be selected or applied', async () => {
+  const userId = `planning-test-${Date.now()}-unresolved-candidate`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  const candidate = ready.generation.candidates[0];
+  assert.ok(candidate);
+  const updated = contentPlanningRepository.updateSession(created.id, {
+    generation: {
+      ...ready.generation,
+      candidates: ready.generation.candidates.map((item) => item.id === candidate.id
+        ? { ...item, issues: ['仍有未修复问题'] }
+        : item),
+      selectedCandidateId: candidate.id,
+    },
+  });
+  assert.ok(updated);
+
+  assert.throws(
+    () => contentPlanningService.selectCandidate(userId, created.id, candidate.id),
+    /仍有未修复问题/u,
+  );
+  assert.throws(
+    () => contentPlanningService.apply(userId, created.id, candidate.id),
+    /仍有未修复问题/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
 test('apply rebuilds legacy candidate prompts from the structured storyboard', async () => {
   const userId = `planning-test-${Date.now()}-legacy-prompt`;
   const { created, ready } = await advanceSessionToReady(userId);
@@ -915,6 +1027,43 @@ test('failed generation keeps the session non-applicable', async () => {
     () => service.apply(userId, created.id),
     /not ready to apply/u,
   );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('generation keeps repaired candidates for audit when final validation does not pass', async () => {
+  class UnresolvedValidatorProvider extends DeterministicContentPlanningAgentProvider {
+    override async validator(context: Parameters<DeterministicContentPlanningAgentProvider['validator']>[0]) {
+      const result = await super.validator(context);
+      return {
+        ...result,
+        candidates: result.candidates.map((candidate, index) => index === 0
+          ? { ...candidate, issues: ['最终复核仍有素材绑定问题'], repairAdvice: '请重新生成' }
+          : candidate),
+        selectedCandidateId: result.candidates[0]?.id || '',
+        summary: '自动修复后仍未通过最终复核',
+        repairApplied: true,
+        validationPassed: false,
+      };
+    }
+  }
+
+  const service = new ContentPlanningService(
+    new UnresolvedValidatorProvider(),
+    new DeterministicContentPlanningAnalysisProvider(),
+    noOpAnalysisBilling,
+    noOpGenerationBilling,
+  );
+  const userId = `planning-test-${Date.now()}-final-validation-failed`;
+  const { created } = await advanceSessionToConfiguring(userId, service);
+  service.generate(userId, created.id);
+  const failed = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'failed',
+  );
+
+  assert.match(failed.errorMessage || '', /自动修复后仍未通过最终校验/u);
+  assert.equal(failed.generation.candidates[0]?.issues[0], '最终复核仍有素材绑定问题');
+  assert.throws(() => service.apply(userId, created.id), /not ready to apply/u);
   contentPlanningRepository.deleteSession(created.id);
 });
 

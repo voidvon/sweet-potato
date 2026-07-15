@@ -2019,7 +2019,7 @@ function WideLoadingCard({
         </div>
       </div>
       <div className="video-task-epa-loading-progress">
-        <span style={{ width: `${Math.max(progress * 100, 12)}%` }} />
+        {/* <span style={{ width: `${Math.max(progress * 100, 12)}%` }} /> */}
       </div>
       {showStages ? (
         <div className="video-task-epa-stage-strip">

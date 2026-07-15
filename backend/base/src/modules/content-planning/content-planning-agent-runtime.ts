@@ -46,6 +46,8 @@ export interface ContentPlanningAgentProvider {
     candidates: ContentPlanningCandidate[];
     selectedCandidateId: string;
     summary: string;
+    repairApplied: boolean;
+    validationPassed: boolean;
   }>;
 }
 
@@ -131,6 +133,27 @@ const validatorOutputSchema = z.object({
   selectedCandidateId: z.string().min(1),
   summary: z.string().min(1),
 });
+
+const repairStoryboardSegmentOutputSchema = storyboardSegmentOutputSchema
+  .omit({ startSecond: true, endSecond: true })
+  .extend({ segmentIndex: z.number().int().min(1).max(12) });
+
+const repairOutputSchema = z.object({
+  auditText: z.string().min(1),
+  candidates: z.array(z.object({
+    candidateId: z.string().min(1),
+    title: z.string().min(1),
+    summary: z.string().min(1),
+    hook: z.string().min(1),
+    audienceAngle: z.string().min(1),
+    tags: z.array(z.string().min(1)).max(8),
+    storyboard: z.array(repairStoryboardSegmentOutputSchema).min(1).max(12),
+  })).min(1).max(5),
+  summary: z.string().min(1),
+});
+
+type CandidateAssessment = z.infer<typeof validatorOutputSchema>['assessments'][number];
+type CandidateRepair = z.infer<typeof repairOutputSchema>['candidates'][number];
 
 function durationSegments(durationSeconds: ContentPlanningDurationSeconds, strategyId: string) {
   const firstEnd = durationSeconds === 5 ? 1 : durationSeconds === 10 ? 2 : 3;
@@ -233,6 +256,276 @@ export function buildContentPlanningPrompt(
   return parts.filter((line, index) => line || parts[index - 1] !== '').join('\n').trim();
 }
 
+function uniqueIssueList(issues: string[]) {
+  return [...new Set(issues.map((issue) => issue.trim()).filter(Boolean))];
+}
+
+function hasSpokenDialogue(value: string) {
+  const normalized = value.trim();
+  return Boolean(normalized && !/^(?:无|无口播|无台词|仅画面展示)$/u.test(normalized));
+}
+
+function hasPositiveScreenTextInstruction(value: string) {
+  const withoutNegativeInstructions = value.replace(
+    /(?:不|不要|不得|禁止|避免|无需)(?:显示|出现|添加|叠加|弹出|打出|呈现).{0,10}(?:字幕|屏幕文字|弹窗文字|大字|标题文案|UI)/gu,
+    '',
+  );
+  return /(?:显示|出现|添加|叠加|弹出|打出|呈现).{0,10}(?:字幕|屏幕文字|弹窗文字|大字|标题文案|UI)/u.test(withoutNegativeInstructions);
+}
+
+export function contentPlanningCandidateInvariantIssues(
+  session: ContentPlanningSession,
+  candidate: ContentPlanningCandidate,
+) {
+  const issues: string[] = [];
+  const storyboard = candidate.storyboard;
+  const epsilon = 0.001;
+  let expectedStart = 0;
+
+  if (!storyboard.length) {
+    issues.push('候选脚本没有可执行分镜');
+  }
+  storyboard.forEach((segment, index) => {
+    if (Math.abs(segment.startSecond - expectedStart) > epsilon || segment.endSecond <= segment.startSecond) {
+      issues.push(`分镜 ${index + 1} 的时间段不连续或无效`);
+    }
+    expectedStart = segment.endSecond;
+    const invalidRefs = segment.materialRefs.filter((ref) => !/^@image[1-9]$/u.test(ref));
+    if (invalidRefs.length) {
+      issues.push(`分镜 ${index + 1} 包含无效素材引用：${invalidRefs.join('、')}`);
+    }
+    const detachedRefs = segment.materialRefs.filter((ref) => !segment.visual.includes(ref));
+    if (detachedRefs.length) {
+      issues.push(`分镜 ${index + 1} 的素材引用未出现在对应画面描述中：${detachedRefs.join('、')}`);
+    }
+    if (hasPositiveScreenTextInstruction(`${segment.visual}\n${segment.action}`)) {
+      issues.push(`分镜 ${index + 1} 包含屏幕文字或字幕展示指令`);
+    }
+    if (session.settings.displayOnly && hasSpokenDialogue(segment.dialogue)) {
+      issues.push(`分镜 ${index + 1} 在只展示模式下不应生成口播`);
+    }
+    if (!session.settings.displayOnly && session.settings.spokenLanguage === 'zh') {
+      const hanCount = segment.dialogue.match(/\p{Script=Han}/gu)?.length || 0;
+      const maxHanCount = Math.ceil((segment.endSecond - segment.startSecond) * 5) + 1;
+      if (hanCount > maxHanCount) {
+        issues.push(`分镜 ${index + 1} 的中文口播超过当前时段可说完的字数`);
+      }
+    }
+  });
+
+  if (Math.abs(expectedStart - session.settings.durationSeconds) > epsilon) {
+    issues.push(`分镜总时长必须精确等于 ${session.settings.durationSeconds} 秒`);
+  }
+  if (!session.settings.displayOnly && !storyboard.some((segment) => hasSpokenDialogue(segment.dialogue))) {
+    issues.push('未开启只展示时，候选脚本必须包含口播');
+  }
+
+  const expectedRefs = session.materialBundle.imageMaterials.map((_, index) => materialToken(index));
+  const usedRefs = new Set(storyboard.flatMap((segment) => segment.materialRefs));
+  const missingRefs = expectedRefs.filter((ref) => !usedRefs.has(ref));
+  if (missingRefs.length) {
+    issues.push(`候选脚本未使用已上传素材：${missingRefs.join('、')}`);
+  }
+  return uniqueIssueList(issues);
+}
+
+function applyCandidateAssessment(
+  session: ContentPlanningSession,
+  candidate: ContentPlanningCandidate,
+  assessment?: CandidateAssessment,
+  repaired = false,
+) {
+  const issues = uniqueIssueList([
+    ...(assessment?.issues || ['Validator 未返回该候选的检查结果']),
+    ...contentPlanningCandidateInvariantIssues(session, candidate),
+  ]);
+  const score = issues.length
+    ? Math.min(assessment?.score ?? 0, Math.max(0, 100 - issues.length * 15))
+    : assessment?.score ?? 0;
+  return {
+    ...candidate,
+    score,
+    issues,
+    repairAdvice: issues.length
+      ? assessment?.repairAdvice || '自动修复后仍有未解决问题，请重新生成该候选。'
+      : repaired ? '已自动修复并通过最终复核。' : assessment?.repairAdvice || '无需修复。',
+  };
+}
+
+export function orderContentPlanningRepairSegments<T extends { segmentIndex: number }>(
+  expectedCount: number,
+  repairedSegments: T[],
+) {
+  if (repairedSegments.length !== expectedCount) {
+    throw new Error('Repair Agent 返回的分镜数量发生变化');
+  }
+  const repairedSegmentByIndex = new Map(
+    repairedSegments.map((segment) => [segment.segmentIndex, segment]),
+  );
+  if (repairedSegmentByIndex.size !== expectedCount) {
+    throw new Error('Repair Agent 返回的 segmentIndex 存在重复');
+  }
+  return Array.from({ length: expectedCount }, (_, index) => {
+    const segment = repairedSegmentByIndex.get(index + 1);
+    if (!segment) {
+      throw new Error('Repair Agent 返回的 segmentIndex 不连续');
+    }
+    return segment;
+  });
+}
+
+function rebuildCandidateFromRepair(
+  session: ContentPlanningSession,
+  candidate: ContentPlanningCandidate,
+  repair: CandidateRepair,
+) {
+  let repairedSegments: CandidateRepair['storyboard'];
+  try {
+    repairedSegments = orderContentPlanningRepairSegments(
+      candidate.storyboard.length,
+      repair.storyboard,
+    );
+  } catch (error) {
+    throw new Error(`Repair Agent 返回的候选 ${candidate.id} 无法映射到原分镜：${error instanceof Error ? error.message : String(error)}`);
+  }
+  const storyboard = candidate.storyboard.map((segment, index): ContentPlanningStoryboardSegment => {
+    const repairedSegment = repairedSegments[index];
+    if (!repairedSegment) {
+      throw new Error(`Repair Agent 未返回候选 ${candidate.id} 的第 ${index + 1} 条分镜`);
+    }
+    return {
+      ...segment,
+      title: repairedSegment.title,
+      visual: repairedSegment.visual,
+      action: repairedSegment.action,
+      dialogue: session.settings.displayOnly ? '' : repairedSegment.dialogue,
+      soundEffect: repairedSegment.soundEffect,
+      camera: repairedSegment.camera,
+      lighting: repairedSegment.lighting,
+      spaceRelation: repairedSegment.spaceRelation,
+      materialRefs: validMaterialRefs(
+        repairedSegment.materialRefs,
+        session.materialBundle.imageMaterials.length,
+      ),
+    };
+  });
+  const fullScript = fullScriptFor(storyboard);
+  const prompt = buildContentPlanningPrompt(session, storyboard, {
+    title: repair.title,
+    summary: repair.summary,
+  });
+  return {
+    ...candidate,
+    title: repair.title,
+    summary: repair.summary,
+    hook: repair.hook,
+    audienceAngle: repair.audienceAngle,
+    tags: repair.tags,
+    fullScript,
+    prompt,
+    storyboard,
+    score: 0,
+    issues: [],
+    repairAdvice: '',
+    script: {
+      ...candidate.script,
+      title: repair.title,
+      summary: repair.summary,
+      fullScript,
+      prompt,
+      storyboard,
+    },
+  };
+}
+
+function selectExecutableCandidateId(candidates: ContentPlanningCandidate[], preferredId: string) {
+  const executable = candidates.filter((candidate) => candidate.issues.length === 0);
+  if (executable.some((candidate) => candidate.id === preferredId)) {
+    return preferredId;
+  }
+  return [...executable].sort((left, right) => right.score - left.score)[0]?.id
+    || [...candidates].sort((left, right) => right.score - left.score)[0]?.id
+    || '';
+}
+
+async function assessConfiguredCandidates(
+  context: PlanningRuntimeContext,
+  candidates: ContentPlanningCandidate[],
+  phase: 'initial' | 'final',
+) {
+  const { parsed } = await callConfiguredStructuredLlm({
+    ...planningAuditStreamOptions(context),
+    userId: context.session.userId,
+    sourceType: 'content_planning_validator',
+    sourceId: `${context.session.id}:validator:${phase}`,
+    schema: validatorOutputSchema,
+    temperature: 0.1,
+    timeoutMs: 180_000,
+    system: [
+      '你是短视频策划系统的 Validator。',
+      phase === 'final'
+        ? '这是自动修复后的最终复核。issues 只列仍会阻止候选执行的约束错误；可选优化写入 summary，不要列为 issue。'
+        : '这是自动修复前的首次校验，请给出准确、可执行的结构化问题与修复建议。',
+      '逐条检查总时长、时间轴连续性、素材使用、核心卖点覆盖、口播字数是否可说完、无字幕约束、商品真实性、JSON 字段完整性和违规夸大。',
+      'settings.displayOnly=true 表示用户明确选择“只展示”，所有 dialogue 为空是正确行为，不得把无口播列为问题；只有 displayOnly=false 时才检查口播是否缺失。',
+      '发现 visual/action 中出现字幕、弹窗大字、屏幕文字，或素材外观被无依据改写时必须列为问题并给出可执行修正。',
+      'materialRefs 只允许标记该分镜实际使用的素材；不能因为素材在其他分镜使用就重复标记。',
+      '必须给每个 candidateId 返回评分、问题与修复建议，并选择综合质量最高且可执行的一条。',
+      '不要输出思维链，只输出可审计的检查结论。',
+    ].join('\n'),
+    user: planningStageInput({ ...context, candidates }),
+  });
+  return parsed;
+}
+
+async function repairConfiguredCandidates(
+  context: PlanningRuntimeContext,
+  candidates: ContentPlanningCandidate[],
+) {
+  const repairTargets = candidates.filter((candidate) => candidate.issues.length > 0);
+  const { parsed } = await callConfiguredStructuredLlm({
+    ...planningAuditStreamOptions(context),
+    userId: context.session.userId,
+    sourceType: 'content_planning_repair',
+    sourceId: `${context.session.id}:repair`,
+    schema: repairOutputSchema,
+    temperature: 0.2,
+    timeoutMs: 240_000,
+    system: [
+      '你是短视频策划系统的 Repair Agent。',
+      '根据 Validator 问题与修复建议修正候选脚本，返回可直接进入最终复核的完整候选内容。',
+      '不得改变 candidateId、分镜数量或时间边界；storyboard 必须按原分镜顺序使用从 1 开始且连续唯一的 segmentIndex，不要返回内部 segmentId/shotId。',
+      'settings.displayOnly=true 时所有 dialogue 必须为空字符串，这是用户选择的无口播模式；displayOnly=false 时才补充可在对应时段说完的口播。',
+      '素材只在实际出现的分镜填写 materialRefs，并在 visual 句末内联同一个 @imageN；不得为了覆盖素材而错误绑定。',
+      '全程不得安排字幕、弹窗大字、屏幕文字或 UI 文案。',
+      '一次性修复所有给定候选，不要输出思维链。',
+    ].join('\n'),
+    user: [
+      planningStageInput({ ...context, candidates: repairTargets }),
+      '',
+      'Validator 校验结果：',
+      JSON.stringify(repairTargets.map((candidate) => ({
+        candidateId: candidate.id,
+        issues: candidate.issues,
+        repairAdvice: candidate.repairAdvice,
+      })), null, 2),
+    ].join('\n'),
+  });
+  const repairById = new Map(parsed.candidates.map((candidate) => [candidate.candidateId, candidate]));
+  const repairedIds = new Set(repairTargets.map((candidate) => candidate.id));
+  const repairedCandidates = candidates.map((candidate) => {
+    if (!repairedIds.has(candidate.id)) {
+      return candidate;
+    }
+    const repair = repairById.get(candidate.id);
+    if (!repair) {
+      throw new Error(`Repair Agent 未返回候选 ${candidate.id} 的修复结果`);
+    }
+    return rebuildCandidateFromRepair(context.session, candidate, repair);
+  });
+  return { candidates: repairedCandidates, repairedIds, summary: parsed.summary };
+}
+
 export class DeterministicContentPlanningAgentProvider implements ContentPlanningAgentProvider {
   async planner(context: PlanningRuntimeContext): Promise<PlanningBrief> {
     const { session } = context;
@@ -330,30 +623,24 @@ export class DeterministicContentPlanningAgentProvider implements ContentPlannin
   }
 
   async validator(context: PlanningRuntimeContext & { candidates: ContentPlanningCandidate[] }) {
-    const candidates = context.candidates.map((candidate) => {
-      const issues: string[] = [];
-      const duration = candidate.storyboard.at(-1)?.endSecond || 0;
-      if (duration !== context.session.settings.durationSeconds) {
-        issues.push(`storyboard duration must be ${context.session.settings.durationSeconds} seconds`);
-      }
-      if (!context.session.settings.displayOnly && !candidate.fullScript.trim()) {
-        issues.push('spoken script is empty');
-      }
-      if (context.session.materialBundle.imageMaterials.length && !candidate.storyboard.some((segment) => segment.materialRefs.length)) {
-        issues.push('storyboard does not reference an uploaded image');
-      }
-      return {
-        ...candidate,
-        score: Math.max(0, 100 - issues.length * 15),
-        issues,
-        repairAdvice: issues.length ? 'Repair the highlighted constraints before rendering.' : 'Ready to apply to video creation.',
-      };
-    });
-    const selected = [...candidates].sort((left, right) => right.score - left.score)[0];
+    const candidates = context.candidates.map((candidate) => applyCandidateAssessment(
+      context.session,
+      candidate,
+      {
+        candidateId: candidate.id,
+        score: 100,
+        issues: [],
+        repairAdvice: '',
+      },
+    ));
+    const selectedCandidateId = selectExecutableCandidateId(candidates, '');
+    const selected = candidates.find((candidate) => candidate.id === selectedCandidateId);
     return {
       candidates,
-      selectedCandidateId: selected?.id || '',
+      selectedCandidateId,
       summary: selected ? `Validated ${candidates.length} candidates; selected ${selected.title} with score ${selected.score}.` : 'No candidate was produced.',
+      repairApplied: false,
+      validationPassed: Boolean(selected && selected.issues.length === 0),
     };
   }
 }
@@ -574,40 +861,45 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
   }
 
   async validator(context: PlanningRuntimeContext & { candidates: ContentPlanningCandidate[] }) {
-    const { parsed } = await callConfiguredStructuredLlm({
-      ...planningAuditStreamOptions(context),
-      userId: context.session.userId,
-      sourceType: 'content_planning_validator',
-      sourceId: `${context.session.id}:validator`,
-      schema: validatorOutputSchema,
-      temperature: 0.1,
-      timeoutMs: 180_000,
-      system: [
-        '你是短视频策划系统的 Validator。',
-        '逐条检查总时长、时间轴连续性、素材使用、核心卖点覆盖、口播字数是否可说完、无字幕约束、商品真实性、JSON 字段完整性和违规夸大。',
-        '发现 visual/action 中出现字幕、弹窗大字、屏幕文字，或素材外观被无依据改写时必须列为问题并给出可执行修正。',
-        '必须给每个 candidateId 返回评分、问题与修复建议，并选择综合质量最高且可执行的一条。',
-        '不要输出思维链，只输出可审计的检查结论。',
-      ].join('\n'),
-      user: planningStageInput(context),
-    });
-    const assessmentById = new Map(parsed.assessments.map((assessment) => [assessment.candidateId, assessment]));
-    const candidates = context.candidates.map((candidate, index) => {
-      const assessment = assessmentById.get(candidate.id) || parsed.assessments[index];
+    const initial = await assessConfiguredCandidates(context, context.candidates, 'initial');
+    const initialAssessmentById = new Map(initial.assessments.map((assessment) => [assessment.candidateId, assessment]));
+    const assessedCandidates = context.candidates.map((candidate, index) => applyCandidateAssessment(
+      context.session,
+      candidate,
+      initialAssessmentById.get(candidate.id) || initial.assessments[index],
+    ));
+    const needsRepair = assessedCandidates.some((candidate) => candidate.issues.length > 0);
+    if (!needsRepair) {
+      const selectedCandidateId = selectExecutableCandidateId(assessedCandidates, initial.selectedCandidateId);
       return {
-        ...candidate,
-        score: assessment?.score ?? 0,
-        issues: assessment?.issues ?? ['Validator 未返回该候选的检查结果'],
-        repairAdvice: assessment?.repairAdvice ?? '请重新生成该候选。',
+        candidates: assessedCandidates,
+        selectedCandidateId,
+        summary: initial.summary,
+        repairApplied: false,
+        validationPassed: Boolean(selectedCandidateId),
       };
-    });
-    const selectedCandidateId = candidates.some((candidate) => candidate.id === parsed.selectedCandidateId)
-      ? parsed.selectedCandidateId
-      : [...candidates].sort((left, right) => right.score - left.score)[0]?.id || '';
+    }
+
+    context.onAuditDelta?.('\n\n进入自动修复阶段。\n');
+    const repaired = await repairConfiguredCandidates(context, assessedCandidates);
+    context.onAuditDelta?.('\n\n进入修复后最终复核。\n');
+    const final = await assessConfiguredCandidates(context, repaired.candidates, 'final');
+    const finalAssessmentById = new Map(final.assessments.map((assessment) => [assessment.candidateId, assessment]));
+    const candidates = repaired.candidates.map((candidate, index) => applyCandidateAssessment(
+      context.session,
+      candidate,
+      finalAssessmentById.get(candidate.id) || final.assessments[index],
+      repaired.repairedIds.has(candidate.id),
+    ));
+    const selectedCandidateId = selectExecutableCandidateId(candidates, final.selectedCandidateId);
+    const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId);
+    const validationPassed = Boolean(selectedCandidate && selectedCandidate.issues.length === 0);
     return {
       candidates,
       selectedCandidateId,
-      summary: parsed.summary,
+      summary: `${repaired.summary}\n最终复核：${final.summary}`,
+      repairApplied: true,
+      validationPassed,
     };
   }
 }

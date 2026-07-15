@@ -240,6 +240,8 @@ export type ContentPlanningAgentStageOutputs = Partial<{
   validator: {
     selectedCandidateId: string;
     summary: string;
+    repairApplied: boolean;
+    validationPassed: boolean;
   };
 }>;
 
