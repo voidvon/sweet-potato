@@ -64,6 +64,7 @@ export type LlmUsageRecord = {
 };
 
 export type BillableUsageCategory =
+  | 'content_planning_analysis'
   | 'image_generation'
   | 'video_generation'
   | 'voice_clone'

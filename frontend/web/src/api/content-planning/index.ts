@@ -222,9 +222,17 @@ export type PlanningApplyPayload = {
   session?: PlanningSession;
 };
 
+export type ContentPlanningClientConfig = {
+  analysisCredits: number;
+};
+
 type MediaInput = { assetId: string; kind: PlanningAssetRef['kind'] };
 
 const basePath = '/api/content-planning/sessions';
+
+export function getContentPlanningConfig() {
+  return request<ContentPlanningClientConfig>('/api/content-planning/config');
+}
 
 export function createPlanningEventSource() {
   return new EventSource(withAuthToken(`${API_BASE_URL}/api/content-planning/events`));

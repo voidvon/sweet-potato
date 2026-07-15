@@ -20,6 +20,10 @@ export function createContentPlanningRouter() {
   const router = Router();
   router.use(requirePermission('web.module.content.create_video'));
 
+  router.get('/config', (_req, res) => {
+    res.json(contentPlanningService.getClientConfig());
+  });
+
   router.get('/events', (req, res) => {
     const userId = currentUserId(req);
     if (!userId) {

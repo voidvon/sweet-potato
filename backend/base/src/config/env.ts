@@ -109,6 +109,18 @@ export const arkVideoUnderstandingConfig = {
   filePollTimeoutMs: Number(process.env.ARK_VIDEO_FILE_POLL_TIMEOUT_MS || 600000),
 };
 
+function nonNegativeEnvNumber(name: string, fallback: number) {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${name} 必须是大于等于 0 的数字`);
+  }
+  return value;
+}
+
+export const contentPlanningBillingConfig = {
+  analysisCredits: nonNegativeEnvNumber('CONTENT_PLANNING_ANALYSIS_CREDITS', 0),
+};
+
 // const defaultDigitalHumanThreeViewPrompt = `人物角色设计稿，
 // 一张图内包含全身三视图+面部细节三视图，
 // 上半部分为人物全身正面、左侧面、右侧面、背面三视图共三张图，

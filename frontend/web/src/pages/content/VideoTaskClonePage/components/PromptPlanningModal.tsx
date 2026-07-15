@@ -36,6 +36,7 @@ import {
   createPlanningEventSource,
   createPlanningSession,
   generatePlanningCandidates,
+  getContentPlanningConfig,
   getPlanningSession,
   getPlanningSessionUpdates,
   selectPlanningCandidate,
@@ -214,6 +215,7 @@ export function PromptPlanningModal({
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>('idle');
+  const [analysisCredits, setAnalysisCredits] = useState<number | null>(null);
   const [session, setSession] = useState<PlanningSession | null>(null);
   const [viewStep, setViewStep] = useState<PlanningUiStep>('step1');
   const [errorMessage, setErrorMessage] = useState('');
@@ -234,6 +236,9 @@ export function PromptPlanningModal({
   const isAnalyzing = busyAction === 'analyzing' || session?.status === 'analyzing';
   const isGenerating = busyAction === 'generating' || session?.status === 'generating';
   const isBusy = busyAction !== 'idle' || isAnalyzing || isGenerating;
+  const analysisCreditLabel = analysisCredits === null
+    ? ''
+    : ` · ${analysisCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}积分`;
   const resolvedStep = session ? resolvePlanningStep(session) : 'step1';
   const resolvedStepIndex = planningStepIndex(resolvedStep);
   const activeStep = useMemo<PlanningUiStep>(() => {
@@ -386,6 +391,27 @@ export function PromptPlanningModal({
     };
 
     void restoreLatest();
+
+    return () => {
+      disposed = true;
+    };
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    void getContentPlanningConfig()
+      .then((config) => {
+        if (!disposed) {
+          setAnalysisCredits(config.analysisCredits);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setAnalysisCredits(null);
+          setErrorMessage('积分配置加载失败，请关闭弹窗后重试。');
+        }
+      });
 
     return () => {
       disposed = true;
@@ -1002,7 +1028,7 @@ export function PromptPlanningModal({
                           </button>
                         ) : null}
                       </div>
-                      <div className="video-task-epa-breakdown-card">
+                      <div className={`video-task-epa-breakdown-card ${!analysisDraft.useBreakdown ? 'video-task-epa-empty-hint' : ''}`}>
                         {session.analysis.viralBreakdown ? (
                           <>
                             {session.analysis.viralBreakdown.tags.length ? (
@@ -1029,7 +1055,7 @@ export function PromptPlanningModal({
                             />
                           </>
                         ) : (
-                          <div className="video-task-epa-empty-hint">未识别到参考视频拆解结果，后续会按商品素材独立生成脚本。</div>
+                          '未识别到参考视频拆解结果，后续会按商品素材独立生成脚本'
                         )}
                       </div>
                     </section>
@@ -1475,12 +1501,12 @@ export function PromptPlanningModal({
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"
-                      disabled={isAnalyzing || isBusy || imageFiles.length === 0}
+                      disabled={analysisCredits === null || isAnalyzing || isBusy || imageFiles.length === 0}
                       onClick={() => void handleAnalyze()}
                       type="button"
                     >
                       {isAnalyzing ? <LoaderCircle className="is-spinning" size={16} /> : null}
-                      {isAnalyzing ? '分析中...' : copy.action}
+                      {isAnalyzing ? '分析中...' : `${copy.action}${analysisCreditLabel}`}
                     </button>
                   </>
                 ) : null}
@@ -1489,12 +1515,12 @@ export function PromptPlanningModal({
                   <>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-secondary"
-                      disabled={isBusy}
+                      disabled={analysisCredits === null || isBusy}
                       onClick={() => void handleAnalyze()}
                       type="button"
                     >
                       {busyAction === 'analyzing' ? <LoaderCircle className="is-spinning" size={16} /> : <RefreshCcw size={15} />}
-                      重新识别
+                      {`重新识别${analysisCreditLabel}`}
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"

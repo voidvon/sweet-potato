@@ -93,6 +93,8 @@ function usageModelName(record: AdminLlmUsageRecord) {
 
 function billableCategoryLabel(category: AdminBillableUsageRecord['category']) {
   switch (category) {
+    case 'content_planning_analysis':
+      return { color: 'lime', text: '策划识别' };
     case 'image_generation':
       return { color: 'cyan', text: '图片生成' };
     case 'video_generation':

@@ -13,18 +13,63 @@ import {
   DeterministicContentPlanningAnalysisProvider,
   normalizeContentPlanningTimeRange,
 } from '../src/modules/content-planning/content-planning-analysis-runtime.js';
+import { contentPlanningBillingConfig } from '../src/config/env.js';
 import { contentRepository } from '../src/modules/content/content.repository.js';
 import { contentPlanningRepository } from '../src/modules/content-planning/content-planning.repository.js';
 import { ContentPlanningService } from '../src/modules/content-planning/content-planning.service.js';
+import type { ContentPlanningAnalysisBilling } from '../src/modules/content-planning/content-planning.service.js';
+import type { CreditReservation } from '../src/modules/billing/billing.types.js';
+
+const noOpAnalysisBilling: ContentPlanningAnalysisBilling = {
+  reserve: () => null,
+  complete: () => undefined,
+  fail: () => undefined,
+};
+
+class RecordingAnalysisBilling implements ContentPlanningAnalysisBilling {
+  reserveCalls = 0;
+  completeCalls = 0;
+  failCalls = 0;
+
+  reserve(input: Parameters<ContentPlanningAnalysisBilling['reserve']>[0]) {
+    this.reserveCalls += 1;
+    return {
+      id: `reservation-${input.sessionId}`,
+      userId: input.userId,
+      sourceType: 'content_planning_analysis',
+      sourceId: `${input.sessionId}:analysis:test`,
+      reservedCredits: 2,
+      status: 'reserved',
+      snapshot: { imageCount: input.imageCount, hasReferenceVideo: input.hasReferenceVideo },
+      createdAt: new Date().toISOString(),
+      settledAt: null,
+    } satisfies CreditReservation;
+  }
+
+  complete() {
+    this.completeCalls += 1;
+  }
+
+  fail() {
+    this.failCalls += 1;
+  }
+}
 
 const contentPlanningService = new ContentPlanningService(
   new DeterministicContentPlanningAgentProvider(),
   new DeterministicContentPlanningAnalysisProvider(),
+  noOpAnalysisBilling,
 );
 
 test('production planning provider is not the deterministic test provider', () => {
   assert.equal(createContentPlanningAgentProvider() instanceof DeterministicContentPlanningAgentProvider, false);
   assert.equal(createContentPlanningAnalysisProvider() instanceof DeterministicContentPlanningAnalysisProvider, false);
+});
+
+test('planning client config exposes the configured analysis charge', () => {
+  assert.deepEqual(contentPlanningService.getClientConfig(), {
+    analysisCredits: contentPlanningBillingConfig.analysisCredits,
+  });
 });
 
 test('reference breakdown time ranges are normalized to seconds', () => {
@@ -329,6 +374,7 @@ test('reference audio bypasses planning analysis and is returned when applying',
   const service = new ContentPlanningService(
     new DeterministicContentPlanningAgentProvider(),
     analysisProvider,
+    noOpAnalysisBilling,
   );
   const referenceAudioAssetId = createReferenceAudioAsset(userId);
   const { created, ready } = await advanceSessionToReady(userId, service, { referenceAudioAssetId });
@@ -371,6 +417,65 @@ test('planning session analysis is restorable and advances asynchronously', asyn
   assert.equal(completed.materialBundle.referenceVideo, null);
   assert.equal(completed.analysis.confirmed, false);
 
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('planning analysis settles its reserved fixed charge after success', async () => {
+  const billing = new RecordingAnalysisBilling();
+  const service = new ContentPlanningService(
+    new DeterministicContentPlanningAgentProvider(),
+    new DeterministicContentPlanningAnalysisProvider(),
+    billing,
+  );
+  const userId = `planning-test-${Date.now()}-analysis-billing-success`;
+  const created = createTestSession(userId, service);
+  const imageAssetId = createProductImageAsset(userId);
+  service.analyze({
+    userId,
+    sessionId: created.id,
+    productName: 'Test product',
+    imageAssetIds: [imageAssetId],
+  });
+
+  await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'confirming',
+  );
+  assert.equal(billing.reserveCalls, 1);
+  assert.equal(billing.completeCalls, 1);
+  assert.equal(billing.failCalls, 0);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('planning analysis releases its reserved fixed charge after failure', async () => {
+  const billing = new RecordingAnalysisBilling();
+  const analysisProvider = new class extends DeterministicContentPlanningAnalysisProvider {
+    override async analyzeProduct() {
+      throw new Error('analysis failed');
+    }
+  }();
+  const service = new ContentPlanningService(
+    new DeterministicContentPlanningAgentProvider(),
+    analysisProvider,
+    billing,
+  );
+  const userId = `planning-test-${Date.now()}-analysis-billing-failure`;
+  const created = createTestSession(userId, service);
+  const imageAssetId = createProductImageAsset(userId);
+  service.analyze({
+    userId,
+    sessionId: created.id,
+    productName: 'Test product',
+    imageAssetIds: [imageAssetId],
+  });
+
+  await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'failed',
+  );
+  assert.equal(billing.reserveCalls, 1);
+  assert.equal(billing.completeCalls, 0);
+  assert.equal(billing.failCalls, 1);
   contentPlanningRepository.deleteSession(created.id);
 });
 
@@ -472,6 +577,7 @@ test('deep-think generation exposes an in-progress reasoning stream before a sta
   const service = new ContentPlanningService(
     new StreamingDeterministicPlanningProvider(),
     new DeterministicContentPlanningAnalysisProvider(),
+    noOpAnalysisBilling,
   );
   const userId = `planning-test-${Date.now()}-reasoning-stream`;
   const { created, configured } = await advanceSessionToConfiguring(userId, service);
@@ -506,6 +612,7 @@ test('interrupted generation resumes after the last persisted completed stage', 
   const service = new ContentPlanningService(
     provider,
     new DeterministicContentPlanningAnalysisProvider(),
+    noOpAnalysisBilling,
   );
   const userId = `planning-test-${Date.now()}-resume-generation`;
   const { created, ready } = await advanceSessionToReady(userId, service);
@@ -694,6 +801,7 @@ test('failed generation keeps the session non-applicable', async () => {
   const service = new ContentPlanningService(
     new FailingValidatorProvider(),
     new DeterministicContentPlanningAnalysisProvider(),
+    noOpAnalysisBilling,
   );
   const userId = `planning-test-${Date.now()}-generate-failed`;
   const { created } = await advanceSessionToConfiguring(userId, service);

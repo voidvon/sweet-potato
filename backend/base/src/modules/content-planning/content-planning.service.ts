@@ -1,3 +1,11 @@
+import { randomUUID } from 'node:crypto';
+import { arkVideoUnderstandingConfig, contentPlanningBillingConfig } from '../../config/env.js';
+import {
+  releaseFixedBillableUsage,
+  reserveFixedBillableUsage,
+  settleFixedBillableUsage,
+} from '../billing/billing.service.js';
+import type { CreditReservation } from '../billing/billing.types.js';
 import { contentRepository } from '../content/content.repository.js';
 import type { ContentAsset } from '../content/content.types.js';
 import {
@@ -42,6 +50,52 @@ import type {
 
 const runningAnalysisJobs = new Set<string>();
 const runningGenerationJobs = new Set<string>();
+
+export type ContentPlanningAnalysisBilling = {
+  reserve(input: {
+    userId: string;
+    sessionId: string;
+    imageCount: number;
+    hasReferenceVideo: boolean;
+  }): CreditReservation | null;
+  complete(input: { reservation: CreditReservation; sessionId: string }): void;
+  fail(reservation: CreditReservation): void;
+};
+
+const defaultContentPlanningAnalysisBilling: ContentPlanningAnalysisBilling = {
+  reserve(input) {
+    if (contentPlanningBillingConfig.analysisCredits <= 0) {
+      return null;
+    }
+    return reserveFixedBillableUsage({
+      userId: input.userId,
+      category: 'content_planning_analysis',
+      sourceType: 'content_planning_analysis',
+      sourceId: `${input.sessionId}:analysis:${randomUUID()}`,
+      sessionId: input.sessionId,
+      credits: contentPlanningBillingConfig.analysisCredits,
+      step: 'content_planning_analysis',
+      stepLabel: '爆款策划素材识别',
+      requestSnapshot: {
+        imageCount: input.imageCount,
+        hasReferenceVideo: input.hasReferenceVideo,
+      },
+    });
+  },
+  complete(input) {
+    settleFixedBillableUsage({
+      reservation: input.reservation,
+      category: 'content_planning_analysis',
+      provider: 'volcengine-ark',
+      model: arkVideoUnderstandingConfig.model,
+      sessionId: input.sessionId,
+      responseSnapshot: { status: 'completed' },
+    });
+  },
+  fail(reservation) {
+    releaseFixedBillableUsage(reservation);
+  },
+};
 
 function nowIso() {
   return new Date().toISOString();
@@ -334,7 +388,14 @@ export class ContentPlanningService {
   constructor(
     private readonly provider: ContentPlanningAgentProvider = createContentPlanningAgentProvider(),
     private readonly analysisProvider: ContentPlanningAnalysisProvider = createContentPlanningAnalysisProvider(),
+    private readonly analysisBilling: ContentPlanningAnalysisBilling = defaultContentPlanningAnalysisBilling,
   ) {}
+
+  getClientConfig() {
+    return {
+      analysisCredits: contentPlanningBillingConfig.analysisCredits,
+    };
+  }
 
   createSession(input: CreateContentPlanningSessionPayload) {
     const sourceSurface = input.sourceSurface || 'create_video';
@@ -413,25 +474,46 @@ export class ContentPlanningService {
         useBreakdown: Boolean(referenceVideo),
       },
     };
-    const next = contentPlanningRepository.updateSession(input.sessionId, {
-      status: 'analyzing',
-      uiStep: 'step1',
-      jobStage: 'analyzing_materials',
-      materialBundle,
-      settings,
-      generation: resetGeneration(),
-      applySnapshot: null,
-      errorMessage: '',
+    const analysisReservation = this.analysisBilling.reserve({
+      userId: input.userId,
+      sessionId: input.sessionId,
+      imageCount: imageMaterials.length,
+      hasReferenceVideo: Boolean(referenceVideo),
     });
+    let next: ContentPlanningSession | null = null;
+    try {
+      next = contentPlanningRepository.updateSession(input.sessionId, {
+        status: 'analyzing',
+        uiStep: 'step1',
+        jobStage: 'analyzing_materials',
+        materialBundle,
+        settings,
+        generation: resetGeneration(),
+        applySnapshot: null,
+        errorMessage: '',
+      });
+    } catch (error) {
+      if (analysisReservation) {
+        this.analysisBilling.fail(analysisReservation);
+      }
+      throw error;
+    }
     if (!next) {
+      if (analysisReservation) {
+        this.analysisBilling.fail(analysisReservation);
+      }
       throw new Error('planning session could not be updated');
     }
     runningAnalysisJobs.add(next.id);
-    void this.runAnalysis(next.id, input.userId);
+    void this.runAnalysis(next.id, input.userId, analysisReservation);
     return next;
   }
 
-  private async runAnalysis(sessionId: string, userId: string) {
+  private async runAnalysis(
+    sessionId: string,
+    userId: string,
+    analysisReservation: CreditReservation | null,
+  ) {
     try {
       await Promise.resolve();
       let session = this.getSession(userId, sessionId);
@@ -473,13 +555,30 @@ export class ContentPlanningService {
             : null,
         })
         : null;
-      contentPlanningRepository.updateSession(sessionId, {
+      const completed = contentPlanningRepository.updateSession(sessionId, {
         status: 'confirming',
         uiStep: 'step2',
         jobStage: 'completed',
         analysis: { ...analysis, viralBreakdown },
       });
+      if (!completed) {
+        throw new Error('planning session could not be updated');
+      }
+      if (analysisReservation) {
+        this.analysisBilling.complete({ reservation: analysisReservation, sessionId });
+      }
     } catch (error) {
+      if (analysisReservation) {
+        try {
+          this.analysisBilling.fail(analysisReservation);
+        } catch (billingError) {
+          logger.error('content planning analysis credit release failed', {
+            sessionId,
+            userId,
+            error: errorMessage(billingError),
+          });
+        }
+      }
       contentPlanningRepository.updateSession(sessionId, {
         status: 'failed',
         jobStage: 'failed',

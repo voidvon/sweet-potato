@@ -228,6 +228,7 @@ export type BillableUsageRecord = {
   id: string;
   userId: string;
   category:
+    | 'content_planning_analysis'
     | 'image_generation'
     | 'video_generation'
     | 'voice_clone'
