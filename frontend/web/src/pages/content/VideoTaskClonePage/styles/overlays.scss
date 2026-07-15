@@ -935,6 +935,7 @@
 .video-task-epa-audio-upload strong {
   color: #1d1d1f;
   display: block;
+  flex: 1;
   font-size: 16px;
   font-weight: 700;
   line-height: 1.45;
@@ -967,6 +968,7 @@
 }
 
 .video-task-reference-thumb {
+  flex-shrink: 0;
   background: #000;
   border: 0;
   border-radius: 16px;
@@ -1002,12 +1004,16 @@
 }
 
 .video-task-reference-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .video-task-reference-info strong {
+  min-width: 0;
+  width: 100%;
   color: #1d1d1f;
   display: block;
   font-size: 14px;
@@ -1026,7 +1032,6 @@
 .video-task-reference-actions {
   display: flex;
   gap: 14px;
-  margin-top: 4px;
 }
 
 .video-task-reference-actions button {
@@ -1061,25 +1066,33 @@
   align-items: center;
   background: #fff;
   border: 1px solid #ebecef;
-  border-radius: 22px;
+  border-radius: 16px;
   display: grid;
-  gap: 16px;
-  grid-template-columns: 44px 1fr auto;
-  min-height: 88px;
-  padding: 18px 20px;
+  gap: 12px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 72px;
+  padding: 14px 16px;
 }
 
 .video-task-epa-audio-play {
   align-items: center;
-  background: #111827;
+  background: transparent;
   border: 0;
-  border-radius: 999px;
-  color: #fff;
+  border-radius: 4px;
+  color: #111827;
   cursor: pointer;
   display: inline-flex;
-  height: 44px;
+  height: 24px;
   justify-content: center;
-  width: 44px;
+  padding: 0;
+  width: 24px;
+}
+
+.video-task-epa-audio-info {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
 }
 
 .video-task-epa-audio-info strong {
@@ -1088,13 +1101,17 @@
   font-size: 16px;
   font-weight: 700;
   line-height: 1.45;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-task-epa-audio-info span {
   color: #9ca3af;
-  display: block;
+  flex: none;
   font-size: 13px;
-  margin-top: 4px;
+  white-space: nowrap;
 }
 
 .video-task-epa-inline-input,
@@ -1585,17 +1602,32 @@
   background: #eff1f5;
   border-radius: 999px;
   height: 4px;
+  isolation: isolate;
   margin-top: 20px;
   overflow: hidden;
+  position: relative;
 }
 
 .video-task-epa-loading-progress span {
-  background: linear-gradient(90deg, #d6d9de 0%, #111827 42%, #d6d9de 100%);
+  background: #d7dbe2;
   border-radius: inherit;
   display: block;
   height: 100%;
   min-width: 12%;
   transition: width 0.2s ease;
+}
+
+.video-task-epa-loading-progress::after {
+  animation: video-task-epa-loading-sweep 1.45s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  background: linear-gradient(90deg, rgba(17, 24, 39, 0) 0%, #111827 48%, rgba(17, 24, 39, 0) 100%);
+  border-radius: inherit;
+  content: '';
+  inset-block: 0;
+  left: 0;
+  position: absolute;
+  transform: translateX(-120%);
+  width: 22%;
+  z-index: 1;
 }
 
 .video-task-epa-stage-strip {
@@ -1693,8 +1725,6 @@
   font-size: 15px;
   line-height: 1.75;
   margin: 0;
-  max-height: 220px;
-  overflow: auto;
   padding: 0 18px 18px;
   white-space: pre-wrap;
 }
@@ -1738,6 +1768,11 @@
   50% { background-position: 0 0; }
 }
 
+@keyframes video-task-epa-loading-sweep {
+  0%, 12% { transform: translateX(-120%); }
+  76%, 100% { transform: translateX(470%); }
+}
+
 @keyframes video-task-epa-thinking-pulse {
   0% { opacity: 0.7; transform: scale(0.9); }
   70%, 100% { opacity: 0; transform: scale(2.2); }
@@ -1750,9 +1785,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .video-task-epa-stage-pill.is-running,
+  .video-task-epa-loading-progress::after,
   .video-task-epa-thinking-dot::after,
   .video-task-epa-thinking-dots i {
     animation: none;
+  }
+
+  .video-task-epa-loading-progress::after {
+    display: none;
   }
 
   .video-task-epa-thinking-dots i {
@@ -1763,7 +1803,7 @@
 .video-task-epa-candidate-row {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .video-task-epa-candidate-card {
@@ -2082,12 +2122,6 @@
     padding: 18px;
   }
 
-  .video-task-reference-card {
-    gap: 16px;
-    grid-template-columns: 176px 1fr;
-  }
-
-
   .video-task-epa-footer {
     flex-wrap: wrap;
     gap: 14px;
@@ -2193,13 +2227,6 @@
 .video-task-epa-audio-upload strong,
 .video-task-epa-audio-info strong {
   font-size: 14px;
-}
-
-.video-task-reference-card {
-  border-radius: 16px;
-  gap: 16px;
-  grid-template-columns: 176px 1fr;
-  padding: 14px;
 }
 
 
@@ -2365,13 +2392,12 @@
 .video-task-epa-thinking-body {
   font-size: 13px;
   line-height: 1.65;
-  max-height: 190px;
   padding: 0 15px 15px;
 }
 
 .video-task-epa-candidate-row {
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .video-task-epa-candidate-card {

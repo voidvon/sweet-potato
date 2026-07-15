@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   Minus,
   Music4,
-  Play,
   Plus,
   Video,
   RefreshCcw,
@@ -146,7 +145,7 @@ const stageItems: PlanningStageItem[] = [
   { jobStage: 'strategy_running', role: 'Strategy', shortLabel: '方向' },
   { jobStage: 'timeline_running', role: 'Timeline', shortLabel: '节奏' },
   { jobStage: 'copywriter_running', role: 'Copywriter', shortLabel: '文案' },
-  { jobStage: 'visual_director_running', role: 'Visual', shortLabel: '分镜' },
+  { jobStage: 'visual_director_running', role: 'Visual Director', shortLabel: '分镜' },
   { jobStage: 'validator_running', role: 'Validator', shortLabel: '校验' },
 ];
 
@@ -212,7 +211,6 @@ export function PromptPlanningModal({
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const thinkingBodyRef = useRef<HTMLPreElement | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>('idle');
   const [session, setSession] = useState<PlanningSession | null>(null);
   const [viewStep, setViewStep] = useState<PlanningUiStep>('step1');
@@ -507,19 +505,6 @@ export function PromptPlanningModal({
       source.close();
     };
   }, [session?.id, session?.status]);
-
-  useEffect(() => {
-    if (!thinkingText || isThinkingCollapsed || session?.status !== 'generating') {
-      return undefined;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      const body = thinkingBodyRef.current;
-      if (body) {
-        body.scrollTop = body.scrollHeight;
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [isThinkingCollapsed, session?.status, thinkingText]);
 
   const handleAnalyze = async () => {
     if (analyzeLockRef.current || busyActionRef.current !== 'idle' || session?.status === 'analyzing') {
@@ -1364,7 +1349,6 @@ export function PromptPlanningModal({
                             aria-busy={isWaitingForThinkingDelta}
                             aria-live="polite"
                             className="video-task-epa-thinking-body"
-                            ref={thinkingBodyRef}
                           >
                             {thinkingText}
                             {isWaitingForThinkingDelta ? (
@@ -1991,11 +1975,16 @@ function AudioReferenceCard({
 
   return (
     <div className="video-task-epa-audio-card">
-      <button className="video-task-epa-audio-play" onClick={onPlayToggle} type="button">
-        <Play size={18} fill="currentColor" />
+      <button
+        aria-label={isPlaying ? '暂停参考音色' : '试听参考音色'}
+        className="video-task-epa-audio-play"
+        onClick={onPlayToggle}
+        type="button"
+      >
+        <Music4 aria-hidden="true" size={20} />
       </button>
       <div className="video-task-epa-audio-info">
-        <strong>{file.name}</strong>
+        <strong title={file.name}>{file.name}</strong>
         <span>{isPlaying ? '播放中' : duration}</span>
       </div>
       <div className="video-task-reference-actions">
