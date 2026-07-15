@@ -71,6 +71,15 @@ class StreamingDeterministicPlanningProvider extends DeterministicContentPlannin
   }
 }
 
+class CountingDeterministicPlanningProvider extends DeterministicContentPlanningAgentProvider {
+  plannerCalls = 0;
+
+  override async planner(context: PlanningRuntimeContext) {
+    this.plannerCalls += 1;
+    return super.planner(context);
+  }
+}
+
 async function waitFor<T>(read: () => T, predicate: (value: T) => boolean, timeoutMs = 2000) {
   const deadline = Date.now() + timeoutMs;
   let value = read();
@@ -377,6 +386,53 @@ test('deep-think generation exposes an in-progress reasoning stream before a sta
   );
   assert.equal(ready.generation.reasoningStream, null);
   assert.equal(ready.generation.reasoningLogs.length, 6);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('interrupted generation resumes after the last persisted completed stage', async () => {
+  const provider = new CountingDeterministicPlanningProvider();
+  const service = new ContentPlanningService(
+    provider,
+    new DeterministicContentPlanningAnalysisProvider(),
+  );
+  const userId = `planning-test-${Date.now()}-resume-generation`;
+  const { created, ready } = await advanceSessionToReady(userId, service);
+  assert.equal(provider.plannerCalls, 1);
+  const plannerOutput = ready.generation.stageOutputs.planner;
+  assert.ok(plannerOutput);
+  const interrupted = contentPlanningRepository.updateSession(created.id, {
+    status: 'generating',
+    uiStep: 'step4',
+    jobStage: 'strategy_running',
+    generation: {
+      ...ready.generation,
+      stages: ready.generation.stages.map((stage) => ({
+        ...stage,
+        status: stage.role === 'Planner' ? 'completed' : 'pending',
+        ...(stage.role === 'Planner' ? {} : {
+          outputSummary: '',
+          startedAt: undefined,
+          completedAt: undefined,
+        }),
+      })),
+      candidates: [],
+      selectedCandidateId: '',
+      validatorSummary: '',
+      stageOutputs: { planner: plannerOutput },
+      reasoningLogs: ready.generation.reasoningLogs.filter((log) => log.role === 'Planner'),
+      reasoningStream: null,
+    },
+  });
+  assert.ok(interrupted);
+  assert.equal(service.resumeInterruptedGeneration(created.id), true);
+
+  const resumed = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'ready_to_apply',
+  );
+  assert.equal(provider.plannerCalls, 1);
+  assert.ok(resumed.generation.candidates.length);
+  assert.ok(resumed.generation.stages.every((stage) => stage.status === 'completed'));
   contentPlanningRepository.deleteSession(created.id);
 });
 

@@ -19,6 +19,7 @@ import {
   type ContentPlanningAnalysisProvider,
 } from './content-planning-analysis-runtime.js';
 import { publishContentPlanningEvent } from './content-planning.events.js';
+import { logger } from '../../shared/logger.js';
 import type {
   AgentStage,
   ContentPlanningAgentStageStatus,
@@ -536,8 +537,12 @@ export class ContentPlanningService {
     if (!session.analysis.confirmed) {
       throw new Error('confirm planning analysis before generating candidates');
     }
-    if (runningGenerationJobs.has(sessionId) || session.status === 'generating') {
+    if (runningGenerationJobs.has(sessionId)) {
       return session;
+    }
+    if (session.status === 'generating') {
+      this.resumeInterruptedGeneration(sessionId);
+      return this.getSession(userId, sessionId);
     }
     const generation: ContentPlanningGeneration = {
       ...resetGeneration(),
@@ -557,6 +562,37 @@ export class ContentPlanningService {
     runningGenerationJobs.add(sessionId);
     void this.runGeneration(sessionId, userId);
     return next;
+  }
+
+  resumeInterruptedGenerationsOnStartup() {
+    const sessions = contentPlanningRepository.listSessionsByStatuses(['generating']);
+    if (!sessions.length) {
+      logger.info('no interrupted content planning generations to resume');
+      return 0;
+    }
+    logger.info('resuming interrupted content planning generations', {
+      count: sessions.length,
+      sessionIds: sessions.map((session) => session.id),
+    });
+    sessions.forEach((session) => {
+      this.resumeInterruptedGeneration(session.id);
+    });
+    return sessions.length;
+  }
+
+  resumeInterruptedGeneration(sessionId: string) {
+    const session = contentPlanningRepository.findSession(sessionId);
+    if (!session || session.status !== 'generating' || runningGenerationJobs.has(sessionId)) {
+      return false;
+    }
+    runningGenerationJobs.add(sessionId);
+    logger.warn('resuming interrupted content planning generation', {
+      sessionId,
+      userId: session.userId,
+      jobStage: session.jobStage,
+    });
+    void this.runGeneration(sessionId, session.userId);
+    return true;
   }
 
   private async runGeneration(sessionId: string, userId: string) {
@@ -658,17 +694,29 @@ export class ContentPlanningService {
         return output;
       };
 
-      const brief = await execute('Planner', (onAuditDelta) => this.provider.planner({ ...context, onAuditDelta }));
+      const executeOrRestore = async <T>(
+        role: AgentStage['role'],
+        action: (onAuditDelta?: (delta: string) => void) => Promise<T>,
+      ) => {
+        const stage = generation.stages.find((item) => item.role === role);
+        const restored = generation.stageOutputs[stageOutputKey(role)] as T | undefined;
+        if (stage?.status === 'completed' && restored !== undefined) {
+          return restored;
+        }
+        return execute(role, action);
+      };
+
+      const brief = await executeOrRestore('Planner', (onAuditDelta) => this.provider.planner({ ...context, onAuditDelta }));
       context = { ...context, brief };
-      const strategies = await execute('Strategy', (onAuditDelta) => this.provider.strategy({ ...context, onAuditDelta }));
+      const strategies = await executeOrRestore('Strategy', (onAuditDelta) => this.provider.strategy({ ...context, onAuditDelta }));
       context = { ...context, strategies };
-      const timelines = await execute('Timeline', (onAuditDelta) => this.provider.timeline({ ...context, onAuditDelta }));
+      const timelines = await executeOrRestore('Timeline', (onAuditDelta) => this.provider.timeline({ ...context, onAuditDelta }));
       context = { ...context, timelines };
-      const scripts = await execute('Copywriter', (onAuditDelta) => this.provider.copywriter({ ...context, onAuditDelta }));
+      const scripts = await executeOrRestore('Copywriter', (onAuditDelta) => this.provider.copywriter({ ...context, onAuditDelta }));
       context = { ...context, scripts };
-      const candidates = await execute('Visual Director', (onAuditDelta) => this.provider.visualDirector({ ...context, onAuditDelta }));
+      const candidates = await executeOrRestore('Visual Director', (onAuditDelta) => this.provider.visualDirector({ ...context, onAuditDelta }));
       context = { ...context, candidates };
-      const validated = await execute('Validator', (onAuditDelta) => this.provider.validator({ ...context, candidates, onAuditDelta }));
+      const validated = await executeOrRestore('Validator', (onAuditDelta) => this.provider.validator({ ...context, candidates, onAuditDelta }));
       generation = {
         ...generation,
         candidates: validated.candidates,
