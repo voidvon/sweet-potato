@@ -563,7 +563,7 @@
   color: #141414;
   display: flex;
   flex-direction: column;
-  height: min(960px, calc(100vh - 32px));
+  height: min(1040px, calc(100vh - 32px));
   max-height: calc(100vh - 32px);
   overflow: hidden;
   width: 100%;
@@ -928,22 +928,23 @@
 .video-task-epa-audio-upload {
   align-items: center;
   background: #fcfcfd;
-  border: 1px dashed #d7d8de;
-  border-radius: 22px;
-  color: #6b7280;
+  border: 1.5px dashed rgba(60,60,67,.2);
+  border-radius: 14px;
+  background: #7676800d;
+  color: #1d1d1f;
   cursor: pointer;
   display: flex;
-  gap: 14px;
-  min-height: 88px;
-  padding: 18px 24px;
-  transition: border-color 0.16s ease, background-color 0.16s ease;
+  gap: 8px;
+  min-height: 52px;
+  padding: 12px 16px;
+  transition: border-color .2s ease,background .2s ease,color .2s ease;
 }
 
 .video-task-epa-upload-strip:hover,
 .video-task-epa-upload-bar:hover,
 .video-task-epa-audio-upload:hover {
-  background: #fafafc;
-  border-color: #bfc3cf;
+  background: #eaf4ff;
+  border-color: #000;
 }
 
 .video-task-epa-upload-strip {
@@ -981,11 +982,11 @@
   align-items: center;
   background: #fff;
   border: 1px solid #ebecef;
-  border-radius: 22px;
-  display: grid;
-  gap: 20px;
-  grid-template-columns: 220px 1fr;
-  padding: 20px;
+  border-radius: 14px;
+  display: flex;
+  gap: 14px;
+  box-shadow: 0 8px 22px -18px #0f172a40;
+  padding: 12px;
   width: 100%;
 }
 
@@ -994,11 +995,11 @@
   border: 0;
   border-radius: 16px;
   cursor: pointer;
-  height: 124px;
+  height: 84px;
   overflow: hidden;
   padding: 0;
   position: relative;
-  width: 220px;
+  width: 140px;
 }
 
 .video-task-reference-thumb video {
@@ -1014,48 +1015,55 @@
   border-radius: 999px;
   color: #111827;
   display: flex;
-  height: 48px;
+  height: 38px;
+  width: 38px;
   justify-content: center;
   left: 50%;
   padding-left: 3px;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 48px;
+}
+
+.video-task-reference-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .video-task-reference-info strong {
   color: #1d1d1f;
   display: block;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.4;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .video-task-reference-info > span {
   color: #8e8e93;
   display: block;
-  font-size: 14px;
-  line-height: 1.55;
-  margin-top: 6px;
+  font-size: 12px;
 }
 
 .video-task-reference-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
-  margin-top: 14px;
+  gap: 14px;
+  margin-top: 4px;
 }
 
 .video-task-reference-actions button {
-  background: transparent;
+  background: none;
   border: 0;
   color: #111827;
   cursor: pointer;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.45;
+  font-size: 13px;
+  font-weight: 600;
   padding: 0;
+  &:hover {
+   text-decoration: underline;
+  }
 }
 
 .video-task-reference-actions button.is-danger {
@@ -1117,28 +1125,27 @@
 .video-task-epa-large-textarea,
 .video-task-epa-caption-edit textarea,
 .video-task-epa-script-editor {
-  background: #fff;
-  border: 1px solid #dfe3ea;
+  background: #7676800f;
+  border: 1px solid rgba(60,60,67,.12);
   border-radius: 12px;
-  color: #111827;
-  font: inherit;
-  outline: 0;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  color: #1d1d1f;
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 11px 14px;
+  transition: border-color .2s ease,box-shadow .2s ease,background .2s ease;
+  width: 100%;
 }
 
 .video-task-epa-inline-input:focus,
 .video-task-epa-large-textarea:focus,
 .video-task-epa-caption-edit textarea:focus,
 .video-task-epa-script-editor:focus {
-  border-color: #111827;
-  box-shadow: inset 0 0 0 1px #0f172a05,0 8px 24px #0f172a0b;
+    background: #fff;
+    border-color: #000;
+    box-shadow: 0 0 0 4px color-mix(in srgb,var(--color-workspace-accent,#16a34a) 18%,transparent);
+    outline: none;
 }
 
-.video-task-epa-inline-input {
-  height: 64px;
-  padding: 0 20px;
-  width: 100%;
-}
 
 .video-task-epa-large-textarea {
   min-height: 80px;
@@ -2102,10 +2109,6 @@
     grid-template-columns: 176px 1fr;
   }
 
-  .video-task-reference-thumb {
-    height: 102px;
-    width: 176px;
-  }
 
   .video-task-epa-footer {
     flex-wrap: wrap;
@@ -2128,12 +2131,6 @@
 .video-task-epa-modal.ant-modal .ant-modal-content {
   border-radius: 20px;
 }
-
-.video-task-epa-panel {
-  height: min(720px, calc(100vh - 48px));
-  max-height: calc(100vh - 48px);
-}
-
 .video-task-epa-head {
   min-height: 86px;
   padding: 22px 26px 18px;
@@ -2208,8 +2205,10 @@
   font-size: 12px;
 }
 
-.video-task-epa-upload-bar,
-.video-task-epa-audio-upload {
+.video-task-epa-upload-bar{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   border-radius: 14px;
   min-height: 72px;
   padding: 14px 18px;
@@ -2228,26 +2227,6 @@
   padding: 14px;
 }
 
-.video-task-reference-thumb {
-  border-radius: 12px;
-  height: 100px;
-  width: 176px;
-}
-
-.video-task-reference-info strong {
-  font-size: 16px;
-}
-
-.video-task-reference-info > span,
-.video-task-reference-actions button {
-  font-size: 13px;
-}
-
-.video-task-epa-inline-input {
-  border-radius: 12px;
-  height: 52px;
-  padding: 0 16px;
-}
 
 .video-task-epa-card,
 .video-task-epa-breakdown-card,

@@ -9,6 +9,7 @@ import {
   Music4,
   Play,
   Plus,
+  Video,
   RefreshCcw,
   Trash2,
   X,
@@ -932,11 +933,9 @@ export function PromptPlanningModal({
                         />
                       ) : (
                         <button className="video-task-epa-upload-bar" onClick={triggerVideoInput} type="button">
-                          <Plus size={20} />
-                          <div>
-                            <strong>点击上传参考视频</strong>
-                            <span>支持 mp4 / mov，识别时会自动拆解节奏与镜头结构</span>
-                          </div>
+                          <Video size={20} />
+                          <strong>点击上传参考视频</strong>
+                          <span>支持 mp4 / mov，识别时会自动拆解节奏与镜头结构</span>
                         </button>
                       )}
 
@@ -955,7 +954,7 @@ export function PromptPlanningModal({
                       ) : (
                         <button className="video-task-epa-audio-upload" onClick={triggerAudioInput} type="button">
                           <div className="video-task-epa-audio-upload-main">
-                            <Music4 size={24} />
+                            <Music4 size={16} />
                             <strong>点击上传参考音色</strong>
                           </div>
                           <span>mp3 / wav · 口播对口型用该音色</span>
