@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_DIR="$ROOT_DIR/docker_run"
 
+source "$ROOT_DIR/scripts/release-version.sh"
+trap rollback_release_version EXIT
+
 FRONTEND_DIR="$ROOT_DIR/frontend"
 WEB_DIR="$ROOT_DIR/frontend/web"
 ADMIN_DIR="$ROOT_DIR/frontend/admin"
@@ -147,6 +150,7 @@ pnpm_cmd() {
 
 select_mirror_profile
 select_package_environment
+begin_release_version "$ROOT_DIR"
 
 echo "==> Cleaning docker_run"
 rm -rf "$RUN_DIR"
@@ -206,6 +210,7 @@ echo "==> Creating empty runtime data directories"
 echo "==> Writing docker runtime files"
 cat > "$RUN_DIR/.env" <<EOF
 PACKAGE_ENV=$PACKAGE_ENV
+APP_VERSION=$APP_VERSION
 VITE_API_BASE_URL=$VITE_API_BASE_URL
 WEB_ASSET_BASE=$WEB_ASSET_BASE
 WEB_ROUTER_BASENAME=$WEB_ROUTER_BASENAME
@@ -232,6 +237,7 @@ GIT_COMMIT="$(resolve_git_commit)"
 
 cat > "$RUN_DIR/.build-info" <<EOF
 BUILD_TIME=$BUILD_TIME
+APP_VERSION=$APP_VERSION
 PACKAGE_ENV=$PACKAGE_ENV
 GIT_COMMIT=$GIT_COMMIT
 WEB_HOST_PORT=$WEB_HOST_PORT
@@ -268,6 +274,7 @@ $BASE_EXTRA_HOSTS
       - ./base/.env
     environment:
       NODE_ENV: production
+      APP_VERSION: "$APP_VERSION"
       PORT: "7072"
       DATA_DIR: /app/data
       PYTHON_AI_WORKER_URL: $BASE_WORKER_URL
@@ -302,6 +309,7 @@ $BASE_PUBLIC_ENV
     env_file:
       - ./ai-worker/.env
     environment:
+      APP_VERSION: "$APP_VERSION"
       PYTHON_AI_WORKER_HOST: 0.0.0.0
       PYTHON_AI_WORKER_PORT: "7073"
       AI_WORKER_VIDEODATA_DIR: /app/videodata
@@ -367,6 +375,14 @@ server {
 
   location = /admin {
     return 301 /admin/;
+  }
+
+  location = /version.js {
+    add_header Cache-Control "no-store";
+  }
+
+  location = /admin/version.js {
+    add_header Cache-Control "no-store";
   }
 
   location /admin/ {
@@ -446,6 +462,7 @@ cp "$LOCAL_RUN_SCRIPT" "$RUN_DIR/run.sh"
 chmod +x "$RUN_DIR/run.sh"
 
 echo "==> Done"
+echo "App version: $APP_VERSION"
 echo "Package environment: $PACKAGE_ENV"
 echo "Web API base URL: ${VITE_API_BASE_URL:-same-origin}"
 echo "Web asset base: $WEB_ASSET_BASE"
@@ -460,3 +477,5 @@ fi
 echo "Runtime package: $RUN_DIR"
 echo "Run with:"
 echo "  cd docker_run && ./run.sh"
+
+complete_release_version

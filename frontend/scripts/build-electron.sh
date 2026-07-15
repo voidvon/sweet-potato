@@ -5,28 +5,43 @@ set -Eeuo pipefail
 
 # 确保在 frontend 目录
 cd "$(dirname "$0")/.."
+FRONTEND_DIR="$(pwd)"
+ROOT_DIR="$(cd .. && pwd)"
+
+source "$ROOT_DIR/scripts/release-version.sh"
 
 PLATFORM="${1:-mac_arm64}"
 NODE_MODULES_BACKUP="node_modules.pnpm.backup"
 PACKAGE_JSON_BACKUP="package.json.backup"
 PACKAGE_LOCK_BACKUP="package-lock.json.backup"
+PNPM_ENV_BACKED_UP=0
 
 cleanup() {
   local exit_code=$?
 
+  cd "$FRONTEND_DIR"
+
   echo "[6/6] 恢复 pnpm 环境..."
-  if [ -f "$PACKAGE_JSON_BACKUP" ]; then
-    mv "$PACKAGE_JSON_BACKUP" package.json
+  if [ "$PNPM_ENV_BACKED_UP" -eq 1 ]; then
+    if [ -f "$PACKAGE_JSON_BACKUP" ]; then
+      mv "$PACKAGE_JSON_BACKUP" package.json
+    fi
+
+    rm -rf node_modules package-lock.json
+    if [ -f "$PACKAGE_LOCK_BACKUP" ]; then
+      mv "$PACKAGE_LOCK_BACKUP" package-lock.json
+    fi
+
+    if [ -d "$NODE_MODULES_BACKUP" ]; then
+      mv "$NODE_MODULES_BACKUP" node_modules
+      echo "  ✓ pnpm 环境已恢复"
+    fi
   fi
 
-  rm -rf node_modules package-lock.json
-  if [ -f "$PACKAGE_LOCK_BACKUP" ]; then
-    mv "$PACKAGE_LOCK_BACKUP" package-lock.json
-  fi
-
-  if [ -d "$NODE_MODULES_BACKUP" ]; then
-    mv "$NODE_MODULES_BACKUP" node_modules
-    echo "  ✓ pnpm 环境已恢复"
+  if [ "$exit_code" -eq 0 ]; then
+    complete_release_version
+  else
+    rollback_release_version
   fi
 
   exit "$exit_code"
@@ -200,7 +215,10 @@ sync_electron_runtime_assets() {
   echo "  ✓ 星图筛选 schema 已复制到 Electron 运行时资源"
 }
 
+begin_release_version "$ROOT_DIR"
+
 echo "==== Electron 打包流程 ===="
+echo "版本: $APP_VERSION"
 echo "平台: $PLATFORM"
 echo "工作目录: $(pwd)"
 echo ""
@@ -222,6 +240,7 @@ sync_electron_runtime_assets
 # 2. 清理并备份 pnpm node_modules
 echo "[2/6] 备份 pnpm 环境..."
 rm -rf "$NODE_MODULES_BACKUP" "$PACKAGE_JSON_BACKUP" "$PACKAGE_LOCK_BACKUP"
+PNPM_ENV_BACKED_UP=1
 if [ -d node_modules ]; then
   mv node_modules "$NODE_MODULES_BACKUP"
 fi

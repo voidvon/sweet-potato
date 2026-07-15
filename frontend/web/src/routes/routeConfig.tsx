@@ -621,6 +621,14 @@ function getGroupSortOrder(groupKey: SidebarGroupKey, children: Array<{ sortOrde
 }
 
 function getFirstPermittedBusinessRoute(currentUser: User) {
+  const preferredRoute = workspacePageDefinitions.find((item) => (
+    item.fullPath === routePaths.contentDefault
+    && isVisibleWorkspacePage(item, currentUser)
+  ));
+  if (preferredRoute) {
+    return preferredRoute.fullPath;
+  }
+
   const route = workspacePageDefinitions.find((item) => (
     item.key !== 'account'
     && item.key !== 'content-root'
@@ -888,6 +896,15 @@ export function getDefaultAppPath(currentUser: User) {
 }
 
 export function getContentDefaultPath(currentUser: User) {
+  const preferredContentRoute = workspacePageDefinitions.find((route) => (
+    route.fullPath === routePaths.contentDefault
+    && route.handle?.contentNavigation
+    && isVisibleWorkspacePage(route, currentUser)
+  ));
+  if (preferredContentRoute) {
+    return preferredContentRoute.fullPath;
+  }
+
   const firstContentRoute = workspacePageDefinitions.find((route) => (
     route.handle?.contentNavigation && isVisibleWorkspacePage(route, currentUser)
   ));

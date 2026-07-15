@@ -25,4 +25,4 @@ frontend/build/extraResources/
 .installers/
 .codex-run
 .codex-dev*.log
-
+.version-release.lock/
