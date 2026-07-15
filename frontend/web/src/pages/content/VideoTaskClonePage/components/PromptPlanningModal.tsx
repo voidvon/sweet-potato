@@ -1461,7 +1461,7 @@ export function PromptPlanningModal({
 
                         <section className="video-task-epa-script-card">
                           <div className="video-task-epa-script-head">
-                            <div>
+                            <div className="video-task-epa-script-title">
                               <strong>选中脚本（逐秒分镜）</strong>
                               <span>点「编辑」可微调，确认后回填</span>
                             </div>

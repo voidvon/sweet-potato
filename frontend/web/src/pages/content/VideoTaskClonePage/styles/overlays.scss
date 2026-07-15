@@ -1156,8 +1156,7 @@
 }
 
 .video-task-epa-card,
-.video-task-epa-breakdown-card,
-.video-task-epa-script-card {
+.video-task-epa-breakdown-card {
   background: #fff;
   border: 1px solid #eceef2;
   border-radius: 22px;
@@ -1862,6 +1861,7 @@
   flex-direction: column;
   gap: 14px;
   min-height: 0;
+  padding: 0;
 }
 
 .video-task-epa-script-head {
@@ -1869,6 +1869,14 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.video-task-epa-script-title {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .video-task-epa-script-head strong {
@@ -1884,19 +1892,19 @@
   display: block;
   font-size: 14px;
   line-height: 1.45;
-  margin-top: 4px;
 }
 
 .video-task-epa-edit-btn {
   background: #fff;
   border: 1px solid #dfe3ea;
-  border-radius: 14px;
+  border-radius: 10px;
   color: #4b5563;
   cursor: pointer;
-  font-size: 15px;
+  flex: none;
+  font-size: 13px;
   font-weight: 700;
-  height: 40px;
-  padding: 0 16px;
+  height: 32px;
+  padding: 0 12px;
 }
 
 .video-task-epa-script-editor {
@@ -2117,8 +2125,7 @@
   }
 
   .video-task-epa-card,
-  .video-task-epa-breakdown-card,
-  .video-task-epa-script-card {
+  .video-task-epa-breakdown-card {
     padding: 18px;
   }
 
@@ -2228,8 +2235,7 @@
 
 
 .video-task-epa-card,
-.video-task-epa-breakdown-card,
-.video-task-epa-script-card {
+.video-task-epa-breakdown-card {
   border-radius: 16px;
   padding: 16px 18px;
 }
