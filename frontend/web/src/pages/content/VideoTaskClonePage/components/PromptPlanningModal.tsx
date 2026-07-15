@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   Minus,
   Music4,
-  Play,
   Plus,
   Video,
   RefreshCcw,
@@ -146,7 +145,7 @@ const stageItems: PlanningStageItem[] = [
   { jobStage: 'strategy_running', role: 'Strategy', shortLabel: '方向' },
   { jobStage: 'timeline_running', role: 'Timeline', shortLabel: '节奏' },
   { jobStage: 'copywriter_running', role: 'Copywriter', shortLabel: '文案' },
-  { jobStage: 'visual_director_running', role: 'Visual', shortLabel: '分镜' },
+  { jobStage: 'visual_director_running', role: 'Visual Director', shortLabel: '分镜' },
   { jobStage: 'validator_running', role: 'Validator', shortLabel: '校验' },
 ];
 
@@ -212,7 +211,6 @@ export function PromptPlanningModal({
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const thinkingBodyRef = useRef<HTMLPreElement | null>(null);
   const [open, setOpen] = useState(true);
   const [busyAction, setBusyAction] = useState<BusyAction>('idle');
   const [session, setSession] = useState<PlanningSession | null>(null);
@@ -508,19 +506,6 @@ export function PromptPlanningModal({
       source.close();
     };
   }, [session?.id, session?.status]);
-
-  useEffect(() => {
-    if (!thinkingText || isThinkingCollapsed || session?.status !== 'generating') {
-      return undefined;
-    }
-    const frame = window.requestAnimationFrame(() => {
-      const body = thinkingBodyRef.current;
-      if (body) {
-        body.scrollTop = body.scrollHeight;
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [isThinkingCollapsed, session?.status, thinkingText]);
 
   const handleAnalyze = async () => {
     if (analyzeLockRef.current || busyActionRef.current !== 'idle' || session?.status === 'analyzing') {
@@ -892,8 +877,7 @@ export function PromptPlanningModal({
             })}
           </nav>
 
-          <div className="video-task-epa-content">
-            <main className="video-task-epa-main">
+          <main className={`video-task-epa-main video-task-epa-step-shell-${activeStep}`}>
               {errorMessage ? (
                 <div className="video-task-epa-alert is-error">
                   <AlertCircle size={16} />
@@ -901,8 +885,7 @@ export function PromptPlanningModal({
                 </div>
               ) : null}
 
-              <div className="video-task-epa-scroll">
-                {activeStep === 'step1' && (
+              {activeStep === 'step1' && (
                   showStep1Loading ? (
                     <CenteredLoadingCard
                       description={analyzeCopy.description}
@@ -910,7 +893,7 @@ export function PromptPlanningModal({
                       title={analyzeCopy.title}
                     />
                   ) : (
-                    <div className="video-task-epa-step-shell video-task-epa-step-shell-step1">
+                    <>
                       <FieldHeading title="商品素材" subtitle="必填 · 1-9 张 · 可拖入/粘贴" />
                       <div className="video-task-epa-product-slot">
                         <MaterialSlot
@@ -976,12 +959,12 @@ export function PromptPlanningModal({
                         type="text"
                         value={productName}
                       />
-                    </div>
+                    </>
                   )
                 )}
 
-                {activeStep === 'step2' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step2">
+              {activeStep === 'step2' && session && (
+                  <>
                     <section className="video-task-epa-analysis-section">
                       <div className="video-task-epa-section-head">
                         <div>
@@ -1158,11 +1141,11 @@ export function PromptPlanningModal({
                         />
                       </div>
                     </section>
-                  </div>
+                  </>
                 )}
 
-                {activeStep === 'step3' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step3">
+              {activeStep === 'step3' && session && (
+                  <>
                     <section className="video-task-epa-settings-section">
                       <FieldHeading title="业务场景" subtitle="选填 · 影响话术与结尾引导" />
                       <div className="video-task-epa-pill-line">
@@ -1336,11 +1319,11 @@ export function PromptPlanningModal({
                         />
                       </div>
                     </section>
-                  </div>
+                  </>
                 )}
 
-                {activeStep === 'step4' && session && (
-                  <div className="video-task-epa-step-shell video-task-epa-step-shell-step4">
+              {activeStep === 'step4' && session && (
+                  <>
                     {showStep4Loading ? (
                       <WideLoadingCard
                         description={generateCopy.description}
@@ -1370,7 +1353,6 @@ export function PromptPlanningModal({
                             aria-busy={isWaitingForThinkingDelta}
                             aria-live="polite"
                             className="video-task-epa-thinking-body"
-                            ref={thinkingBodyRef}
                           >
                             {thinkingText}
                             {isWaitingForThinkingDelta ? (
@@ -1440,12 +1422,11 @@ export function PromptPlanningModal({
                     ) : !showStep4Loading ? (
                       <div className="video-task-epa-empty-hint">脚本生成完成后，这里会展示候选脚本与逐秒分镜。</div>
                     ) : null}
-                  </div>
+                  </>
                 )}
-              </div>
-            </main>
+          </main>
 
-            <footer className="video-task-epa-footer">
+          <footer className="video-task-epa-footer">
               <div className="video-task-epa-footer-left">
                 <button className="video-task-epa-clear" onClick={clearAll} type="button">
                   <Trash2 size={15} />
@@ -1590,8 +1571,7 @@ export function PromptPlanningModal({
                   </>
                 ) : null}
               </div>
-            </footer>
-          </div>
+          </footer>
         </div>
       </section>
 
@@ -1896,7 +1876,7 @@ function SwitchRow({
 }) {
   return (
     <button
-      className={`video-task-epa-switch-row${emphasis ? ' is-emphasis' : ''}`}
+      className={`video-task-epa-switch-row`}
       onClick={() => onChange(!checked)}
       type="button"
     >
@@ -1999,11 +1979,16 @@ function AudioReferenceCard({
 
   return (
     <div className="video-task-epa-audio-card">
-      <button className="video-task-epa-audio-play" onClick={onPlayToggle} type="button">
-        <Play size={18} fill="currentColor" />
+      <button
+        aria-label={isPlaying ? '暂停参考音色' : '试听参考音色'}
+        className="video-task-epa-audio-play"
+        onClick={onPlayToggle}
+        type="button"
+      >
+        <Music4 aria-hidden="true" size={20} />
       </button>
       <div className="video-task-epa-audio-info">
-        <strong>{file.name}</strong>
+        <strong title={file.name}>{file.name}</strong>
         <span>{isPlaying ? '播放中' : duration}</span>
       </div>
       <div className="video-task-reference-actions">
