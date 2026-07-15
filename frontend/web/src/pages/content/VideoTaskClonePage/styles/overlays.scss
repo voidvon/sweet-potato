@@ -2006,7 +2006,6 @@
   background: #f3f4f6;
   color: #c0c4cc;
 }
-
 .video-task-epa-btn-accent {
   background: #000;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
@@ -2134,9 +2133,6 @@
     flex-wrap: wrap;
   }
 
-  .video-task-epa-btn-accent {
-    min-width: 208px;
-  }
 }
 
 /* Keep the planning workspace at the same density as the create-video form. */
@@ -2334,7 +2330,7 @@
 }
 
 .video-task-epa-btn-accent {
-  min-width: 184px;
+  min-width: 150px;
 }
 
 .video-task-epa-footer-right {
