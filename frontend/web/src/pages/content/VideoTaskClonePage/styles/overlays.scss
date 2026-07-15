@@ -1071,17 +1071,17 @@
 
 .trim-modal__eyebrow {
   color: #9aa8bd;
-  font-size: 14px;
+  font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.22em;
   line-height: 18px;
-  margin: 0 0 8px;
+  margin-bottom: 0;
   text-transform: uppercase;
 }
 
 .trim-modal__panel h3 {
   color: #08152c;
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 800;
   line-height: 30px;
   margin: 0;
@@ -1089,10 +1089,9 @@
 
 .trim-modal__hint {
   color: #6e7f99;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
   line-height: 22px;
-  margin: 24px 0 18px;
+  margin: 4px 0 12px;
 }
 
 .trim-modal__video {
@@ -1114,79 +1113,11 @@
   margin-top: 22px;
 }
 
-.trim-modal__track {
-  background: #e8eef6;
-  border-radius: 999px;
-  cursor: pointer;
-  height: 8px;
-  position: relative;
-  width: 100%;
-}
-
-.trim-modal__selection {
-  background: #18c866;
-  border-radius: inherit;
-  bottom: 0;
-  left: var(--trim-selection-left, 0%);
-  position: absolute;
-  right: var(--trim-selection-right, 54.6664%);
-  top: 0;
-}
-
-.trim-modal__range {
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  height: 32px;
-  left: 0;
-  margin: 0;
-  pointer-events: none;
-  position: absolute;
-  top: -12px;
-  width: 100%;
-}
-
-.trim-modal__range::-webkit-slider-thumb {
-  appearance: none;
-  background: #fff;
-  border: 3px solid #0b1830;
-  border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  cursor: grab;
-  height: 22px;
-  pointer-events: auto;
-  width: 22px;
-}
-
-.trim-modal__range::-moz-range-thumb {
-  background: #fff;
-  border: 3px solid #0b1830;
-  border-radius: 999px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  cursor: grab;
-  height: 18px;
-  pointer-events: auto;
-  width: 18px;
-}
-
-.trim-modal__range::-webkit-slider-runnable-track {
-  background: transparent;
-}
-
-.trim-modal__range:active::-webkit-slider-thumb {
-  cursor: grabbing;
-}
-
-.trim-modal__range:active::-moz-range-thumb {
-  cursor: grabbing;
-}
-
 .trim-modal__codes {
   align-items: center;
   color: #6e7f99;
   display: grid;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 12px;
   grid-template-columns: 1fr 1fr 1fr;
   margin-top: 28px;
 }
@@ -1201,7 +1132,7 @@
 
 .trim-modal__codes strong {
   color: #0b1830;
-  font-size: 16px;
+  font-weight: bolder;
   margin-left: 8px;
 }
 
