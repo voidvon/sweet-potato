@@ -165,7 +165,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
           原视频 {formatTime(duration)}，请选择 {MIN_SELECTION_SECONDS}-{MAX_SELECTION_SECONDS} 秒区间。
         </Typography.Text>
 
-        <div style={{ height: 320, overflow: 'hidden' }}>
+        <div style={{ height: 420, overflow: 'hidden' }}>
           <VideoPreviewPlayer
             duration={duration}
             loopAtEnd

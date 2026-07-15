@@ -122,7 +122,7 @@ export function VideoPreviewPlayer({
     const nextTime = Math.min(element.currentTime, playableDuration);
     setCurrentTime(nextTime);
     setIsPlaying(!element.paused);
-    if (loopAtEnd && (element.currentTime < rangeStart || element.currentTime >= rangeEnd)) {
+    if (loopAtEnd && !element.paused && (element.currentTime < rangeStart || element.currentTime >= rangeEnd)) {
       element.currentTime = rangeStart;
       setCurrentTime(rangeStart);
       if (!element.paused) void element.play();
@@ -191,7 +191,7 @@ export function VideoPreviewPlayer({
         disableRemotePlayback
         draggable={false}
         muted={isMuted}
-        onClick={isResult ? togglePlay : undefined}
+        onClick={togglePlay}
         onEnded={() => setIsPlaying(false)}
         onLoadedMetadata={syncMetadata}
         onPause={() => setIsPlaying(false)}
