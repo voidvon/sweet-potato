@@ -217,6 +217,7 @@ export function PromptPlanningModal({
   const [open, setOpen] = useState(true);
   const [busyAction, setBusyAction] = useState<BusyAction>('idle');
   const [analysisCredits, setAnalysisCredits] = useState<number | null>(null);
+  const [generationCredits, setGenerationCredits] = useState<number | null>(null);
   const [session, setSession] = useState<PlanningSession | null>(null);
   const [viewStep, setViewStep] = useState<PlanningUiStep>('step1');
   const [errorMessage, setErrorMessage] = useState('');
@@ -240,6 +241,9 @@ export function PromptPlanningModal({
   const analysisCreditLabel = analysisCredits === null
     ? ''
     : ` · ${analysisCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}积分`;
+  const generationCreditLabel = generationCredits === null
+    ? ''
+    : ` · ${generationCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}积分`;
   const resolvedStep = session ? resolvePlanningStep(session) : 'step1';
   const resolvedStepIndex = planningStepIndex(resolvedStep);
   const activeStep = useMemo<PlanningUiStep>(() => {
@@ -405,11 +409,13 @@ export function PromptPlanningModal({
       .then((config) => {
         if (!disposed) {
           setAnalysisCredits(config.analysisCredits);
+          setGenerationCredits(config.generationCredits);
         }
       })
       .catch(() => {
         if (!disposed) {
           setAnalysisCredits(null);
+          setGenerationCredits(null);
           setErrorMessage('积分配置加载失败，请关闭弹窗后重试。');
         }
       });
@@ -848,7 +854,7 @@ export function PromptPlanningModal({
     hasVideo: hasReferenceVideo,
   });
   const generateCopy = getGenerateLoadingCopy(session?.jobStage || 'idle', Boolean(thinkingText));
-  const footerPoints = activeStep === 'step3' || activeStep === 'step4' ? 3 : 0;
+  const footerPoints = activeStep === 'step3' || activeStep === 'step4' ? generationCredits : null;
 
   return (
     <Modal
@@ -1298,7 +1304,10 @@ export function PromptPlanningModal({
                       <FieldHeading title="补充说明" subtitle="可选 · 想强调的开头、卖点、节奏都可以写" />
                       <textarea
                         className="video-task-epa-large-textarea"
-                        onChange={(event) => setSettingsDraft((current) => ({ ...current, extraInstruction: event.currentTarget.value }))}
+                        onChange={(event) => {
+                          const extraInstruction = event.currentTarget.value;
+                          setSettingsDraft((current) => ({ ...current, extraInstruction }));
+                        }}
                         placeholder="例如：前 2 秒要有钩子；多给面料和细节特写；结尾自然引导下单。"
                         rows={3}
                         value={settingsDraft.extraInstruction}
@@ -1489,7 +1498,7 @@ export function PromptPlanningModal({
                   <Trash2 size={15} />
                   清除
                 </button>
-                {footerPoints ? (
+                {footerPoints !== null ? (
                   <span className="video-task-epa-points">
                     <Zap size={14} />
                     {footerPoints}
@@ -1588,12 +1597,12 @@ export function PromptPlanningModal({
                     </div>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"
-                      disabled={isBusy || isManualPresetMissing}
+                      disabled={generationCredits === null || isBusy || isManualPresetMissing}
                       onClick={() => void handleGenerate()}
                       type="button"
                     >
                       {busyAction === 'generating' ? <LoaderCircle className="is-spinning" size={16} /> : null}
-                      生成脚本
+                      {`生成脚本${generationCreditLabel}`}
                     </button>
                   </>
                 ) : null}
@@ -1609,12 +1618,12 @@ export function PromptPlanningModal({
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-secondary"
-                      disabled={isBusy || !session || session.status === 'generating'}
+                      disabled={generationCredits === null || isBusy || !session || session.status === 'generating'}
                       onClick={() => void handleGenerate(true)}
                       type="button"
                     >
                       {busyAction === 'generating' ? <LoaderCircle className="is-spinning" size={16} /> : <RefreshCcw size={15} />}
-                      {session?.status === 'generating' ? '生成中...' : '重新生成 · 3积分'}
+                      {session?.status === 'generating' ? '生成中...' : `重新生成${generationCreditLabel}`}
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"

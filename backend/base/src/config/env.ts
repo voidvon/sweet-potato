@@ -119,6 +119,7 @@ function nonNegativeEnvNumber(name: string, fallback: number) {
 
 export const contentPlanningBillingConfig = {
   analysisCredits: nonNegativeEnvNumber('CONTENT_PLANNING_ANALYSIS_CREDITS', 0),
+  generationCredits: nonNegativeEnvNumber('CONTENT_PLANNING_GENERATION_CREDITS', 0),
 };
 
 // const defaultDigitalHumanThreeViewPrompt = `人物角色设计稿，

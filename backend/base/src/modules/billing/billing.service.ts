@@ -1060,6 +1060,13 @@ export function settleFixedBillableUsage(input: {
   return transaction();
 }
 
+export function findReservedFixedBillableUsage(input: { sourceType: string; sessionId: string }) {
+  return billingRepository.findLatestReservedReservationBySourceTypeAndSessionId(
+    input.sourceType,
+    input.sessionId,
+  );
+}
+
 export function releaseFixedBillableUsage(reservation: CreditReservation) {
   const current = billingRepository.findReservation(reservation.id);
   if (!current || current.status !== 'reserved') {

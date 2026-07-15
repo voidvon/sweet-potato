@@ -224,6 +224,7 @@ export type PlanningApplyPayload = {
 
 export type ContentPlanningClientConfig = {
   analysisCredits: number;
+  generationCredits: number;
 };
 
 type MediaInput = { assetId: string; kind: PlanningAssetRef['kind'] };

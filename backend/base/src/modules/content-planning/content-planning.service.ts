@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { arkVideoUnderstandingConfig, contentPlanningBillingConfig } from '../../config/env.js';
 import {
+  findReservedFixedBillableUsage,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
@@ -88,6 +89,60 @@ const defaultContentPlanningAnalysisBilling: ContentPlanningAnalysisBilling = {
       category: 'content_planning_analysis',
       provider: 'volcengine-ark',
       model: arkVideoUnderstandingConfig.model,
+      sessionId: input.sessionId,
+      responseSnapshot: { status: 'completed' },
+    });
+  },
+  fail(reservation) {
+    releaseFixedBillableUsage(reservation);
+  },
+};
+
+export type ContentPlanningGenerationBilling = {
+  reserve(input: {
+    userId: string;
+    sessionId: string;
+    candidateCount: number;
+    deepThink: boolean;
+    regenerate: boolean;
+  }): CreditReservation | null;
+  recover(sessionId: string): CreditReservation | null;
+  complete(input: { reservation: CreditReservation; sessionId: string }): void;
+  fail(reservation: CreditReservation): void;
+};
+
+const defaultContentPlanningGenerationBilling: ContentPlanningGenerationBilling = {
+  reserve(input) {
+    if (contentPlanningBillingConfig.generationCredits <= 0) {
+      return null;
+    }
+    return reserveFixedBillableUsage({
+      userId: input.userId,
+      category: 'content_planning_generation',
+      sourceType: 'content_planning_generation',
+      sourceId: `${input.sessionId}:generation:${randomUUID()}`,
+      sessionId: input.sessionId,
+      credits: contentPlanningBillingConfig.generationCredits,
+      step: 'content_planning_generation',
+      stepLabel: '爆款策划脚本生成',
+      requestSnapshot: {
+        candidateCount: input.candidateCount,
+        deepThink: input.deepThink,
+        regenerate: input.regenerate,
+      },
+    });
+  },
+  recover(sessionId) {
+    return findReservedFixedBillableUsage({
+      sourceType: 'content_planning_generation',
+      sessionId,
+    });
+  },
+  complete(input) {
+    settleFixedBillableUsage({
+      reservation: input.reservation,
+      category: 'content_planning_generation',
+      provider: 'configured-llm',
       sessionId: input.sessionId,
       responseSnapshot: { status: 'completed' },
     });
@@ -389,11 +444,13 @@ export class ContentPlanningService {
     private readonly provider: ContentPlanningAgentProvider = createContentPlanningAgentProvider(),
     private readonly analysisProvider: ContentPlanningAnalysisProvider = createContentPlanningAnalysisProvider(),
     private readonly analysisBilling: ContentPlanningAnalysisBilling = defaultContentPlanningAnalysisBilling,
+    private readonly generationBilling: ContentPlanningGenerationBilling = defaultContentPlanningGenerationBilling,
   ) {}
 
   getClientConfig() {
     return {
       analysisCredits: contentPlanningBillingConfig.analysisCredits,
+      generationCredits: contentPlanningBillingConfig.generationCredits,
     };
   }
 
@@ -644,19 +701,37 @@ export class ContentPlanningService {
       ...resetGeneration(),
       stages: initialStages(),
     };
-    const next = contentPlanningRepository.updateSession(sessionId, {
-      status: 'generating',
-      uiStep: 'step4',
-      jobStage: 'planner_running',
-      generation,
-      applySnapshot: null,
-      errorMessage: '',
+    const generationReservation = this.generationBilling.reserve({
+      userId,
+      sessionId,
+      candidateCount: session.settings.candidateCount,
+      deepThink: session.settings.deepThink,
+      regenerate,
     });
+    let next: ContentPlanningSession | null = null;
+    try {
+      next = contentPlanningRepository.updateSession(sessionId, {
+        status: 'generating',
+        uiStep: 'step4',
+        jobStage: 'planner_running',
+        generation,
+        applySnapshot: null,
+        errorMessage: '',
+      });
+    } catch (error) {
+      if (generationReservation) {
+        this.generationBilling.fail(generationReservation);
+      }
+      throw error;
+    }
     if (!next) {
+      if (generationReservation) {
+        this.generationBilling.fail(generationReservation);
+      }
       throw new Error('planning session could not be updated');
     }
     runningGenerationJobs.add(sessionId);
-    void this.runGeneration(sessionId, userId);
+    void this.runGeneration(sessionId, userId, generationReservation);
     return next;
   }
 
@@ -687,11 +762,25 @@ export class ContentPlanningService {
       userId: session.userId,
       jobStage: session.jobStage,
     });
-    void this.runGeneration(sessionId, session.userId);
+    let generationReservation: CreditReservation | null = null;
+    try {
+      generationReservation = this.generationBilling.recover(sessionId);
+    } catch (error) {
+      logger.error('content planning generation credit recovery failed', {
+        sessionId,
+        userId: session.userId,
+        error: errorMessage(error),
+      });
+    }
+    void this.runGeneration(sessionId, session.userId, generationReservation);
     return true;
   }
 
-  private async runGeneration(sessionId: string, userId: string) {
+  private async runGeneration(
+    sessionId: string,
+    userId: string,
+    generationReservation: CreditReservation | null,
+  ) {
     try {
       let session = this.getSession(userId, sessionId);
       let context: PlanningRuntimeContext = { session };
@@ -819,13 +908,30 @@ export class ContentPlanningService {
         selectedCandidateId: validated.selectedCandidateId,
         validatorSummary: validated.summary,
       };
-      contentPlanningRepository.updateSession(sessionId, {
+      const completed = contentPlanningRepository.updateSession(sessionId, {
         status: 'ready_to_apply',
         uiStep: 'step4',
         jobStage: 'completed',
         generation,
       });
+      if (!completed) {
+        throw new Error('planning session could not be updated');
+      }
+      if (generationReservation) {
+        this.generationBilling.complete({ reservation: generationReservation, sessionId });
+      }
     } catch (error) {
+      if (generationReservation) {
+        try {
+          this.generationBilling.fail(generationReservation);
+        } catch (billingError) {
+          logger.error('content planning generation credit release failed', {
+            sessionId,
+            userId,
+            error: errorMessage(billingError),
+          });
+        }
+      }
       const current = contentPlanningRepository.findSession(sessionId);
       const role = current ? roleForJobStage(current.jobStage) : null;
       const generation = current

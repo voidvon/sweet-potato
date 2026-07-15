@@ -3,6 +3,7 @@ const sourceTypeMap: Record<string, string> = {
   chat_completion: 'LLM 对话',
   confirmed_audio_preview: '确认音频预览',
   content_planning_analysis: '爆款策划 · 素材识别',
+  content_planning_generation: '爆款策划 · 脚本生成',
   content_planning_planner: '爆款策划 · 需求规划',
   content_planning_strategy: '爆款策划 · 创意策略',
   content_planning_timeline: '爆款策划 · 时间轴设计',

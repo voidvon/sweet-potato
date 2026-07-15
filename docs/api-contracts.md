@@ -83,4 +83,6 @@ Base 配置使用 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `ARK_VIDEO_MODEL`。`
 
 `POST /api/content-planning/sessions/:id/analyze` 按一次“开始识别”操作收取固定积分，额度由 Base 环境变量 `CONTENT_PLANNING_ANALYSIS_CREDITS` 配置。请求开始时预扣，商品图识别及可选参考视频拆解全部成功后结算；任一阶段失败会释放预扣积分。
 
-`GET /api/content-planning/config` 返回当前登录用户可见的策划客户端配置，其中 `analysisCredits` 与上述固定积分配置同源，供“开始识别”和“重新识别”按钮展示本次操作的积分消耗。
+`POST /api/content-planning/sessions/:id/generate` 按一次完整的脚本生成操作收取固定积分，额度由 Base 环境变量 `CONTENT_PLANNING_GENERATION_CREDITS` 配置。Planner、Strategy、Timeline、Copywriter、Visual Director 和 Validator 是同一次操作的内部阶段，不再分别写入 LLM 按量计费流水。请求开始时预扣，全部阶段成功后结算；任一阶段失败会释放预扣积分。
+
+`GET /api/content-planning/config` 返回当前登录用户可见的策划客户端配置，其中 `analysisCredits` 和 `generationCredits` 与上述固定积分配置同源，供识别、生成和重新执行按钮展示本次操作的积分消耗。

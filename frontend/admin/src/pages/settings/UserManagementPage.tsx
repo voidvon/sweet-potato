@@ -95,6 +95,8 @@ function billableCategoryLabel(category: AdminBillableUsageRecord['category']) {
   switch (category) {
     case 'content_planning_analysis':
       return { color: 'lime', text: '策划识别' };
+    case 'content_planning_generation':
+      return { color: 'green', text: '策划生成' };
     case 'image_generation':
       return { color: 'cyan', text: '图片生成' };
     case 'video_generation':

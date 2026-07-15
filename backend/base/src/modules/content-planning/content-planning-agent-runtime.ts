@@ -614,6 +614,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
 
 function planningAuditStreamOptions(context: PlanningRuntimeContext) {
   return {
+    billingMode: 'external_fixed' as const,
     formatInstructionsPrefix: [
       'auditText 必须是 JSON 的第一个字段。',
       'auditText 用中文持续记录本阶段可公开的分析摘要、关键取舍、约束检查和阶段结论，内容要具体完整。',

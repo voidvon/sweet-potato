@@ -252,6 +252,18 @@ export const billingRepository = {
     return row ? parseReservation(row) : null;
   },
 
+  findLatestReservedReservationBySourceTypeAndSessionId(sourceType: string, sessionId: string) {
+    const rows = db.prepare(`
+      SELECT *
+      FROM credit_reservations
+      WHERE source_type = ? AND status = 'reserved'
+      ORDER BY created_at DESC
+    `).all(sourceType) as CreditReservationRow[];
+    return rows
+      .map(parseReservation)
+      .find((reservation) => reservation.snapshot.sessionId === sessionId) || null;
+  },
+
   updateReservationStatus(id: string, status: CreditReservationStatus, settledAt?: string | null) {
     db.prepare(`
       UPDATE credit_reservations

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { db } from '../src/db/database.js';
 import {
+  findReservedFixedBillableUsage,
   InsufficientStepCreditsError,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
@@ -89,6 +90,31 @@ test('fixed billable usage releases reserved credits after failure', () => {
     releaseFixedBillableUsage(reservation);
     assert.equal(billingRepository.findReservation(reservation.id)?.status, 'released');
     assert.equal(userRepository.findById(userId)?.creditBalance, 10);
+  } finally {
+    cleanupBillingTestUser(userId);
+  }
+});
+
+test('fixed billable usage recovers a reserved generation charge by session', () => {
+  const userId = createBillingTestUser(10);
+  const sessionId = `planning-session-${Date.now()}`;
+  try {
+    const reservation = reserveFixedBillableUsage({
+      userId,
+      category: 'content_planning_generation',
+      sourceType: 'content_planning_generation',
+      sourceId: `${sessionId}:generation:test`,
+      sessionId,
+      credits: 3,
+      step: 'content_planning_generation',
+      stepLabel: '爆款策划脚本生成',
+    });
+
+    assert.equal(findReservedFixedBillableUsage({
+      sourceType: 'content_planning_generation',
+      sessionId,
+    })?.id, reservation.id);
+    releaseFixedBillableUsage(reservation);
   } finally {
     cleanupBillingTestUser(userId);
   }
