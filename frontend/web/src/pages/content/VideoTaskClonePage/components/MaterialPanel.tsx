@@ -143,6 +143,11 @@ export function MaterialPanel({
   const currentAudioAssetIdRef = useRef<string | null>(null);
   const hasOpenPopover = Boolean(materialMode || activeUpload);
   const isVideoTranslation = tool.key === 'video-translation';
+  const showAuxiliaryMaterialOptions = ![
+    'video-upscale',
+    'subtitle-removal',
+    'video-translation',
+  ].includes(tool.key);
   const audioMaterial = tool.materials.find((item) => item.key === 'audio');
   const imageMaterial = tool.materials.find((item) => item.key === 'image');
   const videoMaterial = tool.materials.find((item) => item.key === 'video');
@@ -309,7 +314,7 @@ export function MaterialPanel({
             <Image size={12} />
             作品
           </button>
-          {audioMaterial && (
+          {showAuxiliaryMaterialOptions && audioMaterial && (
             <button
               aria-expanded={materialMode === 'audio'}
               className={materialMode === 'audio' ? 'is-active' : ''}
@@ -320,14 +325,16 @@ export function MaterialPanel({
               音频
             </button>
           )}
-          <button
-            aria-expanded={false}
-            onClick={onModelPickerOpen}
-            type="button"
-          >
-            {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
-            {isVideoTranslation ? '模特' : '素材'}
-          </button>
+          {showAuxiliaryMaterialOptions && (
+            <button
+              aria-expanded={false}
+              onClick={onModelPickerOpen}
+              type="button"
+            >
+              {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
+              {isVideoTranslation ? '模特' : '素材'}
+            </button>
+          )}
           {showVoiceToggle && (
             <label
               className={`video-task-voice-toggle${hasSelectedAudio ? ' is-locked' : ''}`}

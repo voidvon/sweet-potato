@@ -5,7 +5,7 @@ export const routePaths = {
   defaultModule: '/app/image',
   module: (moduleId = ':moduleId') => `/app/modules/${moduleId}`,
   contentRoot: '/app/content',
-  contentDefault: '/app/content/virtual_portrait_assets',
+  contentDefault: '/app/content/create_video',
   contentModule: (moduleCode = ':moduleCode') => `/app/content/${moduleCode}`,
   xingtuCreators: '/app/creator-ops/xingtu',
   buyinCreators: '/app/creator-ops/buyin',

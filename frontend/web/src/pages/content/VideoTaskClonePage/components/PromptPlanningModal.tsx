@@ -214,6 +214,7 @@ export function PromptPlanningModal({
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const [open, setOpen] = useState(true);
   const [busyAction, setBusyAction] = useState<BusyAction>('idle');
   const [analysisCredits, setAnalysisCredits] = useState<number | null>(null);
   const [session, setSession] = useState<PlanningSession | null>(null);
@@ -851,13 +852,16 @@ export function PromptPlanningModal({
 
   return (
     <Modal
+      afterOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
       centered
       className="video-task-epa-modal"
       closable={false}
       footer={null}
       maskClosable
-      onCancel={onClose}
-      open
+      onCancel={() => setOpen(false)}
+      open={open}
       rootClassName="video-task-epa-modal-root"
       style={{ padding: 0 }}
       styles={{ body: { padding: 0 } }}
@@ -885,7 +889,7 @@ export function PromptPlanningModal({
             <strong id="video-task-epa-title">{copy.title}</strong>
             <span>{copy.subtitle}</span>
           </div>
-          <button aria-label="关闭" className="video-task-epa-close" onClick={onClose} type="button">
+          <button aria-label="关闭" className="video-task-epa-close" onClick={() => setOpen(false)} type="button">
             <X size={18} />
           </button>
         </header>
@@ -1496,7 +1500,7 @@ export function PromptPlanningModal({
               <div className="video-task-epa-footer-right">
                 {activeStep === 'step1' ? (
                   <>
-                    <button className="video-task-epa-btn video-task-epa-btn-text" onClick={onClose} type="button">
+                    <button className="video-task-epa-btn video-task-epa-btn-text" onClick={() => setOpen(false)} type="button">
                       取消
                     </button>
                     <button

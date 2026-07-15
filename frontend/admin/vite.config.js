@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { versionAssetPlugin } from '../scripts/version-asset-plugin.mjs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -14,6 +15,7 @@ export default defineConfig(() => {
   return {
     plugins: [
       react(),
+      versionAssetPlugin(),
     ],
     base,
     define: {
