@@ -471,13 +471,16 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       Object.values(current).forEach((value) => revokeLocalMaterials(getLocalFiles(value)));
       return {
         image: next.imageMaterials,
+        ...(next.videoMaterials.length ? { video: next.videoMaterials } : {}),
         ...(next.audioMaterials.length ? { audio: next.audioMaterials } : {}),
       };
     });
     setPromptPanel(null);
-    message.success(next.audioMaterials.length
-      ? '已把商品图、参考音色、提示词和时长带入视频创作'
-      : '已把商品图、提示词和时长带入视频创作');
+    const referenceLabels = [
+      next.videoMaterials.length ? '参考视频' : '',
+      next.audioMaterials.length ? '参考音色' : '',
+    ].filter(Boolean);
+    message.success(`已把商品图${referenceLabels.length ? `、${referenceLabels.join('、')}` : ''}、提示词和时长带入视频创作`);
   }, []);
 
   const resetCreationForm = useCallback(() => {

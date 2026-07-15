@@ -257,6 +257,7 @@ export type ContentPlanningApplySnapshot = {
   prompt: string;
   duration: `${ContentPlanningDurationSeconds}s`;
   imageMaterials: ContentPlanningAssetRef[];
+  referenceVideo?: ContentPlanningAssetRef;
   referenceAudio?: ContentPlanningAssetRef;
   appliedAt: string;
 };
@@ -289,6 +290,7 @@ export type ContentPlanningApplyPayload = {
     prompt: string;
     duration: `${ContentPlanningDurationSeconds}s`;
     imageMaterials: ContentPlanningAssetRef[];
+    referenceVideo?: ContentPlanningAssetRef;
     referenceAudio?: ContentPlanningAssetRef;
   };
   session: ContentPlanningSession;

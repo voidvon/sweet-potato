@@ -988,6 +988,9 @@ export class ContentPlanningService {
       prompt,
       duration: `${session.settings.durationSeconds}s` as `${ContentPlanningSettings['durationSeconds']}s`,
       imageMaterials: session.materialBundle.imageMaterials,
+      ...(session.materialBundle.referenceVideo
+        ? { referenceVideo: session.materialBundle.referenceVideo }
+        : {}),
       ...(session.materialBundle.referenceAudio
         ? { referenceAudio: session.materialBundle.referenceAudio }
         : {}),
@@ -1008,6 +1011,9 @@ export class ContentPlanningService {
         prompt: applySnapshot.prompt,
         duration: applySnapshot.duration,
         imageMaterials: applySnapshot.imageMaterials,
+        ...('referenceVideo' in applySnapshot
+          ? { referenceVideo: applySnapshot.referenceVideo }
+          : {}),
         ...('referenceAudio' in applySnapshot
           ? { referenceAudio: applySnapshot.referenceAudio }
           : {}),

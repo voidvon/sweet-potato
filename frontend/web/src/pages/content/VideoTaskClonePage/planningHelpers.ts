@@ -195,6 +195,9 @@ export function planningApplyPayloadToFormState(payload: PlanningApplyPayload) {
     duration: payload.allowlist.duration,
     imageMaterials: planningAssetRefsToLocalMaterials(payload.allowlist.imageMaterials),
     prompt: normalizePlanningPromptTokens(payload.allowlist.prompt),
+    videoMaterials: payload.allowlist.referenceVideo
+      ? [planningAssetRefToLocalMaterial(payload.allowlist.referenceVideo)]
+      : [],
   };
 }
 

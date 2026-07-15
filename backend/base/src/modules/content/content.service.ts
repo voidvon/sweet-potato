@@ -550,12 +550,19 @@ function clearTemporaryCharacterReferenceContext(task: VideoGenerationTask) {
   return contentRepository.updateVideoTaskContext(task.id, {
     selectedSkillIds: task.selectedSkillIds,
     expertContext: {
-      ...task.expertContext,
+      ...restorePersistentReferenceImageIds(task.expertContext || {}),
       temporaryCharacterReferenceGroupId: '',
       temporaryCharacterReferenceAssetIds: [],
       updatedAt: new Date().toISOString(),
     },
   }) || task;
+}
+
+export function restorePersistentReferenceImageIds(context: Record<string, unknown>) {
+  const originalReferenceImageIds = stringArray(context.originalReferenceImageIds);
+  return originalReferenceImageIds.length
+    ? { ...context, referenceImageIds: originalReferenceImageIds }
+    : context;
 }
 
 function normalizeVideoProductionSearch(value: unknown) {
@@ -2851,7 +2858,7 @@ export const contentService = {
       contentRepository.updateVideoTaskContext(id, {
         selectedSkillIds: current.selectedSkillIds,
         expertContext: {
-          ...taskContext,
+          ...restorePersistentReferenceImageIds(taskContext),
           videoResult: failedResult,
           videoGenerationResult: failedResult,
           temporaryCharacterReferenceGroupId: '',

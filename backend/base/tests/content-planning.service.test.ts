@@ -347,7 +347,7 @@ test('planning analysis requires a product image rather than a reference video',
 async function advanceSessionToConfiguring(
   userId: string,
   service: ContentPlanningService = contentPlanningService,
-  references: { referenceAudioAssetId?: string } = {},
+  references: { referenceVideoAssetId?: string; referenceAudioAssetId?: string } = {},
 ) {
   const created = createTestSession(userId, service);
   const imageAssetId = createProductImageAsset(userId);
@@ -357,6 +357,7 @@ async function advanceSessionToConfiguring(
     prompt: 'Use a display-only product demo',
     productName: 'Test product',
     imageAssetIds: [imageAssetId],
+    referenceVideoAssetId: references.referenceVideoAssetId,
     referenceAudioAssetId: references.referenceAudioAssetId,
   });
   await waitFor(
@@ -396,7 +397,7 @@ async function advanceSessionToConfiguring(
 async function advanceSessionToReady(
   userId: string,
   service: ContentPlanningService = contentPlanningService,
-  references: { referenceAudioAssetId?: string } = {},
+  references: { referenceVideoAssetId?: string; referenceAudioAssetId?: string } = {},
 ) {
   const { created, configured, imageAssetId } = await advanceSessionToConfiguring(userId, service, references);
   const generating = service.generate(userId, created.id);
@@ -432,6 +433,23 @@ test('reference audio bypasses planning analysis and is returned when applying',
   const applied = service.apply(userId, created.id);
   assert.equal(applied.allowlist.referenceAudio?.assetId, referenceAudioAssetId);
   assert.equal(applied.session.applySnapshot?.referenceAudio?.assetId, referenceAudioAssetId);
+
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('reference video is returned when applying a planning result', async () => {
+  const userId = `planning-test-${Date.now()}-reference-video-apply`;
+  const referenceVideoAssetId = createReferenceVideoAsset(userId);
+  const { created, ready } = await advanceSessionToReady(
+    userId,
+    contentPlanningService,
+    { referenceVideoAssetId },
+  );
+
+  assert.equal(ready.materialBundle.referenceVideo?.assetId, referenceVideoAssetId);
+  const applied = contentPlanningService.apply(userId, created.id);
+  assert.equal(applied.allowlist.referenceVideo?.assetId, referenceVideoAssetId);
+  assert.equal(applied.session.applySnapshot?.referenceVideo?.assetId, referenceVideoAssetId);
 
   contentPlanningRepository.deleteSession(created.id);
 });
