@@ -7,6 +7,7 @@ import { createAuthRouter } from './modules/auth/auth.routes.js';
 import { createBillingRouter } from './modules/billing/billing.routes.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
 import { createContentRouter } from './modules/content/content.routes.js';
+import { createContentPlanningRouter } from './modules/content-planning/content-planning.routes.js';
 import { createGenerationRouter } from './modules/generation/generation.routes.js';
 import { createModelConfigRouter } from './modules/model-configs/model-config.routes.js';
 import { createRouteResourceRouter } from './modules/route-resources/route-resource.routes.js';
@@ -42,6 +43,7 @@ export function createApp() {
   app.use('/api/chat', createChatRouter());
   app.use('/api/generation', createGenerationRouter());
   app.use('/api/content', createContentRouter());
+  app.use('/api/content-planning', createContentPlanningRouter());
   app.use('/api/video-remake', createVideoRemakeRouter());
   app.use('/api/video-understanding', createVideoUnderstandingRouter());
   app.use('/api/xingtu/search-drafts', createXingtuSearchDraftRouter());

@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { openAsBlob } from 'node:fs';
 import { readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -174,7 +174,11 @@ async function materializeSource(source: VideoUnderstandingSource, kind: 'video'
     if (info.size > maxFileBytes) {
       throw new Error('媒体文件超过 Files API 支持的最大大小');
     }
-    return { filePath: source.filePath, cleanup: async () => undefined };
+    return {
+      filePath: source.filePath,
+      cleanup: async () => undefined,
+      mimeType: source.mimeType || 'application/octet-stream',
+    };
   }
 
   const temporaryPath = path.join(os.tmpdir(), `ark-${kind}-${randomBytes(8).toString('hex')}`);
@@ -218,26 +222,31 @@ async function uploadMedia(
 ) {
   const materialized = await materializeSource(source, kind, request.signal);
   try {
+    const blob = await openAsBlob(materialized.filePath, { type: materialized.mimeType });
+    const uploadFile = new File(
+      [blob as unknown as Blob],
+      source.filename || path.basename(source.filePath || materialized.filePath),
+      { type: materialized.mimeType },
+    );
     const uploaded = await ark.uploadFile({
-      file: createReadStream(materialized.filePath) as unknown as ReadableStream,
+      file: uploadFile,
       purpose: 'user_data',
       ...(kind === 'video' ? {
         preprocess_configs: {
           video: { fps: fpsValue(source.fps, request.fps) },
         },
       } : {}),
-      expire_at: Math.floor(Date.now() / 1000) + 86400,
     });
-    let file = uploaded;
+    let remoteFile = uploaded;
     const deadline = Date.now() + arkVideoUnderstandingConfig.filePollTimeoutMs;
-    while (file.status === 'processing' && Date.now() < deadline) {
+    while (remoteFile.status === 'processing' && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, arkVideoUnderstandingConfig.filePollIntervalMs));
-      file = await ark.retrieveFile(file.id, { signal: request.signal });
+      remoteFile = await ark.retrieveFile(remoteFile.id, { signal: request.signal });
     }
-    if (file.status !== 'active') {
-      throw new Error(file.error?.message || `Files API 文件处理失败：${file.status}`);
+    if (remoteFile.status !== 'active') {
+      throw new Error(remoteFile.error?.message || `Files API 文件处理失败：${remoteFile.status}`);
     }
-    return file.id;
+    return remoteFile.id;
   } finally {
     await materialized.cleanup();
   }
@@ -274,9 +283,9 @@ async function directMediaSource(source: VideoUnderstandingSource, kind: 'video'
   throw new Error('媒体输入缺少可直传内容');
 }
 
-async function prepareMessages(ark: ArkRuntimeClient, request: PreparedRequest) {
+async function prepareResponseInput(ark: ArkRuntimeClient, request: PreparedRequest) {
   const uploaded = new Map<string, string>();
-  const result: VideoUnderstandingMessage[] = [];
+  const result: unknown[] = [];
   for (const message of request.messages) {
     const content = typeof message.content === 'string'
       ? [{ type: 'text', text: message.content } as const]
@@ -284,7 +293,7 @@ async function prepareMessages(ark: ArkRuntimeClient, request: PreparedRequest) 
     const prepared: unknown[] = [];
     for (const part of content) {
       if (part.type === 'text' || part.type === 'input_text') {
-        prepared.push({ type: 'text', text: part.text });
+        prepared.push({ type: 'input_text', text: part.text });
         continue;
       }
       const field = part.type === 'video_url' ? 'video_url' : part.type === 'image_url' ? 'image_url' : 'input_audio';
@@ -298,14 +307,20 @@ async function prepareMessages(ark: ArkRuntimeClient, request: PreparedRequest) 
       const direct = fileId ? source : await directMediaSource(source, field === 'video_url' ? 'video' : field === 'image_url' ? 'image' : 'audio');
       const directUrl = 'url' in direct ? direct.url : undefined;
       if (field === 'video_url') {
-        prepared.push({ type: field, video_url: fileId ? { file_id: fileId, fps: fpsValue(source.fps, request.fps) } : { url: directUrl, fps: fpsValue(source.fps, request.fps) } });
+        prepared.push(fileId
+          ? { type: 'input_video', file_id: fileId, fps: fpsValue(source.fps, request.fps) }
+          : { type: 'input_video', video_url: directUrl, fps: fpsValue(source.fps, request.fps) });
       } else if (field === 'image_url') {
-        prepared.push({ type: field, image_url: fileId ? { file_id: fileId, ...(source.detail ? { detail: source.detail } : {}) } : { url: directUrl, ...(source.detail ? { detail: source.detail } : {}) } });
+        prepared.push(fileId
+          ? { type: 'input_image', file_id: fileId, ...(source.detail ? { detail: source.detail } : {}) }
+          : { type: 'input_image', image_url: directUrl, ...(source.detail ? { detail: source.detail } : {}) });
       } else {
-        prepared.push({ type: field, input_audio: fileId ? { file_id: fileId } : direct });
+        prepared.push(fileId
+          ? { type: 'input_audio', file_id: fileId }
+          : { type: 'input_audio', audio_url: directUrl || ('data' in direct ? direct.data : undefined) });
       }
     }
-    result.push({ role: message.role, content: prepared as VideoUnderstandingContent[] });
+    result.push({ role: message.role, content: prepared });
   }
   return result;
 }
@@ -315,33 +330,47 @@ export async function* streamVideoUnderstanding(input: VideoUnderstandingRequest
   const requestClient = client();
   yield { type: 'start', requestId: request.requestId, model: request.model, useFilesApi: request.useFilesApi, fps: request.fps };
   try {
-    const messages = await prepareMessages(requestClient, request);
-    const stream = await requestClient.createChatCompletionStream({
+    const responseInput = await prepareResponseInput(requestClient, request);
+    const stream = await requestClient.createResponsesStream({
       model: request.model,
-      messages: messages as never,
-      stream_options: { include_usage: true },
-      ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
+      input: responseInput as never,
+      ...(request.maxTokens ? { max_output_tokens: request.maxTokens } : {}),
       ...(request.thinking ? { thinking: request.thinking } : {}),
     }, { signal: input.signal });
-    for await (const chunk of stream) {
-      const choice = chunk.choices?.[0];
-      const delta = choice?.delta;
-      if (delta?.content) {
-        yield { type: 'delta', requestId: request.requestId, delta: delta.content };
+    for await (const event of stream) {
+      const responseEvent = event as {
+        type?: string;
+        delta?: string;
+        message?: string;
+        code?: string;
+        response?: { error?: { message?: string }; usage?: Record<string, unknown> };
+      };
+      if (responseEvent.type === 'response.output_text.delta' && responseEvent.delta) {
+        yield { type: 'delta', requestId: request.requestId, delta: responseEvent.delta };
       }
-      if (delta?.reasoning_content) {
-        yield { type: 'reasoning_delta', requestId: request.requestId, delta: delta.reasoning_content };
+      if (responseEvent.type === 'response.reasoning_summary_text.delta' && responseEvent.delta) {
+        yield { type: 'reasoning_delta', requestId: request.requestId, delta: responseEvent.delta };
       }
-      if (chunk.usage) {
-        yield { type: 'usage', requestId: request.requestId, usage: chunk.usage as unknown as Record<string, unknown> };
+      if (responseEvent.type === 'error') {
+        throw new Error(responseEvent.message || responseEvent.code || '视频理解响应失败');
+      }
+      if (responseEvent.type === 'response.failed' || responseEvent.type === 'response.incomplete') {
+        throw new Error(responseEvent.response?.error?.message || '视频理解响应未完成');
+      }
+      if (responseEvent.type === 'response.completed' && responseEvent.response?.usage) {
+        yield { type: 'usage', requestId: request.requestId, usage: responseEvent.response.usage };
       }
     }
     yield { type: 'done', requestId: request.requestId, finishReason: 'stop' };
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message = /\b429\b/u.test(rawMessage)
+      ? '视频理解服务请求过于频繁或额度不足，请稍后重试'
+      : rawMessage || '视频理解请求失败';
     logger.error('ark video understanding failed', {
       requestId: request.requestId,
-      error: error instanceof Error ? error.message : String(error),
+      error: rawMessage,
     });
-    yield { type: 'error', requestId: request.requestId, message: error instanceof Error ? error.message : '视频理解请求失败' };
+    yield { type: 'error', requestId: request.requestId, message };
   }
 }

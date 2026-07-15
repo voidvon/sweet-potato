@@ -3,11 +3,14 @@ import { MentionRichTextarea } from '../../../../components/MentionRichTextarea'
 import { promptPlaceholder } from '../constants';
 import { promptMentionOptions } from '../promptMentionOptions';
 import type { PromptPanel as PromptPanelKind, SelectedMaterials } from '../types';
+import type { User } from '../../../../types';
+import type { PlanningApplyPayload } from '../../../../api/content-planning';
 import { PromptPlanningModal } from './PromptPlanningModal';
 
 type PromptPanelProps = {
-  onExampleFill: () => void;
+  currentUser: User;
   onExpand: () => void;
+  onPlanningApply: (payload: PlanningApplyPayload) => void;
   onPanelChange: (panel: PromptPanelKind | null) => void;
   onPromptChange: (prompt: string) => void;
   panel: PromptPanelKind | null;
@@ -16,8 +19,9 @@ type PromptPanelProps = {
 };
 
 export function PromptPanel({
-  onExampleFill,
+  currentUser,
   onExpand,
+  onPlanningApply,
   onPanelChange,
   onPromptChange,
   panel,
@@ -46,17 +50,20 @@ export function PromptPanel({
         <button aria-label="展开提示词编辑器" title='展开提示词编辑器' className="video-task-expand" onClick={onExpand} type="button">
           <Maximize size={18} />
         </button>
-        {/* <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
+        <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
           <span className="video-task-one-click-spark">✨</span>
           一键策划
-        </button> */}
+        </button>
       </div>
 
       {panel && (
         <PromptPlanningModal
+          currentUser={currentUser}
+          initialPrompt={prompt}
+          initialSelectedMaterials={selectedMaterials}
           kind={panel}
+          onApplyPlanningResult={onPlanningApply}
           onClose={() => onPanelChange(null)}
-          onExampleFill={onExampleFill}
         />
       )}
     </section>

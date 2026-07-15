@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message, Modal } from 'antd';
 import { createContentAssetGroup, createVideoEnhancement, createVideoProduction, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
+import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
@@ -24,6 +25,7 @@ import type {
   WorksTab,
 } from './types';
 import { readVideoDuration } from './videoMetadata';
+import { planningApplyPayloadToFormState } from './planningHelpers';
 
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
@@ -406,6 +408,18 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setFilters(defaultFilters);
   };
 
+  const applyPlanningResult = useCallback((payload: PlanningApplyPayload) => {
+    const next = planningApplyPayloadToFormState(payload);
+    setPrompt(next.prompt);
+    setDuration(next.duration);
+    setSelectedMaterials((current) => {
+      Object.values(current).forEach((value) => revokeLocalMaterials(getLocalFiles(value)));
+      return { image: next.imageMaterials };
+    });
+    setPromptPanel(null);
+    message.success('已把商品图、提示词和时长带入视频创作');
+  }, []);
+
   const resetCreationForm = useCallback(() => {
     setPrompt('');
     setTool(toolOptions[0]);
@@ -586,6 +600,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     activeUpload,
     canGenerate,
     canvas,
+    currentUser,
     chooseAudio,
     chooseLibraryAsset,
     chooseMaterialTab,
@@ -599,6 +614,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     clearFilters,
     duration,
     expandedPrompt,
+    applyPlanningResult,
     fillExamplePrompt,
     fillMaterial,
     fillMaterialFiles,

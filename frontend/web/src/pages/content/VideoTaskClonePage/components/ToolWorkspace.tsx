@@ -27,8 +27,9 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
 
           {workspace.prompt && (
             <PromptPanel
-              onExampleFill={state.fillExamplePrompt}
+              currentUser={state.currentUser}
               onExpand={() => state.setExpandedPrompt(true)}
+              onPlanningApply={state.applyPlanningResult}
               onPanelChange={state.setPromptPanel}
               onPromptChange={state.setPrompt}
               panel={state.promptPanel}

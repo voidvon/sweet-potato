@@ -1,0 +1,557 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  createContentPlanningAgentProvider,
+  DeterministicContentPlanningAgentProvider,
+  extractPartialJsonStringField,
+  projectPlanningAuditStream,
+  type PlanningRuntimeContext,
+} from '../src/modules/content-planning/content-planning-agent-runtime.js';
+import {
+  createContentPlanningAnalysisProvider,
+  DeterministicContentPlanningAnalysisProvider,
+  normalizeContentPlanningTimeRange,
+} from '../src/modules/content-planning/content-planning-analysis-runtime.js';
+import { contentRepository } from '../src/modules/content/content.repository.js';
+import { contentPlanningRepository } from '../src/modules/content-planning/content-planning.repository.js';
+import { ContentPlanningService } from '../src/modules/content-planning/content-planning.service.js';
+
+const contentPlanningService = new ContentPlanningService(
+  new DeterministicContentPlanningAgentProvider(),
+  new DeterministicContentPlanningAnalysisProvider(),
+);
+
+test('production planning provider is not the deterministic test provider', () => {
+  assert.equal(createContentPlanningAgentProvider() instanceof DeterministicContentPlanningAgentProvider, false);
+  assert.equal(createContentPlanningAnalysisProvider() instanceof DeterministicContentPlanningAnalysisProvider, false);
+});
+
+test('reference breakdown time ranges are normalized to seconds', () => {
+  assert.equal(normalizeContentPlanningTimeRange('00:00-00:02'), '0-2秒');
+  assert.equal(normalizeContentPlanningTimeRange('00：02-00：03.5'), '2-3.5秒');
+  assert.equal(normalizeContentPlanningTimeRange('0-2s'), '0-2秒');
+  assert.equal(normalizeContentPlanningTimeRange('00:01:02-00:01:05'), '62-65秒');
+});
+
+test('partial audit text extraction decodes streamed JSON string content', () => {
+  assert.equal(
+    extractPartialJsonStringField('```json\n{"auditText":"先检查\\n商品特征', 'auditText'),
+    '先检查\n商品特征',
+  );
+  assert.equal(
+    extractPartialJsonStringField('{"auditText":"校验\\u65f6\\u957f","result":', 'auditText'),
+    '校验时长',
+  );
+  assert.equal(extractPartialJsonStringField('{"summary":"none"}', 'auditText'), '');
+});
+
+test('planning audit projection keeps streaming structured stage fields after audit text', () => {
+  const auditOnly = projectPlanningAuditStream('{"auditText":"先检查商品与时长","summary":"先突出锁骨');
+  assert.match(auditOnly, /先检查商品与时长/u);
+  assert.match(auditOnly, /阶段结果生成中：/u);
+  assert.match(auditOnly, /摘要：先突出锁骨/u);
+
+  const withConstraints = projectPlanningAuditStream([
+    '{"auditText":"先检查商品与时长",',
+    '"summary":"先突出锁骨线条",',
+    `"hardConstraints":["总时长10秒","保持商品颜色稳定`,
+  ].join(''));
+  assert.ok(withConstraints.startsWith(auditOnly));
+  assert.match(withConstraints, /硬性约束：总时长10秒/u);
+  assert.match(withConstraints, /硬性约束：保持商品颜色稳定/u);
+});
+
+class StreamingDeterministicPlanningProvider extends DeterministicContentPlanningAgentProvider {
+  override async planner(context: PlanningRuntimeContext) {
+    context.onAuditDelta?.('正在检查商品素材');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    context.onAuditDelta?.('、时长与生成约束');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return super.planner(context);
+  }
+}
+
+async function waitFor<T>(read: () => T, predicate: (value: T) => boolean, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  let value = read();
+  while (!predicate(value) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    value = read();
+  }
+  assert.ok(predicate(value), 'timed out waiting for planning state');
+  return value;
+}
+
+function createTestSession(userId: string, service: ContentPlanningService = contentPlanningService) {
+  const session = service.createSession({
+    userId,
+    prompt: 'Create a concise product video',
+    productName: 'Test product',
+  });
+  assert.ok(session);
+  return session;
+}
+
+function createProductImageAsset(userId: string) {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const group = contentRepository.createGroup({
+    userId,
+    resourceType: 'product',
+    name: `planning-product-${suffix}`,
+    description: '',
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(group);
+  const asset = contentRepository.createAsset({
+    userId,
+    groupId: group.id,
+    resourceType: 'product',
+    name: 'Test product image',
+    description: '',
+    originalFileName: 'product.jpg',
+    storedFileName: `product-${suffix}.jpg`,
+    mimeType: 'image/jpeg',
+    fileSize: 4,
+    filePath: `/tmp/product-${suffix}.jpg`,
+    fileUrl: `/files/product-${suffix}.jpg`,
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(asset);
+  return asset.id;
+}
+
+function createReferenceVideoAsset(userId: string) {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const group = contentRepository.createGroup({
+    userId,
+    resourceType: 'scene',
+    name: `planning-video-${suffix}`,
+    description: '',
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(group);
+  const asset = contentRepository.createAsset({
+    userId,
+    groupId: group.id,
+    resourceType: 'scene',
+    name: 'Test reference video',
+    description: '',
+    originalFileName: 'reference.mp4',
+    storedFileName: `reference-${suffix}.mp4`,
+    mimeType: 'video/mp4',
+    fileSize: 4,
+    filePath: `/tmp/reference-${suffix}.mp4`,
+    fileUrl: `/files/reference-${suffix}.mp4`,
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(asset);
+  return asset.id;
+}
+
+test('planning analysis requires a product image rather than a reference video', () => {
+  const userId = `planning-test-${Date.now()}-required-image`;
+  const created = createTestSession(userId);
+  const videoAssetId = createReferenceVideoAsset(userId);
+  assert.throws(
+    () => contentPlanningService.analyze({
+      userId,
+      sessionId: created.id,
+      prompt: '',
+      productName: '',
+      imageAssetIds: [],
+      referenceVideoAssetId: videoAssetId,
+    }),
+    /product image is required/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+async function advanceSessionToConfiguring(userId: string, service: ContentPlanningService = contentPlanningService) {
+  const created = createTestSession(userId, service);
+  const imageAssetId = createProductImageAsset(userId);
+  const analyzed = service.analyze({
+    userId,
+    sessionId: created.id,
+    prompt: 'Use a display-only product demo',
+    productName: 'Test product',
+    imageAssetIds: [imageAssetId],
+  });
+  await waitFor(
+    () => service.getSession(userId, analyzed.id),
+    (session) => session.status === 'confirming',
+  );
+  const confirmed = service.updateConfirmation({
+    userId,
+    sessionId: created.id,
+    materialCaptions: [],
+    productInsights: {
+      productName: 'Test product',
+      productCategory: 'demo',
+      productFeatures: ['fast'],
+      coreSellingPoints: ['simple'],
+      targetAudience: ['buyers'],
+      useScenarios: ['daily use'],
+    },
+    referencePolicy: { useBreakdown: false, lockedContentPreset: null },
+  });
+  assert.ok(confirmed);
+  const configured = service.updateSettings({
+    userId,
+    sessionId: created.id,
+    settings: {
+      ...confirmed.settings,
+      displayOnly: true,
+      deepThink: false,
+      durationSeconds: 10,
+      candidateCount: 3,
+    },
+  });
+  assert.ok(configured);
+  return { created, configured, imageAssetId };
+}
+
+async function advanceSessionToReady(userId: string, service: ContentPlanningService = contentPlanningService) {
+  const { created, configured, imageAssetId } = await advanceSessionToConfiguring(userId, service);
+  const generating = service.generate(userId, created.id);
+  assert.equal(generating.status, 'generating');
+  const ready = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'ready_to_apply',
+  );
+  return { created, configured, imageAssetId, ready };
+}
+
+test('planning session analysis is restorable and advances asynchronously', async () => {
+  const userId = `planning-test-${Date.now()}-restore`;
+  const created = createTestSession(userId);
+  assert.equal(created.settings.candidateCount, 1);
+  const imageAssetId = createProductImageAsset(userId);
+  const restored = contentPlanningService.createSession({ userId, restoreLatest: true });
+  assert.equal(restored.id, created.id);
+  assert.equal(restored.materialBundle.prompt, 'Create a concise product video');
+
+  const analyzing = contentPlanningService.analyze({
+    userId,
+    sessionId: created.id,
+    prompt: 'Show the main benefit first',
+    productName: 'Test product',
+    imageAssetIds: [imageAssetId],
+  });
+  assert.equal(analyzing.status, 'analyzing');
+  assert.equal(analyzing.jobStage, 'analyzing_materials');
+
+  const completed = await waitFor(
+    () => contentPlanningService.getSession(userId, created.id),
+    (session) => session.status === 'confirming',
+  );
+  assert.equal(completed.uiStep, 'step2');
+  assert.equal(completed.materialBundle.prompt, 'Show the main benefit first');
+  assert.equal(completed.materialBundle.imageMaterials[0]?.assetId, imageAssetId);
+  assert.equal(completed.materialBundle.referenceVideo, null);
+  assert.equal(completed.analysis.confirmed, false);
+
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('planning candidate count is limited to three', () => {
+  const userId = `planning-test-${Date.now()}-candidate-limit`;
+  const created = createTestSession(userId);
+  assert.throws(
+    () => contentPlanningService.updateSettings({
+      userId,
+      sessionId: created.id,
+      settings: { ...created.settings, candidateCount: 4 },
+    }),
+    /integer from 1 to 3/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('fallback agent pipeline produces candidates and an allowlist apply payload without reasoning logs', async () => {
+  const userId = `planning-test-${Date.now()}-generate`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  assert.equal(ready.generation.stages.length, 6);
+  assert.ok(ready.generation.stages.every((stage) => stage.status === 'completed'));
+  assert.equal(ready.generation.candidates.length, 3);
+  assert.equal(ready.generation.reasoningLogs.length, 0);
+  assert.ok(ready.generation.candidates[0]?.script.storyboard.length);
+  assert.equal(ready.generation.candidates[0]?.script.storyboard[0]?.dialogue, '');
+
+  const selected = ready.generation.candidates[1];
+  assert.ok(selected);
+  const selectedSession = contentPlanningService.selectCandidate(userId, created.id, selected.id);
+  assert.equal(selectedSession?.generation.selectedCandidateId, selected.id);
+  const applied = contentPlanningService.apply(userId, created.id);
+  assert.equal(applied.session.status, 'applied');
+  assert.equal(applied.allowlist.duration, '10s');
+  assert.equal(applied.allowlist.prompt, selected.prompt);
+  assert.match(applied.allowlist.prompt, /^## /u);
+  assert.match(applied.allowlist.prompt, /生成要求：/u);
+  assert.match(applied.allowlist.prompt, /逐秒分镜：/u);
+  assert.match(applied.allowlist.prompt, /画面：/u);
+  assert.match(applied.allowlist.prompt, /景别\/运镜：/u);
+  assert.match(applied.allowlist.prompt, /空间关系：/u);
+  assert.match(applied.allowlist.prompt, /口播：/u);
+  assert.doesNotMatch(applied.allowlist.prompt, /Create a|Use these image references|; camera |; lighting /u);
+  assert.deepEqual(Object.keys(applied.allowlist).sort(), ['duration', 'imageMaterials', 'prompt']);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('apply rebuilds legacy candidate prompts from the structured storyboard', async () => {
+  const userId = `planning-test-${Date.now()}-legacy-prompt`;
+  const { created, ready } = await advanceSessionToReady(userId);
+  const candidate = ready.generation.candidates[0];
+  assert.ok(candidate);
+  const stalePrompt = 'Create a 10-second vertical product video; camera close-up; lighting soft.';
+  const updated = contentPlanningRepository.updateSession(created.id, {
+    generation: {
+      ...ready.generation,
+      candidates: ready.generation.candidates.map((item) => (
+        item.id === candidate.id
+          ? { ...item, prompt: stalePrompt, script: { ...item.script, prompt: stalePrompt } }
+          : item
+      )),
+    },
+  });
+  assert.ok(updated);
+
+  const applied = contentPlanningService.apply(userId, created.id, candidate.id);
+  assert.match(applied.allowlist.prompt, /^## /u);
+  assert.match(applied.allowlist.prompt, /逐秒分镜：/u);
+  assert.match(applied.allowlist.prompt, /画面：/u);
+  assert.doesNotMatch(applied.allowlist.prompt, /Create a|; camera |; lighting /u);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('deep-think generation exposes complete auditable stage outputs', async () => {
+  const userId = `planning-test-${Date.now()}-deep-think`;
+  const { created, configured } = await advanceSessionToConfiguring(userId);
+  contentPlanningService.updateSettings({
+    userId,
+    sessionId: created.id,
+    settings: { ...configured.settings, deepThink: true },
+  });
+  contentPlanningService.generate(userId, created.id);
+  const ready = await waitFor(
+    () => contentPlanningService.getSession(userId, created.id),
+    (session) => session.status === 'ready_to_apply',
+  );
+  assert.equal(ready.generation.reasoningLogs.length, 6);
+  assert.match(ready.generation.reasoningLogs[0]?.content || '', /1\. 分析输入与约束/u);
+  assert.match(ready.generation.reasoningLogs[1]?.content || '', /开场钩子：/u);
+  assert.match(ready.generation.reasoningLogs[2]?.content || '', /3\. 细化时间轴与节奏/u);
+  assert.match(ready.generation.reasoningLogs[4]?.content || '', /画面：/u);
+  assert.doesNotMatch(ready.generation.reasoningLogs[4]?.content || '', /素材引用/u);
+  assert.doesNotMatch(ready.generation.reasoningLogs.map((log) => log.content).join('\n'), /【|Planner|Timeline|Visual Director/u);
+  assert.match(ready.generation.reasoningLogs[5]?.content || '', /评分/u);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('deep-think generation exposes an in-progress reasoning stream before a stage completes', async () => {
+  const service = new ContentPlanningService(
+    new StreamingDeterministicPlanningProvider(),
+    new DeterministicContentPlanningAnalysisProvider(),
+  );
+  const userId = `planning-test-${Date.now()}-reasoning-stream`;
+  const { created, configured } = await advanceSessionToConfiguring(userId, service);
+  service.updateSettings({
+    userId,
+    sessionId: created.id,
+    settings: { ...configured.settings, deepThink: true },
+  });
+  service.generate(userId, created.id);
+
+  const streaming = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => Boolean(session.generation.reasoningStream?.content.includes('正在检查商品素材')),
+  );
+  assert.equal(streaming.status, 'generating');
+  assert.equal(streaming.generation.stages[0]?.status, 'running');
+  assert.equal(streaming.generation.reasoningLogs.length, 0);
+  const updates = service.getUpdates(userId, created.id);
+  assert.match(updates.reasoningStream?.content || '', /正在检查商品素材/u);
+
+  const ready = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'ready_to_apply',
+  );
+  assert.equal(ready.generation.reasoningStream, null);
+  assert.equal(ready.generation.reasoningLogs.length, 6);
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('re-analyzing clears stale candidates and apply snapshot', async () => {
+  const userId = `planning-test-${Date.now()}-reanalyze`;
+  const { created, imageAssetId } = await advanceSessionToReady(userId);
+  const applied = contentPlanningService.apply(userId, created.id);
+  assert.equal(applied.session.status, 'applied');
+  assert.ok(applied.session.applySnapshot);
+
+  const reanalyzing = contentPlanningService.analyze({
+    userId,
+    sessionId: created.id,
+    prompt: 'Refresh the planning input',
+    productName: 'Updated test product',
+    imageAssetIds: [imageAssetId],
+  });
+  assert.equal(reanalyzing.status, 'analyzing');
+  assert.equal(reanalyzing.generation.candidates.length, 0);
+  assert.equal(reanalyzing.generation.selectedCandidateId, '');
+  assert.equal(reanalyzing.applySnapshot, null);
+
+  const confirming = await waitFor(
+    () => contentPlanningService.getSession(userId, created.id),
+    (session) => session.status === 'confirming',
+  );
+  assert.equal(confirming.generation.candidates.length, 0);
+  assert.equal(confirming.generation.selectedCandidateId, '');
+  assert.equal(confirming.applySnapshot, null);
+
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('apply rejects sessions that are not ready to apply', async () => {
+  const userId = `planning-test-${Date.now()}-apply-guard`;
+  const { created, configured } = await advanceSessionToConfiguring(userId);
+  assert.equal(configured.status, 'configuring');
+  assert.throws(
+    () => contentPlanningService.apply(userId, created.id),
+    /not ready to apply/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('confirmation and settings updates clear stale generation and apply snapshots', async () => {
+  const confirmUserId = `planning-test-${Date.now()}-confirm-reset`;
+  const { created: confirmCreated, ready: confirmReady } = await advanceSessionToReady(confirmUserId);
+  const confirmApplied = contentPlanningService.apply(confirmUserId, confirmCreated.id);
+  assert.equal(confirmApplied.session.status, 'applied');
+  assert.ok(confirmApplied.session.applySnapshot);
+
+  const resetAfterConfirmation = contentPlanningService.updateConfirmation({
+    userId: confirmUserId,
+    sessionId: confirmCreated.id,
+    materialCaptions: confirmReady.analysis.materialCaptions,
+    productInsights: {
+      ...confirmReady.analysis.productInsights,
+      coreSellingPoints: ['updated selling point'],
+    },
+    referencePolicy: { useBreakdown: false, lockedContentPreset: null },
+  });
+  assert.equal(resetAfterConfirmation?.status, 'configuring');
+  assert.equal(resetAfterConfirmation?.generation.candidates.length, 0);
+  assert.equal(resetAfterConfirmation?.generation.selectedCandidateId, '');
+  assert.equal(resetAfterConfirmation?.applySnapshot, null);
+  assert.throws(
+    () => contentPlanningService.apply(confirmUserId, confirmCreated.id),
+    /not ready to apply/u,
+  );
+  contentPlanningRepository.deleteSession(confirmCreated.id);
+
+  const settingsUserId = `planning-test-${Date.now()}-settings-reset`;
+  const { created: settingsCreated, ready: settingsReady } = await advanceSessionToReady(settingsUserId);
+  const settingsApplied = contentPlanningService.apply(settingsUserId, settingsCreated.id);
+  assert.equal(settingsApplied.session.status, 'applied');
+  assert.ok(settingsApplied.session.applySnapshot);
+
+  const resetAfterSettings = contentPlanningService.updateSettings({
+    userId: settingsUserId,
+    sessionId: settingsCreated.id,
+    settings: {
+      ...settingsReady.settings,
+      candidateCount: 2,
+      extraInstruction: 'Need a stronger hook',
+    },
+  });
+  assert.equal(resetAfterSettings?.status, 'configuring');
+  assert.equal(resetAfterSettings?.generation.candidates.length, 0);
+  assert.equal(resetAfterSettings?.generation.selectedCandidateId, '');
+  assert.equal(resetAfterSettings?.applySnapshot, null);
+  assert.throws(
+    () => contentPlanningService.apply(settingsUserId, settingsCreated.id),
+    /not ready to apply/u,
+  );
+  contentPlanningRepository.deleteSession(settingsCreated.id);
+});
+
+test('duplicate analyze and generate requests are protected per session', async () => {
+  const analyzeUserId = `planning-test-${Date.now()}-analyze-guard`;
+  const analyzeSession = createTestSession(analyzeUserId);
+  const analyzeImageAssetId = createProductImageAsset(analyzeUserId);
+  const firstAnalyze = contentPlanningService.analyze({
+    userId: analyzeUserId,
+    sessionId: analyzeSession.id,
+    prompt: 'Analyze once',
+    productName: 'Test product',
+    imageAssetIds: [analyzeImageAssetId],
+  });
+  assert.equal(firstAnalyze.status, 'analyzing');
+  assert.throws(
+    () => contentPlanningService.analyze({
+      userId: analyzeUserId,
+      sessionId: analyzeSession.id,
+      prompt: 'Analyze twice',
+      productName: 'Test product',
+      imageAssetIds: [analyzeImageAssetId],
+    }),
+    /already in progress/u,
+  );
+  await waitFor(
+    () => contentPlanningService.getSession(analyzeUserId, analyzeSession.id),
+    (session) => session.status === 'confirming',
+  );
+  contentPlanningRepository.deleteSession(analyzeSession.id);
+
+  const generateUserId = `planning-test-${Date.now()}-generate-guard`;
+  const { created } = await advanceSessionToConfiguring(generateUserId);
+  const firstGenerate = contentPlanningService.generate(generateUserId, created.id);
+  assert.equal(firstGenerate.status, 'generating');
+  const duplicateGenerate = contentPlanningService.generate(generateUserId, created.id);
+  assert.equal(duplicateGenerate.id, created.id);
+  assert.equal(duplicateGenerate.status, 'generating');
+  await waitFor(
+    () => contentPlanningService.getSession(generateUserId, created.id),
+    (session) => session.status === 'ready_to_apply',
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('failed generation keeps the session non-applicable', async () => {
+  class FailingValidatorProvider extends DeterministicContentPlanningAgentProvider {
+    override async validator(_context: Parameters<DeterministicContentPlanningAgentProvider['validator']>[0]) {
+      throw new Error('validator failed');
+    }
+  }
+
+  const service = new ContentPlanningService(
+    new FailingValidatorProvider(),
+    new DeterministicContentPlanningAnalysisProvider(),
+  );
+  const userId = `planning-test-${Date.now()}-generate-failed`;
+  const { created } = await advanceSessionToConfiguring(userId, service);
+  const generating = service.generate(userId, created.id);
+  assert.equal(generating.status, 'generating');
+
+  const failed = await waitFor(
+    () => service.getSession(userId, created.id),
+    (session) => session.status === 'failed',
+  );
+  assert.equal(failed.jobStage, 'failed');
+  assert.equal(failed.generation.selectedCandidateId, '');
+  assert.throws(
+    () => service.apply(userId, created.id),
+    /not ready to apply/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
+
+test('planning sessions are isolated by owner', () => {
+  const owner = `planning-test-${Date.now()}-owner`;
+  const other = `${owner}-other`;
+  const created = createTestSession(owner);
+  assert.throws(
+    () => contentPlanningService.getSession(other, created.id),
+    /planning session not found/u,
+  );
+  contentPlanningRepository.deleteSession(created.id);
+});
