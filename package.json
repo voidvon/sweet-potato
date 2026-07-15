@@ -6,8 +6,13 @@
     "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm：corepack enable pnpm && pnpm install'); process.exit(1); }\"",
     "dev": "node ./scripts/dev-entry.cjs electron",
     "dev:web": "bash ./scripts/dev-web.sh",
+    "format": "prettier --write",
+    "format:check": "prettier --check",
     "package:macos": "bash ./scripts/package.sh",
     "package:docker": "bash ./package-docker.sh",
     "package:docker:test": "bash ./package-docker.sh test"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.5"
   }
 }

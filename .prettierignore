@@ -1,0 +1,7 @@
+**/node_modules/
+**/dist/
+build/
+docker_run/
+release/
+uploads/
+generated_videos/

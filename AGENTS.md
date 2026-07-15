@@ -18,7 +18,7 @@
 
 ## Coding Style & Naming Conventions
 
-TypeScript 代码启用 `strict`，使用 ES module 语法、2 空格缩进、单引号和尾随分号。React 组件使用 `PascalCase.tsx`，API 封装按模块放在 `frontend/web/src/api/<module>/`。后端模块遵循 `*.routes.ts`、`*.service.ts`、`*.repository.ts`、`*.types.ts` 的分层命名。Python worker 使用清晰的领域分层：`domain/` 放纯业务逻辑，`services/` 放外部流程编排。
+TypeScript 代码启用 `strict`，使用 ES module 语法、2 空格缩进、单引号和无分号风格（仅在避免 ASI 语义歧义时保留必要的前置分号）。React 组件使用 `PascalCase.tsx`，API 封装按模块放在 `frontend/web/src/api/<module>/`。后端模块遵循 `*.routes.ts`、`*.service.ts`、`*.repository.ts`、`*.types.ts` 的分层命名。Python worker 使用清晰的领域分层：`domain/` 放纯业务逻辑，`services/` 放外部流程编排。
 
 ## Testing Guidelines
 

@@ -24,7 +24,7 @@ import {
 } from '@ant-design/icons';
 import { listMyCreditLedger } from '../../api/billing';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import { getCurrentUser, updateUserPassword, updateUserProfile } from '../../api/user';
+import { updateUserPassword, updateUserProfile } from '../../api/user';
 import { sourceTypeLabel } from '../../utils/billingLabels';
 import type {
   MyCreditLedgerEntry,
@@ -89,16 +89,10 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   const [profileForm] = Form.useForm<UserProfilePayload>();
   const [passwordForm] = Form.useForm<PasswordPayload>();
 
-  async function loadAccountData() {
+  async function loadCreditLedger() {
     setLedgerLoading(true);
     try {
-      const [profileResult, ledgerResult] = await Promise.all([
-        getCurrentUser(),
-        listMyCreditLedger(),
-      ]);
-      setCurrentProfile(profileResult.user);
-      onUserUpdated(profileResult.user);
-      setLedger(ledgerResult);
+      setLedger(await listMyCreditLedger());
     } catch (error) {
       message.error(error instanceof Error ? error.message : '账户积分信息加载失败');
     } finally {
@@ -111,7 +105,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   }, [currentUser]);
 
   useEffect(() => {
-    void loadAccountData();
+    void loadCreditLedger();
   }, []);
 
   function openProfileModal() {
@@ -345,7 +339,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
 
         <section className="settings-section">
           <div className="settings-section-actions">
-          <Button icon={<ReloadOutlined />} onClick={() => void loadAccountData()} loading={ledgerLoading}>
+          <Button icon={<ReloadOutlined />} onClick={() => void loadCreditLedger()} loading={ledgerLoading}>
             刷新账单
           </Button>
           </div>
