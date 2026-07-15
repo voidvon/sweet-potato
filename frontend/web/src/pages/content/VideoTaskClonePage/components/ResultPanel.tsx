@@ -45,7 +45,7 @@ export function ResultPanel({
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
-  const resultGroups = groupRecordsByDayAndModule(sortedRecords);
+  const resultGroups = groupRecordsByMetric(sortedRecords);
   const activeFilterCount = activeResultFilterCount(filters);
 
   useEffect(() => {
@@ -423,24 +423,26 @@ function parseDurationSeconds(duration?: string | null) {
   return matched ? Number(matched[1]) : 0;
 }
 
-function groupRecordsByDayAndModule(records: VideoGenerationTask[]) {
-  const groups = new Map<string, { key: string; label: string; records: VideoGenerationTask[] }>();
+function groupRecordsByMetric(records: VideoGenerationTask[]) {
+  const groups: Array<{ key: string; label: string; records: VideoGenerationTask[] }> = [];
+  let previousMetricKey = '';
   records.forEach((record) => {
     const date = new Date(record.updatedAt);
-    const dayKey = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
-    const key = `${dayKey}:${resultModuleKey(record)}`;
-    const current = groups.get(key);
-    if (current) {
+    const metric = formatMetric(taskVideoGenerationResult(record), record);
+    const metricKey = JSON.stringify([resultModuleKey(record), metric]);
+    const current = groups[groups.length - 1];
+    if (current && metricKey === previousMetricKey) {
       current.records.push(record);
       return;
     }
-    groups.set(key, {
-      key,
+    groups.push({
+      key: record.id,
       label: formatRelativeCalendarDateTime(date),
       records: [record],
     });
+    previousMetricKey = metricKey;
   });
-  return Array.from(groups.values());
+  return groups;
 }
 
 function resultModuleKey(task: VideoGenerationTask) {
@@ -461,13 +463,6 @@ function activeResultFilterCount(filters: FilterValues) {
     }
   });
   return count;
-}
-
-function formatDayKey(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
