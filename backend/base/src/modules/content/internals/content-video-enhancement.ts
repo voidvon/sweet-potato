@@ -3,6 +3,14 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
 import { createTraceId, logger } from '../../../shared/logger.js';
+import {
+  assertSufficientStepCredits,
+  estimateVideoUpscaleCredits,
+  estimateVodUploadCredits,
+  releaseVideoUpscaleCredits,
+  reserveVideoUpscaleCredits,
+  settleVideoUpscaleCredits,
+} from '../../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content.repository.js';
 import type { CreateVideoEnhancementPayload, VideoGenerationResult, VideoGenerationTask } from '../content.types.js';
 import { createFinishedVideoAsset, createPendingFinishedVideoAsset, markFinishedVideoAssetFailed } from './content-image-assets.js';
@@ -103,6 +111,25 @@ async function failEnhancementTask(taskId: string, reason: string) {
   const task = contentRepository.findVideoTask(taskId);
   if (!task) return null;
   const result = enhancementResult(task);
+  const context = enhancementContext(task);
+  const reservationId = String(context.enhancementBillingReservationId || '').trim();
+  let billingReleased = false;
+  if (reservationId) {
+    try {
+      billingReleased = releaseVideoUpscaleCredits({
+        reservationId,
+        userId: task.userId,
+        taskId: task.id,
+        reason,
+      });
+    } catch (error) {
+      logger.error('video enhancement billing release failed', {
+        taskId,
+        reservationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   const failedResult: VideoGenerationResult = {
     ...(result || {
       version: 1,
@@ -118,7 +145,14 @@ async function failEnhancementTask(taskId: string, reason: string) {
     videoUrl: null,
     generatedAt: new Date().toISOString(),
   };
-  updateEnhancementTask({ task, context: enhancementContext(task), result: failedResult });
+  updateEnhancementTask({
+    task,
+    context: {
+      ...context,
+      ...(billingReleased ? { enhancementBillingStatus: 'released' } : {}),
+    },
+    result: failedResult,
+  });
   markFinishedVideoAssetFailed(result?.assetId, reason);
   return contentRepository.markVideoTaskFailed(taskId, reason);
 }
@@ -132,6 +166,26 @@ async function completeEnhancementTask(task: VideoGenerationTask, worker: Enhanc
   }
   const remoteVideoUrl = playbackUrlFromStoreUri(storeUri);
   const resolution = String(context.enhancementResolution || '1080p');
+  const reservationId = String(context.enhancementBillingReservationId || '').trim();
+  const billingRecord = reservationId
+    ? settleVideoUpscaleCredits({
+      reservationId,
+      userId: task.userId,
+      taskId: task.id,
+      resolution,
+      runId: result?.jobId,
+      requestSnapshot: {
+        sourceAssetId: context.sourceAssetId,
+        sourceVid: context.sourceVid,
+        resolution,
+        config: context.enhancementConfig || 'aigc',
+      },
+      responseSnapshot: {
+        storeUri,
+        remoteVideoUrl,
+      },
+    })
+    : null;
   const finishedAsset = createFinishedVideoAsset({
     userId: task.userId,
     taskId: task.id,
@@ -187,6 +241,11 @@ async function completeEnhancementTask(task: VideoGenerationTask, worker: Enhanc
       enhancementStatus: 'completed',
       enhancementStoreUri: storeUri,
       remoteGeneratedVideoUrl: remoteVideoUrl,
+      ...(billingRecord ? {
+        enhancementBillingStatus: 'settled',
+        enhancementBillingRecordId: billingRecord.id,
+        enhancementBillingCredits: billingRecord.creditCost,
+      } : {}),
     },
     result: completedResult,
   });
@@ -286,6 +345,15 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
   if (!['1080p', '2k', '4k'].includes(resolution)) {
     throw new Error(`不支持的目标分辨率：${resolution}`);
   }
+  const fileSizeBytes = sourceAsset.fileSize || (await stat(sourceAsset.filePath)).size;
+  const videoUpscaleCredits = estimateVideoUpscaleCredits();
+  const vodUploadCredits = estimateVodUploadCredits(fileSizeBytes);
+  assertSufficientStepCredits({
+    userId: payload.userId,
+    requiredCredits: videoUpscaleCredits + vodUploadCredits,
+    step: 'video_upscale',
+    stepLabel: '视频高清放大（含 VOD 上传）',
+  });
   const title = `${path.parse(sourceAsset.name || sourceAsset.originalFileName).name || '视频'}-高清${resolution.toUpperCase()}`;
   const task = contentRepository.createParsedVideoTask({
     userId: payload.userId,
@@ -303,38 +371,67 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
     },
   });
   if (!task) throw new Error('高清放大任务创建失败');
-  const pendingAsset = createPendingFinishedVideoAsset({
-    userId: payload.userId,
-    taskId: task.id,
-    title,
-    provider: 'volcengine-vod',
-    model: 'moe-aigc-enhance',
-    ratio: '',
-    duration: '',
-    mode: 'video_upscale',
-    materialContext: { sourceAssetId: sourceAsset.id, resolution },
-  });
-  const pendingResult: VideoGenerationResult = {
-    version: 1,
-    taskId: task.id,
-    sourceType: 'video_enhancement',
-    status: 'pending',
-    provider: 'volcengine-vod',
-    model: 'moe-aigc-enhance',
-    videoUrl: null,
-    duration: '',
-    ratio: '',
-    assetId: pendingAsset.id,
-    renderMode: 'provider_generation',
-    renderStatus: 'queued',
-    generatedAt: new Date().toISOString(),
-  };
-  updateEnhancementTask({ task, context: enhancementContext(task), result: pendingResult });
-  contentRepository.markVideoTaskGenerating(task.id);
+  let reservationId = '';
+  let pendingResult: VideoGenerationResult;
+  try {
+    const billing = reserveVideoUpscaleCredits({
+      userId: payload.userId,
+      taskId: task.id,
+      resolution,
+    });
+    reservationId = billing.reservation.id;
+    const pendingAsset = createPendingFinishedVideoAsset({
+      userId: payload.userId,
+      taskId: task.id,
+      title,
+      provider: 'volcengine-vod',
+      model: 'moe-aigc-enhance',
+      ratio: '',
+      duration: '',
+      mode: 'video_upscale',
+      materialContext: { sourceAssetId: sourceAsset.id, resolution },
+    });
+    pendingResult = {
+      version: 1,
+      taskId: task.id,
+      sourceType: 'video_enhancement',
+      status: 'pending',
+      provider: 'volcengine-vod',
+      model: 'moe-aigc-enhance',
+      videoUrl: null,
+      duration: '',
+      ratio: '',
+      assetId: pendingAsset.id,
+      renderMode: 'provider_generation',
+      renderStatus: 'queued',
+      generatedAt: new Date().toISOString(),
+    };
+    updateEnhancementTask({
+      task,
+      context: {
+        ...enhancementContext(task),
+        enhancementBillingReservationId: reservationId,
+        enhancementBillingStatus: 'reserved',
+        enhancementBillingCredits: billing.reservation.reservedCredits,
+      },
+      result: pendingResult,
+    });
+    contentRepository.markVideoTaskGenerating(task.id);
+  } catch (error) {
+    if (reservationId) {
+      releaseVideoUpscaleCredits({
+        reservationId,
+        userId: payload.userId,
+        taskId: task.id,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+    contentRepository.markVideoTaskFailed(task.id, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 
   void (async () => {
     try {
-      const fileSizeBytes = sourceAsset.fileSize || (await stat(sourceAsset.filePath)).size;
       const vod = await uploadLocalVideoToVodWithWorker({
         filePath: sourceAsset.filePath,
         originalFileName: sourceAsset.originalFileName || path.basename(sourceAsset.filePath),

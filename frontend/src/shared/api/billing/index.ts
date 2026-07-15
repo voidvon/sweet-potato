@@ -4,11 +4,13 @@ import type {
   AdminLlmUsageRecord,
   BillingSettings,
   MyCreditLedgerEntry,
+  SiteConfig,
 } from '../../types';
 import { request } from '../core/request';
 
 enum Api {
   settings = '/api/billing/settings',
+  siteConfig = '/api/site-config',
   ledger = '/api/billing/ledger',
   usage = '/api/billing/usage',
   billableUsage = '/api/billing/billable-usage',
@@ -19,7 +21,21 @@ export function getBillingSettings() {
   return request<BillingSettings>(Api.settings);
 }
 
-export function updateBillingSettings(payload: Pick<BillingSettings, 'videoUploadCreditsPerMb' | 'videoUnderstandingCreditsPer1MTokens'>) {
+export function getSiteConfig() {
+  return request<SiteConfig>(Api.siteConfig);
+}
+
+export function updateBillingSettings(payload: Pick<
+  BillingSettings,
+  | 'videoUploadCreditsPerMb'
+  | 'videoUnderstandingCreditsPer1MTokens'
+  | 'videoUpscaleCreditsPerRequest'
+  | 'subtitleRemovalCreditsPerSecond'
+  | 'videoTranslationSubtitleCreditsPerSecond'
+  | 'videoTranslationVoiceCreditsPerSecond'
+  | 'videoTranslationFaceCreditsPerSecond'
+  | 'videoTranslationEraseSourceCreditsPerSecond'
+>) {
   return request<BillingSettings>(Api.settings, {
     method: 'PUT',
     body: JSON.stringify(payload),

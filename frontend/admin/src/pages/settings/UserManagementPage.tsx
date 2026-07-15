@@ -97,6 +97,8 @@ function billableCategoryLabel(category: AdminBillableUsageRecord['category']) {
       return { color: 'cyan', text: '图片生成' };
     case 'video_generation':
       return { color: 'geekblue', text: '视频生成' };
+    case 'video_upscale':
+      return { color: 'blue', text: '视频高清放大' };
     case 'voice_clone':
       return { color: 'orange', text: '声音克隆' };
     case 'speech_synthesis':
