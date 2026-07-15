@@ -472,14 +472,11 @@ function formatDayKey(date: Date) {
 
 function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
   const normalized = String(note || '').trim();
-  if (!normalized) {
-    return '';
-  }
   if (kind === 'failed') {
     if (/real person|真人|人物/i.test(normalized)) {
       return '内容可能涉及真人素材，请调整后重试。';
     }
-    return '内容审查未通过，请调整素材后重试。';
+    return normalized || '内容可能不符合平台要求，请调整参考素材后重试。';
   }
   if (kind === 'running') {
     return '生成完成后会自动刷新。';

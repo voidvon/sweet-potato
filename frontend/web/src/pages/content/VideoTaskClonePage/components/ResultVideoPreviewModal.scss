@@ -12,9 +12,9 @@
   width: 100vw !important;
 }
 
-.result-video-preview-modal .ant-modal-container,
-.result-video-preview-modal .ant-modal-content,
-.result-video-preview-modal .ant-modal-body {
+.result-video-preview-modal.ant-modal .ant-modal-container,
+.result-video-preview-modal.ant-modal .ant-modal-content,
+.result-video-preview-modal.ant-modal .ant-modal-body {
   background: #fff;
   border-radius: 0;
   height: 100%;

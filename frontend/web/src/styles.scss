@@ -14,6 +14,52 @@ body {
   overflow: hidden;
 }
 
+// Keep context-based, static, and locally customized Ant Design modals consistent.
+.ant-modal .ant-modal-container,
+.ant-modal .ant-modal-content {
+  border-radius: 22px;
+}
+
+.ant-modal .ant-modal-close {
+  background-color: #f2f4f7 !important;
+  border-radius: 50% !important;
+  transform: translate(-6px, 6px);
+}
+
+.ant-modal .ant-modal-close:hover {
+  background-color: #e4e7ec !important;
+}
+
+.ant-modal .ant-modal-footer .ant-btn {
+  border-radius: 999px !important;
+}
+
+// Blur the page behind every Ant Design modal and ease the blur in with the mask.
+.ant-modal-root .ant-modal-mask {
+  -webkit-backdrop-filter: blur(10px);
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  opacity: 1 !important;
+}
+
+.ant-modal-root .ant-modal-mask.ant-fade-appear,
+.ant-modal-root .ant-modal-mask.ant-fade-enter,
+.ant-modal-root .ant-modal-mask.ant-fade-appear-active,
+.ant-modal-root .ant-modal-mask.ant-fade-enter-active {
+  animation-duration: 240ms !important;
+  animation-fill-mode: both !important;
+  animation-name: app-modal-mask-blur-in !important;
+  animation-timing-function: cubic-bezier(0.2, 0.72, 0.26, 1) !important;
+}
+
+.ant-modal-root .ant-modal-mask.ant-fade-leave,
+.ant-modal-root .ant-modal-mask.ant-fade-leave-active {
+  animation-duration: 240ms !important;
+  animation-fill-mode: both !important;
+  animation-name: app-modal-mask-blur-out !important;
+  animation-timing-function: cubic-bezier(0.2, 0.72, 0.26, 1) !important;
+}
+
 * {
   scrollbar-color: rgba(102, 112, 133, 0.32) transparent;
   scrollbar-width: thin;
@@ -156,6 +202,34 @@ h2 {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes app-modal-mask-blur-in {
+  from {
+    -webkit-backdrop-filter: blur(0);
+    background-color: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0);
+  }
+
+  to {
+    -webkit-backdrop-filter: blur(10px);
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+  }
+}
+
+@keyframes app-modal-mask-blur-out {
+  from {
+    -webkit-backdrop-filter: blur(10px);
+    background-color: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+  }
+
+  to {
+    -webkit-backdrop-filter: blur(0);
+    background-color: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0);
   }
 }
 

@@ -1,7 +1,5 @@
-import { Slider } from 'antd';
-import { X } from 'lucide-react';
+import { Alert, Descriptions, Flex, Modal, Progress, Slider, Typography } from 'antd';
 import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 
 const MIN_SELECTION_SECONDS = 4;
@@ -31,6 +29,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
   const [end, setEnd] = useState(MAX_SELECTION_SECONDS);
   const [errorMessage, setErrorMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [open, setOpen] = useState(true);
   const [progress, setProgress] = useState(0);
   const rangeValueRef = useRef({ end: MAX_SELECTION_SECONDS, start: 0 });
   const videoUrl = useObjectUrl(file);
@@ -140,25 +139,33 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
     };
   }, []);
 
-  const modal = (
-    <div aria-label="剪辑参考视频" aria-modal="true" className="trim-modal" role="dialog">
-      <div className="trim-modal__backdrop" />
-      <div className="trim-modal__panel">
-        <header className="trim-modal__header">
-          <div>
-            <p className="trim-modal__eyebrow">Trim reference video</p>
-            <h3>剪辑参考视频</h3>
-          </div>
-          <button aria-label="关闭" className="trim-modal__close" onClick={onCancel} type="button">
-            <X size={18} />
-          </button>
-        </header>
-
-        <p className="trim-modal__hint">
+  return (
+    <Modal
+      afterOpenChange={(nextOpen) => {
+        if (!nextOpen) onCancel();
+      }}
+      cancelButtonProps={{ disabled: isProcessing }}
+      cancelText="取消"
+      centered
+      closable={!isProcessing}
+      confirmLoading={isProcessing}
+      keyboard={!isProcessing}
+      mask={{ closable: !isProcessing }}
+      okButtonProps={{ disabled: isSelectionInvalid }}
+      okText={isProcessing ? `剪辑中 ${progress}%` : '剪辑并使用'}
+      onCancel={() => setOpen(false)}
+      onOk={() => void confirmTrim()}
+      open={open}
+      title="剪辑参考视频"
+      width={780}
+      zIndex={12000}
+    >
+      <Flex gap="middle" vertical>
+        <Typography.Text type="secondary">
           原视频 {formatTime(duration)}，请选择 {MIN_SELECTION_SECONDS}-{MAX_SELECTION_SECONDS} 秒区间。
-        </p>
+        </Typography.Text>
 
-        <div className="trim-modal__video">
+        <div style={{ height: 420, overflow: 'hidden' }}>
           <VideoPreviewPlayer
             duration={duration}
             loopAtEnd
@@ -171,60 +178,48 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
           />
         </div>
 
-        <div className="trim-modal__timeline">
-          <div
-            className="trim-modal__track"
-            onFocusCapture={captureActiveRangeHandle}
-            onPointerDownCapture={captureActiveRangeHandle}
-          >
-            <Slider
-              {...sliderBehaviorProps}
-              ariaLabelForHandle={['剪辑起点', '剪辑终点']}
-              max={safeDuration}
-              min={0}
-              onChange={handleRangeChange}
-              onChangeComplete={() => {
-                activeRangeHandleRef.current = null;
-                lastRangeHandleValueRef.current = null;
-              }}
-              range
-              step={0.1}
-              tooltip={{ formatter: (value) => formatTime(value ?? 0) }}
-              value={[start, end]}
-            />
-          </div>
-          <div className="trim-modal__codes">
-            <span>起点 <strong>{formatTime(start)}</strong></span>
-            <span>终点 <strong>{formatTime(end)}</strong></span>
-            <span>选区 <strong className={isSelectionInvalid ? 'is-invalid' : ''}>{formatTime(selectionLength)}</strong></span>
-          </div>
+        <div
+          onFocusCapture={captureActiveRangeHandle}
+          onPointerDownCapture={captureActiveRangeHandle}
+        >
+          <Slider
+            {...sliderBehaviorProps}
+            ariaLabelForHandle={['剪辑起点', '剪辑终点']}
+            max={safeDuration}
+            min={0}
+            onChange={handleRangeChange}
+            onChangeComplete={() => {
+              activeRangeHandleRef.current = null;
+              lastRangeHandleValueRef.current = null;
+            }}
+            range
+            step={0.1}
+            tooltip={{ formatter: (value) => formatTime(value ?? 0) }}
+            value={[start, end]}
+          />
         </div>
 
+        <Descriptions
+          column={3}
+          items={[
+            { children: formatTime(start), key: 'start', label: '起点' },
+            { children: formatTime(end), key: 'end', label: '终点' },
+            { children: formatTime(selectionLength), key: 'selection', label: '选区' },
+          ]}
+          size="small"
+        />
+
         {isProcessing && (
-          <>
-            <div className="trim-modal__processing-note">视频正在剪辑处理中，请保持窗口打开。</div>
-            <div className="trim-modal__processing">
-              <strong>剪辑中 {progress}%</strong>
-              <span>
-                <i style={{ width: `${progress}%` }} />
-              </span>
-            </div>
-          </>
+          <Flex gap="small" vertical>
+            <Alert message="视频正在剪辑处理中，请保持窗口打开。" showIcon type="info" />
+            <Progress percent={progress} status="active" />
+          </Flex>
         )}
 
-        {errorMessage && <div className="trim-modal__error">{errorMessage}</div>}
-
-        <footer className="trim-modal__footer">
-          <button className="trim-modal__btn trim-modal__btn--ghost" onClick={onCancel} type="button">取消</button>
-          <button className="trim-modal__btn trim-modal__btn--primary" disabled={isSelectionInvalid || isProcessing} onClick={confirmTrim} type="button">
-            {isProcessing ? `剪辑中 ${progress}%` : '剪辑并使用'}
-          </button>
-        </footer>
-      </div>
-    </div>
+        {errorMessage && <Alert message={errorMessage} showIcon type="error" />}
+      </Flex>
+    </Modal>
   );
-
-  return createPortal(modal, document.body);
 }
 
 function useObjectUrl(file: File) {
