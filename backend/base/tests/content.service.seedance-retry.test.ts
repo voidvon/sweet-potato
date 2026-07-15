@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCharacterReferenceImageIds, resolveSeedanceRejectedSourceAssetIds } from '../src/modules/content/content.service.js';
+import {
+  resolveCharacterReferenceImageIds,
+  resolveSeedanceRejectedSourceAssetIds,
+  restorePersistentReferenceImageIds,
+} from '../src/modules/content/content.service.js';
 
 test('resolveCharacterReferenceImageIds infers character references from nearby prompt clauses', () => {
   const result = resolveCharacterReferenceImageIds({
@@ -60,4 +64,21 @@ test('seedance rejected image index keeps targeted source image when provider re
   });
 
   assert.deepEqual(result, ['img-2']);
+});
+
+test('temporary character reference cleanup restores persistent source image ids', () => {
+  const context = restorePersistentReferenceImageIds({
+    referenceImageIds: ['temporary-img-1', 'persistent-img-2'],
+    originalReferenceImageIds: ['persistent-img-1', 'persistent-img-2'],
+  });
+
+  assert.deepEqual(context.referenceImageIds, ['persistent-img-1', 'persistent-img-2']);
+});
+
+test('temporary character reference cleanup preserves current ids without an original snapshot', () => {
+  const context = restorePersistentReferenceImageIds({
+    referenceImageIds: ['persistent-img-1'],
+  });
+
+  assert.deepEqual(context.referenceImageIds, ['persistent-img-1']);
 });

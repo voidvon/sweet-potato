@@ -189,9 +189,15 @@ export function displayPlanningMaterialRef(value: string) {
 
 export function planningApplyPayloadToFormState(payload: PlanningApplyPayload) {
   return {
+    audioMaterials: payload.allowlist.referenceAudio
+      ? [planningAssetRefToLocalMaterial(payload.allowlist.referenceAudio)]
+      : [],
     duration: payload.allowlist.duration,
     imageMaterials: planningAssetRefsToLocalMaterials(payload.allowlist.imageMaterials),
     prompt: normalizePlanningPromptTokens(payload.allowlist.prompt),
+    videoMaterials: payload.allowlist.referenceVideo
+      ? [planningAssetRefToLocalMaterial(payload.allowlist.referenceVideo)]
+      : [],
   };
 }
 

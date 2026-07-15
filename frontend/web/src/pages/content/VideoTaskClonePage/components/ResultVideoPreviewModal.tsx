@@ -71,7 +71,12 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
       const loadedAssets = await Promise.all(assetIds.map(async (assetId) => {
         try {
           return await getContentAsset(assetId);
-        } catch {
+        } catch (error) {
+          console.warn('[result-video-preview:reference-load-failed]', {
+            assetId,
+            taskId: nextTask?.id || video.taskId || '',
+            error: error instanceof Error ? error.message : String(error || ''),
+          });
           return null;
         }
       }));
@@ -250,8 +255,11 @@ function formatDuration(seconds: number) {
 function taskReferenceAssetIds(task: VideoGenerationTask | null) {
   if (!task) return [];
   const context = task.expertContext || {};
+  const originalReferenceImageIds = stringList(context.originalReferenceImageIds);
   return Array.from(new Set([
-    ...stringList(context.referenceImageIds),
+    ...(originalReferenceImageIds.length
+      ? originalReferenceImageIds
+      : stringList(context.referenceImageIds)),
     ...stringList(context.referenceVideoIds),
     ...stringList(context.referenceAudioIds),
     ...stringList(context.sourceAssetId),

@@ -204,6 +204,8 @@ export type PlanningSession = {
     prompt: string;
     duration: `${5 | 10 | 15}s`;
     imageMaterials: PlanningAssetRef[];
+    referenceVideo?: PlanningAssetRef;
+    referenceAudio?: PlanningAssetRef;
     appliedAt: string;
   } | null;
   errorMessage?: string;
@@ -216,13 +218,24 @@ export type PlanningApplyPayload = {
     prompt: string;
     duration: `${5 | 10 | 15}s`;
     imageMaterials: PlanningAssetRef[];
+    referenceVideo?: PlanningAssetRef;
+    referenceAudio?: PlanningAssetRef;
   };
   session?: PlanningSession;
+};
+
+export type ContentPlanningClientConfig = {
+  analysisCredits: number;
+  generationCredits: number;
 };
 
 type MediaInput = { assetId: string; kind: PlanningAssetRef['kind'] };
 
 const basePath = '/api/content-planning/sessions';
+
+export function getContentPlanningConfig() {
+  return request<ContentPlanningClientConfig>('/api/content-planning/config');
+}
 
 export function createPlanningEventSource() {
   return new EventSource(withAuthToken(`${API_BASE_URL}/api/content-planning/events`));

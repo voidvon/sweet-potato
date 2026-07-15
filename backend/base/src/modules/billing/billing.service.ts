@@ -1146,6 +1146,167 @@ export function saveBillingSettings(settings: BillingSettings) {
   return settings;
 }
 
+export function reserveFixedBillableUsage(input: {
+  userId: string;
+  category: BillableUsageCategory;
+  sourceType: string;
+  sourceId: string;
+  sessionId?: string;
+  credits: number;
+  step: string;
+  stepLabel: string;
+  requestSnapshot?: Record<string, unknown>;
+}) {
+  const settings = assertSystemBillingReady();
+  const credits = roundCredits(Math.max(0, normalizeNumber(input.credits, 0)));
+  const now = new Date().toISOString();
+  const quantitySnapshot = {
+    requests: 1,
+    configuredCreditsPerRequest: credits,
+    priceSource: 'environment',
+  };
+  const snapshot = buildBillableSnapshot({
+    settings,
+    category: input.category,
+    pricingMode: 'per_request',
+    quantitySnapshot,
+    requestSnapshot: input.requestSnapshot || {},
+    responseSnapshot: {},
+    usageRaw: {
+      directCreditPricing: true,
+      directCreditCost: credits,
+    },
+  });
+  const reservation: CreditReservation = {
+    id: randomBytes(12).toString('hex'),
+    userId: input.userId,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    reservedCredits: credits,
+    status: 'reserved',
+    snapshot: {
+      ...snapshot,
+      sessionId: input.sessionId || null,
+    },
+    createdAt: now,
+    settledAt: null,
+  };
+
+  const transaction = db.transaction(() => {
+    const user = userRepository.findById(input.userId);
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+    if (credits > 0 && roundCredits(user.creditBalance) < credits) {
+      throw new InsufficientStepCreditsError({
+        step: input.step,
+        stepLabel: input.stepLabel,
+        currentCredits: user.creditBalance,
+        requiredCredits: credits,
+      });
+    }
+    const nextCreditBalance = credits > 0
+      ? roundCredits(user.creditBalance - credits)
+      : roundCredits(user.creditBalance);
+    if (credits > 0) {
+      userRepository.updateCreditBalance(user.id, nextCreditBalance);
+      billingRepository.createLedgerEntry({
+        id: randomBytes(12).toString('hex'),
+        userId: user.id,
+        type: 'reserve_debit',
+        creditDelta: -credits,
+        creditBalanceAfter: nextCreditBalance,
+        creditBaseCost: credits,
+        creditBilledCost: credits,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        snapshot: reservation.snapshot,
+        createdAt: now,
+      });
+    }
+    billingRepository.createReservation(reservation);
+    return reservation;
+  });
+
+  return transaction();
+}
+
+export function settleFixedBillableUsage(input: {
+  reservation: CreditReservation;
+  category: BillableUsageCategory;
+  provider?: string;
+  model?: string;
+  sessionId?: string;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const now = new Date().toISOString();
+  const transaction = db.transaction(() => {
+    const reservation = billingRepository.findReservation(input.reservation.id);
+    if (!reservation) {
+      throw new Error('积分预留记录不存在');
+    }
+    if (reservation.status !== 'reserved') {
+      throw new Error('积分预留记录已经处理');
+    }
+    const quantitySnapshot = isRecord(reservation.snapshot.quantitySnapshot)
+      ? reservation.snapshot.quantitySnapshot
+      : { requests: 1 };
+    const requestSnapshot = isRecord(reservation.snapshot.requestSnapshot)
+      ? reservation.snapshot.requestSnapshot
+      : {};
+    const responseSnapshot = input.responseSnapshot || {};
+    const usageRaw = isRecord(reservation.snapshot.usageRaw)
+      ? reservation.snapshot.usageRaw
+      : {};
+    billingRepository.updateReservationStatus(reservation.id, 'settled', now);
+    const record: BillableUsageRecord = {
+      id: randomBytes(12).toString('hex'),
+      userId: reservation.userId,
+      category: input.category,
+      modelConfigId: null,
+      provider: input.provider || null,
+      model: input.model || null,
+      sourceType: reservation.sourceType,
+      sourceId: reservation.sourceId,
+      taskId: null,
+      sessionId: input.sessionId || null,
+      groupId: null,
+      pricingMode: 'per_request',
+      quantitySnapshot,
+      usageRaw,
+      requestSnapshot,
+      responseSnapshot,
+      creditBaseCost: reservation.reservedCredits,
+      creditBilledCost: reservation.reservedCredits,
+      creditCost: reservation.reservedCredits,
+      status: 'completed',
+      createdAt: now,
+    };
+    billingRepository.createBillableUsageRecord(record);
+    return record;
+  });
+  return transaction();
+}
+
+export function findReservedFixedBillableUsage(input: { sourceType: string; sessionId: string }) {
+  return billingRepository.findLatestReservedReservationBySourceTypeAndSessionId(
+    input.sourceType,
+    input.sessionId,
+  );
+}
+
+export function releaseFixedBillableUsage(reservation: CreditReservation) {
+  const current = billingRepository.findReservation(reservation.id);
+  if (!current || current.status !== 'reserved') {
+    return;
+  }
+  releaseReservation({
+    reservation: current,
+    sourceType: current.sourceType,
+    sourceId: current.sourceId,
+  });
+}
+
 export function recordImageGenerationUsage(input: {
   userId: string;
   modelConfig: AiModelConfig;
