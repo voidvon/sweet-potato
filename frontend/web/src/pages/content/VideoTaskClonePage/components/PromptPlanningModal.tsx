@@ -72,7 +72,7 @@ import type {
   SelectedMaterialValue,
   SelectedMaterials,
 } from '../types';
-import { readVideoDuration, shouldTrimReferenceVideo } from '../videoMetadata';
+import { downloadTrimmedVideo, readVideoDuration, shouldTrimReferenceVideo } from '../videoMetadata';
 import { MaterialSlot } from './MaterialSlot';
 import { ReferenceVideoCard, type ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
@@ -208,6 +208,8 @@ export function PromptPlanningModal({
   const analyzeLockRef = useRef(false);
   const generateLockRef = useRef(false);
   const restorePromiseRef = useRef<Promise<PlanningSession> | null>(null);
+  const thinkingBodyRef = useRef<HTMLPreElement | null>(null);
+  const thinkingAutoScrollRef = useRef(true);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -318,6 +320,25 @@ export function PromptPlanningModal({
   useEffect(() => {
     materialsRef.current = materials;
   }, [materials]);
+
+  useEffect(() => {
+    if (session?.status === 'generating') {
+      thinkingAutoScrollRef.current = true;
+    }
+  }, [session?.id, session?.status]);
+
+  useEffect(() => {
+    if (isThinkingCollapsed || !thinkingAutoScrollRef.current) {
+      return undefined;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const body = thinkingBodyRef.current;
+      if (body) {
+        body.scrollTop = body.scrollHeight;
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isThinkingCollapsed, isWaitingForThinkingDelta, thinkingText]);
 
   useEffect(() => () => {
     audioPlayerRef.current?.pause();
@@ -797,7 +818,6 @@ export function PromptPlanningModal({
   };
 
   const analyzeCopy = getAnalyzeLoadingCopy(session?.jobStage || 'idle', {
-    hasAudio: Boolean(referenceAudioFile || session?.materialBundle.referenceAudio),
     hasVideo: hasReferenceVideo,
   });
   const generateCopy = getGenerateLoadingCopy(session?.jobStage || 'idle', Boolean(thinkingText));
@@ -1335,7 +1355,12 @@ export function PromptPlanningModal({
                       <section className="video-task-epa-thinking-panel">
                         <button
                           className="video-task-epa-thinking-head"
-                          onClick={() => setIsThinkingCollapsed((current) => !current)}
+                          onClick={() => setIsThinkingCollapsed((current) => {
+                            if (current) {
+                              thinkingAutoScrollRef.current = true;
+                            }
+                            return !current;
+                          })}
                           type="button"
                         >
                           <div>
@@ -1349,6 +1374,12 @@ export function PromptPlanningModal({
                             aria-busy={isWaitingForThinkingDelta}
                             aria-live="polite"
                             className="video-task-epa-thinking-body"
+                            onScroll={(event) => {
+                              const body = event.currentTarget;
+                              const distanceFromBottom = body.scrollHeight - body.scrollTop - body.clientHeight;
+                              thinkingAutoScrollRef.current = distanceFromBottom <= 24;
+                            }}
+                            ref={thinkingBodyRef}
                           >
                             {thinkingText}
                             {isWaitingForThinkingDelta ? (
@@ -1463,7 +1494,7 @@ export function PromptPlanningModal({
                       type="button"
                     >
                       {busyAction === 'analyzing' ? <LoaderCircle className="is-spinning" size={16} /> : <RefreshCcw size={15} />}
-                      重新识别 · 2积分
+                      重新识别
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"
@@ -1704,28 +1735,38 @@ export function PromptPlanningModal({
       file: selection.file,
       start: Number(selection.start.toFixed(1)),
     });
-    const nextFile = {
-      id: `video-${crypto.randomUUID()}`,
-      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
-      type: 'video',
-      url: resolveAssetUrl(result.fileUrl),
-      serverFileUrl: result.fileUrl,
-      storedFileName: result.storedFileName,
-      trimDuration: result.duration,
-      trimEnd: result.end,
-      trimStart: result.start,
-    } satisfies LocalMaterialFile;
+    try {
+      const trimmedFile = await downloadTrimmedVideo(
+        result.fileUrl,
+        result.originalFileName || selection.file.name,
+      );
+      const nextFile = {
+        file: trimmedFile,
+        id: `video-${crypto.randomUUID()}`,
+        name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+        type: 'video',
+        url: createOwnedObjectUrl(trimmedFile, ownedObjectUrlsRef.current),
+        trimDuration: result.duration,
+        trimEnd: result.end,
+        trimStart: result.start,
+      } satisfies LocalMaterialFile;
 
-    setMaterials((current) => {
-      revokeLocalMaterialList(getLocalFiles(current.video), ownedObjectUrlsRef.current);
-      return {
-        ...current,
-        video: [nextFile],
-      };
-    });
-    setPendingTrimFile(null);
-    if (previousVideo) {
-      void deleteServerReferenceVideo(previousVideo);
+      setMaterials((current) => {
+        revokeLocalMaterialList(getLocalFiles(current.video), ownedObjectUrlsRef.current);
+        return {
+          ...current,
+          video: [nextFile],
+        };
+      });
+      setPendingTrimFile(null);
+      if (previousVideo) {
+        void deleteServerReferenceVideo(previousVideo);
+      }
+    } finally {
+      void deleteReferenceVideo({
+        fileUrl: result.fileUrl,
+        storedFileName: result.storedFileName,
+      }).catch(() => undefined);
     }
   }
 
@@ -1907,7 +1948,7 @@ function CenteredLoadingCard({
           </div>
         </div>
         <div className="video-task-epa-loading-progress">
-          <span style={{ width: `${Math.max(progress * 100, 12)}%` }} />
+          {/* <span style={{ width: `${Math.max(progress * 100, 12)}%` }} /> */}
         </div>
       </div>
     </div>
@@ -2218,30 +2259,18 @@ function formatCandidateScript(candidate: PlanningCandidate) {
 
 function getAnalyzeLoadingCopy(
   jobStage: PlanningJobStage,
-  references: { hasAudio: boolean; hasVideo: boolean },
+  references: { hasVideo: boolean },
 ) {
   if (jobStage === 'analyzing_reference_video') {
-    if (!references.hasVideo && references.hasAudio) {
-      return {
-        title: '商品图识别完成，正在分析参考音色',
-        description: '正在提取音色、语速与口播风格，请勿关闭',
-      };
-    }
     return {
       title: '商品图识别完成，正在拆解参考视频',
       description: '正在解析镜头/节奏/结构，脚本会照参考视频结构复刻，请勿关闭',
     };
   }
-  if (!references.hasVideo && !references.hasAudio) {
+  if (!references.hasVideo) {
     return {
       title: 'AI 正在识别商品素材',
       description: '正在分析商品主体、外观、核心卖点与使用场景，约 15-30 秒，请勿关闭',
-    };
-  }
-  if (!references.hasVideo && references.hasAudio) {
-    return {
-      title: 'AI 正在分析商品素材 + 参考音色',
-      description: '正在识别商品并提取参考音色的语速与口播风格，约 30-60 秒，请勿关闭',
     };
   }
   return {

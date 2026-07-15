@@ -204,6 +204,7 @@ export type PlanningSession = {
     prompt: string;
     duration: `${5 | 10 | 15}s`;
     imageMaterials: PlanningAssetRef[];
+    referenceAudio?: PlanningAssetRef;
     appliedAt: string;
   } | null;
   errorMessage?: string;
@@ -216,6 +217,7 @@ export type PlanningApplyPayload = {
     prompt: string;
     duration: `${5 | 10 | 15}s`;
     imageMaterials: PlanningAssetRef[];
+    referenceAudio?: PlanningAssetRef;
   };
   session?: PlanningSession;
 };

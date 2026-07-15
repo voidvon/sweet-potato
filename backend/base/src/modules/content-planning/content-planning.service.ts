@@ -458,21 +458,18 @@ export class ContentPlanningService {
         confirmed: false,
         notes: [],
       };
-      const hasReferenceMedia = Boolean(session.materialBundle.referenceVideo || session.materialBundle.referenceAudio);
+      const hasReferenceVideo = Boolean(session.materialBundle.referenceVideo);
       session = contentPlanningRepository.updateSession(sessionId, {
-        jobStage: hasReferenceMedia ? 'analyzing_reference_video' : 'completed',
+        jobStage: hasReferenceVideo ? 'analyzing_reference_video' : 'completed',
         analysis,
       }) || session;
-      const viralBreakdown = hasReferenceMedia
+      const viralBreakdown = hasReferenceVideo
         ? await this.analysisProvider.analyzeReference({
           productName: session.materialBundle.productName,
           prompt: session.materialBundle.prompt,
           productInsights: productAnalysis.productInsights,
           video: session.materialBundle.referenceVideo
             ? analysisAsset(userId, session.materialBundle.referenceVideo)
-            : null,
-          audio: session.materialBundle.referenceAudio
-            ? analysisAsset(userId, session.materialBundle.referenceAudio)
             : null,
         })
         : null;
@@ -786,6 +783,9 @@ export class ContentPlanningService {
       prompt,
       duration: `${session.settings.durationSeconds}s` as `${ContentPlanningSettings['durationSeconds']}s`,
       imageMaterials: session.materialBundle.imageMaterials,
+      ...(session.materialBundle.referenceAudio
+        ? { referenceAudio: session.materialBundle.referenceAudio }
+        : {}),
       appliedAt: nowIso(),
     };
     const next = contentPlanningRepository.updateSession(sessionId, {
@@ -803,6 +803,9 @@ export class ContentPlanningService {
         prompt: applySnapshot.prompt,
         duration: applySnapshot.duration,
         imageMaterials: applySnapshot.imageMaterials,
+        ...('referenceAudio' in applySnapshot
+          ? { referenceAudio: applySnapshot.referenceAudio }
+          : {}),
       },
     };
   }

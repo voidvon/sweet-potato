@@ -78,3 +78,5 @@ Base 配置使用 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `ARK_VIDEO_MODEL`。`
 - `generation_failed`：生成失败，客户端应清除当前流式草稿并回退到会话错误状态。
 
 `GET /api/content-planning/sessions/:id/updates` 同时返回 `reasoningStream`，用于 SSE 断线、关闭弹窗后重新打开以及后台继续生成时恢复最新文本。模型隐藏推理字段不会传给客户端；实时展示内容来自结构化输出中的公开 `auditText`，最终候选结果仍在完整 JSON 解析和 Schema 校验通过后提交。
+
+策划会话可以保存 `referenceAudio`，但参考音色不会发送给策划分析模型。`POST /api/content-planning/sessions/:id/apply` 会在 `allowlist.referenceAudio` 中返回该素材，供视频创作表单回填；参考视频仍按原流程参与爆款结构分析。

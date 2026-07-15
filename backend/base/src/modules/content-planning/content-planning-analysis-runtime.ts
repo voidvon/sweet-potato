@@ -24,7 +24,6 @@ export type ReferenceMaterialAnalysisInput = {
   prompt: string;
   productInsights: ContentPlanningProductInsights;
   video?: ContentPlanningAnalysisAsset | null;
-  audio?: ContentPlanningAnalysisAsset | null;
 };
 
 export type ProductMaterialAnalysis = Pick<ContentPlanningAnalysis, 'materialCaptions' | 'productInsights'>;
@@ -205,7 +204,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
       {
         type: 'input_text',
         text: [
-          '你是短视频爆款结构分析师。拆解随后提供的参考视频和/或参考音色，并给出可迁移到新商品脚本的节奏、镜头、结构和口播风格。',
+          '你是短视频爆款结构分析师。拆解随后提供的参考视频，并给出可迁移到新商品脚本的节奏、镜头、结构和口播风格。',
           `目标商品：${input.productName || input.productInsights.productName || '未填写'}`,
           `商品洞察：${JSON.stringify(input.productInsights)}`,
           `用户要求：${input.prompt || '无'}`,
@@ -215,7 +214,6 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
         ].join('\n'),
       },
       ...(input.video ? [{ type: 'video_url' as const, video_url: { ...mediaSource(input.video), fps: 2 } }] : []),
-      ...(input.audio ? [{ type: 'input_audio' as const, input_audio: mediaSource(input.audio) }] : []),
     ];
     const parsed = parseJsonResponse(await collectUnderstanding(content), viralBreakdownSchema);
     return {

@@ -4,6 +4,7 @@ import {
   createContentPlanningAgentProvider,
   DeterministicContentPlanningAgentProvider,
   extractPartialJsonStringField,
+  normalizePlanningTimelineSegments,
   projectPlanningAuditStream,
   type PlanningRuntimeContext,
 } from '../src/modules/content-planning/content-planning-agent-runtime.js';
@@ -31,6 +32,54 @@ test('reference breakdown time ranges are normalized to seconds', () => {
   assert.equal(normalizeContentPlanningTimeRange('00：02-00：03.5'), '2-3.5秒');
   assert.equal(normalizeContentPlanningTimeRange('0-2s'), '0-2秒');
   assert.equal(normalizeContentPlanningTimeRange('00:01:02-00:01:05'), '62-65秒');
+});
+
+test('planning timelines correct a small final duration drift to the configured target', () => {
+  const source = [
+    { startSecond: 0, endSecond: 2, beat: 'hook', goal: 'attention' },
+    { startSecond: 2, endSecond: 5, beat: 'proof', goal: 'benefit' },
+    { startSecond: 5, endSecond: 9, beat: 'close', goal: 'conversion' },
+  ];
+  const normalized = normalizePlanningTimelineSegments(source, 10);
+
+  assert.deepEqual(normalized.map(({ startSecond, endSecond }) => ({ startSecond, endSecond })), [
+    { startSecond: 0, endSecond: 2 },
+    { startSecond: 2, endSecond: 5 },
+    { startSecond: 5, endSecond: 10 },
+  ]);
+  assert.equal(source[2]?.endSecond, 9);
+
+  const halfSecondShort = normalizePlanningTimelineSegments([
+    { startSecond: 0, endSecond: 1.5 },
+    { startSecond: 1.5, endSecond: 9.5 },
+  ], 10);
+  assert.equal(halfSecondShort[1]?.endSecond, 10);
+
+  const floatingPointDrift = normalizePlanningTimelineSegments([
+    { startSecond: 0, endSecond: 2 },
+    { startSecond: 2.0004, endSecond: 10.0004 },
+  ], 10);
+  assert.deepEqual(floatingPointDrift.map(({ startSecond, endSecond }) => ({ startSecond, endSecond })), [
+    { startSecond: 0, endSecond: 2 },
+    { startSecond: 2, endSecond: 10 },
+  ]);
+});
+
+test('planning timelines reject large duration mismatches and discontinuities', () => {
+  assert.throws(
+    () => normalizePlanningTimelineSegments([
+      { startSecond: 0, endSecond: 2 },
+      { startSecond: 2, endSecond: 7 },
+    ], 10),
+    /总时长不是 10 秒/u,
+  );
+  assert.throws(
+    () => normalizePlanningTimelineSegments([
+      { startSecond: 0, endSecond: 2 },
+      { startSecond: 2.5, endSecond: 10 },
+    ], 10),
+    /不连续或无效/u,
+  );
 });
 
 test('partial audit text extraction decodes streamed JSON string content', () => {
@@ -157,6 +206,34 @@ function createReferenceVideoAsset(userId: string) {
   return asset.id;
 }
 
+function createReferenceAudioAsset(userId: string) {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const group = contentRepository.createGroup({
+    userId,
+    resourceType: 'voice',
+    name: `planning-audio-${suffix}`,
+    description: '',
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(group);
+  const asset = contentRepository.createAsset({
+    userId,
+    groupId: group.id,
+    resourceType: 'voice',
+    name: 'Test reference audio',
+    description: '',
+    originalFileName: 'reference.wav',
+    storedFileName: `reference-${suffix}.wav`,
+    mimeType: 'audio/wav',
+    fileSize: 4,
+    filePath: `/tmp/reference-${suffix}.wav`,
+    fileUrl: `/files/reference-${suffix}.wav`,
+    metadata: { source: 'content-planning-test' },
+  });
+  assert.ok(asset);
+  return asset.id;
+}
+
 test('planning analysis requires a product image rather than a reference video', () => {
   const userId = `planning-test-${Date.now()}-required-image`;
   const created = createTestSession(userId);
@@ -175,7 +252,11 @@ test('planning analysis requires a product image rather than a reference video',
   contentPlanningRepository.deleteSession(created.id);
 });
 
-async function advanceSessionToConfiguring(userId: string, service: ContentPlanningService = contentPlanningService) {
+async function advanceSessionToConfiguring(
+  userId: string,
+  service: ContentPlanningService = contentPlanningService,
+  references: { referenceAudioAssetId?: string } = {},
+) {
   const created = createTestSession(userId, service);
   const imageAssetId = createProductImageAsset(userId);
   const analyzed = service.analyze({
@@ -184,6 +265,7 @@ async function advanceSessionToConfiguring(userId: string, service: ContentPlann
     prompt: 'Use a display-only product demo',
     productName: 'Test product',
     imageAssetIds: [imageAssetId],
+    referenceAudioAssetId: references.referenceAudioAssetId,
   });
   await waitFor(
     () => service.getSession(userId, analyzed.id),
@@ -219,8 +301,12 @@ async function advanceSessionToConfiguring(userId: string, service: ContentPlann
   return { created, configured, imageAssetId };
 }
 
-async function advanceSessionToReady(userId: string, service: ContentPlanningService = contentPlanningService) {
-  const { created, configured, imageAssetId } = await advanceSessionToConfiguring(userId, service);
+async function advanceSessionToReady(
+  userId: string,
+  service: ContentPlanningService = contentPlanningService,
+  references: { referenceAudioAssetId?: string } = {},
+) {
+  const { created, configured, imageAssetId } = await advanceSessionToConfiguring(userId, service, references);
   const generating = service.generate(userId, created.id);
   assert.equal(generating.status, 'generating');
   const ready = await waitFor(
@@ -229,6 +315,32 @@ async function advanceSessionToReady(userId: string, service: ContentPlanningSer
   );
   return { created, configured, imageAssetId, ready };
 }
+
+test('reference audio bypasses planning analysis and is returned when applying', async () => {
+  const userId = `planning-test-${Date.now()}-reference-audio`;
+  const analysisProvider = new class extends DeterministicContentPlanningAnalysisProvider {
+    referenceAnalysisCalls = 0;
+
+    override async analyzeReference() {
+      this.referenceAnalysisCalls += 1;
+      return super.analyzeReference();
+    }
+  }();
+  const service = new ContentPlanningService(
+    new DeterministicContentPlanningAgentProvider(),
+    analysisProvider,
+  );
+  const referenceAudioAssetId = createReferenceAudioAsset(userId);
+  const { created, ready } = await advanceSessionToReady(userId, service, { referenceAudioAssetId });
+
+  assert.equal(analysisProvider.referenceAnalysisCalls, 0);
+  assert.equal(ready.materialBundle.referenceAudio?.assetId, referenceAudioAssetId);
+  const applied = service.apply(userId, created.id);
+  assert.equal(applied.allowlist.referenceAudio?.assetId, referenceAudioAssetId);
+  assert.equal(applied.session.applySnapshot?.referenceAudio?.assetId, referenceAudioAssetId);
+
+  contentPlanningRepository.deleteSession(created.id);
+});
 
 test('planning session analysis is restorable and advances asynchronously', async () => {
   const userId = `planning-test-${Date.now()}-restore`;

@@ -371,7 +371,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       system: [
         '你是短视频策划系统的 Planner。',
         '先系统分析商品可见特征、目标人群、使用场景、素材能力、参考视频结构、目标时长和生成参数，再整理为可执行 brief。',
-        'hardConstraints 必须覆盖总时长、画面风格、商品真实性、口播语言、无字幕/无屏幕文字、素材完整使用和禁止夸大等约束。',
+        'hardConstraints 必须覆盖总时长、画面风格、商品真实性、口播语言、无字幕/无屏幕文字、素材完整使用和禁止夸大等约束。总时长必须表述为“精确等于 settings.durationSeconds 秒”，禁止写成“以内”“不超过”或更短时长。',
         'candidateDirections 要给出数量与 candidateCount 一致的差异路线，至少覆盖氛围种草、卖点/痛点、场景/对话或参考结构适配等不同创意机制。',
         '只输出可审计的规划结论，不写逐秒分镜，不泄露隐藏思维链。',
       ].join('\n'),
@@ -396,6 +396,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       system: [
         '你是短视频策划系统的 Strategy Agent。',
         '根据 Planner brief 设计真正差异化的创意路线，数量必须等于 candidateCount。',
+        '每条路线的总时长必须精确等于 settings.durationSeconds；summary 中出现逐段时间时，第一段从 0 开始，最后一段必须结束于该目标秒数。',
         '每条路线要有不同钩子、受众角度和情绪曲线；有参考视频时遵守是否复刻其结构的设置。',
         '短视频必须在首个镜头建立明确钩子，后续用商品证据承接，结尾完成记忆或转化；禁止只改文案而复用同一创意结构。',
         '当前成片不使用字幕或屏幕文字，不得把弹窗大字、字幕卡、价格贴纸等作为策略核心，信息应通过画面和口播表达。',
@@ -421,6 +422,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       system: [
         '你是短视频策划系统的 Timeline Agent。',
         '为每个 strategyId 生成完整连续的时间轴，第一段必须从 0 开始，最后一段必须结束于 durationSeconds。',
+        'targetDurationSeconds/settings.durationSeconds 是唯一时长真值；参考视频 timeRange 和 Strategy summary 中的其他总时长只可参考节奏比例，存在冲突时必须改写并补齐到目标时长。',
         '时间段不可重叠或留空；每段只定义节奏功能和目标，不写详细画面。',
         '5秒视频安排3-5段，10秒安排4-7段，15秒安排5-9段；镜头切分必须服务于钩子、卖点证据和收尾，不为切镜而切镜。',
         'goal 中不得安排字幕、弹窗或屏幕文字；需要表达的信息交给口播或可见商品动作。',
@@ -433,10 +435,13 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       if (!output) {
         throw new Error(`Timeline Agent 未返回策略 ${strategy.id} 的时间轴`);
       }
-      assertTimelineSegments(output.segments, context.session.settings.durationSeconds);
+      const normalizedSegments = normalizePlanningTimelineSegments(
+        output.segments,
+        context.session.settings.durationSeconds,
+      );
       return {
         strategyId: strategy.id,
-        segments: output.segments.map((segment, index) => ({
+        segments: normalizedSegments.map((segment, index) => ({
           ...segment,
           id: `${strategy.id}-segment-${index + 1}`,
         })),
@@ -817,6 +822,7 @@ function planningStageInput(context: PlanningRuntimeContext) {
   const { session } = context;
   return JSON.stringify({
     sessionId: session.id,
+    targetDurationSeconds: session.settings.durationSeconds,
     product: {
       name: session.materialBundle.productName,
       prompt: session.materialBundle.prompt,
@@ -837,20 +843,37 @@ function planningStageInput(context: PlanningRuntimeContext) {
   }, null, 2);
 }
 
-function assertTimelineSegments(
-  segments: Array<{ startSecond: number; endSecond: number }>,
+export function normalizePlanningTimelineSegments<T extends { startSecond: number; endSecond: number }>(
+  segments: T[],
   durationSeconds: ContentPlanningDurationSeconds,
 ) {
+  const boundaryEpsilon = 0.001;
   let expectedStart = 0;
-  for (const segment of segments) {
-    if (segment.startSecond !== expectedStart || segment.endSecond <= segment.startSecond) {
+  const normalized = segments.map((segment) => {
+    if (
+      Math.abs(segment.startSecond - expectedStart) > boundaryEpsilon
+      || segment.endSecond - segment.startSecond <= boundaryEpsilon
+    ) {
       throw new Error('Timeline Agent 返回了不连续或无效的时间段');
     }
+    const normalizedSegment = { ...segment, startSecond: expectedStart };
     expectedStart = segment.endSecond;
+    return normalizedSegment;
+  });
+  const lastSegment = normalized.at(-1);
+  if (!lastSegment) {
+    throw new Error('Timeline Agent 返回了不连续或无效的时间段');
   }
-  if (expectedStart !== durationSeconds) {
+  const durationDelta = durationSeconds - expectedStart;
+  const maxEndCorrection = Math.max(0.5, durationSeconds * 0.1);
+  if (
+    Math.abs(durationDelta) > maxEndCorrection
+    || durationSeconds - lastSegment.startSecond <= boundaryEpsilon
+  ) {
     throw new Error(`Timeline Agent 返回的总时长不是 ${durationSeconds} 秒`);
   }
+  lastSegment.endSecond = durationSeconds;
+  return normalized;
 }
 
 function validMaterialRefs(refs: string[], materialCount: number) {

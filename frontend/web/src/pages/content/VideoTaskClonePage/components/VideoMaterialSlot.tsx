@@ -1,13 +1,12 @@
 import { Play, X } from 'lucide-react';
 import { useState } from 'react';
 import { deleteReferenceVideo, trimReferenceVideo } from '../../../../api/content';
-import { resolveAssetUrl } from '../../../../api/request';
 import { materialIcon } from './materialIcon';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
 import type { LocalMaterialFile, SelectedMaterialValue } from '../types';
-import { shouldTrimReferenceVideo } from '../videoMetadata';
+import { downloadTrimmedVideo, shouldTrimReferenceVideo } from '../videoMetadata';
 
 type VideoMaterialSlotProps = {
   onClear: () => void;
@@ -150,26 +149,4 @@ async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
   } catch {
     // Best-effort cleanup: the visual state should not be blocked by stale temporary files.
   }
-}
-
-async function downloadTrimmedVideo(fileUrl: string, originalFileName: string) {
-  let response: Response;
-  try {
-    response = await fetch(resolveAssetUrl(fileUrl), { cache: 'no-store' });
-  } catch {
-    throw new Error('裁剪结果读取失败，请重试');
-  }
-  if (!response.ok) {
-    throw new Error('裁剪结果读取失败，请重试');
-  }
-  const blob = await response.blob();
-  return new File([blob], trimmedVideoFileName(originalFileName), {
-    lastModified: Date.now(),
-    type: blob.type || 'video/mp4',
-  });
-}
-
-function trimmedVideoFileName(originalFileName: string) {
-  const baseName = originalFileName.replace(/\.[^./\\]+$/, '') || 'reference-video';
-  return `${baseName}-trimmed.mp4`;
 }

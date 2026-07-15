@@ -469,10 +469,15 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setDuration(next.duration);
     setSelectedMaterials((current) => {
       Object.values(current).forEach((value) => revokeLocalMaterials(getLocalFiles(value)));
-      return { image: next.imageMaterials };
+      return {
+        image: next.imageMaterials,
+        ...(next.audioMaterials.length ? { audio: next.audioMaterials } : {}),
+      };
     });
     setPromptPanel(null);
-    message.success('已把商品图、提示词和时长带入视频创作');
+    message.success(next.audioMaterials.length
+      ? '已把商品图、参考音色、提示词和时长带入视频创作'
+      : '已把商品图、提示词和时长带入视频创作');
   }, []);
 
   const resetCreationForm = useCallback(() => {
