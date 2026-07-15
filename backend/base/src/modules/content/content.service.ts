@@ -22,7 +22,9 @@ import type {
   CreateAssetPayload,
   CreateRealPersonAssetPayload,
   CreateRealPersonValidationSessionPayload,
+  CreateSubtitleRemovalPayload,
   CreateVideoEnhancementPayload,
+  CreateVideoTranslationPayload,
   CreateVideoProductionPayload,
   GenerateDigitalHumanThreeViewPayload,
   GenerateVideoPayload,
@@ -54,6 +56,8 @@ import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile,
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
+import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRemovalTasks } from './internals/content-subtitle-removal.js';
+import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
@@ -1564,7 +1568,7 @@ export const contentService = {
     const timeRange = videoProductionTimeRange(filters.time);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'video_upscale'],
+        modes: ['video_create', 'video_upscale', 'subtitle_removal', 'video_translation'],
         search: normalizeVideoProductionSearch(filters.search),
         updatedAtFrom: timeRange.updatedAtFrom,
         updatedAtTo: timeRange.updatedAtTo,
@@ -1574,7 +1578,11 @@ export const contentService = {
       try {
         const nextTask = task.expertContext?.mode === 'video_upscale'
           ? await refreshVideoEnhancementTask(task)
-          : await refreshVideoTaskGenerationStatus(task);
+          : task.expertContext?.mode === 'subtitle_removal'
+            ? await refreshSubtitleRemovalTask(task)
+            : task.expertContext?.mode === 'video_translation'
+              ? await refreshVideoTranslationTask(task)
+            : await refreshVideoTaskGenerationStatus(task);
         if (nextTask && nextTask.status !== 'generating' && nextTask.expertContext?.temporaryCharacterReferenceGroupId) {
           await cleanupTemporaryCharacterReferenceGroup({
             groupId: String(nextTask.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -1602,6 +1610,16 @@ export const contentService = {
   async createVideoEnhancement(payload: CreateVideoEnhancementPayload) {
     assertUserId(payload.userId);
     return createVideoEnhancementTask(payload);
+  },
+
+  async createSubtitleRemoval(payload: CreateSubtitleRemovalPayload) {
+    assertUserId(payload.userId);
+    return createSubtitleRemovalTask(payload);
+  },
+
+  async createVideoTranslation(payload: CreateVideoTranslationPayload) {
+    assertUserId(payload.userId);
+    return createVideoTranslationTask(payload);
   },
 
   async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
@@ -2078,7 +2096,11 @@ export const contentService = {
     try {
       const refreshed = task.expertContext?.mode === 'video_upscale'
         ? await refreshVideoEnhancementTask(task)
-        : await refreshVideoTaskGenerationStatus(task);
+        : task.expertContext?.mode === 'subtitle_removal'
+          ? await refreshSubtitleRemovalTask(task)
+          : task.expertContext?.mode === 'video_translation'
+            ? await refreshVideoTranslationTask(task)
+          : await refreshVideoTaskGenerationStatus(task);
       if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
         await cleanupTemporaryCharacterReferenceGroup({
           groupId: String(refreshed.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -2099,6 +2121,8 @@ export const contentService = {
   resumeRunningVideoGenerations() {
     this.resumePersistedRunningVideoGenerations();
     resumeVideoEnhancementTasks();
+    resumeSubtitleRemovalTasks();
+    resumeVideoTranslationTasks();
   },
 
   resumePendingGeneratedVideoMirrors() {
@@ -2357,7 +2381,9 @@ export const contentService = {
   resumePersistedRunningVideoGenerations() {
     const tasks = contentRepository.listGeneratingVideoTasks();
     const resumable = tasks.filter((task) => {
-      if (task.expertContext?.mode === 'video_upscale') {
+      if (task.expertContext?.mode === 'video_upscale'
+        || task.expertContext?.mode === 'subtitle_removal'
+        || task.expertContext?.mode === 'video_translation') {
         return false;
       }
       const segmentState = task.expertContext?.videoGenerationSegments;

@@ -2,6 +2,30 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-15 视频制作任务超时契约
+
+- `/app/content/create_video` 当前已接入的视频生成、视频高清放大、字幕擦除和视频翻译任务，默认处理超时统一为 15 分钟。
+- 默认轮询次数会根据轮询间隔自动换算：10 秒间隔为 90 次，30 秒间隔为 30 次。
+- `VIDEO_GENERATION_POLL_MAX_ATTEMPTS`、`VIDEO_ENHANCEMENT_POLL_MAX_ATTEMPTS`、`VIDEO_SUBTITLE_REMOVAL_POLL_MAX_ATTEMPTS` 和 `VIDEO_TRANSLATION_POLL_MAX_ATTEMPTS` 仍可覆盖各模块的默认上限。
+
+## 2026-07-14 AI 视频翻译契约
+
+- `POST /api/content/video-translations` 提交火山引擎 VOD AI 视频翻译任务；登录用户始终作为任务所有者。
+- 请求体包含 `sourceAssetId`、`sourceLanguage`、`targetLanguage`、`translationTypes`、`subtitleSource` 和 `subtitleConfig`。
+- `translationTypes` 使用 `subtitle | voice | face`，字幕翻译必选，面容翻译必须同时启用语音翻译；`subtitleSource` 支持 `ocr | asr`。
+- 开启硬字幕时，`subtitleConfig` 必须包含 `fontSize`、`marginL`、`marginR`、`marginV`、`showLines`；三个边距都是相对视频宽高的 `0~1` 比例。
+- 返回 `VideoGenerationTask`，其中 `expertContext.mode = "video_translation"`；任务状态、失败原因及产物继续通过 `GET /api/content/video-productions` 获取。
+- Base 服务会先把源视频上传到配置的 VOD 空间，再通过 AI worker 调用 `SubmitAITranslationWorkflow` 并轮询 `ListAITranslationProject`。产物优先使用火山返回的 `OutputVideo.Url`；仅返回 `FileName` 时需要 `VOLCENGINE_VOD_PLAYBACK_BASE_URL`。
+
+## 2026-07-13 字幕擦除契约
+
+- `POST /api/content/subtitle-removals` 提交火山引擎 VOD 精细化字幕擦除任务；登录用户始终作为任务所有者。
+- 请求体包含 `sourceAssetId`、`mode`（`auto | auto_region | manual`）、`contentType`（`subtitle | text`）、`locations` 和 `clipFilter`。
+- `locations` 使用相对于视频宽高的 `0~1` 比例坐标；`auto_region` 和 `manual` 至少需要一个有效矩形区域。
+- `clipFilter.mode` 支持 `all | selected | skip`。非 `all` 模式必须提供非空的 `clips` 数组，每项包含合法的 `start`、`end` 秒数；服务端仍兼容历史单段 `start`、`end` 请求。
+- 返回 `VideoGenerationTask`，其中 `expertContext.mode = "subtitle_removal"`；任务状态及产物继续通过 `GET /api/content/video-productions` 获取。
+- Base 服务需要配置 `VOLCENGINE_VOD_PLAYBACK_BASE_URL`，用于将 VOD 返回的 `FileName` 解析为可播放地址并镜像到本地。
+
 ## 2026-05-12 后端契约更新
 
 - `POST /api/content/video-enhancements` submits a Volcengine VOD AIGC enhancement task.

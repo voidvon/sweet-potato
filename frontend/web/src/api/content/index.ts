@@ -18,6 +18,8 @@ enum Api {
   videoTasks = '/api/content/video-tasks',
   videoProductions = '/api/content/video-productions',
   videoEnhancements = '/api/content/video-enhancements',
+  subtitleRemovals = '/api/content/subtitle-removals',
+  videoTranslations = '/api/content/video-translations',
 }
 
 export type TrimReferenceVideoResult = {
@@ -319,6 +321,10 @@ export function deleteContentAsset(id: string) {
   return request<{ ok: boolean }>(`${Api.assets}/${id}`, { method: 'DELETE' });
 }
 
+export function getContentAsset(id: string) {
+  return request<ContentAsset>(`${Api.assets}/${id}`);
+}
+
 export function listVideoTasks(userId: string) {
   void userId;
   return request<VideoGenerationTask[]>(Api.videoTasks);
@@ -391,6 +397,58 @@ export function createVideoEnhancement(payload: {
 }) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoGenerationTask>(Api.videoEnhancements, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
+export function createSubtitleRemoval(payload: {
+  userId: string;
+  sourceAssetId: string;
+  mode: 'auto' | 'auto_region' | 'manual';
+  contentType: 'subtitle' | 'text';
+  locations: Array<{
+    topLeftX: number;
+    topLeftY: number;
+    bottomRightX: number;
+    bottomRightY: number;
+  }>;
+  clipFilter: {
+    mode: 'all' | 'selected' | 'skip';
+    clips: Array<{
+      start: number;
+      end: number;
+    }>;
+  };
+}) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoGenerationTask>(Api.subtitleRemovals, {
+    method: 'POST',
+    body: JSON.stringify(requestPayload),
+  });
+}
+
+export type CreateVideoTranslationRequest = {
+  userId: string;
+  sourceAssetId: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  translationTypes: Array<'subtitle' | 'voice' | 'face'>;
+  subtitleSource: 'ocr' | 'asr';
+  subtitleConfig: {
+    isHardSubtitle: boolean;
+    isEraseSource: boolean;
+    fontSize?: number;
+    marginL?: number;
+    marginR?: number;
+    marginV?: number;
+    showLines?: number;
+  };
+};
+
+export function createVideoTranslation(payload: CreateVideoTranslationRequest) {
+  const { userId: _userId, ...requestPayload } = payload;
+  return request<VideoGenerationTask>(Api.videoTranslations, {
     method: 'POST',
     body: JSON.stringify(requestPayload),
   });

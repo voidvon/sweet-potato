@@ -13,6 +13,7 @@ import { privateAssetId,stringMetadataField } from './content-common.js';
 import { appendVideoGenerationResultHistory,createFinishedVideoAsset,markFinishedVideoAssetFailed } from './content-image-assets.js';
 import { isSegmentedVideoGenerationState,queryConfiguredVideoModelTask,recordVideoGenerationUsageIfNeeded,resumeSegmentedSeedanceVideoGeneration } from './content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
+import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { isRecord,normalizeParseResult } from './content-viral-analysis.js';
 import { logVideoGenerationFlow } from './content-viral-director.js';
 import { absolutizeMaterialUrl } from './content-voice-clone.js';
@@ -357,7 +358,9 @@ export async function pollRunningVideoGenerationTask(taskId: string) {
       return;
     }
     const intervalMs = Number(process.env.VIDEO_GENERATION_POLL_INTERVAL_MS || 30000);
-    const maxAttempts = Number(process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || 120);
+    const maxAttempts = Math.max(1, Number(
+      process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || defaultVideoPollMaxAttempts(intervalMs),
+    ));
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const latest = contentRepository.findVideoTask(taskId);
       if (!latest || latest.status !== 'generating') {

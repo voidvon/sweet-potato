@@ -1,22 +1,22 @@
 import { DeleteOutlined, DownloadOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search, Zap } from 'lucide-react';
-import { Button, Dropdown, message } from 'antd';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search } from 'lucide-react';
+import { Button, Dropdown, Modal, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
-import { formatTimeHM } from '../../../../utils/dateTime';
+import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
+import { downloadUrlAsFile } from '@shared/utils/download';
 import { filterGroups } from '../constants';
 import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
-import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
-import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
+import { ResultVideoPreviewModal, type ResultVideoPreview } from './ResultVideoPreviewModal';
 
 type ResultPanelProps = {
   filters: FilterValues;
   isFilterOpen: boolean;
   isLoading: boolean;
   onClearFilters: () => void;
-  onDelete: (task: VideoGenerationTask) => void;
+  onDelete: (task: VideoGenerationTask) => Promise<boolean>;
   onFilterChange: (filters: FilterValues) => void;
   onFilterToggle: () => void;
   onRetry: (task: VideoGenerationTask) => Promise<void>;
@@ -38,14 +38,14 @@ export function ResultPanel({
   deletingTaskId,
   retryingTaskId,
 }: ResultPanelProps) {
-  const [previewVideo, setPreviewVideo] = useState<ConfirmedReferenceVideo | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<ResultVideoPreview | null>(null);
   const [searchDraft, setSearchDraft] = useState(String(filters.搜索 || ''));
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
   const filterPanelRef = useRef<HTMLElement | null>(null);
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
   );
-  const dailyGroups = groupRecordsByDay(sortedRecords);
+  const resultGroups = groupRecordsByDayAndModule(sortedRecords);
   const activeFilterCount = activeResultFilterCount(filters);
 
   useEffect(() => {
@@ -70,20 +70,6 @@ export function ResultPanel({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [isFilterOpen, onFilterToggle]);
 
-  const handleCopyId = async (value: string) => {
-    const normalized = String(value || '').trim();
-    if (!normalized) {
-      message.warning('暂无可复制的ID');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(normalized);
-      message.success('已复制ID');
-    } catch {
-      message.error('复制失败，请稍后重试');
-    }
-  };
-
   const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     onFilterChange({ ...filters, 搜索: searchDraft.trim() });
@@ -94,6 +80,17 @@ export function ResultPanel({
     onClearFilters();
   };
 
+  const confirmDeleteVideo = (task: VideoGenerationTask) => {
+    Modal.confirm({
+      cancelText: '取消',
+      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
+      okButtonProps: { danger: true },
+      okText: '删除',
+      onOk: () => onDelete(task),
+      title: '删除生成记录',
+    });
+  };
+
   const handleDownloadVideo = async (task: VideoGenerationTask, videoUrl: string) => {
     const normalizedUrl = String(videoUrl || '').trim();
     if (!normalizedUrl) {
@@ -101,29 +98,11 @@ export function ResultPanel({
       return;
     }
     const fileName = downloadFileName(task);
-    if (shouldUseBrowserDownload(normalizedUrl)) {
-      triggerBrowserDownload(normalizedUrl, fileName, true);
-      message.success('已打开下载链接');
-      return;
-    }
     try {
-      const response = await fetch(normalizedUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const blob = await response.blob();
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
+      await downloadUrlAsFile(normalizedUrl, fileName);
       message.success('已开始下载');
-    } catch {
-      triggerBrowserDownload(normalizedUrl, fileName, true);
-      message.success('已打开下载链接');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频下载失败');
     }
   };
 
@@ -200,14 +179,18 @@ export function ResultPanel({
       ) : (
         <div className="video-task-result-flow">
           <div className="video-task-result-timeline">
-            {dailyGroups.map((group) => (
+            {resultGroups.map((group) => (
               <section className="video-task-result-track" key={group.key}>
                 <div className="video-task-result-track-head">
-                  <span className="video-task-result-pill">{group.label}</span>
+                  <span className="video-task-result-chip is-metric">
+                    <span className="video-task-result-metric-dot" aria-hidden="true" />
+                    {viewState(group.records[0]).metric}
+                  </span>
                   <span className="video-task-result-track-count">{group.records.length}个</span>
+                  {group.records.length === 1 ? <span className="video-task-result-pill">{group.label}</span> : null}
                 </div>
 
-                <div className="video-task-result-grid">
+                <div className={group.records.length > 1 ? 'video-task-result-grid has-multiple' : 'video-task-result-grid'}>
                   {group.records.map((task) => {
                     const state = viewState(task);
                     const isRetrying = retryingTaskId === task.id;
@@ -245,87 +228,65 @@ export function ResultPanel({
                           )}
                         </div>
 
-                        <div className="video-task-result-copy">
-                          <div className="video-task-result-copy-meta">
-                            <button
-                              className="video-task-result-chip is-copy"
-                              onClick={() => void handleCopyId(state.copyId)}
-                              type="button"
-                            >
-                              复制ID
-                            </button>
-                            <span className="video-task-result-copy-dot">·</span>
-                            <span className="video-task-result-chip is-metric">
-                              <Zap size={11} />
-                              {state.metric}
-                            </span>
-                            {state.creditCostText ? [
-                              <span className="video-task-result-copy-dot">·</span>,
-                              <span className="video-task-result-chip is-credit">
-                                消耗 <Zap size={11} /> {state.creditCostText}
-                              </span>
-                            ] : null}
-                          </div>
-
-                          <time className="video-task-result-time" dateTime={task.updatedAt}>
-                            {formatTimeHM(task.updatedAt)}
-                          </time>
-
-                          <div className="video-task-result-actions">
-                            <div className="video-task-result-action-row">
-                              {state.canRetry ? (
-                                <Button
-                                  className="video-task-result-retry"
-                                  color="default"
-                                  disabled={isRetrying || isDeleting}
-                                  icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
-                                  onClick={() => void onRetry(task)}
-                                  size="small"
-                                  variant="filled"
-                                >
-                                  {isRetrying ? '提交中' : '再次生成'}
-                                </Button>
-                              ) : (
-                                <div className={`video-task-result-footnote is-${state.kind}`}>{state.footnote}</div>
-                              )}
-
+                        {state.kind !== 'running' || group.records.length > 1 ? (
+                          <div className="video-task-result-copy">
+                            <div className="video-task-result-actions">
+                              {group.records.length > 1 ? (
+                                <div className="video-task-result-card-time">
+                                  {formatRelativeCalendarDateTime(task.updatedAt)}
+                                </div>
+                              ) : null}
                               {state.kind !== 'running' ? (
-                                <Dropdown
-                                  overlayClassName="video-task-result-more-menu"
-                                  disabled={isDeleting || isRetrying}
-                                  menu={{
-                                    items: [
-                                      {
-                                        key: 'download',
-                                        icon: <DownloadOutlined />,
-                                        label: '下载',
-                                        disabled: state.kind !== 'success' || !state.videoUrl,
-                                        onClick: () => void handleDownloadVideo(task, state.videoUrl),
-                                      },
-                                      {
-                                        danger: true,
-                                        key: 'delete',
-                                        icon: <DeleteOutlined />,
-                                        label: '删除',
-                                        onClick: () => onDelete(task),
-                                      },
-                                    ],
-                                  }}
-                                  trigger={['click']}
-                                >
+                                <div className="video-task-result-action-row">
                                   <Button
-                                    aria-label="更多操作"
-                                    className="video-task-result-more"
+                                    className="video-task-result-retry"
                                     color="default"
-                                    icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
+                                    disabled={isRetrying || isDeleting}
+                                    icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
+                                    onClick={() => void onRetry(task)}
                                     size="small"
                                     variant="filled"
-                                  />
-                                </Dropdown>
+                                  >
+                                    {isRetrying ? '提交中' : '再次生成'}
+                                  </Button>
+
+                                  <Dropdown
+                                    overlayClassName="video-task-result-more-menu"
+                                    disabled={isDeleting || isRetrying}
+                                    menu={{
+                                      items: [
+                                        {
+                                          key: 'download',
+                                          icon: <DownloadOutlined />,
+                                          label: '下载',
+                                          disabled: state.kind !== 'success' || !state.videoUrl,
+                                          onClick: () => void handleDownloadVideo(task, state.videoUrl),
+                                        },
+                                        {
+                                          danger: true,
+                                          key: 'delete',
+                                          icon: <DeleteOutlined />,
+                                          label: '删除',
+                                          onClick: () => confirmDeleteVideo(task),
+                                        },
+                                      ],
+                                    }}
+                                    trigger={['click']}
+                                  >
+                                    <Button
+                                      aria-label="更多操作"
+                                      className="video-task-result-more"
+                                      color="default"
+                                      icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
+                                      size="small"
+                                      variant="filled"
+                                    />
+                                  </Dropdown>
+                                </div>
                               ) : null}
                             </div>
                           </div>
-                        </div>
+                        ) : null}
                       </article>
                     );
                   })}
@@ -337,8 +298,9 @@ export function ResultPanel({
       )}
 
       {previewVideo ? (
-        <ReferenceVideoPreviewModal
+        <ResultVideoPreviewModal
           onClose={() => setPreviewVideo(null)}
+          onDelete={previewVideo.task ? () => onDelete(previewVideo.task!) : undefined}
           video={previewVideo}
         />
       ) : null}
@@ -361,9 +323,10 @@ function taskVideoGenerationResult(task: VideoGenerationTask) {
 function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
   const isUpscale = task.expertContext?.mode === 'video_upscale';
+  const isSubtitleRemoval = task.expertContext?.mode === 'subtitle_removal';
+  const isVideoTranslation = task.expertContext?.mode === 'video_translation';
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
-  const copyId = String(task.id || '').trim();
   const isOrphanPending = task.status !== 'generating'
     && !videoUrl
     && !String(result?.jobId || '').trim()
@@ -373,22 +336,16 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'success' as const,
       label: '已完成',
-      posterText: isUpscale ? '高清放大已完成' : '成片已生成',
+      posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : isVideoTranslation ? '视频翻译已完成' : '成片已生成',
       note: '',
-      footnote: isUpscale ? '高清成片已落盘，可继续复用。' : '成片已落盘，可继续筛选和复用。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl,
       coverUrl,
-      canRetry: true,
       previewVideo: {
         duration: parseDurationSeconds(result?.duration),
-        end: parseDurationSeconds(result?.duration),
-        fileUrl: videoUrl,
         name: task.title,
-        start: 0,
-        storedFileName: task.title,
+        task,
+        taskId: task.id,
         videoUrl,
       },
     };
@@ -397,15 +354,11 @@ function viewState(task: VideoGenerationTask) {
     return {
       kind: 'failed' as const,
       label: '失败',
-      posterText: isUpscale ? '高清放大失败' : '生成失败',
+      posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : isVideoTranslation ? '视频翻译失败' : '生成失败',
       note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
-      footnote: '当前任务失败，可直接重试。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl: '',
       coverUrl,
-      canRetry: true,
       previewVideo: null,
     };
   }
@@ -415,28 +368,20 @@ function viewState(task: VideoGenerationTask) {
       label: '失败',
       posterText: '提交失败',
       note: '任务未成功提交到生成队列，可直接再次生成。',
-      footnote: '当前任务未真正开始生成，可直接重试。',
       metric: formatMetric(result, task),
-      creditCostText: formatCreditCost(task.creditCost),
-      copyId,
       videoUrl: '',
       coverUrl,
-      canRetry: true,
       previewVideo: null,
     };
   }
   return {
     kind: 'running' as const,
-    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : '生成中',
-    posterText: isUpscale ? '正在进行高清放大' : '正在生成视频',
+    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
+    posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
     note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
-    footnote: '系统会自动刷新当前生成状态。',
     metric: formatMetric(result, task),
-    creditCostText: formatCreditCost(task.creditCost),
-    copyId,
     videoUrl: '',
     coverUrl,
-    canRetry: false,
     previewVideo: null,
   };
 }
@@ -453,41 +398,24 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();
     return `高清放大 · ${resolution}`;
   }
+  if (task?.expertContext?.mode === 'subtitle_removal') {
+    const mode = String(task.expertContext.subtitleRemovalMode || 'auto');
+    const label = mode === 'manual' ? 'Manual 框选' : mode === 'auto_region' ? 'Auto 指定区域' : '智能识别';
+    return `字幕擦除 · ${label}`;
+  }
+  if (task?.expertContext?.mode === 'video_translation') {
+    const source = String(task.expertContext.videoTranslationSourceLanguage || 'zh').toUpperCase();
+    const target = String(task.expertContext.videoTranslationTargetLanguage || 'en').toUpperCase();
+    const types = Array.isArray(task.expertContext.videoTranslationTypes)
+      ? task.expertContext.videoTranslationTypes.map(String)
+      : ['subtitle'];
+    const level = types.includes('face') ? '面容翻译' : types.includes('voice') ? '语音翻译' : '字幕翻译';
+    return `视频翻译 · ${source} → ${target} · ${level}`;
+  }
   if (!result) {
     return '等待参数';
   }
   return [result.ratio, result.duration].filter(Boolean).join(' · ') || '等待参数';
-}
-
-function formatCreditCost(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return '';
-  }
-  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-}
-
-function shouldUseBrowserDownload(url: string) {
-  if (!/^https?:\/\//i.test(url)) {
-    return false;
-  }
-  try {
-    return new URL(url).origin !== window.location.origin;
-  } catch {
-    return true;
-  }
-}
-
-function triggerBrowserDownload(url: string, fileName: string, openInNewTab: boolean) {
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  if (openInNewTab) {
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-  }
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
 }
 
 function parseDurationSeconds(duration?: string | null) {
@@ -495,11 +423,12 @@ function parseDurationSeconds(duration?: string | null) {
   return matched ? Number(matched[1]) : 0;
 }
 
-function groupRecordsByDay(records: VideoGenerationTask[]) {
+function groupRecordsByDayAndModule(records: VideoGenerationTask[]) {
   const groups = new Map<string, { key: string; label: string; records: VideoGenerationTask[] }>();
   records.forEach((record) => {
     const date = new Date(record.updatedAt);
-    const key = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
+    const dayKey = Number.isNaN(date.getTime()) ? 'unknown' : formatDayKey(date);
+    const key = `${dayKey}:${resultModuleKey(record)}`;
     const current = groups.get(key);
     if (current) {
       current.records.push(record);
@@ -507,11 +436,19 @@ function groupRecordsByDay(records: VideoGenerationTask[]) {
     }
     groups.set(key, {
       key,
-      label: formatDayLabel(date),
+      label: formatRelativeCalendarDateTime(date),
       records: [record],
     });
   });
   return Array.from(groups.values());
+}
+
+function resultModuleKey(task: VideoGenerationTask) {
+  const mode = String(task.expertContext?.mode || '').trim();
+  if (!mode || mode === 'video_generation') {
+    return 'video_create';
+  }
+  return mode;
 }
 
 function activeResultFilterCount(filters: FilterValues) {
@@ -531,24 +468,6 @@ function formatDayKey(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function formatDayLabel(date: Date) {
-  if (Number.isNaN(date.getTime())) {
-    return '未知时间';
-  }
-  const now = new Date();
-  const currentDayKey = formatDayKey(now);
-  const previousDay = new Date(now);
-  previousDay.setDate(now.getDate() - 1);
-  const targetKey = formatDayKey(date);
-  if (targetKey === currentDayKey) {
-    return '今天';
-  }
-  if (targetKey === formatDayKey(previousDay)) {
-    return '昨天';
-  }
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
 function previewNote(note: string, kind: 'success' | 'failed' | 'running') {

@@ -10,6 +10,48 @@ export type ToolKey =
   | 'subtitle-removal'
   | 'video-translation';
 
+export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
+
+export type SubtitleRemovalContentType = 'subtitle' | 'text';
+
+export type SubtitleRemovalLocation = {
+  topLeftX: number;
+  topLeftY: number;
+  bottomRightX: number;
+  bottomRightY: number;
+};
+
+export type SubtitleRemovalClipFilter = {
+  mode: 'all' | 'selected' | 'skip';
+  clips: Array<{
+    start: number;
+    end: number;
+  }>;
+};
+
+export type SubtitleRemovalConfig = {
+  mode: SubtitleRemovalMode;
+  contentType: SubtitleRemovalContentType;
+  locations: SubtitleRemovalLocation[];
+  clipFilter: SubtitleRemovalClipFilter;
+};
+
+export type VideoTranslationMode = 'subtitle' | 'voice' | 'face';
+
+export type VideoTranslationSubtitleSource = 'ocr' | 'asr';
+
+export type VideoTranslationConfig = {
+  sourceLanguage: string;
+  targetLanguage: string;
+  modes: Record<VideoTranslationMode, boolean>;
+  subtitleSource: VideoTranslationSubtitleSource;
+  hardSubtitles: boolean;
+  eraseOriginalSubtitles: boolean;
+  subtitlePlacementConfig: SubtitleRemovalConfig;
+  fontSize: number;
+  showLines: number;
+};
+
 export type MaterialKind = {
   hint: string;
   key: MaterialKey;
@@ -19,6 +61,15 @@ export type MaterialKind = {
   minCount?: number;
 };
 
+export type WorkspaceBlock =
+  | { id: string; type: 'material'; showVoiceToggle?: boolean }
+  | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
+  | { id: string; type: 'prompt'; title?: string }
+  | { id: string; type: 'subtitle-removal' }
+  | { id: string; type: 'video-translation' };
+
+export type WorkspaceBlockType = WorkspaceBlock['type'];
+
 export type ToolOption = {
   description: string;
   key: ToolKey;
@@ -27,14 +78,10 @@ export type ToolOption = {
   materials: MaterialKind[];
   submitText: string;
   workspace: {
+    blocks: WorkspaceBlock[];
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'pending';
     };
-    material?: {
-      showVoiceToggle?: boolean;
-    };
-    parameters?: boolean;
-    prompt?: boolean;
   };
 };
 

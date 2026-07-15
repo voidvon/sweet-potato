@@ -1,7 +1,8 @@
-import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
+import { WorkspaceSection } from './WorkspaceSection';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
@@ -36,6 +37,78 @@ type MaterialPanelProps = {
   worksTab: WorksTab;
 };
 
+export type ReferenceMaterialPreviewAsset = Pick<
+  ContentAsset,
+  'id' | 'name' | 'originalFileName' | 'mimeType' | 'fileUrl' | 'metadata'
+>;
+
+type ReferenceMaterialPreviewListProps = {
+  assets: ReferenceMaterialPreviewAsset[];
+  isLoading?: boolean;
+  onVideoPreview: (asset: ReferenceMaterialPreviewAsset) => void;
+};
+
+export function ReferenceMaterialPreviewList({
+  assets,
+  isLoading = false,
+  onVideoPreview,
+}: ReferenceMaterialPreviewListProps) {
+  if (isLoading) {
+    return (
+      <div className="result-reference-materials is-loading" aria-label="正在加载参考素材">
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  if (assets.length === 0) {
+    return <p className="result-reference-materials-empty">暂无参考素材</p>;
+  }
+
+  return (
+    <div className="result-reference-materials">
+      {assets.map((asset) => {
+        const name = asset.name || asset.originalFileName || '参考素材';
+        const isVideo = asset.mimeType.startsWith('video/');
+        const isImage = asset.mimeType.startsWith('image/');
+        const content = isVideo ? (
+          <>
+            <video muted playsInline preload="metadata" src={resolveAssetUrl(asset.fileUrl)} />
+            <i className="result-reference-materials__play" aria-hidden="true">
+              <Play size={15} fill="currentColor" />
+            </i>
+          </>
+        ) : isImage ? (
+          <img alt={name} src={resolveAssetUrl(asset.fileUrl)} />
+        ) : (
+          <i className="result-reference-materials__audio" aria-hidden="true">
+            <Music2 size={22} />
+          </i>
+        );
+
+        return isVideo ? (
+          <button
+            aria-label={`预览${name}`}
+            className="result-reference-materials__item"
+            key={asset.id}
+            onClick={() => onVideoPreview(asset)}
+            title={name}
+            type="button"
+          >
+            {content}
+          </button>
+        ) : (
+          <div className="result-reference-materials__item" key={asset.id} title={name}>
+            {content}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MaterialPanel({
   activeUpload,
   isLoadingLibraryAssets,
@@ -69,6 +142,7 @@ export function MaterialPanel({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioAssetIdRef = useRef<string | null>(null);
   const hasOpenPopover = Boolean(materialMode || activeUpload);
+  const isVideoTranslation = tool.key === 'video-translation';
   const audioMaterial = tool.materials.find((item) => item.key === 'audio');
   const imageMaterial = tool.materials.find((item) => item.key === 'image');
   const videoMaterial = tool.materials.find((item) => item.key === 'video');
@@ -215,12 +289,10 @@ export function MaterialPanel({
   };
 
   return (
-    <section className="video-task-card video-task-material-card" ref={panelRef}>
-      <div className="video-task-material-title">
-        <span className="video-task-material-title-text">
-          <strong>素材</strong>
-          <small>{tool.materialHint}</small>
-        </span>
+    <WorkspaceSection
+      className="video-task-material-card"
+      description={tool.materialHint}
+      headerExtra={(
         <div className="video-task-tabs" aria-label="素材类型">
           {Object.keys(selectedMaterials).length > 0 && (
             <button className="is-danger" onClick={onMaterialsClearAll} title="清空全部素材" type="button">
@@ -253,8 +325,8 @@ export function MaterialPanel({
             onClick={onModelPickerOpen}
             type="button"
           >
-            <Package size={12} />
-            素材
+            {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
+            {isVideoTranslation ? '模特' : '素材'}
           </button>
           {showVoiceToggle && (
             <label
@@ -272,10 +344,14 @@ export function MaterialPanel({
             </label>
           )}
         </div>
-      </div>
+      )}
+      headerLayout="stacked"
+      ref={panelRef}
+      title="素材"
+    >
 
       <div className="video-task-material-grid">
-        {tool.materials.map((item) => {
+        {tool.materials.filter((item) => !isVideoTranslation || item.key === 'video').map((item) => {
           const selected = selectedMaterials[item.key];
           return (
             <MaterialSlot
@@ -292,6 +368,10 @@ export function MaterialPanel({
           );
         })}
       </div>
+
+      {isVideoTranslation && selectedMaterials.video && (
+        <p className="video-task-translation-storage-note">视频同步存储中，任务提交后会自动处理</p>
+      )}
 
       {materialMode === 'audio' && (
         <aside className="video-task-library-popover is-audio" ref={popoverRef}>
@@ -481,7 +561,7 @@ export function MaterialPanel({
           onLocalUpload={(item) => onMaterialFill(item, `${item.label} 01`)}
         />
       )}
-    </section>
+    </WorkspaceSection>
   );
 }
 

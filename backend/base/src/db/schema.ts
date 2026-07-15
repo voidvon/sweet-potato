@@ -134,6 +134,11 @@ export function migrateDatabase() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS app_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS role_resource_permissions (
       role_id TEXT NOT NULL,
       resource_id TEXT NOT NULL,
@@ -765,7 +770,6 @@ export function migrateDatabase() {
       path = excluded.path,
       permission_code = excluded.permission_code,
       status = excluded.status,
-      sort_order = excluded.sort_order,
       is_system = excluded.is_system,
       updated_at = excluded.updated_at
     WHERE route_resources.is_system = 1
@@ -787,6 +791,31 @@ export function migrateDatabase() {
       updatedAt: now,
     });
   });
+
+  const sidebarSortMigrationId = '20260714-sidebar-material-before-image';
+  const sidebarSortMigrationApplied = db.prepare(`
+    SELECT 1
+    FROM app_migrations
+    WHERE id = ?
+  `).get(sidebarSortMigrationId);
+  if (!sidebarSortMigrationApplied) {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE route_resources
+        SET sort_order = CASE resource_key
+          WHEN 'web.root.content' THEN 10
+          WHEN 'web.module.chat' THEN 20
+          ELSE sort_order
+        END,
+        updated_at = @updatedAt
+        WHERE resource_key IN ('web.root.content', 'web.module.chat')
+      `).run({ updatedAt: now });
+      db.prepare(`
+        INSERT INTO app_migrations (id, applied_at)
+        VALUES (?, ?)
+      `).run(sidebarSortMigrationId, now);
+    })();
+  }
 
   const seededRouteResourceIds = seededRouteResources.map((resource) => resource.id);
   const seededRouteResourcePlaceholders = seededRouteResourceIds.map((_, index) => `@resourceId${index}`).join(', ');

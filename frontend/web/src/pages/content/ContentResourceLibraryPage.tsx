@@ -18,6 +18,8 @@ import type { ContentAsset, ContentAssetGroup, ContentResourceType, User } from 
 import { formatRelativeCalendarDateTime } from '../../utils/dateTime';
 import { withAuthToken } from '../../utils/session';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import { ResultVideoPreviewModal } from './VideoTaskClonePage/components/ResultVideoPreviewModal';
+import type { ReferenceMaterialPreviewAsset } from './VideoTaskClonePage/components/MaterialPanel';
 import { DetailImageUpload, PendingImageUpload } from './assets/AssetImageUpload';
 import type { ImagePreview } from './assets/AssetImageUpload';
 import { useCardGridPageSize } from './assets/useCardGridPageSize';
@@ -94,6 +96,8 @@ const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
   { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
   { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
+  { key: 'video:subtitle-removal', label: '视频生成-字幕擦除', modeKeys: [], modeTitles: [] },
+  { key: 'video:translation', label: '视频生成-视频翻译', modeKeys: [], modeTitles: [] },
 ];
 
 const showWorksBatchButton = false;
@@ -297,6 +301,8 @@ function isGeneratedWorkAsset(asset: ContentAsset) {
   return asset.resourceType === 'finished_video'
     && (asset.metadata?.generatedBy === 'video_model'
       || asset.metadata?.generatedBy === 'video_enhancement'
+      || asset.metadata?.generatedBy === 'video_subtitle_removal'
+      || asset.metadata?.generatedBy === 'video_translation'
       || asset.metadata?.generatedBy === 'image_model');
 }
 
@@ -309,7 +315,11 @@ function matchesWorksAssetTab(asset: ContentAsset, tab: WorksAssetTab) {
 
 function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null {
   const generatedBy = stringMetadataValue(asset, 'generatedBy');
-  if (generatedBy !== 'image_model' && generatedBy !== 'video_model' && generatedBy !== 'video_enhancement') {
+  if (generatedBy !== 'image_model'
+    && generatedBy !== 'video_model'
+    && generatedBy !== 'video_enhancement'
+    && generatedBy !== 'video_subtitle_removal'
+    && generatedBy !== 'video_translation') {
     return null;
   }
   const mode = stringMetadataValue(asset, 'mode') || (generatedBy === 'image_model' ? 'image_generation' : 'video_generation');
@@ -327,6 +337,12 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   }
   if (source === 'video_upscale') {
     return videoWorksFunctionOptions[3];
+  }
+  if (source === 'subtitle_removal') {
+    return videoWorksFunctionOptions[4];
+  }
+  if (source === 'video_translation') {
+    return videoWorksFunctionOptions[5];
   }
   return videoWorksFunctionOptions[0];
 }
@@ -346,6 +362,12 @@ function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   }
   if (functionKey === 'video:upscale') {
     return getVideoWorkSource(asset) === 'video_upscale';
+  }
+  if (functionKey === 'video:subtitle-removal') {
+    return getVideoWorkSource(asset) === 'subtitle_removal';
+  }
+  if (functionKey === 'video:translation') {
+    return getVideoWorkSource(asset) === 'video_translation';
   }
   const option = imageWorksFunctionOptions.find((item) => item.key === functionKey);
   if (!option) {
@@ -370,6 +392,10 @@ function finishedVideoStatus(asset: ContentAsset) {
     return 'failed';
   }
   return 'completed';
+}
+
+function isCompletedGeneratedWorkAsset(asset: ContentAsset) {
+  return isGeneratedWorkAsset(asset) && finishedVideoStatus(asset) === 'completed';
 }
 
 function PendingAssetTile({ file, onRemove }: { file: File; onRemove: (file: File) => void }) {
@@ -452,7 +478,7 @@ export function ContentResourceLibraryPage({
         listContentAssets({ userId: currentUser.id, resourceType }),
       ]);
       setGroups(groupList);
-      setAssets(resourceType === 'finished_video' ? assetList.filter(isGeneratedWorkAsset) : assetList);
+      setAssets(resourceType === 'finished_video' ? assetList.filter(isCompletedGeneratedWorkAsset) : assetList);
       setActiveGroup((current) => groupList.find((group) => group.id === current?.id) || null);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '素材加载失败');
@@ -798,8 +824,10 @@ export function ContentResourceLibraryPage({
       await deleteContentAsset(asset.id);
       await loadData();
       message.success('作品记录已删除');
+      return true;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '作品删除失败');
+      return false;
     }
   }
 
@@ -909,21 +937,13 @@ export function ContentResourceLibraryPage({
             </div>
           </div>
         </section>
-        <Modal
-          footer={null}
-          onCancel={closePreviewAsset}
-          open={Boolean(previewAsset)}
-          title={previewAsset?.name || '作品预览'}
-          width={960}
-        >
-          {previewAsset && (
-            <div className="asset-detail asset-detail--video">
-              <video autoPlay controls preload="metadata" ref={previewVideoRef} src={fileUrl(previewAsset)} />
-              <p><strong>文件名：</strong>{previewAsset.originalFileName}</p>
-              <p><strong>类型：</strong>{previewAsset.mimeType}</p>
-            </div>
-          )}
-        </Modal>
+        {previewAsset?.mimeType.startsWith('video/') && (
+          <ResultVideoPreviewModal
+            onClose={closePreviewAsset}
+            onDelete={() => handleDeleteFinishedAsset(previewAsset)}
+            video={toResultVideoPreview(previewAsset)}
+          />
+        )}
         <Image
           alt={previewImage?.name || '图片预览'}
           preview={{
@@ -1178,4 +1198,59 @@ export function ContentResourceLibraryPage({
       />
     </ContentStudioLayout>
   );
+}
+
+function toResultVideoPreview(asset: ContentAsset) {
+  const videoUrl = fileUrl(asset);
+  return {
+    completedAt: metadataDate(asset, 'completedAt') || metadataDate(asset, 'generatedAt') || asset.updatedAt,
+    createdAt: asset.createdAt,
+    duration: 0,
+    name: asset.name,
+    referenceAssetIds: materialReferenceAssetIds(asset.metadata.materialContext),
+    referenceAssets: materialReferenceAssets(asset.metadata.materialContext),
+    taskId: stringMetadataValue(asset, 'videoTaskId'),
+    videoUrl,
+  };
+}
+
+function metadataDate(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function materialReferenceAssetIds(value: unknown) {
+  if (!isMetadataRecord(value)) return [];
+  const references = isMetadataRecord(value.references) ? value.references : {};
+  const ids = [
+    value.sourceAssetId,
+    ...materialReferenceRecords(references.images).map((item) => item.id),
+    ...materialReferenceRecords(references.videos).map((item) => item.id),
+    ...materialReferenceRecords(references.audios).map((item) => item.id),
+  ];
+  return Array.from(new Set(ids.filter((item): item is string => typeof item === 'string' && item.length > 0)));
+}
+
+function materialReferenceAssets(value: unknown): ReferenceMaterialPreviewAsset[] {
+  if (!isMetadataRecord(value)) return [];
+  const references = isMetadataRecord(value.references) ? value.references : {};
+  return [references.images, references.videos, references.audios]
+    .flatMap(materialReferenceRecords)
+    .filter((item) => typeof item.id === 'string' && typeof item.fileUrl === 'string' && typeof item.mimeType === 'string')
+    .map((item) => ({
+      id: String(item.id),
+      fileUrl: String(item.fileUrl),
+      metadata: isMetadataRecord(item.metadata) ? item.metadata : {},
+      mimeType: String(item.mimeType),
+      name: typeof item.name === 'string' ? item.name : '',
+      originalFileName: typeof item.originalFileName === 'string' ? item.originalFileName : '',
+    }));
+}
+
+function materialReferenceRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter(isMetadataRecord) : [];
+}
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

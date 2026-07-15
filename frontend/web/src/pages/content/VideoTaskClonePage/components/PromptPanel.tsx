@@ -6,6 +6,7 @@ import type { PromptPanel as PromptPanelKind, SelectedMaterials } from '../types
 import type { User } from '../../../../types';
 import type { PlanningApplyPayload } from '../../../../api/content-planning';
 import { PromptPlanningModal } from './PromptPlanningModal';
+import { WorkspaceSection } from './WorkspaceSection';
 
 type PromptPanelProps = {
   currentUser: User;
@@ -16,6 +17,7 @@ type PromptPanelProps = {
   panel: PromptPanelKind | null;
   prompt: string;
   selectedMaterials: SelectedMaterials;
+  title?: string;
 };
 
 export function PromptPanel({
@@ -27,17 +29,14 @@ export function PromptPanel({
   panel,
   prompt,
   selectedMaterials,
+  title = '提示词 / 需求',
 }: PromptPanelProps) {
   const openPanel = (nextPanel: PromptPanelKind) => {
     onPanelChange(panel === nextPanel ? null : nextPanel);
   };
 
   return (
-    <section className="video-task-prompt-section">
-      <div className="video-task-prompt-title">
-        <h2>提示词 / 需求</h2>
-      </div>
-
+    <WorkspaceSection className="video-task-prompt-section" title={title} variant="plain">
       <div className="video-task-prompt-box">
         <MentionRichTextarea
           minRows={4}
@@ -66,6 +65,6 @@ export function PromptPanel({
           onClose={() => onPanelChange(null)}
         />
       )}
-    </section>
+    </WorkspaceSection>
   );
 }

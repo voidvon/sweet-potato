@@ -40,13 +40,16 @@
 }
 
 @media (max-width: 640px) {
+  .video-task-result-header {
+    padding-inline: 14px;
+  }
+
   .video-task-left {
     padding: 16px;
   }
 
   .video-task-current-card,
-  .video-task-material-toolbar,
-  .video-task-prompt-title {
+  .video-task-material-toolbar {
     align-items: flex-start;
     flex-direction: column;
   }

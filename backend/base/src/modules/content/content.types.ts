@@ -312,6 +312,52 @@ export type CreateVideoEnhancementPayload = {
   resolution?: '1080p' | '2k' | '4k';
 };
 
+export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
+
+export type SubtitleRemovalLocation = {
+  topLeftX: number;
+  topLeftY: number;
+  bottomRightX: number;
+  bottomRightY: number;
+};
+
+export type CreateSubtitleRemovalPayload = {
+  userId: string;
+  sourceAssetId: string;
+  mode: SubtitleRemovalMode;
+  contentType: 'subtitle' | 'text';
+  locations?: SubtitleRemovalLocation[];
+  clipFilter?: {
+    mode: 'all' | 'selected' | 'skip';
+    clips?: Array<{
+      start: number;
+      end: number;
+    }>;
+    start?: number;
+    end?: number;
+  };
+};
+
+export type VideoTranslationType = 'subtitle' | 'voice' | 'face';
+
+export type CreateVideoTranslationPayload = {
+  userId: string;
+  sourceAssetId: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  translationTypes: VideoTranslationType[];
+  subtitleSource: 'ocr' | 'asr';
+  subtitleConfig: {
+    isHardSubtitle: boolean;
+    isEraseSource: boolean;
+    fontSize?: number;
+    marginL?: number;
+    marginR?: number;
+    marginV?: number;
+    showLines?: number;
+  };
+};
+
 export type GenerateDigitalHumanThreeViewPayload = {
   userId: string;
 };

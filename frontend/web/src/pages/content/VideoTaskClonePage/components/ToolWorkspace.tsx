@@ -1,10 +1,15 @@
 import { Clock3 } from 'lucide-react';
+import { Fragment } from 'react';
+import type { ReactNode } from 'react';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
+import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
 import { MaterialPanel } from './MaterialPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
+import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
 import { toolIcons } from './ToolSwitcher';
+import { VideoTranslationPanel } from './VideoTranslationPanel';
 
 type ToolWorkspaceProps = {
   state: VideoTaskCloneState;
@@ -12,47 +17,15 @@ type ToolWorkspaceProps = {
 
 export function ToolWorkspace({ state }: ToolWorkspaceProps) {
   const { workspace } = state.tool;
-  const hasWorkspaceContent = Boolean(workspace.material || workspace.prompt || workspace.parameters);
+  const hasWorkspaceContent = workspace.blocks.length > 0;
 
   return (
     <>
       {hasWorkspaceContent ? (
         <div className="video-task-left-scroll">
-          {workspace.material && (
-            <ToolMaterialPanel
-              showVoiceToggle={workspace.material.showVoiceToggle === true}
-              state={state}
-            />
-          )}
-
-          {workspace.prompt && (
-            <PromptPanel
-              currentUser={state.currentUser}
-              onExpand={() => state.setExpandedPrompt(true)}
-              onPlanningApply={state.applyPlanningResult}
-              onPanelChange={state.setPromptPanel}
-              onPromptChange={state.setPrompt}
-              panel={state.promptPanel}
-              prompt={state.prompt}
-              selectedMaterials={state.selectedMaterials}
-            />
-          )}
-
-          {workspace.parameters && (
-            <ParameterPanel
-              activeParam={state.activeParam}
-              canvas={state.canvas}
-              duration={state.duration}
-              model={state.model}
-              onCanvasQualityChoose={state.chooseCanvasQuality}
-              onCanvasRatioChoose={state.chooseCanvasRatio}
-              onParamChoose={state.chooseParam}
-              onParamToggle={state.setActiveParam}
-              quality={state.quality}
-              ratio={state.ratio}
-              summary={state.paramSummary}
-            />
-          )}
+          {workspace.blocks.map((block) => (
+            <Fragment key={block.id}>{workspaceBlockRenderers[block.type](block, state)}</Fragment>
+          ))}
         </div>
       ) : (
         <PendingToolWorkspace state={state} />
@@ -71,6 +44,59 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
     </>
   );
 }
+
+type WorkspaceBlockRenderer = (block: WorkspaceBlock, state: VideoTaskCloneState) => ReactNode;
+
+const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer> = {
+  material: (block, state) => block.type === 'material' ? (
+    <ToolMaterialPanel showVoiceToggle={block.showVoiceToggle === true} state={state} />
+  ) : null,
+  parameters: (block, state) => block.type === 'parameters' ? (
+    <ParameterPanel
+      activeParam={state.activeParam}
+      canvas={state.canvas}
+      duration={state.duration}
+      model={state.model}
+      onCanvasQualityChoose={state.chooseCanvasQuality}
+      onCanvasRatioChoose={state.chooseCanvasRatio}
+      onParamChoose={state.chooseParam}
+      onParamToggle={state.setActiveParam}
+      quality={state.quality}
+      ratio={state.ratio}
+      showDuration={block.showDuration}
+      showHeader={block.showHeader}
+      showRatio={block.showRatio}
+      summary={state.paramSummary}
+    />
+  ) : null,
+  prompt: (block, state) => block.type === 'prompt' ? (
+    <PromptPanel
+      currentUser={state.currentUser}
+      onPlanningApply={state.applyPlanningResult}
+      onExpand={() => state.setExpandedPrompt(true)}
+      onPanelChange={state.setPromptPanel}
+      onPromptChange={state.setPrompt}
+      panel={state.promptPanel}
+      prompt={state.prompt}
+      selectedMaterials={state.selectedMaterials}
+      title={block.title}
+    />
+  ) : null,
+  'subtitle-removal': (block, state) => block.type === 'subtitle-removal' ? (
+    <SubtitleRemovalPanel
+      config={state.subtitleRemovalConfig}
+      onChange={state.setSubtitleRemovalConfig}
+      selectedMaterials={state.selectedMaterials}
+    />
+  ) : null,
+  'video-translation': (block, state) => block.type === 'video-translation' ? (
+    <VideoTranslationPanel
+      config={state.videoTranslationConfig}
+      onChange={state.setVideoTranslationConfig}
+      selectedMaterials={state.selectedMaterials}
+    />
+  ) : null,
+};
 
 export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
   return (
