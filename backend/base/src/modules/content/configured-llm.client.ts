@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { jsonrepair } from 'jsonrepair';
 import type { ZodTypeAny, infer as InferZodOutput } from 'zod';
-import { callBilledLlm } from '../billing/billing.service.js';
+import { callBilledLlm, streamBilledLlm } from '../billing/billing.service.js';
 import type { BillingContentPart } from '../billing/billing.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 
@@ -39,17 +39,42 @@ export async function callConfiguredLlm(input: {
   sourceType?: string;
   sourceId?: string;
   timeoutMs?: number;
+  onContentDelta?: (delta: string, content: string) => void | Promise<void>;
 }) {
   const config = resolveDefaultLlmModel();
+  const sourceId = input.sourceId || randomBytes(12).toString('hex');
+  const messages = [
+    { role: 'system' as const, content: input.system },
+    { role: 'user' as const, content: input.user },
+  ];
+  if (input.onContentDelta) {
+    let content = '';
+    for await (const chunk of streamBilledLlm({
+      userId: input.userId,
+      modelConfig: config,
+      sourceType: input.sourceType || 'content_llm',
+      sourceId,
+      messages,
+      temperature: input.temperature ?? config.temperature ?? 0.7,
+      timeoutMs: input.timeoutMs,
+    })) {
+      if (chunk.type !== 'answer') {
+        continue;
+      }
+      content += chunk.delta;
+      await input.onContentDelta(chunk.delta, content);
+    }
+    if (!content.trim()) {
+      throw new Error('模型服务未返回有效内容');
+    }
+    return content.trim();
+  }
   const result = await callBilledLlm({
     userId: input.userId,
     modelConfig: config,
     sourceType: input.sourceType || 'content_llm',
-    sourceId: input.sourceId || randomBytes(12).toString('hex'),
-    messages: [
-      { role: 'system', content: input.system },
-      { role: 'user', content: input.user },
-    ],
+    sourceId,
+    messages,
     temperature: input.temperature ?? config.temperature ?? 0.7,
     timeoutMs: input.timeoutMs,
   });
@@ -93,6 +118,7 @@ export async function callConfiguredStructuredLlm<T extends ZodTypeAny>(input: {
   timeoutMs?: number;
   formatInstructionsPrefix?: string;
   formatInstructionsTarget?: 'system' | 'user';
+  onContentDelta?: (delta: string, content: string) => void | Promise<void>;
 }) {
   const parser = createStructuredOutputParser(input.schema);
   const formatInstructions = [
@@ -114,6 +140,7 @@ export async function callConfiguredStructuredLlm<T extends ZodTypeAny>(input: {
     sourceType: input.sourceType,
     sourceId: input.sourceId,
     timeoutMs: input.timeoutMs,
+    onContentDelta: input.onContentDelta,
   });
   try {
     const parsed = await parser.parse(content);

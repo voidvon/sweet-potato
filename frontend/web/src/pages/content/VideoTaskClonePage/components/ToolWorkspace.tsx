@@ -71,7 +71,8 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
   ) : null,
   prompt: (block, state) => block.type === 'prompt' ? (
     <PromptPanel
-      onExampleFill={state.fillExamplePrompt}
+      currentUser={state.currentUser}
+      onPlanningApply={state.applyPlanningResult}
       onExpand={() => state.setExpandedPrompt(true)}
       onPanelChange={state.setPromptPanel}
       onPromptChange={state.setPrompt}
