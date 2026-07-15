@@ -644,6 +644,25 @@ export function materialSequenceLabel(kind: '图片' | '视频' | '音频', inde
   return `${kind} ${index + 1}`;
 }
 
+export function composeReferenceAudioVoiceConstraint(audios: Array<{
+  name: string;
+  description: string;
+  originalFileName: string;
+}>) {
+  if (!audios.length) {
+    return '';
+  }
+
+  const audioDescriptions = audios
+    .map((asset, index) => `${materialSequenceLabel('音频', index)}（${summarizeMaterialAsset(asset)}）`)
+    .join('、');
+  const speakerBinding = audios.length === 1
+    ? `所有口播人物必须以${materialSequenceLabel('音频', 0)}作为唯一音色参考。`
+    : `多个人物按出场顺序依次绑定${audios.map((_, index) => materialSequenceLabel('音频', index)).join('、')}；只有一个口播人物时，以${materialSequenceLabel('音频', 0)}作为唯一音色参考。`;
+
+  return `参考音频：${audioDescriptions}。声音素材只用于锁定口播人物的声音身份，不作为背景音乐或普通节奏参考。${speakerBinding}所有口播必须严格匹配对应参考音频的说话人音色、性别感、声线、语速、能量和距离感，不得根据画面人物的外观或性别自行更换声音；只复刻声音特征，不直接复用参考音频里的原始台词、尾音、杂音或转场声。`;
+}
+
 export function composeVideoProductionPrompt(input: {
   userPrompt: string;
   quality: string;
@@ -681,10 +700,9 @@ export function composeVideoProductionPrompt(input: {
     referenceLines.push(`参考视频：${videos.map((_, index) => materialSequenceLabel('视频', index)).join('、')}。优先参考其构图、运镜、节奏和镜头语言。`);
   }
 
-  if (audios.length === 1) {
-    referenceLines.push(`参考音频：${materialSequenceLabel('音频', 0)}（${summarizeMaterialAsset(audios[0])}）作为主要声音/节奏参考。`);
-  } else if (audios.length >= 2) {
-    referenceLines.push(`参考音频：${materialSequenceLabel('音频', 0)}（${summarizeMaterialAsset(audios[0])}）作为背景音乐或节奏参考，${materialSequenceLabel('音频', 1)}（${summarizeMaterialAsset(audios[1])}）作为人物声音或口播音色参考。${audios.slice(2).map((asset, index) => `补充${materialSequenceLabel('音频', index + 2)}（${summarizeMaterialAsset(asset)}）`).join('；')}`);
+  const audioVoiceConstraint = composeReferenceAudioVoiceConstraint(audios);
+  if (audioVoiceConstraint) {
+    referenceLines.push(audioVoiceConstraint);
   }
 
   if (referenceLines.length) {

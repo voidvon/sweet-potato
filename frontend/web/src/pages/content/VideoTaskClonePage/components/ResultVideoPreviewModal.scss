@@ -156,6 +156,16 @@ button.result-reference-materials__item:hover {
   border-color: #aeb7c5;
 }
 
+button.result-reference-materials__item:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+button.result-reference-materials__item.is-playing {
+  background: #e8f1ff;
+  border-color: #7da7e8;
+}
+
 .result-reference-materials__item img,
 .result-reference-materials__item video {
   height: 100%;
@@ -176,6 +186,30 @@ button.result-reference-materials__item:hover {
   top: 50%;
   transform: translate(-50%, -50%);
   width: 32px;
+}
+
+.result-reference-materials__play.is-audio {
+  height: 28px;
+  left: auto;
+  right: 8px;
+  top: auto;
+  bottom: 8px;
+  transform: none;
+  width: 28px;
+}
+
+.result-reference-materials__zoom {
+  align-items: center;
+  background: rgba(17, 24, 39, 0.72);
+  border-radius: 50%;
+  bottom: 8px;
+  color: #fff;
+  display: flex;
+  height: 28px;
+  justify-content: center;
+  position: absolute;
+  right: 8px;
+  width: 28px;
 }
 
 .result-reference-materials__audio {

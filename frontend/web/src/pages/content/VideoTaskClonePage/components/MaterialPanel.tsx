@@ -1,4 +1,4 @@
-import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2, UserRound } from 'lucide-react';
+import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2, UserRound, ZoomIn } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
@@ -43,14 +43,20 @@ export type ReferenceMaterialPreviewAsset = Pick<
 >;
 
 type ReferenceMaterialPreviewListProps = {
+  activeAudioAssetId: string | null;
   assets: ReferenceMaterialPreviewAsset[];
   isLoading?: boolean;
+  onAudioPreview: (asset: ReferenceMaterialPreviewAsset) => void;
+  onImagePreview: (asset: ReferenceMaterialPreviewAsset) => void;
   onVideoPreview: (asset: ReferenceMaterialPreviewAsset) => void;
 };
 
 export function ReferenceMaterialPreviewList({
+  activeAudioAssetId,
   assets,
   isLoading = false,
+  onAudioPreview,
+  onImagePreview,
   onVideoPreview,
 }: ReferenceMaterialPreviewListProps) {
   if (isLoading) {
@@ -73,6 +79,8 @@ export function ReferenceMaterialPreviewList({
         const name = asset.name || asset.originalFileName || '参考素材';
         const isVideo = asset.mimeType.startsWith('video/');
         const isImage = asset.mimeType.startsWith('image/');
+        const isAudio = asset.mimeType.startsWith('audio/');
+        const isAudioPlaying = isAudio && activeAudioAssetId === asset.id;
         const content = isVideo ? (
           <>
             <video muted playsInline preload="metadata" src={resolveAssetUrl(asset.fileUrl)} />
@@ -81,20 +89,43 @@ export function ReferenceMaterialPreviewList({
             </i>
           </>
         ) : isImage ? (
-          <img alt={name} src={resolveAssetUrl(asset.fileUrl)} />
-        ) : (
-          <i className="result-reference-materials__audio" aria-hidden="true">
-            <Music2 size={22} />
-          </i>
-        );
+          <>
+            <img alt={name} src={resolveAssetUrl(asset.fileUrl)} />
+            <i className="result-reference-materials__zoom" aria-hidden="true">
+              <ZoomIn size={14} />
+            </i>
+          </>
+        ) : isAudio ? (
+          <>
+            <i className="result-reference-materials__audio" aria-hidden="true">
+              <Music2 size={22} />
+            </i>
+            <i className="result-reference-materials__play is-audio" aria-hidden="true">
+              {isAudioPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
+            </i>
+          </>
+        ) : null;
+        const onPreview = isVideo
+          ? () => onVideoPreview(asset)
+          : isImage
+            ? () => onImagePreview(asset)
+            : isAudio
+              ? () => onAudioPreview(asset)
+              : undefined;
+        const actionLabel = isVideo || isImage
+          ? `预览${name}`
+          : isAudioPlaying
+            ? `暂停${name}`
+            : `试听${name}`;
 
-        return isVideo ? (
+        return onPreview ? (
           <button
-            aria-label={`预览${name}`}
-            className="result-reference-materials__item"
+            aria-label={actionLabel}
+            aria-pressed={isAudio ? isAudioPlaying : undefined}
+            className={`result-reference-materials__item${isAudioPlaying ? ' is-playing' : ''}`}
             key={asset.id}
-            onClick={() => onVideoPreview(asset)}
-            title={name}
+            onClick={onPreview}
+            title={actionLabel}
             type="button"
           >
             {content}

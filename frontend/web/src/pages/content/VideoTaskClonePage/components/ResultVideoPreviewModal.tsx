@@ -1,6 +1,6 @@
-import { Button, Modal, Popconfirm, message } from 'antd';
+import { Button, Image, Modal, Popconfirm, message } from 'antd';
 import { Download, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getContentAsset, getVideoTask } from '../../../../api/content';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
@@ -40,7 +40,10 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
   const [resolvedTask, setResolvedTask] = useState<VideoGenerationTask | null>(video.task || null);
   const [referenceAssets, setReferenceAssets] = useState<ReferenceMaterialPreviewAsset[]>(video.referenceAssets || []);
   const [isLoadingReferences, setIsLoadingReferences] = useState(Boolean(video.taskId || video.task));
+  const [referenceImage, setReferenceImage] = useState<ReferenceMaterialPreviewAsset | null>(null);
   const [referenceVideo, setReferenceVideo] = useState<ConfirmedReferenceVideo | null>(null);
+  const [playingAudioAssetId, setPlayingAudioAssetId] = useState<string | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const task = video.task || resolvedTask;
   const completedAt = taskCompletionTime(task) || video.completedAt;
   const elapsedTime = useMemo(() => formatElapsedTime(
@@ -48,6 +51,11 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
     completedAt,
   ), [completedAt, task?.createdAt, video.createdAt]);
   const generatedTime = formatRelativeCalendarDateTime(completedAt);
+
+  useEffect(() => () => {
+    audioPlayerRef.current?.pause();
+    audioPlayerRef.current = null;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +106,8 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
   }, [video.referenceAssetIds, video.referenceAssets, video.task, video.taskId]);
 
   const openReferenceVideo = (asset: ReferenceMaterialPreviewAsset) => {
+    stopReferenceAudio();
+    setReferenceImage(null);
     const videoUrl = resolveAssetUrl(asset.fileUrl);
     const duration = assetDurationSeconds(asset.metadata);
     setReferenceVideo({
@@ -109,6 +119,48 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
       storedFileName: '',
       videoUrl,
     });
+  };
+
+  const openReferenceImage = (asset: ReferenceMaterialPreviewAsset) => {
+    stopReferenceAudio();
+    setReferenceVideo(null);
+    setReferenceImage(asset);
+  };
+
+  const toggleReferenceAudio = (asset: ReferenceMaterialPreviewAsset) => {
+    const audioUrl = resolveAssetUrl(asset.fileUrl);
+    if (!audioUrl) return;
+    if (!audioPlayerRef.current) {
+      audioPlayerRef.current = new Audio();
+      audioPlayerRef.current.preload = 'metadata';
+    }
+    const audio = audioPlayerRef.current;
+    if (playingAudioAssetId === asset.id && !audio.paused) {
+      stopReferenceAudio();
+      return;
+    }
+    setReferenceImage(null);
+    setReferenceVideo(null);
+    audio.pause();
+    audio.src = audioUrl;
+    audio.currentTime = 0;
+    audio.onended = () => setPlayingAudioAssetId(null);
+    void audio.play()
+      .then(() => setPlayingAudioAssetId(asset.id))
+      .catch(() => {
+        setPlayingAudioAssetId(null);
+        message.error('音频播放失败');
+      });
+  };
+
+  function stopReferenceAudio() {
+    audioPlayerRef.current?.pause();
+    setPlayingAudioAssetId(null);
+  }
+
+  const closeModal = () => {
+    stopReferenceAudio();
+    setOpen(false);
   };
 
   const downloadVideo = async () => {
@@ -133,7 +185,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
     if (!onDelete || isDeleting) return;
     setIsDeleting(true);
     try {
-      if (await onDelete()) setOpen(false);
+      if (await onDelete()) closeModal();
     } finally {
       setIsDeleting(false);
     }
@@ -150,7 +202,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
         closable={false}
         footer={null}
         mask={{ closable: true }}
-        onCancel={() => setOpen(false)}
+        onCancel={closeModal}
         open={open}
         title={null}
         width="100vw"
@@ -161,7 +213,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
             <button
               aria-label="关闭视频预览"
               className="result-video-preview-stage__close"
-              onClick={() => setOpen(false)}
+              onClick={closeModal}
               type="button"
             >
               <X size={20} />
@@ -169,7 +221,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
             <VideoPreviewPlayer
               duration={video.duration}
               name={video.name}
-              paused={Boolean(referenceVideo)}
+              paused={Boolean(referenceImage || referenceVideo || playingAudioAssetId)}
               variant="result"
               videoUrl={video.videoUrl}
             />
@@ -226,8 +278,11 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
             <section className="result-video-preview-sidebar__references">
               <h3>参考素材</h3>
               <ReferenceMaterialPreviewList
+                activeAudioAssetId={playingAudioAssetId}
                 assets={referenceAssets}
                 isLoading={isLoadingReferences}
+                onAudioPreview={toggleReferenceAudio}
+                onImagePreview={openReferenceImage}
                 onVideoPreview={openReferenceVideo}
               />
             </section>
@@ -239,6 +294,22 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
         <ReferenceVideoPreviewModal
           onClose={() => setReferenceVideo(null)}
           video={referenceVideo}
+        />
+      ) : null}
+
+      {referenceImage ? (
+        <Image
+          alt={referenceImage.name || referenceImage.originalFileName || '参考图片预览'}
+          preview={{
+            open: true,
+            src: resolveAssetUrl(referenceImage.fileUrl),
+            zIndex: 14000,
+            onOpenChange: (nextOpen) => {
+              if (!nextOpen) setReferenceImage(null);
+            },
+          }}
+          src={resolveAssetUrl(referenceImage.fileUrl)}
+          style={{ display: 'none' }}
         />
       ) : null}
     </>
