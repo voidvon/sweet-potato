@@ -187,7 +187,7 @@ export function ResultPanel({
                     {viewState(group.records[0]).metric}
                   </span>
                   <span className="video-task-result-track-count">{group.records.length}个</span>
-                  <span className="video-task-result-pill">{group.label}</span>
+                  {group.records.length === 1 ? <span className="video-task-result-pill">{group.label}</span> : null}
                 </div>
 
                 <div className={group.records.length > 1 ? 'video-task-result-grid has-multiple' : 'video-task-result-grid'}>
@@ -228,55 +228,62 @@ export function ResultPanel({
                           )}
                         </div>
 
-                        {state.kind !== 'running' ? (
+                        {state.kind !== 'running' || group.records.length > 1 ? (
                           <div className="video-task-result-copy">
                             <div className="video-task-result-actions">
-                              <div className="video-task-result-action-row">
-                                <Button
-                                  className="video-task-result-retry"
-                                  color="default"
-                                  disabled={isRetrying || isDeleting}
-                                  icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
-                                  onClick={() => void onRetry(task)}
-                                  size="small"
-                                  variant="filled"
-                                >
-                                  {isRetrying ? '提交中' : '再次生成'}
-                                </Button>
-
-                                <Dropdown
-                                  overlayClassName="video-task-result-more-menu"
-                                  disabled={isDeleting || isRetrying}
-                                  menu={{
-                                    items: [
-                                      {
-                                        key: 'download',
-                                        icon: <DownloadOutlined />,
-                                        label: '下载',
-                                        disabled: state.kind !== 'success' || !state.videoUrl,
-                                        onClick: () => void handleDownloadVideo(task, state.videoUrl),
-                                      },
-                                      {
-                                        danger: true,
-                                        key: 'delete',
-                                        icon: <DeleteOutlined />,
-                                        label: '删除',
-                                        onClick: () => confirmDeleteVideo(task),
-                                      },
-                                    ],
-                                  }}
-                                  trigger={['click']}
-                                >
+                              {group.records.length > 1 ? (
+                                <div className="video-task-result-card-time">
+                                  {formatRelativeCalendarDateTime(task.updatedAt)}
+                                </div>
+                              ) : null}
+                              {state.kind !== 'running' ? (
+                                <div className="video-task-result-action-row">
                                   <Button
-                                    aria-label="更多操作"
-                                    className="video-task-result-more"
+                                    className="video-task-result-retry"
                                     color="default"
-                                    icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
+                                    disabled={isRetrying || isDeleting}
+                                    icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
+                                    onClick={() => void onRetry(task)}
                                     size="small"
                                     variant="filled"
-                                  />
-                                </Dropdown>
-                              </div>
+                                  >
+                                    {isRetrying ? '提交中' : '再次生成'}
+                                  </Button>
+
+                                  <Dropdown
+                                    overlayClassName="video-task-result-more-menu"
+                                    disabled={isDeleting || isRetrying}
+                                    menu={{
+                                      items: [
+                                        {
+                                          key: 'download',
+                                          icon: <DownloadOutlined />,
+                                          label: '下载',
+                                          disabled: state.kind !== 'success' || !state.videoUrl,
+                                          onClick: () => void handleDownloadVideo(task, state.videoUrl),
+                                        },
+                                        {
+                                          danger: true,
+                                          key: 'delete',
+                                          icon: <DeleteOutlined />,
+                                          label: '删除',
+                                          onClick: () => confirmDeleteVideo(task),
+                                        },
+                                      ],
+                                    }}
+                                    trigger={['click']}
+                                  >
+                                    <Button
+                                      aria-label="更多操作"
+                                      className="video-task-result-more"
+                                      color="default"
+                                      icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
+                                      size="small"
+                                      variant="filled"
+                                    />
+                                  </Dropdown>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         ) : null}

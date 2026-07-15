@@ -394,6 +394,10 @@ function finishedVideoStatus(asset: ContentAsset) {
   return 'completed';
 }
 
+function isCompletedGeneratedWorkAsset(asset: ContentAsset) {
+  return isGeneratedWorkAsset(asset) && finishedVideoStatus(asset) === 'completed';
+}
+
 function PendingAssetTile({ file, onRemove }: { file: File; onRemove: (file: File) => void }) {
   const [url, setUrl] = useState('');
 
@@ -474,7 +478,7 @@ export function ContentResourceLibraryPage({
         listContentAssets({ userId: currentUser.id, resourceType }),
       ]);
       setGroups(groupList);
-      setAssets(resourceType === 'finished_video' ? assetList.filter(isGeneratedWorkAsset) : assetList);
+      setAssets(resourceType === 'finished_video' ? assetList.filter(isCompletedGeneratedWorkAsset) : assetList);
       setActiveGroup((current) => groupList.find((group) => group.id === current?.id) || null);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '素材加载失败');
