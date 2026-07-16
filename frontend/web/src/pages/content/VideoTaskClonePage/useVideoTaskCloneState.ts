@@ -168,6 +168,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         page: 1,
         pageSize,
         search: filters.搜索,
+        ratio: filters.比例,
         time: filters.时间,
         status: filters.状态,
       });
@@ -204,6 +205,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         page,
         pageSize: videoProductionsPageSize,
         search: filters.搜索,
+        ratio: filters.比例,
         time: filters.时间,
         status: filters.状态,
       });

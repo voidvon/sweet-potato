@@ -141,12 +141,14 @@ export const modelPickerOptions = [
 ];
 
 export const filterGroups: FilterGroup[] = [
+  { label: '比例', options: ['全部比例', ...ratioOptions] },
   { label: '时间', options: ['全部时间', '今天', '近 7 天', '近 30 天'] },
   { label: '状态', options: ['全部状态', '已完成', '生成中', '失败'] },
 ];
 
 export const defaultFilters: FilterValues = {
   搜索: '',
+  比例: '全部比例',
   时间: '全部时间',
   状态: '全部状态',
 };

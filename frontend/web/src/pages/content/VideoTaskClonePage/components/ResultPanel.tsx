@@ -142,7 +142,7 @@ export function ResultPanel({
             <Search size={16} />
             <input
               onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="搜索ID/比例/时长/时间"
+              placeholder="搜索ID/时长/时间"
               value={searchDraft}
             />
             <button type="submit">搜索</button>

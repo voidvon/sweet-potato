@@ -347,6 +347,7 @@ export function renameVideoTask(id: string, payload: { userId: string; title: st
 }
 
 export function listVideoProductions(userId: string, filters: {
+  ratio?: string;
   search?: string;
   time?: string;
   status?: string;
@@ -355,6 +356,9 @@ export function listVideoProductions(userId: string, filters: {
   const params = new URLSearchParams();
   if (filters.search?.trim()) {
     params.set('search', filters.search.trim());
+  }
+  if (filters.ratio?.trim() && filters.ratio !== '全部比例') {
+    params.set('ratio', filters.ratio.trim());
   }
   if (filters.time?.trim() && filters.time !== '全部时间') {
     params.set('time', filters.time.trim());
@@ -369,6 +373,7 @@ export function listVideoProductions(userId: string, filters: {
 export function listVideoProductionsPage(userId: string, filters: {
   page: number;
   pageSize: number;
+  ratio?: string;
   search?: string;
   time?: string;
   status?: string;
@@ -380,6 +385,9 @@ export function listVideoProductionsPage(userId: string, filters: {
   });
   if (filters.search?.trim()) {
     params.set('search', filters.search.trim());
+  }
+  if (filters.ratio?.trim() && filters.ratio !== '全部比例') {
+    params.set('ratio', filters.ratio.trim());
   }
   if (filters.time?.trim() && filters.time !== '全部时间') {
     params.set('time', filters.time.trim());

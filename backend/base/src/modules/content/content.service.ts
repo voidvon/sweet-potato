@@ -621,13 +621,22 @@ function videoProductionStatusLabel(task: VideoGenerationTask) {
 }
 
 function filterVideoProductionsOnServer(tasks: VideoGenerationTask[], input: {
+  ratio?: unknown;
   status?: unknown;
 }) {
+  const ratio = String(input.ratio || '').trim();
   const status = String(input.status || '').trim();
-  if (!status || status === '全部状态') {
-    return tasks;
-  }
-  return tasks.filter((task) => videoProductionStatusLabel(task) === status);
+  const matchesRatio = (task: VideoGenerationTask) => (
+    !ratio
+    || ratio === '全部比例'
+    || String(generationResultForTask(task)?.ratio || task.expertContext?.ratio || '').trim() === ratio
+  );
+  const matchesStatus = (task: VideoGenerationTask) => (
+    !status
+    || status === '全部状态'
+    || videoProductionStatusLabel(task) === status
+  );
+  return tasks.filter((task) => matchesRatio(task) && matchesStatus(task));
 }
 
 function isCompletedFinishedAsset(asset: ContentAsset) {
@@ -1594,6 +1603,7 @@ export const contentService = {
   },
 
   async listVideoProductions(userId: string, filters: {
+    ratio?: unknown;
     search?: unknown;
     time?: unknown;
     status?: unknown;
@@ -1639,7 +1649,7 @@ export const contentService = {
     schedulePendingGeneratedVideoMirrors({ userId, limit: 20 });
     const filtered = filterVideoProductionsOnServer(
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
-      { status: filters.status },
+      { ratio: filters.ratio, status: filters.status },
     );
     const requestedPage = Number(filters.page);
     if (!Number.isFinite(requestedPage) || requestedPage < 1) {
