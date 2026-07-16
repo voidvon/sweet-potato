@@ -630,6 +630,14 @@ function filterVideoProductionsOnServer(tasks: VideoGenerationTask[], input: {
   return tasks.filter((task) => videoProductionStatusLabel(task) === status);
 }
 
+function isCompletedFinishedAsset(asset: ContentAsset) {
+  if (!String(asset.fileUrl || '').trim()) {
+    return false;
+  }
+  const generationStatus = String(asset.metadata?.generationStatus || '').trim().toLowerCase();
+  return !['pending', 'queued', 'running', 'generating', 'failed'].includes(generationStatus);
+}
+
 function appendVideoProductionFailureHistory(
   nextContext: Record<string, unknown>,
   previousTask: VideoGenerationTask | null,
@@ -1539,13 +1547,30 @@ export const contentService = {
     if (input.page || input.pageSize) {
       const page = Math.max(1, Math.floor(Number(input.page || 1)));
       const pageSize = Math.max(1, Math.min(50, Math.floor(Number(input.pageSize || 20))));
+      if (resourceType === 'finished_video') {
+        const completedAssets = filterAssetsByPermissions(
+          input.actor,
+          contentRepository.listAssets(scope).filter(isCompletedFinishedAsset),
+        );
+        schedulePendingGeneratedVideoMirrors({
+          userId: scope.userId,
+          limit: 20,
+        });
+        const offset = (page - 1) * pageSize;
+        return {
+          items: completedAssets.slice(offset, offset + pageSize),
+          page,
+          pageSize,
+          total: completedAssets.length,
+        };
+      }
       const result = contentRepository.listAssetsPage({
         ...scope,
         page,
         pageSize,
       });
       const items = filterAssetsByPermissions(input.actor, result.items);
-      if (resourceType === 'finished_video' || group?.resourceType === 'finished_video') {
+      if (group?.resourceType === 'finished_video') {
         schedulePendingGeneratedVideoMirrors({
           userId: scope.userId,
           limit: 20,
@@ -1556,7 +1581,9 @@ export const contentService = {
         items,
       };
     }
-    const assets = contentRepository.listAssets(scope);
+    const assets = contentRepository
+      .listAssets(scope)
+      .filter((asset) => resourceType !== 'finished_video' || isCompletedFinishedAsset(asset));
     if (resourceType === 'finished_video' || group?.resourceType === 'finished_video') {
       schedulePendingGeneratedVideoMirrors({
         userId: scope.userId,
@@ -1570,6 +1597,8 @@ export const contentService = {
     search?: unknown;
     time?: unknown;
     status?: unknown;
+    page?: unknown;
+    pageSize?: unknown;
   } = {}) {
     assertUserId(userId);
     const timeRange = videoProductionTimeRange(filters.time);
@@ -1608,10 +1637,26 @@ export const contentService = {
       }
     }));
     schedulePendingGeneratedVideoMirrors({ userId, limit: 20 });
-    return filterVideoProductionsOnServer(
+    const filtered = filterVideoProductionsOnServer(
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
       { status: filters.status },
     );
+    const requestedPage = Number(filters.page);
+    if (!Number.isFinite(requestedPage) || requestedPage < 1) {
+      return filtered;
+    }
+    const page = Math.max(1, Math.floor(requestedPage));
+    const requestedPageSize = Number(filters.pageSize);
+    const pageSize = Number.isFinite(requestedPageSize)
+      ? Math.max(1, Math.min(100, Math.floor(requestedPageSize)))
+      : 20;
+    const offset = (page - 1) * pageSize;
+    return {
+      items: filtered.slice(offset, offset + pageSize),
+      page,
+      pageSize,
+      total: filtered.length,
+    };
   },
 
   async createVideoEnhancement(payload: CreateVideoEnhancementPayload) {

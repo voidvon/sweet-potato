@@ -4,6 +4,7 @@ import { Button, Dropdown, Modal, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
+import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
 import { downloadUrlAsFile } from '@shared/utils/download';
 import { filterGroups } from '../constants';
@@ -13,12 +14,15 @@ import { ResultVideoPreviewModal, type ResultVideoPreview } from './ResultVideoP
 
 type ResultPanelProps = {
   filters: FilterValues;
+  hasMore: boolean;
   isFilterOpen: boolean;
   isLoading: boolean;
+  isLoadingMore: boolean;
   onClearFilters: () => void;
   onDelete: (task: VideoGenerationTask) => Promise<boolean>;
   onFilterChange: (filters: FilterValues) => void;
   onFilterToggle: () => void;
+  onLoadMore: () => Promise<void>;
   onRetry: (task: VideoGenerationTask) => Promise<void>;
   records: VideoGenerationTask[];
   deletingTaskId: string;
@@ -27,12 +31,15 @@ type ResultPanelProps = {
 
 export function ResultPanel({
   filters,
+  hasMore,
   isFilterOpen,
   isLoading,
+  isLoadingMore,
   onClearFilters,
   onDelete,
   onFilterChange,
   onFilterToggle,
+  onLoadMore,
   onRetry,
   records,
   deletingTaskId,
@@ -177,7 +184,13 @@ export function ResultPanel({
           <p>左侧提交任务后，结果会显示在这里。</p>
         </div>
       ) : (
-        <div className="video-task-result-flow">
+        <InfiniteScroll
+          className="video-task-result-flow"
+          dataLength={records.length}
+          hasMore={hasMore}
+          loading={isLoadingMore}
+          onLoadMore={onLoadMore}
+        >
           <div className="video-task-result-timeline">
             {resultGroups.map((group) => (
               <section className="video-task-result-track" key={group.key}>
@@ -294,7 +307,7 @@ export function ResultPanel({
               </section>
             ))}
           </div>
-        </div>
+        </InfiniteScroll>
       )}
 
       {previewVideo ? (

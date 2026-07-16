@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductions, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductionsPage, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
@@ -59,6 +59,8 @@ const defaultVideoTranslationConfig: VideoTranslationConfig = {
   showLines: 2,
 };
 
+const videoProductionsPageSize = 20;
+
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
@@ -88,12 +90,18 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [isLoadingLibraryAssets, setIsLoadingLibraryAssets] = useState(false);
   const [videoProductions, setVideoProductions] = useState<VideoGenerationTask[]>([]);
   const [isLoadingProductions, setIsLoadingProductions] = useState(false);
+  const [isLoadingMoreProductions, setIsLoadingMoreProductions] = useState(false);
+  const [hasMoreVideoProductions, setHasMoreVideoProductions] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [retryingTaskId, setRetryingTaskId] = useState('');
   const [deletingTaskId, setDeletingTaskId] = useState('');
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
+  const loadedProductionCountRef = useRef(0);
+  const loadedProductionPageRef = useRef(0);
+  const isLoadingMoreProductionsRef = useRef(false);
+  const productionRequestVersionRef = useRef(0);
 
   useEffect(() => {
     let ignore = false;
@@ -140,28 +148,85 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, [loadLibraryAssets]);
 
   const loadVideoProductions = useCallback(async (silent = false) => {
+    const requestVersion = productionRequestVersionRef.current + 1;
+    productionRequestVersionRef.current = requestVersion;
     if (!silent) {
       setIsLoadingProductions(true);
+      setVideoProductions([]);
+      setHasMoreVideoProductions(false);
+      loadedProductionCountRef.current = 0;
+      loadedProductionPageRef.current = 0;
     }
     try {
-      const list = await listVideoProductions(currentUser.id, {
+      const pageSize = silent
+        ? Math.max(
+          videoProductionsPageSize,
+          Math.ceil(loadedProductionCountRef.current / videoProductionsPageSize) * videoProductionsPageSize,
+        )
+        : videoProductionsPageSize;
+      const result = await listVideoProductionsPage(currentUser.id, {
+        page: 1,
+        pageSize,
         search: filters.搜索,
         time: filters.时间,
         status: filters.状态,
       });
-      setVideoProductions(list);
-      return list;
+      if (requestVersion !== productionRequestVersionRef.current) {
+        return [];
+      }
+      setVideoProductions(result.items);
+      loadedProductionCountRef.current = result.items.length;
+      loadedProductionPageRef.current = Math.ceil(result.items.length / videoProductionsPageSize);
+      setHasMoreVideoProductions(result.items.length < result.total);
+      return result.items;
     } catch (error) {
-      if (!silent) {
+      if (!silent && requestVersion === productionRequestVersionRef.current) {
         message.error(error instanceof Error ? error.message : '生成记录加载失败');
       }
       return [];
     } finally {
-      if (!silent) {
+      if (!silent && requestVersion === productionRequestVersionRef.current) {
         setIsLoadingProductions(false);
       }
     }
   }, [currentUser.id, filters]);
+
+  const loadMoreVideoProductions = useCallback(async () => {
+    if (isLoadingMoreProductionsRef.current || !hasMoreVideoProductions) {
+      return;
+    }
+    isLoadingMoreProductionsRef.current = true;
+    setIsLoadingMoreProductions(true);
+    const requestVersion = productionRequestVersionRef.current;
+    const page = loadedProductionPageRef.current + 1;
+    try {
+      const result = await listVideoProductionsPage(currentUser.id, {
+        page,
+        pageSize: videoProductionsPageSize,
+        search: filters.搜索,
+        time: filters.时间,
+        status: filters.状态,
+      });
+      if (requestVersion !== productionRequestVersionRef.current) {
+        return;
+      }
+      loadedProductionPageRef.current = page;
+      setHasMoreVideoProductions(page * videoProductionsPageSize < result.total);
+      setVideoProductions((current) => {
+        const knownIds = new Set(current.map((task) => task.id));
+        const next = [...current, ...result.items.filter((task) => !knownIds.has(task.id))];
+        loadedProductionCountRef.current = next.length;
+        return next;
+      });
+    } catch (error) {
+      if (requestVersion === productionRequestVersionRef.current) {
+        message.error(error instanceof Error ? error.message : '更多生成记录加载失败');
+      }
+    } finally {
+      isLoadingMoreProductionsRef.current = false;
+      setIsLoadingMoreProductions(false);
+    }
+  }, [currentUser.id, filters, hasMoreVideoProductions]);
 
   useEffect(() => {
     void loadVideoProductions();
@@ -833,11 +898,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     clearAllMaterials,
     filterOpen,
     filters,
+    hasMoreVideoProductions,
     isLoadingLibraryAssets,
+    isLoadingMoreProductions,
     isLoadingProductions,
     isGenerating,
     materialMode,
     model,
+    loadMoreVideoProductions,
     paramSummary,
     prompt,
     promptPanel,

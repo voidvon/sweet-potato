@@ -366,6 +366,30 @@ export function listVideoProductions(userId: string, filters: {
   return request<VideoGenerationTask[]>(query ? `${Api.videoProductions}?${query}` : Api.videoProductions);
 }
 
+export function listVideoProductionsPage(userId: string, filters: {
+  page: number;
+  pageSize: number;
+  search?: string;
+  time?: string;
+  status?: string;
+}) {
+  void userId;
+  const params = new URLSearchParams({
+    page: String(filters.page),
+    pageSize: String(filters.pageSize),
+  });
+  if (filters.search?.trim()) {
+    params.set('search', filters.search.trim());
+  }
+  if (filters.time?.trim() && filters.time !== '全部时间') {
+    params.set('time', filters.time.trim());
+  }
+  if (filters.status?.trim() && filters.status !== '全部状态') {
+    params.set('status', filters.status.trim());
+  }
+  return request<PaginatedResult<VideoGenerationTask>>(`${Api.videoProductions}?${params.toString()}`);
+}
+
 export function createVideoProduction(payload: {
   userId: string;
   retryTaskId?: string;

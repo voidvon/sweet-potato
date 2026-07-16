@@ -2,6 +2,20 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-15 完成作品查询
+
+- `GET /api/content/assets?resourceType=finished_video` 只返回已有文件地址的完成态作品。
+- `generationStatus` 为 `pending`、`queued`、`running`、`generating` 或 `failed` 的素材不会出现在响应中。
+- 过滤只作用于接口响应；数据库任务与素材记录仍保留，后台状态回写、失败排查和本地镜像流程不受影响。
+- 分页请求会在完成态过滤后计算 `items` 与 `total`，避免空页或总数包含失败记录。
+
+## 2026-07-15 视频制作记录分页
+
+- `GET /api/content/video-productions` 传入 `page` 与 `pageSize` 时返回 `{ items, page, pageSize, total }`；`pageSize` 最大为 `100`。
+- 未传 `page` 时继续返回 `VideoGenerationTask[]`，兼容已有调用方。
+- `search`、`time`、`status` 筛选先作用于完整结果集，再进行分页。
+- `/app/content/create_video` 的结果时间线固定以每页 `20` 条加载，滚动接近底部时自动请求下一页。
+
 ## 2026-07-15 视频站点价格配置
 
 - 新增普通登录用户可读的 `GET /api/site-config`，用于前端统一获取站点公开的视频计费配置。

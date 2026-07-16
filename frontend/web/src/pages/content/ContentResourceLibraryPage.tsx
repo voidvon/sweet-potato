@@ -14,6 +14,7 @@ import {
 import { API_BASE_URL } from '../../api/request';
 import { AppSegmentedTabs } from '../../components/AppSegmentedTabs';
 import { AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../components/AssetLibraryCard';
+import { InfiniteScroll } from '../../components/InfiniteScroll';
 import type { ContentAsset, ContentAssetGroup, ContentResourceType, User } from '../../types';
 import { formatRelativeCalendarDateTime } from '../../utils/dateTime';
 import { withAuthToken } from '../../utils/session';
@@ -101,6 +102,7 @@ const videoWorksFunctionOptions: WorksFunctionOption[] = [
 ];
 
 const showWorksBatchButton = false;
+const finishedAssetsPageSize = 20;
 
 const resourceCopy: Record<ContentResourceType, ResourceCopy> = {
   digital_human: {
@@ -467,6 +469,7 @@ export function ContentResourceLibraryPage({
   const [searchKeyword, setSearchKeyword] = useState('');
   const [worksAssetTab, setWorksAssetTab] = useState<WorksAssetTab>('all');
   const [worksFunctionKey, setWorksFunctionKey] = useState(allWorksFunctionOption.key);
+  const [visibleWorksCount, setVisibleWorksCount] = useState(finishedAssetsPageSize);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const hasKeyword = searchKeyword.trim().length > 0;
 
@@ -530,6 +533,15 @@ export function ContentResourceLibraryPage({
     }
     return nextAssets.filter((asset) => asset.name.toLowerCase().includes(keyword));
   }, [assets, resourceType, searchKeyword, worksAssetTab, worksFunctionKey]);
+  const visibleWorksAssets = useMemo(
+    () => filteredAssets.slice(0, visibleWorksCount),
+    [filteredAssets, visibleWorksCount],
+  );
+  const hasMoreWorksAssets = visibleWorksAssets.length < filteredAssets.length;
+
+  const loadMoreWorksAssets = useCallback(() => {
+    setVisibleWorksCount((current) => Math.min(current + finishedAssetsPageSize, filteredAssets.length));
+  }, [filteredAssets.length]);
 
   const defaultGroup = useMemo(() => {
     if (!singleDefaultGroup) {
@@ -584,6 +596,7 @@ export function ContentResourceLibraryPage({
 
   useEffect(() => {
     setSingleLibraryPage(1);
+    setVisibleWorksCount(finishedAssetsPageSize);
   }, [searchKeyword, singleDefaultGroup, worksAssetTab, worksFunctionKey]);
 
   useEffect(() => {
@@ -880,7 +893,7 @@ export function ContentResourceLibraryPage({
             <header className="works-assets-header">
               <div className="works-assets-title-row">
                 <h1>作品</h1>
-                <span>已加载 {filteredAssets.length} 个结果</span>
+                <span>已加载 {visibleWorksAssets.length} / {filteredAssets.length} 个结果</span>
               </div>
               <div className="works-assets-control-row">
                 <AppSegmentedTabs
@@ -917,9 +930,16 @@ export function ContentResourceLibraryPage({
                 )}
               </div>
             </header>
-            <div className="voice-board-content">
+            <InfiniteScroll
+              className="voice-board-content"
+              dataLength={visibleWorksAssets.length}
+              disabled={isLoadingLibrary}
+              endText="已加载全部作品"
+              hasMore={hasMoreWorksAssets}
+              onLoadMore={loadMoreWorksAssets}
+            >
               <div className="material-grid voice-board-grid">
-                {isLoadingLibrary ? <WorksAssetSkeletonCard /> : filteredAssets.map((asset) => (
+                {isLoadingLibrary ? <WorksAssetSkeletonCard /> : visibleWorksAssets.map((asset) => (
                   <WorksAssetCard
                     key={asset.id}
                     asset={asset}
@@ -934,7 +954,7 @@ export function ContentResourceLibraryPage({
                   />
                 )}
               </div>
-            </div>
+            </InfiniteScroll>
           </div>
         </section>
         {previewAsset?.mimeType.startsWith('video/') && (

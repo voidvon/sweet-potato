@@ -822,6 +822,8 @@ export function createContentRouter() {
         search: req.query.search,
         time: req.query.time,
         status: req.query.status,
+        page: req.query.page,
+        pageSize: req.query.pageSize,
       })
         .then((tasks) => res.json(tasks))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '视频制作记录获取失败')));

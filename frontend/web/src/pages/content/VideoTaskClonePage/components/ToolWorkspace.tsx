@@ -108,12 +108,15 @@ export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>
   return (
     <ResultPanel
       filters={state.filters}
+      hasMore={state.hasMoreVideoProductions}
       isFilterOpen={state.filterOpen}
       isLoading={state.isLoadingProductions}
+      isLoadingMore={state.isLoadingMoreProductions}
       onClearFilters={state.clearFilters}
       onDelete={state.deleteVideoProduction}
       onFilterChange={state.setFilters}
       onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
+      onLoadMore={state.loadMoreVideoProductions}
       onRetry={state.retryVideoProduction}
       records={state.videoProductions}
       deletingTaskId={state.deletingTaskId}
