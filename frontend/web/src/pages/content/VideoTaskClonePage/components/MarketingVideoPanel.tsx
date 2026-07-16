@@ -1,3 +1,4 @@
+import { Input } from 'antd';
 import type { PlanningApplyPayload } from '../../../../api/content-planning';
 import type { User } from '../../../../types';
 import type {
@@ -7,6 +8,7 @@ import type {
   SelectedMaterials,
 } from '../types';
 import { PromptPanel } from './PromptPanel';
+import { WorkspaceSection } from './WorkspaceSection';
 
 type MarketingVideoPanelProps = {
   config: MarketingVideoConfig;
@@ -42,35 +44,48 @@ export function MarketingVideoPanel({
 
   return (
     <div className="video-task-marketing-form">
-      <label className="video-task-marketing-field">
-        <span>商品名称</span>
-        <input
+      <WorkspaceSection
+        className="video-task-marketing-field"
+        title={<label htmlFor="marketing-product-name">商品名称</label>}
+        variant="plain"
+      >
+        <Input
+          id="marketing-product-name"
           onChange={(event) => updateField('productName', event.target.value)}
           placeholder="例如：夏季防晒衣"
-          type="text"
+          size="large"
           value={config.productName}
         />
-      </label>
+      </WorkspaceSection>
 
-      <label className="video-task-marketing-field">
-        <span>商品类目</span>
-        <input
+      <WorkspaceSection
+        className="video-task-marketing-field"
+        title={<label htmlFor="marketing-product-category">商品类目</label>}
+        variant="plain"
+      >
+        <Input
+          id="marketing-product-category"
           onChange={(event) => updateField('productCategory', event.target.value)}
           placeholder="例如：服饰 / 美妆 / 食品"
-          type="text"
+          size="large"
           value={config.productCategory}
         />
-      </label>
+      </WorkspaceSection>
 
-      <label className="video-task-marketing-field">
-        <span>核心卖点</span>
-        <textarea
+      <WorkspaceSection
+        className="video-task-marketing-field"
+        title={<label htmlFor="marketing-selling-points">核心卖点</label>}
+        variant="plain"
+      >
+        <Input.TextArea
+          id="marketing-selling-points"
           onChange={(event) => updateField('sellingPoints', event.target.value)}
           placeholder="一行一个卖点"
           rows={4}
+          size="large"
           value={config.sellingPoints}
         />
-      </label>
+      </WorkspaceSection>
 
       <PromptPanel
         currentUser={currentUser}

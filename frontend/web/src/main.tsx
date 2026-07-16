@@ -33,6 +33,11 @@ createRoot(rootElement).render(
             contentFontSizeLG: 13,
             controlHeightLG: 38,
           },
+          Input: {
+            borderRadiusLG: 16,
+            colorBorder: '#eeeff0',
+            inputFontSizeLG: 13,
+          },
           Modal: {
             borderRadiusLG: 22,
           },

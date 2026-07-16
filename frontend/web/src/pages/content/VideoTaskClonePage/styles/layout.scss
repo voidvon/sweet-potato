@@ -635,59 +635,17 @@
 }
 
 .video-task-marketing-field {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  --workspace-section-header-gap: 10px;
 }
 
-.video-task-marketing-field > span {
-  color: var(--video-task-ink);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 20px;
-}
-
-.video-task-marketing-field input,
-.video-task-marketing-field textarea {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(15, 23, 42, 0.09);
-  border-radius: 14px;
-  color: var(--video-task-ink);
-  font: inherit;
-  font-size: 14px;
-  outline: 0;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
-  width: 100%;
-}
-
-.video-task-marketing-field input {
-  height: 54px;
-  padding: 0 16px;
-}
-
-.video-task-marketing-field textarea {
+.video-task-marketing-field textarea.ant-input {
   line-height: 21px;
   min-height: 112px;
-  padding: 14px 16px;
   resize: vertical;
-}
-
-.video-task-marketing-field input::placeholder,
-.video-task-marketing-field textarea::placeholder {
-  color: #9299a3;
-}
-
-.video-task-marketing-field input:focus,
-.video-task-marketing-field textarea:focus {
-  border-color: var(--video-task-accent-border);
-  box-shadow: 0 0 0 3px var(--video-task-accent-soft);
 }
 
 .video-task-marketing-form .video-task-prompt-section {
   --workspace-section-header-gap: 10px;
-  --workspace-section-title-size: 14px;
-  --workspace-section-title-line-height: 20px;
-  --workspace-section-title-weight: 700;
 }
 
 .video-task-prompt-box {

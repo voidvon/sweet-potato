@@ -879,8 +879,6 @@ export function ClawDialogComposer({
                 className="claw-dialog-rich-textarea"
                 editorClassName="claw-dialog-rich-editor"
                 emptyText="暂无可引用图片"
-                fallbackMentionMenu
-                menuDescription="选择图片会自动插入引用"
                 menuTitle="可引用图片"
                 minRows={2}
                 onChange={onInputChange}

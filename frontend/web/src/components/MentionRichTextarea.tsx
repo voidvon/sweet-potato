@@ -26,7 +26,6 @@ type MentionRichTextareaProps = {
   editorClassName?: string;
   emptyText?: string;
   fallbackMentionMenu?: boolean;
-  menuDescription?: string;
   menuTitle?: string;
   minRows?: number;
   onChange: (value: string) => void;
@@ -51,7 +50,6 @@ type MentionListRef = {
 
 type MentionListProps = SuggestionProps<MentionSuggestionItem, MentionSuggestionItem> & {
   emptyText: string;
-  menuDescription: string;
   menuTitle: string;
 };
 
@@ -393,7 +391,6 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
   command,
   emptyText,
   items,
-  menuDescription,
   menuTitle,
 }, ref) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -438,7 +435,6 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(function Mentio
     <div className="mention-rich-textarea-menu">
       <div className="mention-rich-textarea-menu__header">
         <strong>{menuTitle}</strong>
-        <span>{menuDescription}</span>
       </div>
       <div className="mention-rich-textarea-menu__list">
         {items.map((item, index) => (
@@ -473,7 +469,6 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   editorClassName,
   emptyText = '没有可用素材',
   fallbackMentionMenu = false,
-  menuDescription = '选择素材会自动插入引用',
   menuTitle = '可引用素材',
   minRows = 8,
   onChange,
@@ -726,7 +721,6 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
                   props: {
                     ...props,
                     emptyText,
-                    menuDescription,
                     menuTitle,
                   },
                 });
@@ -761,7 +755,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         },
       }),
     ];
-  }, [emptyText, fallbackMentionMenu, menuDescription, menuTitle, placeholder, suggestionContainer]);
+  }, [emptyText, fallbackMentionMenu, menuTitle, placeholder, suggestionContainer]);
 
   const editor = useEditor({
     content: plainTextToDoc(value, options),
@@ -842,7 +836,6 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
           <div className="mention-rich-textarea-menu">
             <div className="mention-rich-textarea-menu__header">
               <strong>{menuTitle}</strong>
-              <span>{menuDescription}</span>
             </div>
             {fallbackOptions.length ? fallbackOptions.map((item, index) => (
               <button
