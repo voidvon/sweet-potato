@@ -212,6 +212,7 @@ export function PromptPlanningModal({
   const selectCandidateRequestRef = useRef(0);
   const thinkingBodyRef = useRef<HTMLPreElement | null>(null);
   const thinkingAutoScrollRef = useRef(true);
+  const thinkingPanelVisibleRef = useRef(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -348,17 +349,30 @@ export function PromptPlanningModal({
   }, [session?.id, session?.status]);
 
   useEffect(() => {
-    if (isThinkingCollapsed || !thinkingAutoScrollRef.current) {
+    const enteredThinkingPanel = showThinkingPanel && !thinkingPanelVisibleRef.current;
+    thinkingPanelVisibleRef.current = showThinkingPanel;
+    if (enteredThinkingPanel) {
+      thinkingAutoScrollRef.current = true;
+    }
+    if (!showThinkingPanel || isThinkingCollapsed || !thinkingAutoScrollRef.current) {
       return undefined;
     }
-    const frame = window.requestAnimationFrame(() => {
-      const body = thinkingBodyRef.current;
-      if (body) {
-        body.scrollTop = body.scrollHeight;
-      }
+    let layoutFrame = 0;
+    const mountFrame = window.requestAnimationFrame(() => {
+      layoutFrame = window.requestAnimationFrame(() => {
+        const body = thinkingBodyRef.current;
+        if (body) {
+          body.scrollTop = body.scrollHeight;
+        }
+      });
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [isThinkingCollapsed, isWaitingForThinkingDelta, thinkingText]);
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      if (layoutFrame) {
+        window.cancelAnimationFrame(layoutFrame);
+      }
+    };
+  }, [isThinkingCollapsed, isWaitingForThinkingDelta, showThinkingPanel, thinkingText]);
 
   useEffect(() => () => {
     audioPlayerRef.current?.pause();

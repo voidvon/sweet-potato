@@ -1000,9 +1000,6 @@ export class ContentPlanningService {
     if (!candidate) {
       throw new Error('select a planning candidate before applying');
     }
-    if (candidate.issues.length) {
-      throw new Error('该候选仍有未修复问题，无法回填视频表单');
-    }
     const prompt = buildContentPlanningPrompt(session, candidate.storyboard, {
       title: candidate.title,
       summary: candidate.summary,
