@@ -820,6 +820,7 @@ export function createContentRouter() {
     try {
       void contentService.listVideoProductions(getCurrentUserId(req), {
         search: req.query.search,
+        ratio: req.query.ratio,
         time: req.query.time,
         status: req.query.status,
         page: req.query.page,
