@@ -69,7 +69,13 @@ export const toolOptions: ToolOption[] = [
     materialHint: '上传商品图',
     materials: [{ key: 'image', label: '商品图', hint: '1 至 5 张', maxCount: 5, meta: '必选', minCount: 1 }],
     submitText: '生成营销视频',
-    workspace: { blocks: [{ id: 'material', type: 'material' }], generate: { handler: 'pending' } },
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'marketing-video-form', type: 'marketing-video-form' },
+      ],
+      generate: { handler: 'pending' },
+    },
   },
   {
     key: 'subtitle-removal',

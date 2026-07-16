@@ -52,6 +52,12 @@ export type VideoTranslationConfig = {
   showLines: number;
 };
 
+export type MarketingVideoConfig = {
+  productCategory: string;
+  productName: string;
+  sellingPoints: string;
+};
+
 export type MaterialKind = {
   hint: string;
   key: MaterialKey;
@@ -65,6 +71,7 @@ export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
   | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
+  | { id: string; type: 'marketing-video-form' }
   | { id: string; type: 'subtitle-removal' }
   | { id: string; type: 'video-translation' };
 

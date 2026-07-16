@@ -14,6 +14,7 @@ import {
 } from './constants';
 import type {
   FilterValues,
+  MarketingVideoConfig,
   MaterialKey,
   MaterialKind,
   MaterialMode,
@@ -58,6 +59,12 @@ const defaultVideoTranslationConfig: VideoTranslationConfig = {
   },
   fontSize: 24,
   showLines: 2,
+};
+
+const defaultMarketingVideoConfig: MarketingVideoConfig = {
+  productCategory: '',
+  productName: '',
+  sellingPoints: '',
 };
 
 const videoProductionsPageSize = 20;
@@ -135,6 +142,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [isGenerating, setIsGenerating] = useState(false);
   const [retryingTaskId, setRetryingTaskId] = useState('');
   const [deletingTaskId, setDeletingTaskId] = useState('');
+  const [marketingVideoConfig, setMarketingVideoConfig] = useState<MarketingVideoConfig>(defaultMarketingVideoConfig);
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
@@ -352,7 +360,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     || ratio !== '9:16'
     || quality !== '720P'
     || duration !== '5s'
-    || !voiceEnabled,
+    || !voiceEnabled
+    || marketingVideoConfig.productName.trim()
+    || marketingVideoConfig.productCategory.trim()
+    || marketingVideoConfig.sellingPoints.trim()
   );
 
   const chooseTool = useCallback((option: ToolOption) => {
@@ -368,6 +379,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setActiveParam(null);
     setPromptPanel(null);
     setFilterOpen(false);
+    setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
   }, []);
@@ -769,6 +781,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setDuration('5s');
     setActiveParam(null);
     setFilterOpen(false);
+    setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
   }, []);
@@ -1048,6 +1061,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     isLoadingProductions,
     isGenerating,
     materialMode,
+    marketingVideoConfig,
     model,
     loadMoreVideoProductions,
     paramSummary,
@@ -1101,6 +1115,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
     },
     setFilters,
+    setMarketingVideoConfig,
     setPrompt,
     setPromptPanel: (panel: PromptPanel | null) => {
       setPromptPanel(panel);

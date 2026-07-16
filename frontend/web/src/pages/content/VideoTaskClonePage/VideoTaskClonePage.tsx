@@ -60,7 +60,9 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
   };
 
   return (
-    <div className="video-task-clone-page">
+    <div className={state.tool.key === 'marketing-video'
+      ? 'video-task-clone-page has-storyboard-history'
+      : 'video-task-clone-page'}>
       <section className="video-task-left" aria-label="视频生成功能">
         <ToolSwitcher
           currentTool={state.tool}
@@ -71,6 +73,8 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
 
         <ToolWorkspace state={state} />
       </section>
+
+      {state.tool.key === 'marketing-video' ? <StoryboardHistoryPanel /> : null}
 
       <ToolResultWorkspace onEdit={handleEditProduction} state={state} />
 
@@ -85,13 +89,38 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
 
       {state.expandedPrompt && (
         <PromptModal
+          description={state.tool.key === 'marketing-video'
+            ? '补充生成或解析方向，输入 @ 引用商品素材'
+            : undefined}
           onClose={() => state.setExpandedPrompt(false)}
           onPlaceholderFiles={state.fillMentionPlaceholderFiles}
           onPromptChange={state.setPrompt}
+          placeholder={state.tool.key === 'marketing-video'
+            ? '补充你希望生成或解析的方向，输入 @ 引用素材'
+            : undefined}
           prompt={state.prompt}
           selectedMaterials={state.selectedMaterials}
+          title={state.tool.key === 'marketing-video' ? '提示词 / 要求' : undefined}
         />
       )}
     </div>
+  );
+}
+
+function StoryboardHistoryPanel() {
+  return (
+    <section className="video-task-storyboard-history" aria-label="分镜历史">
+      <header className="video-task-result-header">
+        <div className="video-task-result-header-copy">
+          <h1>分镜历史</h1>
+          <p>生成的分镜会显示在这里</p>
+        </div>
+      </header>
+
+      <div className="video-task-storyboard-empty">
+        <strong>暂无分镜历史</strong>
+        <p>提交营销视频任务后，可在这里查看生成的分镜。</p>
+      </div>
+    </section>
   );
 }
