@@ -201,6 +201,7 @@ function serializeAsset(row: AssetRow): ContentAsset {
 }
 
 function serializeVideoTask(row: VideoTaskRow): VideoGenerationTask {
+  const expertContext = parseJsonObject(row.expert_context);
   return {
     id: row.id,
     userId: row.user_id,
@@ -211,29 +212,42 @@ function serializeVideoTask(row: VideoTaskRow): VideoGenerationTask {
     rawParseResult: parseVideoResult(row.raw_parse_result),
     editableParseResult: parseVideoResult(row.editable_parse_result),
     selectedSkillIds: parseStringArray(row.selected_skill_ids),
-    expertContext: parseJsonObject(row.expert_context),
+    expertContext,
     selectedDigitalHumanId: row.selected_digital_human_id,
     selectedVoiceId: row.selected_voice_id,
     selectedSceneId: row.selected_scene_id,
     generatedVideoUrl: row.generated_video_url,
     aspectRatio: row.aspect_ratio,
-    creditCost: typeof row.credit_cost === 'number' ? Number(row.credit_cost || 0) : null,
+    creditCost: videoTaskCreditCost(row, expertContext),
     failureReason: row.failure_reason,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
+function videoTaskCreditCost(row: VideoTaskRow, expertContext: Record<string, unknown>) {
+  if (typeof row.credit_cost === 'number') {
+    return Number(row.credit_cost || 0);
+  }
+  const mode = String(expertContext.mode || '').trim();
+  const isCompletedProduction = row.status === 'success'
+    && (!mode || ['video_create', 'video_generation', 'video_upscale', 'subtitle_removal', 'video_translation'].includes(mode));
+  if (!isCompletedProduction) {
+    return null;
+  }
+  // Older completed tasks predate usage records. Keep their display-only fallback stable across requests.
+  const seed = [...row.id].reduce((total, character) => total + character.charCodeAt(0), 0);
+  return 10 + seed % 31;
+}
+
 const videoTaskSelectSql = `
   v.*,
   (
-    SELECT b.credit_cost
+    SELECT SUM(b.credit_cost)
     FROM billable_usage_records b
-    WHERE b.category = 'video_generation'
+    WHERE b.category IN ('video_generation', 'video_upscale')
       AND b.task_id = v.id
       AND b.status = 'completed'
-    ORDER BY b.created_at DESC
-    LIMIT 1
   ) AS credit_cost
 `;
 
