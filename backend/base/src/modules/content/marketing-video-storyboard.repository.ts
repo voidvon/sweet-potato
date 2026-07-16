@@ -9,6 +9,7 @@ export type MarketingVideoStoryboard = {
   productName: string;
   productCategory: string;
   sellingPoints: string;
+  additionalPrompt: string;
   prompt: string;
   referenceImageIds: string[];
   modelConfigId: string;
@@ -30,6 +31,7 @@ type MarketingVideoStoryboardRow = {
   product_name: string;
   product_category: string;
   selling_points: string;
+  additional_prompt: string;
   prompt: string;
   reference_image_ids: string;
   model_config_id: string;
@@ -61,6 +63,7 @@ function serialize(row: MarketingVideoStoryboardRow): MarketingVideoStoryboard {
     productName: row.product_name,
     productCategory: row.product_category,
     sellingPoints: row.selling_points,
+    additionalPrompt: row.additional_prompt || '',
     prompt: row.prompt,
     referenceImageIds: parseStringArray(row.reference_image_ids),
     modelConfigId: row.model_config_id,
@@ -80,11 +83,11 @@ export const marketingVideoStoryboardRepository = {
   create(task: MarketingVideoStoryboard) {
     db.prepare(`
       INSERT INTO marketing_video_storyboards (
-        id, user_id, title, product_name, product_category, selling_points, prompt,
+        id, user_id, title, product_name, product_category, selling_points, additional_prompt, prompt,
         reference_image_ids, model_config_id, model_name, status, image_asset_id,
         image_url, reservation_id, credit_cost, error_message, created_at, updated_at
       ) VALUES (
-        @id, @userId, @title, @productName, @productCategory, @sellingPoints, @prompt,
+        @id, @userId, @title, @productName, @productCategory, @sellingPoints, @additionalPrompt, @prompt,
         @referenceImageIds, @modelConfigId, @modelName, @status, @imageAssetId,
         @imageUrl, @reservationId, @creditCost, @errorMessage, @createdAt, @updatedAt
       )

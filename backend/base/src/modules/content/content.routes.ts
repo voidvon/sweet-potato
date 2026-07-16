@@ -945,6 +945,7 @@ export function createContentRouter() {
         productName: String(req.body.productName || ''),
         productCategory: String(req.body.productCategory || ''),
         sellingPoints: String(req.body.sellingPoints || ''),
+        additionalPrompt: String(req.body.additionalPrompt || ''),
         referenceImageIds: Array.isArray(req.body.referenceImageIds) ? req.body.referenceImageIds : [],
       });
       res.status(201).json(task);
@@ -961,11 +962,32 @@ export function createContentRouter() {
     }
   });
 
+  router.post('/marketing-video-storyboards/:id/generate-video', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      void marketingVideoStoryboardService.generateVideo(
+        getCurrentUserId(req),
+        String(req.params.id || ''),
+        {
+          quality: req.body.quality,
+          ratio: req.body.ratio,
+          duration: req.body.duration,
+          videoModelProviderId: req.body.videoModelProviderId,
+          videoModelId: req.body.videoModelId,
+        },
+      )
+        .then((task) => res.status(201).json(task))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '营销视频生成任务创建失败')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '营销视频生成任务创建失败'));
+    }
+  });
+
   router.post('/video-productions', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       void contentService.createVideoProduction({
         ...req.body,
         userId: getCurrentUserId(req),
+        skipVideoBilling: false,
       })
         .then((task) => res.status(201).json(task))
         .catch((error) => sendError(res, 400, getErrorMessage(error, '视频制作任务创建失败')));

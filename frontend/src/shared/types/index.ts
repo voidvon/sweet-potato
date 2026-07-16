@@ -143,6 +143,7 @@ export type MarketingVideoStoryboard = {
   productName: string;
   productCategory: string;
   sellingPoints: string;
+  additionalPrompt: string;
   prompt: string;
   referenceImageIds: string[];
   modelConfigId: string;

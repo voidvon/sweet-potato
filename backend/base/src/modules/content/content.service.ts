@@ -2856,6 +2856,7 @@ export const contentService = {
         referenceVideoIds: payload.referenceVideoIds || [],
         referenceAudioIds: payload.referenceAudioIds || [],
         characterReferenceImageIds,
+        skipVideoBilling: payload.skipVideoBilling === true,
         userPrompt,
       };
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;

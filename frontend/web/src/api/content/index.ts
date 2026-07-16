@@ -442,6 +442,7 @@ export function createMarketingVideoStoryboard(payload: {
   productName: string;
   productCategory: string;
   sellingPoints: string;
+  additionalPrompt: string;
   referenceImageIds: string[];
 }) {
   return request<MarketingVideoStoryboard>(Api.marketingVideoStoryboards, {
@@ -453,6 +454,19 @@ export function createMarketingVideoStoryboard(payload: {
 export function retryMarketingVideoStoryboard(id: string) {
   return request<MarketingVideoStoryboard>(`${Api.marketingVideoStoryboards}/${encodeURIComponent(id)}/retry`, {
     method: 'POST',
+  });
+}
+
+export function generateVideoFromMarketingStoryboard(id: string, payload: {
+  quality: string;
+  ratio: string;
+  duration: string;
+  videoModelProviderId: string;
+  videoModelId: string;
+}) {
+  return request<VideoGenerationTask>(`${Api.marketingVideoStoryboards}/${encodeURIComponent(id)}/generate-video`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 

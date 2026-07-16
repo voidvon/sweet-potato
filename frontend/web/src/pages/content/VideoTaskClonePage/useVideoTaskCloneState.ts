@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
@@ -147,6 +147,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [selectedMarketingStoryboardId, setSelectedMarketingStoryboardId] = useState('');
   const [isLoadingMarketingStoryboards, setIsLoadingMarketingStoryboards] = useState(false);
   const [retryingMarketingStoryboardId, setRetryingMarketingStoryboardId] = useState('');
+  const [generatingMarketingVideoId, setGeneratingMarketingVideoId] = useState('');
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
@@ -852,6 +853,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           productName: marketingVideoConfig.productName.trim(),
           productCategory: marketingVideoConfig.productCategory.trim(),
           sellingPoints: marketingVideoConfig.sellingPoints.trim(),
+          additionalPrompt: prompt.trim(),
           referenceImageIds: prepared.referenceImageIds,
         });
         setMarketingStoryboards((current) => [
@@ -977,6 +979,28 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setRetryingMarketingStoryboardId('');
     }
   }, [retryingMarketingStoryboardId]);
+
+  const generateMarketingVideo = useCallback(async (storyboard: MarketingVideoStoryboard) => {
+    if (generatingMarketingVideoId || !storyboard.imageAssetId) {
+      return;
+    }
+    try {
+      setGeneratingMarketingVideoId(storyboard.id);
+      await generateVideoFromMarketingStoryboard(storyboard.id, {
+        quality: mapQualityLabel(quality),
+        ratio,
+        duration,
+        videoModelProviderId: 'volcengine-seedance',
+        videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+      });
+      await loadVideoProductions(true);
+      message.success('视频生成任务已提交，可在右侧视频结果中查看');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频生成任务提交失败');
+    } finally {
+      setGeneratingMarketingVideoId('');
+    }
+  }, [duration, generatingMarketingVideoId, loadVideoProductions, model, quality, ratio]);
 
   const retryVideoProduction = useCallback(async (task: VideoGenerationTask) => {
     if (retrySubmittingRef.current) {
@@ -1142,6 +1166,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     isLoadingMarketingStoryboards,
     retryingMarketingStoryboardId,
     retryMarketingStoryboard,
+    generateMarketingVideo,
+    generatingMarketingVideoId,
     selectedMarketingStoryboardId,
     setSelectedMarketingStoryboardId,
     model,

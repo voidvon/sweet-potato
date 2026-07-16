@@ -459,6 +459,7 @@ export function migrateDatabase() {
       product_name TEXT NOT NULL,
       product_category TEXT NOT NULL,
       selling_points TEXT NOT NULL,
+      additional_prompt TEXT NOT NULL DEFAULT '',
       prompt TEXT NOT NULL,
       reference_image_ids TEXT NOT NULL DEFAULT '[]',
       model_config_id TEXT NOT NULL,
@@ -667,6 +668,41 @@ export function migrateDatabase() {
   addColumnIfMissing('billing_settings', 'video_translation_voice_credits_per_second', 'video_translation_voice_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'video_translation_face_credits_per_second', 'video_translation_face_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'video_translation_erase_source_credits_per_second', 'video_translation_erase_source_credits_per_second REAL NOT NULL DEFAULT 2');
+  addColumnIfMissing('marketing_video_storyboards', 'additional_prompt', "additional_prompt TEXT NOT NULL DEFAULT ''");
+  const storyboardRetentionNow = new Date().toISOString();
+  db.prepare(`
+    INSERT OR IGNORE INTO content_asset_references (
+      asset_id, reference_type, reference_id, role, created_at
+    )
+    SELECT
+      CAST(image_id.value AS TEXT),
+      'marketing_video_storyboard',
+      storyboard.id,
+      'input',
+      @now
+    FROM marketing_video_storyboards storyboard
+    JOIN json_each(
+      CASE WHEN json_valid(storyboard.reference_image_ids)
+        THEN storyboard.reference_image_ids
+        ELSE '[]'
+      END
+    ) image_id
+    INNER JOIN content_assets asset
+      ON asset.id = CAST(image_id.value AS TEXT)
+      AND asset.user_id = storyboard.user_id
+  `).run({ now: storyboardRetentionNow });
+  db.prepare(`
+    UPDATE content_assets
+    SET lifecycle_status = 'retained', expires_at = NULL,
+        retained_at = @now, updated_at = @now
+    WHERE lifecycle_status = 'temporary'
+      AND EXISTS (
+        SELECT 1
+        FROM content_asset_references reference
+        WHERE reference.asset_id = content_assets.id
+          AND reference.reference_type = 'marketing_video_storyboard'
+      )
+  `).run({ now: storyboardRetentionNow });
   addColumnIfMissing('llm_usage_records', 'credit_base_cost', 'credit_base_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('llm_usage_records', 'credit_billed_cost', 'credit_billed_cost REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('credit_ledger', 'credit_base_cost', 'credit_base_cost REAL');

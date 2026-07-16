@@ -9,6 +9,7 @@ import {
 import type { CreditReservation } from '../billing/billing.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { contentRepository } from './content.repository.js';
+import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
 import {
   createGeneratedImageWorkAsset,
   editImageWithJsonReferences,
@@ -24,7 +25,16 @@ type CreateMarketingVideoStoryboardInput = {
   productName: string;
   productCategory: string;
   sellingPoints: string;
+  additionalPrompt?: string;
   referenceImageIds?: string[];
+};
+
+type GenerateMarketingVideoInput = {
+  quality?: string;
+  ratio?: string;
+  duration?: string;
+  videoModelProviderId?: string;
+  videoModelId?: string;
 };
 
 const runningStoryboardIds = new Set<string>();
@@ -48,12 +58,13 @@ function normalizedSellingPoints(value: unknown) {
   return points.join('；');
 }
 
-function storyboardPrompt(input: Pick<CreateMarketingVideoStoryboardInput, 'productName' | 'productCategory' | 'sellingPoints'>) {
+function storyboardPrompt(input: Pick<CreateMarketingVideoStoryboardInput, 'productName' | 'productCategory' | 'sellingPoints' | 'additionalPrompt'>) {
   return [
     '围绕这款产品，帮我生成TVC六宫格分镜，每个六宫格必须带镜头，视觉，文案',
     `商品名称：{{${input.productName}}}`,
     `商品类目：{{${input.productCategory}}}`,
     `核心卖点：{{${input.sellingPoints}}}`,
+    ...(input.additionalPrompt ? [`补充要求：{{${input.additionalPrompt}}}`] : []),
   ].join('\n');
 }
 
@@ -201,6 +212,7 @@ export const marketingVideoStoryboardService = {
     const productName = requiredText(input.productName, '商品名称');
     const productCategory = requiredText(input.productCategory, '商品类目');
     const sellingPoints = normalizedSellingPoints(input.sellingPoints);
+    const additionalPrompt = String(input.additionalPrompt || '').trim();
     const referenceImageIds = [...new Set((input.referenceImageIds || []).map(String).filter(Boolean))].slice(0, 5);
     referenceAssets(userId, referenceImageIds);
     const { settings, modelConfig } = selectedStoryboardModel();
@@ -213,7 +225,8 @@ export const marketingVideoStoryboardService = {
       productName,
       productCategory,
       sellingPoints,
-      prompt: storyboardPrompt({ productName, productCategory, sellingPoints }),
+      additionalPrompt,
+      prompt: storyboardPrompt({ productName, productCategory, sellingPoints, additionalPrompt }),
       referenceImageIds,
       modelConfigId: modelConfig.id,
       modelName: modelConfig.name || modelConfig.model,
@@ -228,8 +241,18 @@ export const marketingVideoStoryboardService = {
     };
     marketingVideoStoryboardRepository.create(task);
     try {
+      contentRepository.retainAssetsForReference({
+        assetIds: referenceImageIds,
+        userId,
+        referenceType: 'marketing_video_storyboard',
+        referenceId: task.id,
+      });
       return startGeneration(task);
     } catch (error) {
+      contentRepository.deleteAssetReferences('marketing_video_storyboard', task.id);
+      referenceImageIds.forEach((assetId) => {
+        contentRepository.markAssetTemporaryIfUnreferenced(assetId, temporaryContentAssetExpiresAt());
+      });
       marketingVideoStoryboardRepository.delete(task.id);
       throw error;
     }
@@ -244,5 +267,40 @@ export const marketingVideoStoryboardService = {
       throw new Error('分镜正在生成中');
     }
     return startGeneration(task);
+  },
+
+  async generateVideo(userId: string, id: string, input: GenerateMarketingVideoInput) {
+    const task = marketingVideoStoryboardRepository.findById(id);
+    if (!task || task.userId !== userId) {
+      throw new Error('分镜任务不存在');
+    }
+    if (task.status !== 'ready' || !task.imageAssetId) {
+      throw new Error('分镜尚未生成完成');
+    }
+    const productImageCount = task.referenceImageIds.length;
+    const storyboardImageNumber = productImageCount + 1;
+    const referenceDescription = productImageCount === 0
+      ? '参考图1的九宫格分镜内容'
+      : productImageCount === 1
+        ? '参考图1的商品素材与图2的九宫格分镜内容'
+        : `参考图1至图${productImageCount}的商品素材与图${storyboardImageNumber}的九宫格分镜内容`;
+    const prompt = [
+      `${referenceDescription}，生成商业级TVC广告视频，同时生成与广告内容、节奏和氛围相符合的背景音乐。`,
+      `商品名称：${task.productName}`,
+      `商品类目：${task.productCategory}`,
+      `核心卖点：${task.sellingPoints}`,
+      ...(task.additionalPrompt ? [`补充要求：${task.additionalPrompt}`] : []),
+    ].join('\n');
+    return contentService.createVideoProduction({
+      userId,
+      prompt,
+      quality: String(input.quality || '标清 (720p)'),
+      ratio: String(input.ratio || '9:16'),
+      duration: String(input.duration || '5s'),
+      videoModelProviderId: String(input.videoModelProviderId || 'volcengine-seedance'),
+      videoModelId: String(input.videoModelId || ''),
+      referenceImageIds: [...task.referenceImageIds, task.imageAssetId],
+      skipVideoBilling: true,
+    });
   },
 };

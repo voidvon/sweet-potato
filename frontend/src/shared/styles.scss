@@ -13,6 +13,10 @@ body {
   overflow: hidden;
 }
 
+.ant-btn {
+  border-radius: 999px !important;
+}
+
 * {
   scrollbar-color: rgba(102, 112, 133, 0.32) transparent;
   scrollbar-width: thin;

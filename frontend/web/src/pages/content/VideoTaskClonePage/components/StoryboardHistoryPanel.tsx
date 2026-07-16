@@ -1,8 +1,9 @@
-import { Image, Spin, message } from 'antd';
-import { ArrowLeft, Layers3, Play, RefreshCw, Sparkles } from 'lucide-react';
+import { Button, Image, Spin } from 'antd';
+import { ArrowLeft, Play, RefreshCw, Sparkles } from 'lucide-react';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { MarketingVideoStoryboard } from '../../../../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
+import { ParameterPanel } from './ParameterPanel';
 
 type StoryboardHistoryPanelProps = {
   state: VideoTaskCloneState;
@@ -30,11 +31,12 @@ export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
     <section className="video-task-storyboard-history" aria-label="分镜历史">
       {selectedTask ? (
         <StoryboardDetail
-          model={state.model}
           onBack={() => state.setSelectedMarketingStoryboardId('')}
+          onGenerateVideo={() => void state.generateMarketingVideo(selectedTask)}
           onRetry={() => void state.retryMarketingStoryboard(selectedTask.id)}
-          quality={state.quality}
+          generatingVideo={state.generatingMarketingVideoId === selectedTask.id}
           retrying={state.retryingMarketingStoryboardId === selectedTask.id}
+          state={state}
           task={selectedTask}
         />
       ) : (
@@ -121,30 +123,33 @@ function StoryboardPreview({ task }: { task: MarketingVideoStoryboard }) {
 }
 
 function StoryboardDetail({
-  model,
+  generatingVideo,
   onBack,
+  onGenerateVideo,
   onRetry,
-  quality,
   retrying,
+  state,
   task,
 }: {
-  model: string;
+  generatingVideo: boolean;
   onBack: () => void;
+  onGenerateVideo: () => void;
   onRetry: () => void;
-  quality: string;
   retrying: boolean;
+  state: VideoTaskCloneState;
   task: MarketingVideoStoryboard;
 }) {
   return (
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header">
-        <button aria-label="返回分镜历史" onClick={onBack} type="button">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="video-task-result-header-copy">
-          <h1>分镜详情</h1>
-          <p>{statusLabels[task.status]}</p>
-        </div>
+        <Button
+          aria-label="返回分镜历史"
+          icon={<ArrowLeft size={18} />}
+          onClick={onBack}
+          shape="circle"
+          type="text"
+        />
+        <h1>分镜详情</h1>
       </header>
 
       <div className="video-task-storyboard-detail">
@@ -171,6 +176,7 @@ function StoryboardDetail({
               alt={`${task.title} 六宫格分镜`}
               preview={{ mask: '查看大图' }}
               src={resolveAssetUrl(task.imageUrl || '')}
+              style={{ display: 'block', height: '100%', objectFit: 'contain', width: '100%' }}
             />
           </div>
         )}
@@ -179,23 +185,38 @@ function StoryboardDetail({
           <p className="video-task-storyboard-progress-copy">分镜生成中，请稍候</p>
         ) : (
           <>
-            <div className="video-task-storyboard-video-options">
-              <div><Layers3 size={18} /><span>模型<strong>{model}</strong></span></div>
-              <div><span className="video-task-storyboard-quality-icon">Q</span><span>清晰度<strong>{quality}</strong></span></div>
-            </div>
+            <ParameterPanel
+              activeParam={state.activeParam}
+              canvas={state.canvas}
+              duration={state.duration}
+              model={state.model}
+              onCanvasQualityChoose={state.chooseCanvasQuality}
+              onCanvasRatioChoose={state.chooseCanvasRatio}
+              onParamChoose={state.chooseParam}
+              onParamToggle={state.setActiveParam}
+              quality={state.quality}
+              ratio={state.ratio}
+              showDuration={false}
+              showHeader={false}
+              showRatio={false}
+              summary={state.paramSummary}
+            />
             <div className="video-task-storyboard-actions">
-              <button
-                className="is-primary"
-                disabled={task.status !== 'ready'}
-                onClick={() => message.info('营销视频生成将在下一步接入')}
-                type="button"
+              <Button
+                disabled={task.status !== 'ready' || generatingVideo}
+                icon={<Play fill="currentColor" size={16} />}
+                onClick={onGenerateVideo}
+                type="primary"
               >
-                <Play fill="currentColor" size={16} />生成视频
-              </button>
-              <button disabled={retrying} onClick={onRetry} type="button">
-                <RefreshCw className={retrying ? 'is-spinning' : ''} size={16} />
+                {generatingVideo ? '提交中' : '生成视频'}
+              </Button>
+              <Button
+                disabled={retrying}
+                icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={16} />}
+                onClick={onRetry}
+              >
                 {retrying ? '提交中' : '重试分镜'}
-              </button>
+              </Button>
             </div>
           </>
         )}

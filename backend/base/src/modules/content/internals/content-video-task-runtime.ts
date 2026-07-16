@@ -147,6 +147,7 @@ export function applyVideoGenerationStatusToTask(
   if (providerResult.status === 'completed' && providerResult.videoUrl) {
     recordVideoGenerationUsageIfNeeded({
       userId: task.userId,
+      skipBilling: taskContext.skipVideoBilling === true,
       taskId: task.id,
       sourceType: typeof result?.sourceType === 'string' && result.sourceType.trim()
         ? result.sourceType.trim()

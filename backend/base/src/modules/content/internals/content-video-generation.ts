@@ -302,7 +302,11 @@ export function recordVideoGenerationUsageIfNeeded(input: {
   requestSnapshot?: Record<string, unknown>;
   responseSnapshot?: Record<string, unknown>;
   usageRaw?: Record<string, unknown>;
+  skipBilling?: boolean;
 }) {
+  if (input.skipBilling) {
+    return null;
+  }
   const sourceId = effectiveVideoGenerationSourceId(input.jobId, input.fallbackSourceId);
   if (!sourceId || findBillableUsageRecordByCategoryAndSourceId('video_generation', sourceId)) {
     return null;
@@ -2678,6 +2682,7 @@ export async function callConfiguredVideoModel(input: {
         : modelOption.durationPolicy.defaultSeconds;
       recordVideoGenerationUsageIfNeeded({
         userId: task.userId,
+        skipBilling: input.context.skipVideoBilling === true,
         sourceType: typeof flowContext.source === 'string' && flowContext.source.trim()
           ? flowContext.source.trim()
           : 'video_generation',
