@@ -30,6 +30,37 @@ type ImageGenerationCellStyle = CSSProperties & {
   '--chat-image-aspect-ratio'?: string;
 };
 
+function imageExtension(contentType: string, attachmentName: string) {
+  const mimeType = contentType.split(';', 1)[0].trim().toLowerCase();
+  const extensionByMimeType: Record<string, string> = {
+    'image/avif': 'avif',
+    'image/gif': 'gif',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  };
+  if (extensionByMimeType[mimeType]) {
+    return extensionByMimeType[mimeType];
+  }
+  const extension = /\.([a-z0-9]+)$/i.exec(attachmentName)?.[1];
+  return extension?.toLowerCase() || 'png';
+}
+
+function imageDownloadFileName(
+  attachment: ChatAttachment,
+  imageGeneration: ImageGenerationContext | undefined,
+  contentType: string,
+  downloadedAt: Date,
+) {
+  const moduleName = imageGeneration?.modeTitle?.trim() || '图片生成';
+  const resolution = imageGeneration?.resolution?.trim()
+    || imageGeneration?.outputSize?.trim()
+    || (attachment.width && attachment.height ? `${attachment.width}x${attachment.height}` : '未知分辨率');
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const timestamp = `${pad(downloadedAt.getMonth() + 1)}${pad(downloadedAt.getDate())}-${pad(downloadedAt.getHours())}${pad(downloadedAt.getMinutes())}`;
+  return `${moduleName}-${resolution}-${timestamp}.${imageExtension(contentType, attachment.name)}`;
+}
+
 export function ChatMessageList({
   hasStreamingAssistant,
   messages,
@@ -345,7 +376,11 @@ export function ChatMessageList({
         || attachment.name.startsWith('generated-image'));
   }
 
-  async function downloadAttachment(attachment: ChatAttachment) {
+  async function downloadAttachment(
+    attachment: ChatAttachment,
+    imageGeneration: ImageGenerationContext | undefined,
+    downloadedAt = new Date(),
+  ) {
     const response = await fetch(resolveAssetUrl(attachment.url));
     if (!response.ok) {
       throw new Error('图片下载失败');
@@ -354,17 +389,25 @@ export function ChatMessageList({
     const objectUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = objectUrl;
-    link.download = attachment.name || 'generated-image.png';
+    link.download = imageGeneration
+      ? imageDownloadFileName(
+        attachment,
+        imageGeneration,
+        response.headers.get('content-type') || blob.type,
+        downloadedAt,
+      )
+      : attachment.name || 'generated-image.png';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(objectUrl);
   }
 
-  function downloadGeneratedImages(attachments: ChatAttachment[]) {
+  function downloadGeneratedImages(attachments: ChatAttachment[], imageGeneration: ImageGenerationContext | undefined) {
+    const downloadedAt = new Date();
     attachments.forEach((attachment, index) => {
       window.setTimeout(() => {
-        void downloadAttachment(attachment).catch((error) => {
+        void downloadAttachment(attachment, imageGeneration, downloadedAt).catch((error) => {
           message.error(error instanceof Error ? error.message : '图片下载失败');
         });
       }, index * 120);
@@ -375,6 +418,7 @@ export function ChatMessageList({
     originalNode: ReactElement,
     attachments: ChatAttachment[],
     current: number,
+    imageGeneration: ImageGenerationContext | undefined,
   ) {
     const currentAttachment = attachments[current] || attachments[0];
     if (!currentAttachment) {
@@ -389,7 +433,7 @@ export function ChatMessageList({
         className={`${actionsClassName}-action chat-image-preview-download`}
         key="download"
         onClick={() => {
-          void downloadAttachment(currentAttachment).catch((error) => {
+          void downloadAttachment(currentAttachment, imageGeneration).catch((error) => {
             message.error(error instanceof Error ? error.message : '图片下载失败');
           });
         }}
@@ -693,7 +737,7 @@ export function ChatMessageList({
                       {renderImageGenerationHeader(item, previousUserMessage)}
                       <Image.PreviewGroup
                         preview={{
-                          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current),
+                          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current, imageGenerationContext),
                         }}
                       >
                         <div className={`chat-image-generation-grid ${imageGenerationLayoutClass}`}>
@@ -773,7 +817,7 @@ export function ChatMessageList({
                                 icon: <DownloadOutlined />,
                                 label: '下载',
                                 disabled: !imageAttachments.length || !canOperateImageGeneration,
-                                onClick: () => downloadGeneratedImages(imageAttachments),
+                                onClick: () => downloadGeneratedImages(imageAttachments, imageGenerationContext),
                               },
                               {
                                 danger: true,
@@ -981,7 +1025,7 @@ export function ChatMessageList({
               open,
             }));
           },
-          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, previewImageGroup.images, info.current),
+          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, previewImageGroup.images, info.current, undefined),
         }}
       />
 

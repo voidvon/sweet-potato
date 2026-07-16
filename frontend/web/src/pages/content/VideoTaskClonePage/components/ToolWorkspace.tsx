@@ -40,7 +40,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           type="button"
         >
           {state.tool.submitText}
-          {state.videoPriceLabel ? (
+          {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
             <span className="video-task-generate-price">
               <Zap aria-hidden="true" fill="currentColor" size={12} />
               {state.videoPriceLabel}

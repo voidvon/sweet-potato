@@ -1,5 +1,5 @@
 import { CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw, Zap } from 'lucide-react';
 import { Button, Dropdown, Modal, message } from 'antd';
 import { useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
@@ -180,8 +180,15 @@ export function ResultPanel({
                     <span className="video-task-result-metric-dot" aria-hidden="true" />
                     {viewState(group.records[0]).metric}
                   </span>
-                  <span className="video-task-result-track-count">{group.records.length}个</span>
-                  {group.records.length === 1 ? <span className="video-task-result-pill">{group.label}</span> : null}
+                  {group.records.length > 1 ? (
+                    <span className="video-task-result-track-count">{group.records.length}个</span>
+                  ) : null}
+                  {group.records.length === 1 ? (
+                    <>
+                      <ResultCreditCost task={group.records[0]} />
+                      <span className="video-task-result-pill">{group.label}</span>
+                    </>
+                  ) : null}
                 </div>
 
                 <div className={group.records.length > 1 ? 'video-task-result-grid has-multiple' : 'video-task-result-grid'}>
@@ -229,8 +236,11 @@ export function ResultPanel({
                           <div className="video-task-result-copy">
                             <div className="video-task-result-actions">
                               {group.records.length > 1 ? (
-                                <div className="video-task-result-card-time">
-                                  {formatRelativeCalendarDateTime(task.updatedAt)}
+                                <div className="video-task-result-card-meta">
+                                  <ResultCreditCost task={task} />
+                                  <div className="video-task-result-card-time">
+                                    {formatRelativeCalendarDateTime(task.updatedAt)}
+                                  </div>
                                 </div>
                               ) : null}
                               {state.kind !== 'running' ? (
@@ -315,6 +325,19 @@ export function ResultPanel({
         />
       ) : null}
     </section>
+  );
+}
+
+function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
+  const creditCost = Number(task.creditCost);
+  if (!Number.isFinite(creditCost) || creditCost < 0 || task.creditCost === null || typeof task.creditCost === 'undefined') {
+    return null;
+  }
+  return (
+    <span className="video-task-result-credit-cost" title={`消耗 ${creditCost} 积分`}>
+      <Zap aria-hidden="true" fill="currentColor" size={12} />
+      {creditCost}
+    </span>
   );
 }
 

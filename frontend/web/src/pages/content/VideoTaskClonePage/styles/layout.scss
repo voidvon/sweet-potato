@@ -1095,15 +1095,34 @@
 }
 
 .video-task-result-pill {
+  align-items: center;
   color: var(--color-text-tertiary);
+  display: inline-flex;
   font-size: 11px;
   font-weight: 400;
+  height: 16px;
   line-height: 16px;
 }
 
 .video-task-result-track-count {
   color: #c0c7d4;
   font-size: 12px;
+}
+
+.video-task-result-credit-cost {
+  align-items: center;
+  align-self: center;
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 3px;
+  height: 16px;
+  line-height: 16px;
+}
+
+.video-task-result-credit-cost svg {
+  color: #ff9500;
+  flex: 0 0 auto;
 }
 
 .video-task-result-grid {
@@ -1287,6 +1306,12 @@
   font-weight: 400;
   line-height: 16px;
   text-align: left;
+}
+
+.video-task-result-card-meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
 }
 
 .video-task-result-action-row {
