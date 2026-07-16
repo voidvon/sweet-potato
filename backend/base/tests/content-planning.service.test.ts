@@ -574,10 +574,12 @@ test('planning analysis releases its reserved fixed charge after failure', async
     imageAssetIds: [imageAssetId],
   });
 
-  await waitFor(
+  const failed = await waitFor(
     () => service.getSession(userId, created.id),
     (session) => session.status === 'failed',
   );
+  assert.equal(failed.errorMessage, '素材识别失败，积分已回退，请重新尝试');
+  assert.doesNotMatch(failed.errorMessage || '', /analysis failed|不符合约定格式|invalid_type/u);
   assert.equal(billing.reserveCalls, 1);
   assert.equal(billing.completeCalls, 0);
   assert.equal(billing.failCalls, 1);
