@@ -1521,6 +1521,9 @@ async function ensureMaterialAssetIds(input: {
         ...(file.audioDuration ? { duration: file.audioDuration } : {}),
         ...(file.trimDuration ? { duration: file.trimDuration } : {}),
         source: 'local_upload',
+        temporary: true,
+        kind: 'video_create_reference_upload',
+        assetKind: `${file.type}_input`,
       },
     });
     file.assetId = uploaded.id;

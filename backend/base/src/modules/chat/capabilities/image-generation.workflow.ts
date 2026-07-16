@@ -15,6 +15,7 @@ import {
   createGeneratedImageWorkAsset,
   extensionForMimeType,
 } from '../../content/internals/content-image-assets.js';
+import { contentRepository } from '../../content/content.repository.js';
 import { fileUrlFor } from '../../content/internals/content-voice-clone.js';
 import { isUpstreamModelError } from '../../model-providers/provider-error.js';
 import type { ChatCapabilityExecutionInput } from '../chat-capability.types.js';
@@ -40,6 +41,7 @@ type ImageGenerationPreparedInput = {
   userPrompt: string;
   redrawPromptTexts?: string[];
   referenceAssets: ImageGenerationReferenceAsset[];
+  referenceAssetIds: string[];
   referenceAssetBatches?: ImageGenerationReferenceAsset[][];
   referenceAssetBatchPrompts?: string[];
   referenceDecision?: ImageGenerationReferenceDecision;
@@ -1110,6 +1112,9 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
   const referenceAssets = effectiveReferenceAttachments.length
     ? await Promise.all(effectiveReferenceAttachments.map(chatAttachmentToReferenceAsset))
     : [];
+  const referenceAssetIds = effectiveReferenceAttachments
+    .map((attachment) => attachment.assetId?.trim() || '')
+    .filter(Boolean);
   let referenceAssetBatches: ImageGenerationReferenceAsset[][] | undefined;
   let referenceAssetBatchPrompts: string[] | undefined;
   if (modeSchema.key !== 'redraw' && modeSchema.outputCountStrategy === 'matchUploadedImages' && referenceAssets.length) {
@@ -1142,6 +1147,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     userPrompt,
     redrawPromptTexts,
     referenceAssets,
+    referenceAssetIds,
     referenceAssetBatches,
     referenceAssetBatchPrompts,
     referenceDecision: referenceDecision || undefined,
@@ -1260,7 +1266,7 @@ async function persistGeneratedImageAttachment(input: {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, generated.buffer);
   const fileUrl = fileUrlFor(storedRelativePath);
-  await createGeneratedImageWorkAsset({
+  const workAsset = await createGeneratedImageWorkAsset({
     userId,
     buffer: generated.buffer,
     mimeType: generated.mimeType,
@@ -1277,6 +1283,14 @@ async function persistGeneratedImageAttachment(input: {
     slotIndex,
     ...(dimensions ? dimensions : {}),
   });
+  if (prepared.referenceAssetIds.length) {
+    contentRepository.retainAssetsForReference({
+      assetIds: prepared.referenceAssetIds,
+      userId,
+      referenceType: 'content_asset',
+      referenceId: workAsset.id,
+    });
+  }
   return {
     id: randomBytes(8).toString('hex'),
     kind: 'image' as const,

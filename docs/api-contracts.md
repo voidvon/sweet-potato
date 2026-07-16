@@ -2,6 +2,32 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-16 视频制作临时素材生命周期
+
+- 视频制作页面上传的图片、视频和音频以 `temporary` 状态写入 `content_assets`，默认过期时间为上传后 24 小时。
+- `POST /api/content/reference-video/trim` 只在处理期间暂存原始视频，裁剪成功后立即删除原文件，数据库仅保存裁剪结果；浏览器不再下载裁剪结果后重新上传。响应新增 `assetId`（裁剪资产）。
+- 资产类型、生命周期、过期和保留时间分别记录在 `asset_kind`、`lifecycle_status`、`expires_at` 和 `retained_at`。
+- `POST /api/content/video-productions`、视频高清放大、字幕擦除和视频翻译任务正式引用素材时，会写入 `content_asset_references`，把临时素材转为 `retained` 并清空 `expires_at`。
+- Base 服务启动时及之后每小时清理一次已过期且没有引用的临时素材，同时删除数据库记录和本地文件。
+- `DELETE /api/content/reference-video` 传入 `assetId` 时只会删除当前用户的 `temporary` 素材；已有作品及已经被任务保留的素材不会被删除。
+- 删除视频生成记录或其关联作品时会释放任务引用，并删除不再被其他任务使用的上传素材；作为输入的正式作品和素材库资源不会级联删除。
+
+## 2026-07-16 临时素材清理后台
+
+- 后台新增 `/system/temporary-assets`，仅管理员可访问。
+- `GET /api/content/temporary-assets/cleanup-candidates` 分页返回带过期时间的临时素材，按计划清理时间升序排列。
+- `GET /api/content/temporary-assets/cleanup-logs` 返回最近 100 条成功清理记录。
+- `POST /api/content/temporary-assets/cleanup` 立即清理当前已过期且无引用的临时素材，返回 `{ "deleted": number }`。
+- `temporary_asset_cleanup_logs` 在每次写入后物理删除第 100 条以前的历史记录，数据库最多保留 100 条日志。
+
+## 2026-07-16 图片创作上传素材生命周期
+
+- `POST /api/chat/attachments/upload` 在保存附件文件时同步创建 `temporary` 的 `content_assets` 记录，响应附件新增可选字段 `assetId`。
+- 图片输入资产使用 `asset_kind = image_input`，默认在上传后 24 小时过期；未发送、仅用于普通对话或图片生成全部失败时，不会取消过期时间。
+- 每成功生成一张图片作品，该作品会通过 `content_asset_references` 引用本次使用的上传图片，并将输入图片转为 `retained`、清空 `expires_at`。
+- 删除最后一张关联图片作品后，无其他作品或消息引用的上传图片会立即删除；仍被其他消息引用时会重新转为 24 小时临时资产。
+- 图片输入与视频制作临时素材共用后台待清理列表、定时清理任务和最近 100 条清理日志。
+
 ## 2026-07-15 完成作品查询
 
 - `GET /api/content/assets?resourceType=finished_video` 只返回已有文件地址的完成态作品。

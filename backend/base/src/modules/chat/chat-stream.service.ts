@@ -124,6 +124,9 @@ export function parseChatAttachments(value: unknown): ChatAttachment[] {
 
     return [{
       id: String(attachment.id || randomBytes(8).toString('hex')),
+      ...(typeof attachment.assetId === 'string' && attachment.assetId.trim()
+        ? { assetId: attachment.assetId.trim().slice(0, 160) }
+        : {}),
       kind,
       name,
       size,

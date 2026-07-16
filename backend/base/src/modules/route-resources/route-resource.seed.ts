@@ -218,4 +218,16 @@ export const seededRouteResources: SeedRouteResource[] = [
     sortOrder: 60,
     isSystem: true,
   },
+  {
+    id: 'rr-admin-system-temporary-assets',
+    name: '临时素材清理',
+    resourceKey: 'admin.system.temporary_assets',
+    resourceType: 'menu',
+    platform: 'admin',
+    path: '/system/temporary-assets',
+    permissionCode: 'admin.route.system.temporary_assets.view',
+    status: true,
+    sortOrder: 70,
+    isSystem: true,
+  },
 ];

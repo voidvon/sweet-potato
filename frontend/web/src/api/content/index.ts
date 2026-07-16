@@ -23,6 +23,7 @@ enum Api {
 }
 
 export type TrimReferenceVideoResult = {
+  assetId: string;
   duration: number;
   end: number;
   fileUrl: string;
@@ -223,6 +224,7 @@ export function trimReferenceVideo(payload: {
 }
 
 export function deleteReferenceVideo(payload: {
+  assetId?: string;
   fileUrl?: string;
   storedFileName?: string;
 }) {

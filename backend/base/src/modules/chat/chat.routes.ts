@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
@@ -15,6 +16,7 @@ import {
   inputMediaRelativePath,
 } from '../content/internals/content-common.js';
 import { agentRepository } from '../agents/agent.repository.js';
+import { contentService, temporaryContentAssetExpiresAt } from '../content/content.service.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { askConfiguredModel, assertModelConfigReady } from './chat-completion.service.js';
@@ -86,25 +88,58 @@ export function createChatRouter() {
 
   router.post('/attachments/upload', (req, res) => {
     upload.single('file')(req, res, (uploadError) => {
-      if (uploadError) {
-        sendError(res, 400, uploadError instanceof Error ? uploadError.message : '附件上传失败');
-        return;
-      }
-      if (!req.file) {
-        sendError(res, 400, '请选择要上传的附件');
-        return;
-      }
+      void (async () => {
+        if (uploadError) {
+          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '附件上传失败');
+          return;
+        }
+        if (!req.file) {
+          sendError(res, 400, '请选择要上传的附件');
+          return;
+        }
 
-      const originalFileName = decodeUploadFileName(req.file.originalname);
-      const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
-      res.status(201).json({
-        id: `${Date.now()}-${randomBytes(8).toString('hex')}`,
-        name: originalFileName,
-        type: req.file.mimetype || 'application/octet-stream',
-        size: req.file.size,
-        kind: (req.file.mimetype || '').startsWith('image/') ? 'image' : 'file',
-        url: fileUrlForContentRelativePath(relativePath),
-      });
+        try {
+          const userId = getCurrentUserId(req);
+          const originalFileName = decodeUploadFileName(req.file.originalname);
+          const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
+          const fileUrl = fileUrlForContentRelativePath(relativePath);
+          const isImage = (req.file.mimetype || '').startsWith('image/');
+          const asset = contentService.createAsset({
+            userId,
+            resourceType: 'other',
+            name: originalFileName,
+            originalFileName,
+            storedFileName: relativePath,
+            mimeType: req.file.mimetype || 'application/octet-stream',
+            fileSize: req.file.size,
+            filePath: req.file.path,
+            fileUrl,
+            assetKind: isImage ? 'image_input' : 'file_input',
+            lifecycleStatus: 'temporary',
+            expiresAt: temporaryContentAssetExpiresAt(),
+            metadata: {
+              kind: 'chat_reference_upload',
+              source: 'local_upload',
+              temporary: true,
+            },
+          });
+          if (!asset) {
+            throw new Error('附件素材记录创建失败');
+          }
+          res.status(201).json({
+            id: `${Date.now()}-${randomBytes(8).toString('hex')}`,
+            assetId: asset.id,
+            name: originalFileName,
+            type: req.file.mimetype || 'application/octet-stream',
+            size: req.file.size,
+            kind: isImage ? 'image' : 'file',
+            url: fileUrl,
+          });
+        } catch (error) {
+          await rm(req.file.path, { force: true });
+          sendError(res, 400, error instanceof Error ? error.message : '附件上传失败');
+        }
+      })();
     });
   });
 

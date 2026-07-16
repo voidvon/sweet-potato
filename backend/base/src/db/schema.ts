@@ -414,9 +414,37 @@ export function migrateDatabase() {
       size INTEGER NOT NULL DEFAULT 0,
       file_path TEXT NOT NULL,
       file_url TEXT NOT NULL,
+      asset_kind TEXT NOT NULL DEFAULT 'library',
+      lifecycle_status TEXT NOT NULL DEFAULT 'permanent',
+      parent_asset_id TEXT,
+      expires_at TEXT,
+      retained_at TEXT,
       metadata TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS content_asset_references (
+      asset_id TEXT NOT NULL,
+      reference_type TEXT NOT NULL,
+      reference_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'input',
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (asset_id, reference_type, reference_id, role)
+    );
+
+    CREATE TABLE IF NOT EXISTS temporary_asset_cleanup_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL DEFAULT '',
+      asset_kind TEXT NOT NULL,
+      name TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      expires_at TEXT,
+      trigger_type TEXT NOT NULL,
+      cleaned_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS video_generation_tasks (
@@ -636,6 +664,11 @@ export function migrateDatabase() {
   addColumnIfMissing('content_assets', 'mime_type', "mime_type TEXT NOT NULL DEFAULT 'application/octet-stream'");
   addColumnIfMissing('content_assets', 'file_path', "file_path TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('content_assets', 'file_url', "file_url TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('content_assets', 'asset_kind', "asset_kind TEXT NOT NULL DEFAULT 'library'");
+  addColumnIfMissing('content_assets', 'lifecycle_status', "lifecycle_status TEXT NOT NULL DEFAULT 'permanent'");
+  addColumnIfMissing('content_assets', 'parent_asset_id', 'parent_asset_id TEXT');
+  addColumnIfMissing('content_assets', 'expires_at', 'expires_at TEXT');
+  addColumnIfMissing('content_assets', 'retained_at', 'retained_at TEXT');
   addColumnIfMissing('content_asset_groups', 'resource_type', "resource_type TEXT NOT NULL DEFAULT 'other'");
   addColumnIfMissing('content_asset_groups', 'metadata', "metadata TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('video_generation_tasks', 'raw_parse_result', "raw_parse_result TEXT NOT NULL DEFAULT '{}'");
@@ -652,6 +685,16 @@ export function migrateDatabase() {
   migrateContentFilesDirectory();
 
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_content_assets_expiration
+    ON content_assets(lifecycle_status, expires_at)
+    WHERE lifecycle_status = 'temporary';
+
+    CREATE INDEX IF NOT EXISTS idx_content_assets_parent
+    ON content_assets(parent_asset_id);
+
+    CREATE INDEX IF NOT EXISTS idx_content_asset_references_owner
+    ON content_asset_references(reference_type, reference_id);
+
     CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_key
     ON roles(key);
 
@@ -851,6 +894,26 @@ export function migrateDatabase() {
         INSERT INTO app_migrations (id, applied_at)
         VALUES (?, ?)
       `).run(sidebarSortMigrationId, now);
+    })();
+  }
+
+  const temporaryAssetsAdminSortMigrationId = '20260716-admin-temporary-assets-last';
+  const temporaryAssetsAdminSortMigrationApplied = db.prepare(`
+    SELECT 1
+    FROM app_migrations
+    WHERE id = ?
+  `).get(temporaryAssetsAdminSortMigrationId);
+  if (!temporaryAssetsAdminSortMigrationApplied) {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE route_resources
+        SET sort_order = 70, updated_at = @updatedAt
+        WHERE resource_key = 'admin.system.temporary_assets'
+      `).run({ updatedAt: now });
+      db.prepare(`
+        INSERT INTO app_migrations (id, applied_at)
+        VALUES (?, ?)
+      `).run(temporaryAssetsAdminSortMigrationId, now);
     })();
   }
 

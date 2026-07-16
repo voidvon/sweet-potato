@@ -3,6 +3,7 @@ import { db } from '../../db/database.js';
 import type {
   ContentAsset,
   ContentAssetGroup,
+  ContentAssetLifecycleStatus,
   ContentResourceType,
   CreateAssetGroupPayload,
   CreateAssetPayload,
@@ -11,6 +12,8 @@ import type {
   UpdateAssetPayload,
   UpdateVideoTaskContextPayload,
   UpdateVideoParsePayload,
+  TemporaryAssetCleanupCandidate,
+  TemporaryAssetCleanupLog,
   VideoGenerationResult,
   VideoGenerationTask,
   VideoParseResult,
@@ -43,6 +46,11 @@ type AssetRow = {
   file_size: number;
   file_path: string;
   file_url: string;
+  asset_kind: string;
+  lifecycle_status: ContentAssetLifecycleStatus;
+  parent_asset_id: string | null;
+  expires_at: string | null;
+  retained_at: string | null;
   metadata: string;
   created_at: string;
   updated_at: string;
@@ -180,6 +188,11 @@ function serializeAsset(row: AssetRow): ContentAsset {
     fileSize: row.file_size,
     filePath: row.file_path,
     fileUrl: row.file_url,
+    assetKind: row.asset_kind,
+    lifecycleStatus: row.lifecycle_status,
+    parentAssetId: row.parent_asset_id,
+    expiresAt: row.expires_at,
+    retainedAt: row.retained_at,
     metadata: parseJsonObject(row.metadata),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -367,8 +380,15 @@ export const contentRepository = {
   },
 
   deleteGroup(id: string) {
-    db.prepare('DELETE FROM content_assets WHERE group_id = ?').run(id);
-    const result = db.prepare('DELETE FROM content_asset_groups WHERE id = ?').run(id);
+    const remove = db.transaction(() => {
+      db.prepare(`
+        DELETE FROM content_asset_references
+        WHERE asset_id IN (SELECT id FROM content_assets WHERE group_id = ?)
+      `).run(id);
+      db.prepare('DELETE FROM content_assets WHERE group_id = ?').run(id);
+      return db.prepare('DELETE FROM content_asset_groups WHERE id = ?').run(id);
+    });
+    const result = remove();
     return result.changes > 0;
   },
 
@@ -444,16 +464,23 @@ export const contentRepository = {
     db.prepare(`
       INSERT INTO content_assets (
         id, group_id, user_id, resource_type, type, name, description, source_url, original_file_name,
-        stored_file_name, mime_type, file_size, size, file_path, file_url, metadata, created_at, updated_at
+        stored_file_name, mime_type, file_size, size, file_path, file_url, asset_kind, lifecycle_status,
+        parent_asset_id, expires_at, retained_at, metadata, created_at, updated_at
       )
       VALUES (
         @id, @groupId, @userId, @resourceType, 'file', @name, @description, NULL, @originalFileName,
-        @storedFileName, @mimeType, @fileSize, @fileSize, @filePath, @fileUrl, @metadata, @now, @now
+        @storedFileName, @mimeType, @fileSize, @fileSize, @filePath, @fileUrl, @assetKind, @lifecycleStatus,
+        @parentAssetId, @expiresAt, @retainedAt, @metadata, @now, @now
       )
     `).run({
       id,
       ...payload,
       description: payload.description?.trim() || '',
+      assetKind: payload.assetKind?.trim() || 'library',
+      lifecycleStatus: payload.lifecycleStatus || 'permanent',
+      parentAssetId: payload.parentAssetId || null,
+      expiresAt: payload.expiresAt || null,
+      retainedAt: payload.retainedAt || null,
       metadata: JSON.stringify(payload.metadata || {}),
       now,
     });
@@ -585,8 +612,235 @@ export const contentRepository = {
     if (!current) {
       return null;
     }
-    db.prepare('DELETE FROM content_assets WHERE id = ?').run(id);
+    const remove = db.transaction(() => {
+      db.prepare('DELETE FROM content_asset_references WHERE asset_id = ?').run(id);
+      db.prepare('DELETE FROM content_assets WHERE id = ?').run(id);
+    });
+    remove();
     return current;
+  },
+
+  listExpiredTemporaryAssets(now: string, limit = 100) {
+    const rows = db.prepare(`
+      SELECT * FROM content_assets
+      WHERE lifecycle_status = 'temporary'
+        AND expires_at IS NOT NULL
+        AND expires_at <= @now
+        AND NOT EXISTS (
+          SELECT 1 FROM content_asset_references r WHERE r.asset_id = content_assets.id
+        )
+      ORDER BY expires_at ASC
+      LIMIT @limit
+    `).all({ now, limit: Math.max(1, Math.min(1000, limit)) }) as AssetRow[];
+    return rows.map(serializeAsset);
+  },
+
+  deleteExpiredTemporaryAsset(id: string, now: string) {
+    const remove = db.transaction(() => {
+      const row = db.prepare(`
+        SELECT * FROM content_assets
+        WHERE id = @id
+          AND lifecycle_status = 'temporary'
+          AND expires_at IS NOT NULL
+          AND expires_at <= @now
+          AND NOT EXISTS (
+            SELECT 1 FROM content_asset_references r WHERE r.asset_id = content_assets.id
+          )
+      `).get({ id, now }) as AssetRow | undefined;
+      if (!row) return null;
+      db.prepare('DELETE FROM content_assets WHERE id = ?').run(id);
+      return serializeAsset(row);
+    });
+    return remove();
+  },
+
+  retainAssetsForReference(input: {
+    assetIds: string[];
+    userId: string;
+    referenceType: string;
+    referenceId: string;
+    role?: string;
+  }) {
+    const assetIds = Array.from(new Set(input.assetIds.map((id) => id.trim()).filter(Boolean)));
+    const retain = db.transaction(() => {
+      const now = new Date().toISOString();
+      const findAsset = db.prepare('SELECT user_id FROM content_assets WHERE id = ?');
+      const insertReference = db.prepare(`
+        INSERT OR IGNORE INTO content_asset_references (
+          asset_id, reference_type, reference_id, role, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `);
+      const markRetained = db.prepare(`
+        UPDATE content_assets
+        SET lifecycle_status = 'retained', expires_at = NULL, retained_at = ?, updated_at = ?
+        WHERE id = ? AND lifecycle_status = 'temporary'
+      `);
+      for (const assetId of assetIds) {
+        const asset = findAsset.get(assetId) as { user_id: string } | undefined;
+        if (!asset || asset.user_id !== input.userId) {
+          throw new Error('引用素材不存在');
+        }
+        insertReference.run(assetId, input.referenceType, input.referenceId, input.role || 'input', now);
+        markRetained.run(now, now, assetId);
+      }
+    });
+    retain();
+  },
+
+  deleteAssetReferences(referenceType: string, referenceId: string) {
+    db.prepare(`
+      DELETE FROM content_asset_references
+      WHERE reference_type = ? AND reference_id = ?
+    `).run(referenceType, referenceId);
+  },
+
+  listAssetIdsForReference(referenceType: string, referenceId: string) {
+    const rows = db.prepare(`
+      SELECT DISTINCT asset_id
+      FROM content_asset_references
+      WHERE reference_type = ? AND reference_id = ?
+    `).all(referenceType, referenceId) as Array<{ asset_id: string }>;
+    return rows.map((row) => row.asset_id);
+  },
+
+  hasAssetReferences(assetId: string) {
+    return Boolean(db.prepare(`
+      SELECT 1 FROM content_asset_references WHERE asset_id = ? LIMIT 1
+    `).get(assetId));
+  },
+
+  markAssetTemporaryIfUnreferenced(assetId: string, expiresAt: string) {
+    const updatedAt = new Date().toISOString();
+    return db.prepare(`
+      UPDATE content_assets
+      SET lifecycle_status = 'temporary', expires_at = @expiresAt, retained_at = NULL, updated_at = @updatedAt
+      WHERE id = @assetId
+        AND lifecycle_status = 'retained'
+        AND NOT EXISTS (
+          SELECT 1 FROM content_asset_references WHERE asset_id = @assetId
+        )
+    `).run({ assetId, expiresAt, updatedAt }).changes > 0;
+  },
+
+  listTemporaryAssetCleanupCandidates(input: { page: number; pageSize: number }) {
+    const page = Math.max(1, Math.floor(input.page));
+    const pageSize = Math.max(1, Math.min(100, Math.floor(input.pageSize)));
+    const totalRow = db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM content_assets
+      WHERE lifecycle_status = 'temporary' AND expires_at IS NOT NULL
+    `).get() as { total: number };
+    const rows = db.prepare(`
+      SELECT
+        a.id,
+        a.user_id,
+        COALESCE(u.username, '') AS username,
+        a.asset_kind,
+        a.name,
+        a.mime_type,
+        a.file_size,
+        a.file_url,
+        a.parent_asset_id,
+        a.expires_at,
+        a.created_at
+      FROM content_assets a
+      LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.lifecycle_status = 'temporary' AND a.expires_at IS NOT NULL
+      ORDER BY a.expires_at ASC, a.created_at ASC
+      LIMIT @pageSize OFFSET @offset
+    `).all({ pageSize, offset: (page - 1) * pageSize }) as Array<{
+      id: string;
+      user_id: string;
+      username: string;
+      asset_kind: string;
+      name: string;
+      mime_type: string;
+      file_size: number;
+      file_url: string;
+      parent_asset_id: string | null;
+      expires_at: string;
+      created_at: string;
+    }>;
+    const items: TemporaryAssetCleanupCandidate[] = rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      username: row.username,
+      assetKind: row.asset_kind,
+      name: row.name,
+      mimeType: row.mime_type,
+      fileSize: row.file_size,
+      fileUrl: row.file_url,
+      parentAssetId: row.parent_asset_id,
+      expiresAt: row.expires_at,
+      createdAt: row.created_at,
+    }));
+    return { items, page, pageSize, total: totalRow.total };
+  },
+
+  recordTemporaryAssetCleanup(asset: ContentAsset, triggerType: 'scheduled' | 'manual') {
+    const usernameRow = db.prepare('SELECT username FROM users WHERE id = ?').get(asset.userId) as { username: string } | undefined;
+    const insert = db.transaction(() => {
+      const result = db.prepare(`
+        INSERT INTO temporary_asset_cleanup_logs (
+          asset_id, user_id, username, asset_kind, name, file_url, file_size,
+          expires_at, trigger_type, cleaned_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        asset.id,
+        asset.userId,
+        usernameRow?.username || '',
+        asset.assetKind,
+        asset.name,
+        asset.fileUrl,
+        asset.fileSize,
+        asset.expiresAt,
+        triggerType,
+        new Date().toISOString(),
+      );
+      db.prepare(`
+        DELETE FROM temporary_asset_cleanup_logs
+        WHERE id NOT IN (
+          SELECT id FROM temporary_asset_cleanup_logs
+          ORDER BY cleaned_at DESC, id DESC
+          LIMIT 100
+        )
+      `).run();
+      return Number(result.lastInsertRowid);
+    });
+    return insert();
+  },
+
+  listTemporaryAssetCleanupLogs() {
+    const rows = db.prepare(`
+      SELECT * FROM temporary_asset_cleanup_logs
+      ORDER BY cleaned_at DESC, id DESC
+      LIMIT 100
+    `).all() as Array<{
+      id: number;
+      asset_id: string;
+      user_id: string;
+      username: string;
+      asset_kind: string;
+      name: string;
+      file_url: string;
+      file_size: number;
+      expires_at: string | null;
+      trigger_type: 'scheduled' | 'manual';
+      cleaned_at: string;
+    }>;
+    return rows.map((row): TemporaryAssetCleanupLog => ({
+      id: row.id,
+      assetId: row.asset_id,
+      userId: row.user_id,
+      username: row.username,
+      assetKind: row.asset_kind,
+      name: row.name,
+      fileUrl: row.file_url,
+      fileSize: row.file_size,
+      expiresAt: row.expires_at,
+      triggerType: row.trigger_type,
+      cleanedAt: row.cleaned_at,
+    }));
   },
 
   listVideoTasks(userId: string, options: {

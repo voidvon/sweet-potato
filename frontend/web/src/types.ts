@@ -32,6 +32,7 @@ export type VideoModelOption = {
 
 export type ChatAttachment = {
   id: string;
+  assetId?: string;
   name: string;
   type: string;
   size: number;
@@ -230,6 +231,11 @@ export type ContentAsset = {
   fileSize: number;
   filePath: string;
   fileUrl: string;
+  assetKind: string;
+  lifecycleStatus: 'temporary' | 'retained' | 'permanent';
+  parentAssetId: string | null;
+  expiresAt: string | null;
+  retainedAt: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
