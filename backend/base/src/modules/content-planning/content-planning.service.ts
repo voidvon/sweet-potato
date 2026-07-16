@@ -1006,6 +1006,9 @@ export class ContentPlanningService {
     const prompt = buildContentPlanningPrompt(session, candidate.storyboard, {
       title: candidate.title,
       summary: candidate.summary,
+      hook: candidate.hook,
+      audienceAngle: candidate.audienceAngle,
+      tags: candidate.tags,
     });
     const applySnapshot = {
       prompt,

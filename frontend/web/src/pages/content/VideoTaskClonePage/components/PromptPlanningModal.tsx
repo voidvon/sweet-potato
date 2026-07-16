@@ -2132,11 +2132,13 @@ const hiddenAuditFields = new Set([
   'id',
   'materialRefs',
   'prompt',
+  'repairApplied',
   'script',
   'segmentId',
   'selectedCandidateId',
   'sourceStrategyId',
   'strategyId',
+  'validationPassed',
 ]);
 
 const auditFieldLabels: Record<string, string> = {
@@ -2284,25 +2286,37 @@ function formatCandidateScript(candidate: PlanningCandidate) {
   const storyboard = candidate.script?.storyboard || candidate.storyboard;
   const title = candidate.script?.title || candidate.title;
   const summary = candidate.script?.summary || candidate.summary;
+  const scenePlan = storyboard
+    .map((segment) => `${segment.startSecond}-${segment.endSecond}s ${segment.title}`)
+    .join('；');
+  const lightingPlan = [...new Set(storyboard.map((segment) => segment.lighting.trim()).filter(Boolean))].join('；');
 
   const parts = [
-    `## ${title}`,
-    summary,
+    '## 视频总览',
+    `- 标题：${title}`,
+    `- 方案摘要：${summary}`,
+    candidate.hook ? `- 开场钩子：${candidate.hook}` : '',
+    candidate.audienceAngle ? `- 受众角度：${candidate.audienceAngle}` : '',
+    candidate.tags.length ? `- 内容标签：${candidate.tags.join('、')}` : '',
     '',
-    '逐秒分镜：',
-  ].filter(Boolean);
+    '## 场景与光线',
+    `- 镜头场景安排：${scenePlan || '按逐秒镜头执行'}`,
+    `- 布光方案：${lightingPlan || '按逐秒镜头执行'}`,
+    '',
+    '## 逐秒镜头拆解列表',
+  ];
 
   storyboard.forEach((segment) => {
     parts.push(
       '',
-      `${segment.startSecond}-${segment.endSecond}s`,
-      segment.visual ? `画面：${segment.visual}` : '',
-      segment.action ? `主体动作：${segment.action}` : '',
-      segment.camera ? `景别/运镜：${segment.camera}` : '',
-      segment.spaceRelation ? `空间关系：${segment.spaceRelation}` : '',
-      segment.lighting ? `光线：${segment.lighting}` : '',
-      `口播：${segment.dialogue || '无，仅画面展示'}`,
-      segment.soundEffect ? `音效与音乐：${segment.soundEffect}` : '',
+      `### ${segment.startSecond}-${segment.endSecond}s｜${segment.title}`,
+      segment.camera ? `- 景别/角度与运镜：${segment.camera}` : '',
+      segment.visual ? `- 画面：${segment.visual}` : '',
+      segment.action ? `- 主体动作：${segment.action}` : '',
+      segment.spaceRelation ? `- 空间关系：${segment.spaceRelation}` : '',
+      segment.lighting ? `- 光线：${segment.lighting}` : '',
+      `- 口播：${segment.dialogue || '无，仅画面展示'}`,
+      segment.soundEffect ? `- 音效与音乐：${segment.soundEffect}` : '',
     );
   });
 
@@ -2310,7 +2324,7 @@ function formatCandidateScript(candidate: PlanningCandidate) {
     parts.push(candidate.fullScript);
   }
 
-  return parts.filter(Boolean).join('\n');
+  return parts.filter((line, index) => line || parts[index - 1] !== '').join('\n').trim();
 }
 
 function getAnalyzeLoadingCopy(

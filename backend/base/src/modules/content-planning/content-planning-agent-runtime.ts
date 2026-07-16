@@ -212,7 +212,13 @@ function fullScriptFor(storyboard: ContentPlanningStoryboardSegment[]) {
 export function buildContentPlanningPrompt(
   session: ContentPlanningSession,
   storyboard: ContentPlanningStoryboardSegment[],
-  plan: { title: string; summary: string },
+  plan: {
+    title: string;
+    summary: string;
+    hook?: string;
+    audienceAngle?: string;
+    tags?: string[];
+  },
 ) {
   const spokenLanguage = {
     zh: '中文',
@@ -228,15 +234,29 @@ export function buildContentPlanningPrompt(
     session.settings.displayOnly ? '仅视觉展示，不生成口播' : `口播语言：${spokenLanguage}`,
     '全程不添加字幕、弹窗文字或屏幕 UI',
     '保持商品颜色、版型、纹理和主体身份稳定',
-  ].join('；');
+  ];
+  const scenePlan = storyboard
+    .map((segment) => `${segment.startSecond}-${segment.endSecond}s ${segment.title}`)
+    .join('；');
+  const lightingPlan = [...new Set(storyboard.map((segment) => segment.lighting.trim()).filter(Boolean))].join('；');
   const parts = [
-    `## ${plan.title}`,
-    plan.summary,
+    '## 视频总览',
+    `- 标题：${plan.title}`,
+    `- 方案摘要：${plan.summary}`,
+    plan.hook ? `- 开场钩子：${plan.hook}` : '',
+    plan.audienceAngle ? `- 受众角度：${plan.audienceAngle}` : '',
+    plan.tags?.length ? `- 内容标签：${plan.tags.join('、')}` : '',
+    `- 口播设置：${session.settings.displayOnly ? '无口播，仅视觉展示' : `${spokenLanguage}，按各镜头时长控制语速与字数`}`,
     '',
-    `生成要求：${requirements}。`,
-    session.settings.extraInstruction ? `补充要求：${session.settings.extraInstruction}` : '',
+    '## 场景与光线',
+    `- 镜头场景安排：${scenePlan || '按逐秒镜头执行'}`,
+    `- 布光方案：${lightingPlan || '按逐秒镜头执行'}`,
     '',
-    '逐秒分镜：',
+    '## 生成要求',
+    ...requirements.map((requirement) => `- ${requirement}`),
+    session.settings.extraInstruction ? `- 补充要求：${session.settings.extraInstruction}` : '',
+    '',
+    '## 逐秒镜头拆解列表',
   ];
 
   storyboard.forEach((segment) => {
@@ -244,14 +264,14 @@ export function buildContentPlanningPrompt(
     const visual = [segment.visual, ...missingRefs].filter(Boolean).join(' ');
     parts.push(
       '',
-      `${segment.startSecond}-${segment.endSecond}s｜${segment.title}`,
-      `画面：${visual}`,
-      segment.action ? `主体动作：${segment.action}` : '',
-      segment.camera ? `景别/运镜：${segment.camera}` : '',
-      segment.spaceRelation ? `空间关系：${segment.spaceRelation}` : '',
-      segment.lighting ? `光线：${segment.lighting}` : '',
-      `口播：${segment.dialogue || '无，仅画面展示'}`,
-      segment.soundEffect ? `音效与音乐：${segment.soundEffect}` : '',
+      `### ${segment.startSecond}-${segment.endSecond}s｜${segment.title}`,
+      segment.camera ? `- 景别/角度与运镜：${segment.camera}` : '',
+      `- 画面：${visual}`,
+      segment.action ? `- 主体动作：${segment.action}` : '',
+      segment.spaceRelation ? `- 空间关系：${segment.spaceRelation}` : '',
+      segment.lighting ? `- 光线：${segment.lighting}` : '',
+      `- 口播：${segment.dialogue || '无，仅画面展示'}`,
+      segment.soundEffect ? `- 音效与音乐：${segment.soundEffect}` : '',
     );
   });
 
@@ -415,6 +435,9 @@ function rebuildCandidateFromRepair(
   const prompt = buildContentPlanningPrompt(session, storyboard, {
     title: repair.title,
     summary: repair.summary,
+    hook: repair.hook,
+    audienceAngle: repair.audienceAngle,
+    tags: repair.tags,
   });
   return {
     ...candidate,
@@ -469,6 +492,8 @@ async function assessConfiguredCandidates(
         ? '这是自动修复后的最终复核。issues 只列仍会阻止候选执行的约束错误；可选优化写入 summary，不要列为 issue。'
         : '这是自动修复前的首次校验，请给出准确、可执行的结构化问题与修复建议。',
       '逐条检查总时长、时间轴连续性、素材使用、核心卖点覆盖、口播字数是否可说完、无字幕约束、商品真实性、JSON 字段完整性和违规夸大。',
+      '逐条检查每个分镜是否只有一个连续镜头；单段内再次出现多个时间点、场景跳切、图片轮播或互相冲突的景别时必须列为问题。',
+      '检查 visual、action、camera、lighting、spaceRelation、soundEffect 是否具体可拍且各司其职；只有“高级感、氛围感、画面干净”等空泛词而缺少可见细节时必须给出修复建议。',
       'settings.displayOnly=true 表示用户明确选择“只展示”，所有 dialogue 为空是正确行为，不得把无口播列为问题；只有 displayOnly=false 时才检查口播是否缺失。',
       '发现 visual/action 中出现字幕、弹窗大字、屏幕文字，或素材外观被无依据改写时必须列为问题并给出可执行修正。',
       'materialRefs 只允许标记该分镜实际使用的素材；不能因为素材在其他分镜使用就重复标记。',
@@ -497,6 +522,8 @@ async function repairConfiguredCandidates(
       '你是短视频策划系统的 Repair Agent。',
       '根据 Validator 问题与修复建议修正候选脚本，返回可直接进入最终复核的完整候选内容。',
       '不得改变 candidateId、分镜数量或时间边界；storyboard 必须按原分镜顺序使用从 1 开始且连续唯一的 segmentIndex，不要返回内部 segmentId/shotId。',
+      '每段只保留一个连续可拍镜头；若原分镜在单段内包含多个时间点、场景跳切或图片轮播，必须收敛为一个主场景、一个主体动作和一套一致景别。',
+      '把空泛画面改成可拍摄描述，补齐场景背景、商品可见细节、景别与角度、运镜、光源方向与光质、主体占比和前中后景关系。',
       'settings.displayOnly=true 时所有 dialogue 必须为空字符串，这是用户选择的无口播模式；displayOnly=false 时才补充可在对应时段说完的口播。',
       '素材只在实际出现的分镜填写 materialRefs，并在 visual 句末内联同一个 @imageN；不得为了覆盖素材而错误绑定。',
       '全程不得安排字幕、弹窗大字、屏幕文字或 UI 文案。',
@@ -595,6 +622,9 @@ export class DeterministicContentPlanningAgentProvider implements ContentPlannin
       const prompt = buildContentPlanningPrompt(context.session, storyboard, {
         title: strategy.title,
         summary: strategy.summary,
+        hook: strategy.hook,
+        audienceAngle: strategy.audienceAngle,
+        tags: strategy.tags,
       });
       const script = {
         id: `script-${strategy.id}`,
@@ -714,7 +744,9 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
         '为每个 strategyId 生成完整连续的时间轴，第一段必须从 0 开始，最后一段必须结束于 durationSeconds。',
         'targetDurationSeconds/settings.durationSeconds 是唯一时长真值；参考视频 timeRange 和 Strategy summary 中的其他总时长只可参考节奏比例，存在冲突时必须改写并补齐到目标时长。',
         '时间段不可重叠或留空；每段只定义节奏功能和目标，不写详细画面。',
-        '5秒视频安排3-5段，10秒安排4-7段，15秒安排5-9段；镜头切分必须服务于钩子、卖点证据和收尾，不为切镜而切镜。',
+        '5秒视频通常安排3-5段，每段建议1-2秒；10秒通常安排4-7段，15秒通常安排5-9段。镜头数量与时长应由钩子强度、商品证据、完整动作和情绪节奏决定，不得为了凑数量机械切镜。',
+        '产品质感展示、人物完整动作、连续运镜或 shootingMethod 明确要求一镜到底时，允许单段超过2秒，但必须保证该段只有一个清晰目标且动作可在时长内完成。',
+        '每个时间段只对应一个连续可拍镜头，禁止在单段 goal 中再安排多个时间点、场景跳切或图片轮播；需要切换场景或景别时必须拆成独立时间段。',
         'goal 中不得安排字幕、弹窗或屏幕文字；需要表达的信息交给口播或可见商品动作。',
       ].join('\n'),
       user: planningStageInput(context),
@@ -794,6 +826,9 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
         '你是短视频策划系统的 Visual Director。',
         '把 Strategy、Timeline、Writer 输出合成为逐秒分镜。',
         '每段必须补全画面、主体微动作、运镜、光线与动态光影、空间关系、口播和音效；时间轴必须与输入完全一致。',
+        '每段只描述一个连续镜头：visual 写清场景背景、可见主体、商品细节和构图结果；action 只写该镜头内可完成的主体动作，不与 visual 重复。',
+        'camera 必须同时写明景别、拍摄角度和运镜方式；lighting 必须写明光源方向、光质及动态变化；spaceRelation 必须写明主体位置、画面占比和前中后景关系。',
+        'soundEffect 必须区分环境音、动作音与 BGM 的起始、延续或收尾。禁止使用“画面高级”“氛围拉满”“完全匹配设计”等无法直接拍摄的空泛描述代替具体画面。',
         '当前成片全程无字幕、无弹窗大字、无屏幕 UI 文案，禁止在 visual 或 action 中安排任何文字叠加。',
         '使用上传图片时，在 visual 中先自然描述图片可见主体和细节，再在句末内联对应 @imageN；materialRefs 同步填写同一标签，仅供系统校验，不作为分镜展示字段。',
         '不得把平铺图直接虚构为真人上身实拍；需要上身效果时必须明确为基于参考商品外观生成，并保持商品颜色、版型和纹理稳定。',
@@ -834,6 +869,9 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       const prompt = buildContentPlanningPrompt(context.session, storyboard, {
         title: output.title,
         summary: output.summary,
+        hook: output.hook,
+        audienceAngle: output.audienceAngle,
+        tags: output.tags,
       });
       const candidateId = `candidate-${strategy.id}`;
       return {

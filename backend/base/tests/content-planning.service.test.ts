@@ -641,10 +641,13 @@ test('fallback agent pipeline produces candidates and an allowlist apply payload
   assert.equal(applied.allowlist.duration, '10s');
   assert.equal(applied.allowlist.prompt, selected.prompt);
   assert.match(applied.allowlist.prompt, /^## /u);
-  assert.match(applied.allowlist.prompt, /生成要求：/u);
-  assert.match(applied.allowlist.prompt, /逐秒分镜：/u);
-  assert.match(applied.allowlist.prompt, /画面：/u);
-  assert.match(applied.allowlist.prompt, /景别\/运镜：/u);
+  assert.match(applied.allowlist.prompt, /## 视频总览/u);
+  assert.match(applied.allowlist.prompt, /## 场景与光线/u);
+  assert.match(applied.allowlist.prompt, /## 生成要求/u);
+  assert.match(applied.allowlist.prompt, /## 逐秒镜头拆解列表/u);
+  assert.match(applied.allowlist.prompt, /### \d+(?:\.\d+)?-\d+(?:\.\d+)?s｜/u);
+  assert.match(applied.allowlist.prompt, /- 画面：/u);
+  assert.match(applied.allowlist.prompt, /- 景别\/角度与运镜：/u);
   assert.match(applied.allowlist.prompt, /空间关系：/u);
   assert.match(applied.allowlist.prompt, /口播：/u);
   assert.doesNotMatch(applied.allowlist.prompt, /Create a|Use these image references|; camera |; lighting /u);
@@ -839,8 +842,8 @@ test('apply rebuilds legacy candidate prompts from the structured storyboard', a
 
   const applied = contentPlanningService.apply(userId, created.id, candidate.id);
   assert.match(applied.allowlist.prompt, /^## /u);
-  assert.match(applied.allowlist.prompt, /逐秒分镜：/u);
-  assert.match(applied.allowlist.prompt, /画面：/u);
+  assert.match(applied.allowlist.prompt, /## 逐秒镜头拆解列表/u);
+  assert.match(applied.allowlist.prompt, /- 画面：/u);
   assert.doesNotMatch(applied.allowlist.prompt, /Create a|; camera |; lighting /u);
   contentPlanningRepository.deleteSession(created.id);
 });
