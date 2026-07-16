@@ -481,6 +481,7 @@ export function useChatSession() {
   const removeConversation = useCallback((conversation: ChatConversation) => {
     Modal.confirm({
       title: '删除会话',
+      centered: true,
       content: `删除「${conversation.title}」后，该会话和消息记录都会被移除。`,
       okText: '删除',
       okButtonProps: { danger: true },
@@ -499,6 +500,7 @@ export function useChatSession() {
   const clearConversationMessages = useCallback((conversation: ChatConversation) => {
     Modal.confirm({
       title: '清空会话',
+      centered: true,
       content: `清空「${conversation.title}」后，会保留会话入口，但移除当前消息内容。`,
       okText: '清空',
       okButtonProps: { danger: true },
