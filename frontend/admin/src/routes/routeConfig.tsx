@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { ApartmentOutlined, CreditCardOutlined, SafetyCertificateOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, SafetyCertificateOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
@@ -15,6 +15,7 @@ const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettings
 const RouteResourceManagementPage = lazy(() => import('../pages/settings/RouteResourceManagementPage').then((m) => ({ default: m.RouteResourceManagementPage })));
 const RoleManagementPage = lazy(() => import('../pages/settings/RoleManagementPage').then((m) => ({ default: m.RoleManagementPage })));
 const UserManagementPage = lazy(() => import('../pages/settings/UserManagementPage').then((m) => ({ default: m.UserManagementPage })));
+const TemporaryAssetCleanupPage = lazy(() => import('../pages/settings/TemporaryAssetCleanupPage').then((m) => ({ default: m.TemporaryAssetCleanupPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -195,6 +196,22 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         icon: <RobotOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-temporary-assets',
+    path: 'system/temporary-assets',
+    fullPath: routePaths.temporaryAssetCleanup,
+    element: () => withStudioSuspense(<TemporaryAssetCleanupPage />),
+    routeResourceKey: 'admin.system.temporary_assets',
+    handle: {
+      title: '临时素材清理',
+      surface: 'studio',
+      sidebar: {
+        icon: <ClearOutlined />,
         level: 'top',
       },
     },

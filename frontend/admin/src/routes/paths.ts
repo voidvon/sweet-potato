@@ -6,6 +6,7 @@ export const routePaths = {
   modelSettings: '/models',
   billingSettings: '/billing',
   routeResourceManagement: '/system/routes',
+  temporaryAssetCleanup: '/system/temporary-assets',
   userManagement: '/users',
   roleManagement: '/users/roles',
   accountManagement: '/users/accounts',

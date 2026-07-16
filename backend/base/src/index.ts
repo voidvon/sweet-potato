@@ -25,4 +25,5 @@ server.listen(env.port, () => {
   videoRemakeService.resumeIncompleteSessionsOnStartup();
   videoRemakeService.startGenerationMonitorScheduler();
   contentService.startVirtualPortraitMirrorSyncScheduler();
+  contentService.startTemporaryAssetCleanupScheduler();
 });

@@ -1,17 +1,17 @@
 import { Router, type Request } from 'express';
 import multer from 'multer';
 import { mkdirSync } from 'node:fs';
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
-import { requireAnyPermission, requirePermission } from '../../shared/auth.middleware.js';
+import { requireAdmin, requireAnyPermission, requirePermission } from '../../shared/auth.middleware.js';
 import { listRouteResources } from '../route-resources/route-resource.service.js';
 import { permissionForContentResourceType } from '../../shared/resource-permission.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
-import { contentService } from './content.service.js';
+import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
 import {
   contentAssetThumbnailPath,
   normalizeContentThumbnailSize,
@@ -261,6 +261,31 @@ export function createContentRouter() {
     registerContentEventClient(userId, res);
   });
 
+  router.get('/temporary-assets/cleanup-candidates', requireAdmin, (req, res) => {
+    try {
+      res.json(contentService.listTemporaryAssetCleanupCandidates({
+        page: req.query.page,
+        pageSize: req.query.pageSize,
+      }));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '待清理素材获取失败'));
+    }
+  });
+
+  router.get('/temporary-assets/cleanup-logs', requireAdmin, (_req, res) => {
+    try {
+      res.json(contentService.listTemporaryAssetCleanupLogs());
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '素材清理日志获取失败'));
+    }
+  });
+
+  router.post('/temporary-assets/cleanup', requireAdmin, (_req, res) => {
+    void contentService.cleanupExpiredTemporaryAssets('manual')
+      .then((result) => res.json(result))
+      .catch((error) => sendError(res, 400, getErrorMessage(error, '临时素材清理失败')));
+  });
+
   router.post('/reference-video/trim', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
     upload.single('file')(req, res, (uploadError) => {
       void (async () => {
@@ -268,7 +293,9 @@ export function createContentRouter() {
           sendError(res, 400, uploadError instanceof Error ? uploadError.message : '参考视频上传失败');
           return;
         }
+        let sourcePath = '';
         let outputPath = '';
+        let derivedAssetId = '';
         try {
           if (!req.file) {
             throw new Error('请选择要剪辑的参考视频');
@@ -283,8 +310,11 @@ export function createContentRouter() {
             throw new Error('参考视频选区必须在 4-15 秒之间');
           }
 
+          const userId = getCurrentUserId(req);
           const originalName = decodeUploadFileName(req.file.originalname);
           const parsed = path.parse(sanitizeFileName(originalName));
+          sourcePath = req.file.path;
+          const expiresAt = temporaryContentAssetExpiresAt();
           const storedFileName = `${Date.now()}-${parsed.name || 'reference-video'}-trimmed.mp4`;
           const storedRelativePath = inputMediaRelativePath('video', storedFileName);
           outputPath = contentFilePathForRelativePath(storedRelativePath);
@@ -293,17 +323,46 @@ export function createContentRouter() {
           await execFileAsync('ffmpeg', [
             '-y',
             '-ss', String(start),
-            '-i', req.file.path,
+            '-i', sourcePath,
             '-t', String(duration),
             '-c:v', 'libx264',
             '-c:a', 'aac',
             '-movflags', '+faststart',
             outputPath,
           ], { timeout: 120000 });
+          await rm(sourcePath, { force: true });
+          sourcePath = '';
 
-          await rm(req.file.path, { force: true });
           const fileUrl = fileUrlForContentFile(storedRelativePath);
+          const outputFile = await stat(outputPath);
+          const derivedAsset = contentService.createAsset({
+            userId,
+            resourceType: 'other',
+            name: originalName || '参考视频',
+            originalFileName: `${parsed.name || 'reference-video'}-trimmed.mp4`,
+            storedFileName: storedRelativePath,
+            mimeType: 'video/mp4',
+            fileSize: outputFile.size,
+            filePath: outputPath,
+            fileUrl,
+            assetKind: 'video_trimmed',
+            lifecycleStatus: 'temporary',
+            expiresAt,
+            metadata: {
+              duration,
+              kind: 'video_create_reference_upload',
+              source: 'local_upload',
+              temporary: true,
+              trimStart: start,
+              trimEnd: end,
+            },
+          });
+          if (!derivedAsset) {
+            throw new Error('裁剪视频素材保存失败');
+          }
+          derivedAssetId = derivedAsset.id;
           res.status(201).json({
+            assetId: derivedAsset.id,
             duration,
             end,
             fileUrl,
@@ -313,12 +372,12 @@ export function createContentRouter() {
             storedFileName: storedRelativePath,
           });
         } catch (error) {
-          if (req.file) {
-            await rm(req.file.path, { force: true });
-          }
-          if (outputPath) {
-            await rm(outputPath, { force: true });
-          }
+          if (derivedAssetId) contentRepository.deleteAsset(derivedAssetId);
+          await Promise.all([
+            req.file?.path,
+            sourcePath,
+            outputPath,
+          ].filter(Boolean).map((filePath) => rm(filePath!, { force: true })));
           sendError(res, 400, getErrorMessage(error, '参考视频剪辑失败'));
         }
       })();
@@ -328,6 +387,38 @@ export function createContentRouter() {
   router.delete('/reference-video', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
     void (async () => {
       try {
+        const assetId = String(req.body.assetId || '').trim();
+        if (assetId) {
+          const asset = contentRepository.findAsset(assetId);
+          if (!asset || asset.userId !== getCurrentUserId(req)) {
+            throw new Error('参考视频素材不存在');
+          }
+          if (asset.lifecycleStatus !== 'temporary') {
+            res.json({ ok: true });
+            return;
+          }
+          const parentAssetId = asset.parentAssetId;
+          await contentService.deleteAsset(assetId, {
+            userId: getCurrentUserId(req),
+            role: getCurrentUserRole(req) as UserRole,
+          });
+          if (parentAssetId) {
+            const parent = contentRepository.findAsset(parentAssetId);
+            const hasRemainingChildren = contentRepository
+              .listAssets({ userId: getCurrentUserId(req) })
+              .some((candidate) => candidate.parentAssetId === parentAssetId);
+            if (parent?.userId === getCurrentUserId(req)
+              && parent.lifecycleStatus === 'temporary'
+              && !hasRemainingChildren) {
+              await contentService.deleteAsset(parent.id, {
+                userId: getCurrentUserId(req),
+                role: getCurrentUserRole(req) as UserRole,
+              });
+            }
+          }
+          res.json({ ok: true });
+          return;
+        }
         const storedFileName = storedFileNameFromReferenceVideoPayload(req.body.storedFileName || req.body.fileUrl);
         await rm(contentFilePathForRelativePath(storedFileName), { force: true });
         res.json({ ok: true });
@@ -715,6 +806,7 @@ export function createContentRouter() {
             ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
           };
           const storedFile = await moveUploadedFileToInputMediaDirectory(req.file, metadata);
+          const temporary = metadata.temporary === true;
           const asset = contentService.createAsset({
             userId: getCurrentUserId(req),
             groupId: req.body.groupId ? String(req.body.groupId || '') : undefined,
@@ -725,8 +817,11 @@ export function createContentRouter() {
             storedFileName: storedFile.storedFileName,
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
-            filePath: req.file.path,
-            fileUrl: `/files/${encodeURIComponent(req.file.filename)}`,
+            filePath: storedFile.filePath,
+            fileUrl: storedFile.fileUrl,
+            assetKind: typeof metadata.assetKind === 'string' ? metadata.assetKind : 'upload',
+            lifecycleStatus: temporary ? 'temporary' : 'permanent',
+            expiresAt: temporary ? temporaryContentAssetExpiresAt() : null,
             metadata,
           });
           res.status(201).json(asset);

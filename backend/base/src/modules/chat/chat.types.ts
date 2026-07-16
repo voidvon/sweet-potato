@@ -13,6 +13,7 @@ export type ChatConversation = {
 
 export type ChatAttachment = {
   id: string;
+  assetId?: string;
   name: string;
   type: string;
   size: number;

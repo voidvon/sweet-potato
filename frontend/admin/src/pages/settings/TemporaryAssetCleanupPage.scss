@@ -1,0 +1,84 @@
+.temporary-cleanup-page {
+  gap: 14px;
+  overflow: hidden;
+}
+
+.temporary-cleanup-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.temporary-cleanup-summary {
+  align-items: center;
+  color: #667085;
+  display: flex;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.temporary-cleanup-summary span {
+  border-right: 1px solid #e4e7ec;
+  padding: 0 18px;
+}
+
+.temporary-cleanup-summary span:first-child {
+  padding-left: 0;
+}
+
+.temporary-cleanup-summary span:last-child {
+  border-right: 0;
+}
+
+.temporary-cleanup-summary strong {
+  color: #101828;
+  font-size: 18px;
+  margin-left: 6px;
+}
+
+.temporary-cleanup-summary strong.is-danger {
+  color: #d92d20;
+}
+
+.temporary-cleanup-page > .ant-tabs,
+.temporary-cleanup-page .ant-tabs-content-holder,
+.temporary-cleanup-page .ant-tabs-content,
+.temporary-cleanup-page .ant-tabs-tabpane {
+  min-height: 0;
+}
+
+.temporary-cleanup-table .ant-table-body {
+  scrollbar-gutter: stable;
+}
+
+.cleanup-asset-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cleanup-asset-identity .ant-typography {
+  margin: 0;
+  max-width: 230px;
+}
+
+.cleanup-asset-identity .ant-typography-secondary {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .temporary-cleanup-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .temporary-cleanup-summary {
+    justify-content: space-between;
+  }
+
+  .temporary-cleanup-summary span {
+    padding: 0 10px;
+  }
+}

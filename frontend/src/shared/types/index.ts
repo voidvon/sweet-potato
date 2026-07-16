@@ -358,6 +358,7 @@ export type VideoModelOption = {
 
 export type ChatAttachment = {
   id: string;
+  assetId?: string;
   name: string;
   type: string;
   size: number;

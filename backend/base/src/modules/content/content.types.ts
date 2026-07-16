@@ -8,6 +8,7 @@ export type ContentModule = {
 };
 
 export type ContentResourceType = 'digital_human' | 'virtual_portrait' | 'voice' | 'scene' | 'product' | 'finished_video' | 'real_person' | 'other';
+export type ContentAssetLifecycleStatus = 'temporary' | 'retained' | 'permanent';
 
 export type ContentAssetGroup = {
   id: string;
@@ -36,9 +37,42 @@ export type ContentAsset = {
   fileSize: number;
   filePath: string;
   fileUrl: string;
+  assetKind: string;
+  lifecycleStatus: ContentAssetLifecycleStatus;
+  parentAssetId: string | null;
+  expiresAt: string | null;
+  retainedAt: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TemporaryAssetCleanupCandidate = {
+  id: string;
+  userId: string;
+  username: string;
+  assetKind: string;
+  name: string;
+  mimeType: string;
+  fileSize: number;
+  fileUrl: string;
+  parentAssetId: string | null;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type TemporaryAssetCleanupLog = {
+  id: number;
+  assetId: string;
+  userId: string;
+  username: string;
+  assetKind: string;
+  name: string;
+  fileUrl: string;
+  fileSize: number;
+  expiresAt: string | null;
+  triggerType: 'scheduled' | 'manual';
+  cleanedAt: string;
 };
 
 export type VideoTaskStatus = 'pending' | 'parsing' | 'waiting_edit' | 'generating' | 'success' | 'failed';
@@ -244,6 +278,11 @@ export type CreateAssetPayload = {
   fileSize: number;
   filePath: string;
   fileUrl: string;
+  assetKind?: string;
+  lifecycleStatus?: ContentAssetLifecycleStatus;
+  parentAssetId?: string | null;
+  expiresAt?: string | null;
+  retainedAt?: string | null;
   metadata?: Record<string, unknown>;
 };
 

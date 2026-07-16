@@ -2,6 +2,7 @@ import { Play } from 'lucide-react';
 import { useRef } from 'react';
 
 export type ConfirmedReferenceVideo = {
+  assetId?: string;
   duration: number;
   end: number;
   fileUrl: string;

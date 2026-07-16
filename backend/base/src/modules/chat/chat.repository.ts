@@ -259,4 +259,14 @@ export const chatRepository = {
     `).get({ url, excludedMessageId });
     return Boolean(row);
   },
+
+  isAttachmentUrlReferenced(url: string) {
+    const row = db.prepare(`
+      SELECT 1
+      FROM chat_messages AS message, json_each(message.attachments) AS attachment
+      WHERE json_extract(attachment.value, '$.url') = ?
+      LIMIT 1
+    `).get(url);
+    return Boolean(row);
+  },
 };

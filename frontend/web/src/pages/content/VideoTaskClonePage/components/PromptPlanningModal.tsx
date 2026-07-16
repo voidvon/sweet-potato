@@ -73,7 +73,7 @@ import type {
   SelectedMaterialValue,
   SelectedMaterials,
 } from '../types';
-import { downloadTrimmedVideo, readVideoDuration, shouldTrimReferenceVideo } from '../videoMetadata';
+import { readVideoDuration, shouldTrimReferenceVideo } from '../videoMetadata';
 import { MaterialSlot } from './MaterialSlot';
 import { ReferenceVideoCard, type ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
@@ -1774,38 +1774,29 @@ export function PromptPlanningModal({
       file: selection.file,
       start: Number(selection.start.toFixed(1)),
     });
-    try {
-      const trimmedFile = await downloadTrimmedVideo(
-        result.fileUrl,
-        result.originalFileName || selection.file.name,
-      );
-      const nextFile = {
-        file: trimmedFile,
-        id: `video-${crypto.randomUUID()}`,
-        name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
-        type: 'video',
-        url: createOwnedObjectUrl(trimmedFile, ownedObjectUrlsRef.current),
-        trimDuration: result.duration,
-        trimEnd: result.end,
-        trimStart: result.start,
-      } satisfies LocalMaterialFile;
+    const nextFile = {
+      assetId: result.assetId,
+      id: `video-${crypto.randomUUID()}`,
+      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+      serverFileUrl: result.fileUrl,
+      storedFileName: result.storedFileName,
+      type: 'video',
+      url: resolveAssetUrl(result.fileUrl),
+      trimDuration: result.duration,
+      trimEnd: result.end,
+      trimStart: result.start,
+    } satisfies LocalMaterialFile;
 
-      setMaterials((current) => {
-        revokeLocalMaterialList(getLocalFiles(current.video), ownedObjectUrlsRef.current);
-        return {
-          ...current,
-          video: [nextFile],
-        };
-      });
-      setPendingTrimFile(null);
-      if (previousVideo) {
-        void deleteServerReferenceVideo(previousVideo);
-      }
-    } finally {
-      void deleteReferenceVideo({
-        fileUrl: result.fileUrl,
-        storedFileName: result.storedFileName,
-      }).catch(() => undefined);
+    setMaterials((current) => {
+      revokeLocalMaterialList(getLocalFiles(current.video), ownedObjectUrlsRef.current);
+      return {
+        ...current,
+        video: [nextFile],
+      };
+    });
+    setPendingTrimFile(null);
+    if (previousVideo) {
+      void deleteServerReferenceVideo(previousVideo);
     }
   }
 
@@ -2604,9 +2595,14 @@ async function ensureMaterialAssetIds(input: {
       groupId,
       resourceType: input.resourceType,
       name: file.name,
-      metadata: file.audioDuration
-        ? { duration: file.audioDuration, source: 'local_upload' }
-        : { source: 'local_upload' },
+      metadata: {
+        ...(file.audioDuration ? { duration: file.audioDuration } : {}),
+        ...(file.trimDuration ? { duration: file.trimDuration } : {}),
+        source: 'local_upload',
+        temporary: true,
+        kind: 'video_create_reference_upload',
+        assetKind: `${file.type}_input`,
+      },
     });
     file.assetId = uploaded.id;
     file.serverFileUrl = uploaded.fileUrl;
@@ -2619,6 +2615,7 @@ async function ensureMaterialAssetIds(input: {
 function toConfirmedReferenceVideo(file: LocalMaterialFile): ConfirmedReferenceVideo {
   const duration = file.trimDuration ?? 15;
   return {
+    assetId: file.assetId,
     duration,
     end: file.trimEnd ?? duration,
     fileUrl: file.serverFileUrl ?? file.url,
@@ -2635,6 +2632,7 @@ async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
   }
   try {
     await deleteReferenceVideo({
+      assetId: video.assetId,
       fileUrl: video.fileUrl,
       storedFileName: video.storedFileName,
     });

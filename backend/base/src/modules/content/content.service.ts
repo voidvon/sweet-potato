@@ -65,6 +65,13 @@ import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internal
 
 dayjs.extend(customParseFormat);
 
+const temporaryContentAssetTtlMs = 24 * 60 * 60 * 1000;
+const temporaryContentAssetCleanupIntervalMs = 60 * 60 * 1000;
+
+export function temporaryContentAssetExpiresAt(now = Date.now()) {
+  return new Date(now + temporaryContentAssetTtlMs).toISOString();
+}
+
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map(stableJson).join(',')}]`;
@@ -165,7 +172,59 @@ async function cleanupUnreferencedFinishedAssetInputs(finishedAsset: ContentAsse
   }
 }
 
-async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset) {
+async function cleanupReleasedVideoTaskInputs(task: VideoGenerationTask, assetIds: string[]) {
+  for (const assetId of assetIds) {
+    const asset = contentRepository.findAsset(assetId);
+    if (!asset || asset.userId !== task.userId || !isTransientInputAsset(asset)) {
+      continue;
+    }
+    const referencedByTask = contentRepository.hasAssetReferences(asset.id)
+      || contentRepository
+        .listVideoTasks(task.userId, { limit: 500 })
+        .some((candidate) => candidate.id !== task.id
+          && (isAssetIdReferenced(candidate.editableParseResult, asset.id)
+            || isAssetIdReferenced(candidate.expertContext, asset.id)));
+    if (referencedByTask) {
+      continue;
+    }
+    const parentAssetId = asset.parentAssetId;
+    const filePaths = localAssetFilePaths(asset);
+    contentRepository.deleteAsset(asset.id);
+    await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
+
+    if (!parentAssetId) continue;
+    const parent = contentRepository.findAsset(parentAssetId);
+    const hasRemainingChildren = contentRepository
+      .listAssets({ userId: task.userId })
+      .some((candidate) => candidate.parentAssetId === parentAssetId);
+    if (!parent || parent.lifecycleStatus !== 'temporary' || hasRemainingChildren
+      || contentRepository.hasAssetReferences(parent.id)) {
+      continue;
+    }
+    const parentFilePaths = localAssetFilePaths(parent);
+    contentRepository.deleteAsset(parent.id);
+    await Promise.all(parentFilePaths.map((filePath) => rm(filePath, { force: true })));
+  }
+}
+
+async function cleanupReleasedChatInputAssets(finishedAsset: ContentAsset, inputAssetIds: string[]) {
+  for (const inputAssetId of inputAssetIds) {
+    const inputAsset = contentRepository.findAsset(inputAssetId);
+    if (!inputAsset || inputAsset.userId !== finishedAsset.userId || !isTransientInputAsset(inputAsset)
+      || contentRepository.hasAssetReferences(inputAsset.id)) {
+      continue;
+    }
+    if (chatRepository.isAttachmentUrlReferenced(inputAsset.fileUrl)) {
+      contentRepository.markAssetTemporaryIfUnreferenced(inputAsset.id, temporaryContentAssetExpiresAt());
+      continue;
+    }
+    const filePaths = localAssetFilePaths(inputAsset);
+    contentRepository.deleteAsset(inputAsset.id);
+    await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
+  }
+}
+
+async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset, inputAssetIds: string[] = []) {
   const conversationId = typeof finishedAsset.metadata.conversationId === 'string'
     ? finishedAsset.metadata.conversationId.trim()
     : '';
@@ -176,6 +235,7 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset) {
   const assistantMessageIndex = messages.findIndex((message) => message.role === 'assistant'
     && (message.attachments || []).some((attachment) => attachment.url === finishedAsset.fileUrl));
   if (assistantMessageIndex < 0) {
+    await cleanupReleasedChatInputAssets(finishedAsset, inputAssetIds);
     return;
   }
   const assistantMessage = messages[assistantMessageIndex];
@@ -184,6 +244,7 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset) {
     .reverse()
     .find((message) => message.role === 'user');
   if (!sourceMessage) {
+    await cleanupReleasedChatInputAssets(finishedAsset, inputAssetIds);
     return;
   }
   const remainingOutputUrls = new Set(contentRepository
@@ -198,18 +259,38 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset) {
     if (!/^\/files\/input_(?:images|videos|audios)\//u.test(attachment.url)) {
       continue;
     }
+    const inputAsset = attachment.assetId
+      ? contentRepository.findAsset(attachment.assetId)
+      : contentRepository
+        .listAssets({ userId: finishedAsset.userId })
+        .find((asset) => asset.fileUrl === attachment.url);
+    if (inputAsset && contentRepository.hasAssetReferences(inputAsset.id)) {
+      continue;
+    }
     if (chatRepository.isAttachmentUrlReferencedElsewhere(attachment.url, sourceMessage.id)) {
+      if (inputAsset) {
+        contentRepository.markAssetTemporaryIfUnreferenced(inputAsset.id, temporaryContentAssetExpiresAt());
+      }
       continue;
     }
     const referencedByAsset = contentRepository
       .listAssets({ userId: finishedAsset.userId })
-      .some((asset) => asset.fileUrl === attachment.url);
+      .some((asset) => asset.id !== inputAsset?.id && asset.fileUrl === attachment.url);
     if (referencedByAsset) {
+      if (inputAsset) {
+        contentRepository.markAssetTemporaryIfUnreferenced(inputAsset.id, temporaryContentAssetExpiresAt());
+      }
       continue;
     }
-    const filePath = resolveLocalContentFilePathFromUrl(attachment.url);
-    if (filePath) {
-      await rm(filePath, { force: true });
+    if (inputAsset && isTransientInputAsset(inputAsset)) {
+      const filePaths = localAssetFilePaths(inputAsset);
+      contentRepository.deleteAsset(inputAsset.id);
+      await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
+    } else {
+      const filePath = resolveLocalContentFilePathFromUrl(attachment.url);
+      if (filePath) {
+        await rm(filePath, { force: true });
+      }
     }
   }
 }
@@ -384,6 +465,12 @@ function implicitDefaultGroupName(resourceType: ContentResourceType) {
   return resourceType === 'scene' ? '场景素材' : '产品素材';
 }
 
+function implicitUploadGroupName(resourceType: ContentResourceType) {
+  if (resourceType === 'voice') return '视频制作参考音频';
+  if (resourceType === 'other') return '视频制作参考素材';
+  return implicitDefaultGroupName(resourceType);
+}
+
 async function deleteLocalVirtualPortraitAsset(asset: ContentAsset) {
   contentRepository.deleteAsset(asset.id);
   if (asset.filePath && existsSync(asset.filePath)) {
@@ -408,6 +495,27 @@ function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
+}
+
+function videoTaskInputAssetIds(context: Record<string, unknown>) {
+  return Array.from(new Set([
+    ...stringArray(context.referenceImageIds),
+    ...stringArray(context.originalReferenceImageIds),
+    ...stringArray(context.referenceVideoIds),
+    ...stringArray(context.referenceAudioIds),
+    typeof context.sourceAssetId === 'string' ? context.sourceAssetId.trim() : '',
+  ].filter(Boolean)));
+}
+
+function retainVideoTaskInputAssets(task: VideoGenerationTask) {
+  const assetIds = videoTaskInputAssetIds(task.expertContext || {});
+  if (!assetIds.length) return;
+  contentRepository.retainAssetsForReference({
+    assetIds,
+    userId: task.userId,
+    referenceType: 'video_generation_task',
+    referenceId: task.id,
+  });
 }
 
 function characterKeywordPattern() {
@@ -948,6 +1056,8 @@ async function createTemporaryCharacterReferenceAssets(input: {
 const virtualPortraitSyncIntervalMs = 60 * 1000;
 let virtualPortraitMirrorSyncTimer: ReturnType<typeof setInterval> | null = null;
 let virtualPortraitMirrorSyncRunning = false;
+let temporaryAssetCleanupTimer: ReturnType<typeof setInterval> | null = null;
+let temporaryAssetCleanupRunning = false;
 
 export const contentService = {
   listModules(actor?: { role: UserRole; permissions?: readonly string[] }) {
@@ -1811,17 +1921,38 @@ export const contentService = {
 
   async createVideoEnhancement(payload: CreateVideoEnhancementPayload) {
     assertUserId(payload.userId);
-    return createVideoEnhancementTask(payload);
+    const task = await createVideoEnhancementTask(payload);
+    contentRepository.retainAssetsForReference({
+      assetIds: [payload.sourceAssetId],
+      userId: payload.userId,
+      referenceType: 'video_generation_task',
+      referenceId: task.id,
+    });
+    return task;
   },
 
   async createSubtitleRemoval(payload: CreateSubtitleRemovalPayload) {
     assertUserId(payload.userId);
-    return createSubtitleRemovalTask(payload);
+    const task = await createSubtitleRemovalTask(payload);
+    contentRepository.retainAssetsForReference({
+      assetIds: [payload.sourceAssetId],
+      userId: payload.userId,
+      referenceType: 'video_generation_task',
+      referenceId: task.id,
+    });
+    return task;
   },
 
   async createVideoTranslation(payload: CreateVideoTranslationPayload) {
     assertUserId(payload.userId);
-    return createVideoTranslationTask(payload);
+    const task = await createVideoTranslationTask(payload);
+    contentRepository.retainAssetsForReference({
+      assetIds: [payload.sourceAssetId],
+      userId: payload.userId,
+      referenceType: 'video_generation_task',
+      referenceId: task.id,
+    });
+    return task;
   },
 
   async getAsset(id: string, actor: { userId: string; role: UserRole; permissions?: readonly string[] }) {
@@ -1835,14 +1966,18 @@ export const contentService = {
   },
 
   createAsset(payload: CreateAssetPayload) {
-    if (!payload.groupId && shouldUseImplicitDefaultGroup(payload.resourceType)) {
+    const usesImplicitUploadGroup = payload.metadata?.source === 'local_upload';
+    if (!payload.groupId && (shouldUseImplicitDefaultGroup(payload.resourceType) || usesImplicitUploadGroup)) {
+      const groupName = usesImplicitUploadGroup
+        ? implicitUploadGroupName(payload.resourceType)
+        : implicitDefaultGroupName(payload.resourceType);
       const existingGroup = contentRepository
         .listGroups({ userId: payload.userId, resourceType: payload.resourceType })
-        .find((group) => group.metadata?.systemDefault === true || group.name === implicitDefaultGroupName(payload.resourceType));
+        .find((group) => group.metadata?.systemDefault === true || group.name === groupName);
       const targetGroup = existingGroup || contentRepository.createGroup({
         userId: payload.userId,
         resourceType: payload.resourceType,
-        name: implicitDefaultGroupName(payload.resourceType),
+        name: groupName,
         metadata: {
           systemDefault: true,
           hiddenFromGroupUi: true,
@@ -1965,19 +2100,21 @@ export const contentService = {
       throw new Error('素材不存在');
     }
     const localFilePaths = localAssetFilePaths(latest);
+    const contentAssetInputIds = contentRepository.listAssetIdsForReference('content_asset', id);
     const asset = contentRepository.deleteAsset(id);
     if (!asset) {
       throw new Error('素材不存在');
     }
     const videoTaskId = linkedVideoTaskId(asset);
     const linkedVideoTask = videoTaskId ? contentRepository.findVideoTask(videoTaskId) : null;
+    contentRepository.deleteAssetReferences('content_asset', asset.id);
     await Promise.all(localFilePaths.map((filePath) => rm(filePath, { force: true })));
     if (linkedVideoTask?.userId === asset.userId) {
       await this.deleteVideoTask(linkedVideoTask.id, asset.userId);
     }
     if (asset.resourceType === 'finished_video') {
       await cleanupUnreferencedFinishedAssetInputs(asset);
-      await cleanupChatGeneratedImageInputs(asset);
+      await cleanupChatGeneratedImageInputs(asset, contentAssetInputIds);
     }
     return { ok: true };
   },
@@ -2446,6 +2583,57 @@ export const contentService = {
     }, virtualPortraitSyncIntervalMs);
   },
 
+  startTemporaryAssetCleanupScheduler() {
+    if (temporaryAssetCleanupTimer) {
+      return;
+    }
+    void this.cleanupExpiredTemporaryAssets();
+    temporaryAssetCleanupTimer = setInterval(() => {
+      void this.cleanupExpiredTemporaryAssets();
+    }, temporaryContentAssetCleanupIntervalMs);
+  },
+
+  listTemporaryAssetCleanupCandidates(input: { page?: unknown; pageSize?: unknown }) {
+    const page = Number(input.page);
+    const pageSize = Number(input.pageSize);
+    return contentRepository.listTemporaryAssetCleanupCandidates({
+      page: Number.isFinite(page) ? page : 1,
+      pageSize: Number.isFinite(pageSize) ? pageSize : 20,
+    });
+  },
+
+  listTemporaryAssetCleanupLogs() {
+    return contentRepository.listTemporaryAssetCleanupLogs();
+  },
+
+  async cleanupExpiredTemporaryAssets(triggerType: 'scheduled' | 'manual' = 'scheduled') {
+    if (temporaryAssetCleanupRunning) {
+      return { deleted: 0 };
+    }
+    temporaryAssetCleanupRunning = true;
+    let deleted = 0;
+    try {
+      while (true) {
+        const now = new Date().toISOString();
+        const expired = contentRepository.listExpiredTemporaryAssets(now, 100);
+        if (!expired.length) break;
+        for (const candidate of expired) {
+          const asset = contentRepository.deleteExpiredTemporaryAsset(candidate.id, now);
+          if (!asset) continue;
+          await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
+          contentRepository.recordTemporaryAssetCleanup(asset, triggerType);
+          deleted += 1;
+        }
+      }
+      if (deleted) {
+        logger.info('expired temporary content assets cleaned', { deleted });
+      }
+      return { deleted };
+    } finally {
+      temporaryAssetCleanupRunning = false;
+    }
+  },
+
   async syncVirtualPortraitMirrorAssets() {
     if (virtualPortraitMirrorSyncRunning) {
       return;
@@ -2707,6 +2895,7 @@ export const contentService = {
       if (!task) {
         throw new Error('视频制作任务创建失败');
       }
+      retainVideoTaskInputAssets(task);
       const taskIdPendingResult: VideoGenerationResult = {
         ...pendingResult,
         taskId: task.id,
@@ -2798,6 +2987,7 @@ export const contentService = {
     if (payload.userId && current.userId !== payload.userId) {
       throw new Error('无权操作该视频任务');
     }
+    retainVideoTaskInputAssets(current);
     const replicationPlan = payload.replicationPlan || current.editableParseResult.replicationPlan;
     let taskContext = isRecord(current.expertContext) ? current.expertContext : {};
     const voiceContext = isRecord(taskContext.voice) ? taskContext.voice : {};
@@ -3125,7 +3315,9 @@ export const contentService = {
       groupId: String(current.expertContext?.temporaryCharacterReferenceGroupId || '').trim(),
       userId,
     });
+    const referencedAssetIds = contentRepository.listAssetIdsForReference('video_generation_task', id);
     const task = contentRepository.deleteVideoTask(id) || current;
+    contentRepository.deleteAssetReferences('video_generation_task', id);
     const generatedAssets = contentRepository
       .listAssets({ userId: task.userId, resourceType: 'finished_video' })
       .filter((asset) => asset.metadata.videoTaskId === id);
@@ -3133,6 +3325,7 @@ export const contentService = {
       contentRepository.deleteAsset(asset.id);
       await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
     }));
+    await cleanupReleasedVideoTaskInputs(task, referencedAssetIds);
     return { ok: true };
   },
 

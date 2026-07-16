@@ -1,12 +1,13 @@
 import { Play, X } from 'lucide-react';
 import { useState } from 'react';
 import { deleteReferenceVideo, trimReferenceVideo } from '../../../../api/content';
+import { resolveAssetUrl } from '../../../../api/request';
 import { materialIcon } from './materialIcon';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
 import type { LocalMaterialFile, SelectedMaterialValue } from '../types';
-import { downloadTrimmedVideo, shouldTrimReferenceVideo } from '../videoMetadata';
+import { shouldTrimReferenceVideo } from '../videoMetadata';
 
 type VideoMaterialSlotProps = {
   onClear: () => void;
@@ -28,32 +29,23 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
       file: selection.file,
       start: Number(selection.start.toFixed(1)),
     });
-    try {
-      const trimmedFile = await downloadTrimmedVideo(
-        result.fileUrl,
-        result.originalFileName || selection.file.name,
-      );
-      const nextFile = {
-        file: trimmedFile,
-        id: `video-${crypto.randomUUID()}`,
-        name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
-        type: 'video',
-        url: URL.createObjectURL(trimmedFile),
-        trimDuration: result.duration,
-        trimEnd: result.end,
-        trimStart: result.start,
-      } satisfies LocalMaterialFile;
+    const nextFile = {
+      assetId: result.assetId,
+      id: `video-${crypto.randomUUID()}`,
+      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+      serverFileUrl: result.fileUrl,
+      storedFileName: result.storedFileName,
+      type: 'video',
+      url: resolveAssetUrl(result.fileUrl),
+      trimDuration: result.duration,
+      trimEnd: result.end,
+      trimStart: result.start,
+    } satisfies LocalMaterialFile;
 
-      onTrimmed(nextFile);
-      setTrimFile(null);
-      if (previousVideo) {
-        void deleteServerReferenceVideo(previousVideo);
-      }
-    } finally {
-      void deleteReferenceVideo({
-        fileUrl: result.fileUrl,
-        storedFileName: result.storedFileName,
-      }).catch(() => undefined);
+    onTrimmed(nextFile);
+    setTrimFile(null);
+    if (previousVideo) {
+      void deleteServerReferenceVideo(previousVideo);
     }
   };
 
@@ -129,6 +121,7 @@ function getPendingVideoFile(selected: SelectedMaterialValue) {
 function toConfirmedReferenceVideo(file: LocalMaterialFile): ConfirmedReferenceVideo {
   const duration = file.trimDuration ?? 15;
   return {
+    assetId: file.assetId,
     duration,
     end: file.trimEnd ?? duration,
     fileUrl: file.serverFileUrl ?? file.url,
@@ -143,6 +136,7 @@ async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
   if (!video.storedFileName && (!video.fileUrl || video.fileUrl.startsWith('blob:'))) return;
   try {
     await deleteReferenceVideo({
+      assetId: video.assetId,
       fileUrl: video.fileUrl,
       storedFileName: video.storedFileName,
     });
