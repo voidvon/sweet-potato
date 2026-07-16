@@ -192,6 +192,21 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       createWriteStream(filePath),
     );
     const fileSize = (await stat(filePath)).size;
+    const currentAsset = input.assetId
+      ? contentRepository.findAsset(input.assetId)
+      : contentRepository
+        .listAssets({ userId: input.userId, resourceType: 'finished_video' })
+        .find((asset) => asset.metadata.videoTaskId === input.taskId);
+    if (!currentAsset) {
+      await rm(filePath, { force: true });
+      filePath = '';
+      logger.info('discarded generated video mirror after asset deletion', {
+        taskId: input.taskId,
+        assetId: input.assetId,
+        remoteVideoUrl,
+      });
+      return;
+    }
     const mirroredAt = new Date().toISOString();
     markAssetMirrorStatus({
       assetId: input.assetId,

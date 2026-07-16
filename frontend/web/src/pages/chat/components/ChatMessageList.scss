@@ -231,8 +231,46 @@
 }
 
 .chat-message-attachments .ant-image {
+  background: #f2f4f7;
   display: block;
   width: fit-content;
+}
+
+.chat-message-image-frame {
+  background: #f2f4f7;
+  border-radius: 7px;
+  display: block;
+  height: 140px;
+  overflow: hidden;
+  width: 220px;
+}
+
+.chat-image-unavailable {
+  align-items: center;
+  background: #f2f4f7;
+  color: #667085;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  gap: 8px;
+  height: 100%;
+  justify-content: center;
+  line-height: 1.4;
+  padding: 14px;
+  text-align: center;
+  width: 100%;
+}
+
+.chat-image-unavailable.is-generation {
+  min-height: 96px;
+}
+
+.chat-image-pending {
+  visibility: hidden;
+}
+
+.chat-user-message-mention-chip img {
+  background: #f2f4f7;
 }
 
 .chat-message-attachment.file {
@@ -293,6 +331,7 @@
 }
 
 .chat-image-generation-grid .ant-image {
+  background: #f2f4f7;
   display: block;
   height: 100%;
   width: 100%;
@@ -316,7 +355,7 @@
 
 .chat-image-generation-cell {
   align-items: center;
-  background: #f6f7f9;
+  background: #f2f4f7;
   border-radius: 10px;
   display: flex;
   justify-content: center;

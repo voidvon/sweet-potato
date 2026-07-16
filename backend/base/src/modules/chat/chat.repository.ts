@@ -248,4 +248,15 @@ export const chatRepository = {
     const row = db.prepare(`${messageSelect} WHERE id = ?`).get(id) as ChatMessageRow | undefined;
     return row ? parseMessage(row) : undefined;
   },
+
+  isAttachmentUrlReferencedElsewhere(url: string, excludedMessageId: string) {
+    const row = db.prepare(`
+      SELECT 1
+      FROM chat_messages AS message, json_each(message.attachments) AS attachment
+      WHERE message.id <> @excludedMessageId
+        AND json_extract(attachment.value, '$.url') = @url
+      LIMIT 1
+    `).get({ url, excludedMessageId });
+    return Boolean(row);
+  },
 };

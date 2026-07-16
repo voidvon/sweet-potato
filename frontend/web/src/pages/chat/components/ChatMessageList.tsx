@@ -1,6 +1,6 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, RefreshCw, Zap } from 'lucide-react';
+import { ChevronRight, ImageOff, RefreshCw, Zap } from 'lucide-react';
 import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
@@ -43,6 +43,8 @@ export function ChatMessageList({
   sending,
 }: ChatMessageListProps) {
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
+  const [loadedImageUrls, setLoadedImageUrls] = useState<Set<string>>(() => new Set());
+  const [unavailableImageUrls, setUnavailableImageUrls] = useState<Set<string>>(() => new Set());
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
     images: ChatAttachment[];
@@ -74,6 +76,44 @@ export function ChatMessageList({
       ignore = true;
     };
   }, []);
+
+  function markImageUnavailable(url: string) {
+    setUnavailableImageUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
+  function markImageLoaded(url: string) {
+    setLoadedImageUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
+  function imageClassName(baseClassName: string, url: string) {
+    return [
+      baseClassName,
+      loadedImageUrls.has(url) ? '' : 'chat-image-pending',
+    ].filter(Boolean).join(' ');
+  }
+
+  function unavailableImage(className = '') {
+    return (
+      <span className={['chat-image-unavailable', className].filter(Boolean).join(' ')}>
+        <ImageOff aria-hidden="true" size={22} strokeWidth={1.7} />
+        <span>图片已清理或过期</span>
+      </span>
+    );
+  }
 
   function fallbackCopyText(content: string) {
     const textarea = document.createElement('textarea');
@@ -213,8 +253,14 @@ export function ChatMessageList({
         data-token={option.token}
         key={option.key}
       >
-        {previewUrl ? (
-          <img alt={option.label} src={previewUrl} />
+        {previewUrl && !unavailableImageUrls.has(attachment?.url || '') ? (
+          <img
+            alt={option.label}
+            className={imageClassName('', attachment?.url || '')}
+            onError={() => markImageUnavailable(attachment?.url || '')}
+            onLoad={() => markImageLoaded(attachment?.url || '')}
+            src={previewUrl}
+          />
         ) : (
           <span className="mention-rich-textarea-chip-icon">{fallbackIcon}</span>
         )}
@@ -608,12 +654,20 @@ export function ChatMessageList({
               <div className={`chat-message-attachments ${item.role}`}>
                 {item.role === 'user' && imageAttachments.length ? renderUserImageAttachments(item, imageAttachments) : null}
                 {item.role === 'assistant' ? imageAttachments.map((attachment) => (
-                  <Image
-                    alt={attachment.name}
-                    className="chat-message-image"
-                    key={attachment.id}
-                    src={resolveAssetUrl(attachment.url)}
-                  />
+                  unavailableImageUrls.has(attachment.url) ? (
+                    <span className="chat-message-image-frame" key={attachment.id}>
+                      {unavailableImage()}
+                    </span>
+                  ) : (
+                    <Image
+                      alt={attachment.name}
+                      className={imageClassName('chat-message-image', attachment.url)}
+                      key={attachment.id}
+                      onError={() => markImageUnavailable(attachment.url)}
+                      onLoad={() => markImageLoaded(attachment.url)}
+                      src={resolveAssetUrl(attachment.url)}
+                    />
+                  )
                 )) : null}
                 {fileAttachments.map(renderFileAttachment)}
               </div>
@@ -651,13 +705,17 @@ export function ChatMessageList({
                                 key={attachment.id}
                                 style={imageGenerationCellStyle(attachment, imageGenerationContext)}
                               >
-                                <Image
-                                  alt={attachment.name}
-                                  className="chat-image-generation-image"
-                                  height="100%"
-                                  src={resolveAssetUrl(attachment.url)}
-                                  width="100%"
-                                />
+                                {unavailableImageUrls.has(attachment.url) ? unavailableImage('is-generation') : (
+                                  <Image
+                                    alt={attachment.name}
+                                    className={imageClassName('chat-image-generation-image', attachment.url)}
+                                    height="100%"
+                                    onError={() => markImageUnavailable(attachment.url)}
+                                    onLoad={() => markImageLoaded(attachment.url)}
+                                    src={resolveAssetUrl(attachment.url)}
+                                    width="100%"
+                                  />
+                                )}
                               </div>
                             ) : failure || isLegacyImageGenerationFailed ? (
                               <div

@@ -11,6 +11,7 @@ import {
   volcengineVirtualPortraitConfig
 } from '../../config/env.js';
 import { createTraceId, logger } from '../../shared/logger.js';
+import { chatRepository } from '../chat/chat.repository.js';
 import { contentModules } from './content.defaults.js';
 import { publishContentEvent } from './content.events.js';
 import { contentRepository } from './content.repository.js';
@@ -51,7 +52,7 @@ import {
   permissionForContentResourceType,
 } from '../../shared/resource-permission.js';
 
-import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
+import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, resolveLocalContentFilePathFromUrl, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
@@ -72,6 +73,145 @@ function stableJson(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+function localAssetFilePaths(asset: ContentAsset) {
+  const paths = new Set<string>();
+  if (asset.filePath) {
+    paths.add(asset.filePath);
+  }
+  for (const value of [asset.fileUrl, asset.metadata.localVideoUrl]) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    const filePath = resolveLocalContentFilePathFromUrl(value);
+    if (filePath) {
+      paths.add(filePath);
+    }
+  }
+  return [...paths];
+}
+
+function finishedAssetInputIds(asset: ContentAsset) {
+  const assetIds = new Set<string>();
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+    const sourceAssetId = typeof value.sourceAssetId === 'string' ? value.sourceAssetId.trim() : '';
+    if (sourceAssetId) {
+      assetIds.add(sourceAssetId);
+    }
+    const serializedAssetId = typeof value.id === 'string'
+      && (typeof value.fileUrl === 'string' || typeof value.resourceType === 'string')
+      ? value.id.trim()
+      : '';
+    if (serializedAssetId) {
+      assetIds.add(serializedAssetId);
+    }
+    Object.values(value).forEach(visit);
+  };
+  visit(asset.metadata.materialContext);
+  visit({ sourceAssetId: asset.metadata.sourceAssetId });
+  return [...assetIds];
+}
+
+function isTransientInputAsset(asset: ContentAsset) {
+  if (asset.resourceType === 'finished_video') {
+    return false;
+  }
+  const group = contentRepository.findGroup(asset.groupId);
+  const isHiddenUploadGroup = group?.metadata.source === 'local_upload'
+    && (group.metadata.systemDefault === true || group.metadata.hiddenFromGroupUi === true);
+  return isHiddenUploadGroup
+    || asset.metadata.kind === 'video_create_reference_upload';
+}
+
+function isAssetIdReferenced(value: unknown, assetId: string): boolean {
+  if (typeof value === 'string') {
+    return value === assetId;
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => isAssetIdReferenced(item, assetId));
+  }
+  return isRecord(value) && Object.values(value).some((item) => isAssetIdReferenced(item, assetId));
+}
+
+async function cleanupUnreferencedFinishedAssetInputs(finishedAsset: ContentAsset) {
+  const linkedTaskId = linkedVideoTaskId(finishedAsset);
+  for (const inputAssetId of finishedAssetInputIds(finishedAsset)) {
+    const inputAsset = contentRepository.findAsset(inputAssetId);
+    if (!inputAsset || inputAsset.userId !== finishedAsset.userId || !isTransientInputAsset(inputAsset)) {
+      continue;
+    }
+    const referencedByAsset = contentRepository
+      .listAssets({ userId: finishedAsset.userId })
+      .some((asset) => asset.id !== inputAsset.id && isAssetIdReferenced(asset.metadata, inputAsset.id));
+    const referencedByTask = contentRepository
+      .listVideoTasks(finishedAsset.userId, { limit: 500 })
+      .some((task) => task.id !== linkedTaskId
+        && (isAssetIdReferenced(task.editableParseResult, inputAsset.id)
+          || isAssetIdReferenced(task.expertContext, inputAsset.id)));
+    if (referencedByAsset || referencedByTask) {
+      continue;
+    }
+    const inputFilePaths = localAssetFilePaths(inputAsset);
+    contentRepository.deleteAsset(inputAsset.id);
+    await Promise.all(inputFilePaths.map((filePath) => rm(filePath, { force: true })));
+  }
+}
+
+async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset) {
+  const conversationId = typeof finishedAsset.metadata.conversationId === 'string'
+    ? finishedAsset.metadata.conversationId.trim()
+    : '';
+  if (!conversationId || finishedAsset.metadata.generatedBy !== 'image_model') {
+    return;
+  }
+  const messages = chatRepository.listMessages(conversationId);
+  const assistantMessageIndex = messages.findIndex((message) => message.role === 'assistant'
+    && (message.attachments || []).some((attachment) => attachment.url === finishedAsset.fileUrl));
+  if (assistantMessageIndex < 0) {
+    return;
+  }
+  const assistantMessage = messages[assistantMessageIndex];
+  const sourceMessage = messages
+    .slice(0, assistantMessageIndex)
+    .reverse()
+    .find((message) => message.role === 'user');
+  if (!sourceMessage) {
+    return;
+  }
+  const remainingOutputUrls = new Set(contentRepository
+    .listAssets({ userId: finishedAsset.userId, resourceType: 'finished_video' })
+    .map((asset) => asset.fileUrl));
+  const hasRemainingSiblingOutput = (assistantMessage.attachments || [])
+    .some((attachment) => attachment.url !== finishedAsset.fileUrl && remainingOutputUrls.has(attachment.url));
+  if (hasRemainingSiblingOutput) {
+    return;
+  }
+  for (const attachment of sourceMessage.attachments || []) {
+    if (!/^\/files\/input_(?:images|videos|audios)\//u.test(attachment.url)) {
+      continue;
+    }
+    if (chatRepository.isAttachmentUrlReferencedElsewhere(attachment.url, sourceMessage.id)) {
+      continue;
+    }
+    const referencedByAsset = contentRepository
+      .listAssets({ userId: finishedAsset.userId })
+      .some((asset) => asset.fileUrl === attachment.url);
+    if (referencedByAsset) {
+      continue;
+    }
+    const filePath = resolveLocalContentFilePathFromUrl(attachment.url);
+    if (filePath) {
+      await rm(filePath, { force: true });
+    }
+  }
 }
 
 function segmentedVideoRequestFingerprint(input: {
@@ -1808,6 +1948,13 @@ export const contentService = {
     }
     await deleteRemoteRealPersonAsset(current);
     await deleteRemoteVirtualPortraitAsset(current);
+    // Remote deletion can yield while a generated video finishes mirroring. Re-read so
+    // the deletion captures the latest local path before removing the database record.
+    const latest = contentRepository.findAsset(id);
+    if (!latest) {
+      throw new Error('素材不存在');
+    }
+    const localFilePaths = localAssetFilePaths(latest);
     const asset = contentRepository.deleteAsset(id);
     if (!asset) {
       throw new Error('素材不存在');
@@ -1816,8 +1963,10 @@ export const contentService = {
     if (videoTaskId) {
       this.clearFinishedVideoTaskResult(videoTaskId);
     }
-    if (asset.filePath) {
-      await rm(asset.filePath, { force: true });
+    await Promise.all(localFilePaths.map((filePath) => rm(filePath, { force: true })));
+    if (asset.resourceType === 'finished_video') {
+      await cleanupUnreferencedFinishedAssetInputs(asset);
+      await cleanupChatGeneratedImageInputs(asset);
     }
     return { ok: true };
   },
@@ -3009,9 +3158,7 @@ export const contentService = {
       .filter((asset) => asset.metadata.videoTaskId === id);
     await Promise.all(generatedAssets.map(async (asset) => {
       contentRepository.deleteAsset(asset.id);
-      if (asset.filePath && existsSync(asset.filePath)) {
-        await rm(asset.filePath, { force: true });
-      }
+      await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
     }));
     return { ok: true };
   },

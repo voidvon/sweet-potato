@@ -1,6 +1,6 @@
 import { Image } from 'antd';
-import { LoaderCircle } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
+import { ImageOff, LoaderCircle } from 'lucide-react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import './ImageAttachmentStack.scss';
@@ -39,6 +39,53 @@ export function ImageAttachmentStack({
   renderTopAction,
   startIndex = 1,
 }: ImageAttachmentStackProps) {
+  const [loadedImageUrls, setLoadedImageUrls] = useState<Set<string>>(() => new Set());
+  const [unavailableImageUrls, setUnavailableImageUrls] = useState<Set<string>>(() => new Set());
+
+  function imageUrl(attachment: ChatAttachment) {
+    return attachment.previewUrl || attachment.url;
+  }
+
+  function markImageUnavailable(attachment: ChatAttachment) {
+    const url = imageUrl(attachment);
+    setUnavailableImageUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
+  function markImageLoaded(attachment: ChatAttachment) {
+    const url = imageUrl(attachment);
+    setLoadedImageUrls((current) => {
+      if (current.has(url)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(url);
+      return next;
+    });
+  }
+
+  function imageClassName(baseClassName: string, attachment: ChatAttachment) {
+    return [
+      baseClassName,
+      loadedImageUrls.has(imageUrl(attachment)) ? '' : 'image-attachment-image-pending',
+    ].filter(Boolean).join(' ');
+  }
+
+  function unavailableImage() {
+    return (
+      <span className="image-attachment-unavailable">
+        <ImageOff aria-hidden="true" size={18} strokeWidth={1.7} />
+        <span>已清理或过期</span>
+      </span>
+    );
+  }
+
   if (layout === 'grid') {
     const gridClassName = [
       'image-attachment-grid',
@@ -49,19 +96,22 @@ export function ImageAttachmentStack({
     return (
       <div className={gridClassName}>
         {attachments.map((attachment, index) => {
-          const image = (
+          const unavailable = unavailableImageUrls.has(imageUrl(attachment));
+          const image = unavailable ? unavailableImage() : (
             <Image
               alt={attachment.name}
-              className="image-attachment-grid-image"
+              className={imageClassName('image-attachment-grid-image', attachment)}
               height="100%"
+              onError={() => markImageUnavailable(attachment)}
+              onLoad={() => markImageLoaded(attachment)}
               preview={false}
-              src={resolveAssetUrl(attachment.previewUrl || attachment.url)}
+              src={resolveAssetUrl(imageUrl(attachment))}
               style={{ objectFit: 'contain' }}
               width="100%"
             />
           );
 
-          if (onPreview) {
+          if (onPreview && !unavailable) {
             return (
               <span
                 aria-label={`预览图${index + 1}`}
@@ -104,6 +154,7 @@ export function ImageAttachmentStack({
     <div className={stackClassName} style={{ '--image-stack-width': stackWidth } as ImageAttachmentStackStyle}>
       {visibleImages.map(({ attachment, number, originalIndex }, index) => {
         const isTopImage = index === visibleImages.length - 1;
+        const unavailable = unavailableImageUrls.has(imageUrl(attachment));
         const content = (
           <>
             <span className="image-attachment-stack-shadow" />
@@ -119,15 +170,19 @@ export function ImageAttachmentStack({
               ) : null}
             </span>
             <span className="image-attachment-stack-mask">
-              <Image
-                alt={attachment.name}
-                className="image-attachment-stack-image"
-                height="100%"
-                preview={false}
-                src={resolveAssetUrl(attachment.previewUrl || attachment.url)}
-                style={{ objectFit: 'cover' }}
-                width="100%"
-              />
+              {unavailable ? unavailableImage() : (
+                <Image
+                  alt={attachment.name}
+                  className={imageClassName('image-attachment-stack-image', attachment)}
+                  height="100%"
+                  onError={() => markImageUnavailable(attachment)}
+                  onLoad={() => markImageLoaded(attachment)}
+                  preview={false}
+                  src={resolveAssetUrl(imageUrl(attachment))}
+                  style={{ objectFit: 'cover' }}
+                  width="100%"
+                />
+              )}
             </span>
           </>
         );
@@ -136,7 +191,7 @@ export function ImageAttachmentStack({
           '--image-stack-z-index': index + 1,
         } as ImageAttachmentStackStyle;
 
-        if (onPreview) {
+        if (onPreview && !unavailable) {
           return (
             <span
               aria-label={`预览图${number}`}
