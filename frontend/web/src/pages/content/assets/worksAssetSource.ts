@@ -2,6 +2,23 @@ import type { ContentAsset } from '../../../types';
 
 export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
 
+export function getVideoWorkSourceFromMode(value: unknown): VideoWorkSource {
+  const mode = typeof value === 'string' ? value.trim().replaceAll('-', '_') : '';
+  if (mode === 'video_translation') {
+    return 'video_translation';
+  }
+  if (mode.startsWith('viral_replication_') || mode.startsWith('video_remake_')) {
+    return 'video_remake';
+  }
+  if (mode === 'video_upscale') {
+    return 'video_upscale';
+  }
+  if (mode === 'subtitle_removal') {
+    return 'subtitle_removal';
+  }
+  return 'video_creation';
+}
+
 export function stringMetadataValue(asset: ContentAsset, key: string) {
   const value = asset.metadata?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : '';
@@ -28,13 +45,13 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
   ) {
     return 'video_remake';
   }
-  if (generatedBy === 'video_enhancement' || mode === 'video_upscale') {
-    return 'video_upscale';
-  }
-  if (generatedBy === 'video_subtitle_removal' || mode === 'subtitle_removal') {
-    return 'subtitle_removal';
-  }
-  return 'video_creation';
+  return getVideoWorkSourceFromMode(
+    generatedBy === 'video_enhancement'
+      ? 'video_upscale'
+      : generatedBy === 'video_subtitle_removal'
+        ? 'subtitle_removal'
+        : mode,
+  );
 }
 
 export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {

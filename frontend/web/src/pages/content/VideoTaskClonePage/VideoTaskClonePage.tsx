@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Modal } from 'antd';
 import { ModelPicker } from './components/ModelPicker';
 import { PromptModal } from './components/PromptModal';
 import { ToolSwitcher } from './components/ToolSwitcher';
@@ -7,7 +8,7 @@ import { ToolResultWorkspace, ToolWorkspace } from './components/ToolWorkspace';
 import { toolOptions } from './constants';
 import { useVideoTaskCloneState } from './useVideoTaskCloneState';
 import type { ToolOption } from './types';
-import type { User } from '../../../types';
+import type { User, VideoGenerationTask } from '../../../types';
 import './VideoTaskClonePage.scss';
 
 type VideoTaskClonePageProps = {
@@ -34,6 +35,30 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
     });
   };
 
+  const handleEditProduction = async (task: VideoGenerationTask) => {
+    const applyRecordToForm = async () => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('tool', 'video');
+        return next;
+      });
+      await state.editVideoProduction(task);
+    };
+
+    if (!state.hasCreationFormContent) {
+      await applyRecordToForm();
+      return;
+    }
+
+    Modal.confirm({
+      cancelText: '取消',
+      content: '当前视频创作已有内容，继续编辑将使用这条生成记录的配置覆盖现有内容。',
+      okText: '覆盖并编辑',
+      onOk: applyRecordToForm,
+      title: '确定覆盖内容？',
+    });
+  };
+
   return (
     <div className="video-task-clone-page">
       <section className="video-task-left" aria-label="视频生成功能">
@@ -47,7 +72,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         <ToolWorkspace state={state} />
       </section>
 
-      <ToolResultWorkspace state={state} />
+      <ToolResultWorkspace onEdit={handleEditProduction} state={state} />
 
       {state.showModelPicker && (
         <ModelPicker

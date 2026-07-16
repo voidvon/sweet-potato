@@ -1,5 +1,5 @@
-import { DeleteOutlined, DownloadOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, Play, RefreshCcw, Search } from 'lucide-react';
+import { CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw, Search } from 'lucide-react';
 import { Button, Dropdown, Modal, message } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
@@ -10,6 +10,7 @@ import { downloadUrlAsFile } from '@shared/utils/download';
 import { filterGroups } from '../constants';
 import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
+import { VideoAssetCover } from '../../shared/VideoAssetCover';
 import { ResultVideoPreviewModal, type ResultVideoPreview } from './ResultVideoPreviewModal';
 
 type ResultPanelProps = {
@@ -20,6 +21,7 @@ type ResultPanelProps = {
   isLoadingMore: boolean;
   onClearFilters: () => void;
   onDelete: (task: VideoGenerationTask) => Promise<boolean>;
+  onEdit: (task: VideoGenerationTask) => Promise<void>;
   onFilterChange: (filters: FilterValues) => void;
   onFilterToggle: () => void;
   onLoadMore: () => Promise<void>;
@@ -37,6 +39,7 @@ export function ResultPanel({
   isLoadingMore,
   onClearFilters,
   onDelete,
+  onEdit,
   onFilterChange,
   onFilterToggle,
   onLoadMore,
@@ -111,6 +114,15 @@ export function ResultPanel({
       message.success('已开始下载');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '视频下载失败');
+    }
+  };
+
+  const handleCopyTaskId = async (taskId: string) => {
+    try {
+      await copyText(taskId);
+      message.success('ID 已复制');
+    } catch {
+      message.error('复制 ID 失败');
     }
   };
 
@@ -214,16 +226,19 @@ export function ResultPanel({
                         <div className="video-task-result-preview">
                           {state.videoUrl ? (
                             <button
-                              className="video-task-result-thumb"
+                              className="video-task-result-thumb video-asset-cover-host"
                               onClick={() => state.previewVideo && setPreviewVideo(state.previewVideo)}
                               onMouseEnter={(event) => playMutedCardVideo(event.currentTarget)}
                               onMouseLeave={(event) => resetCardVideo(event.currentTarget)}
                               type="button"
                             >
-                              <video muted playsInline poster={state.coverUrl || undefined} preload="metadata" src={state.videoUrl} />
-                              <span className="video-task-result-play">
-                                <Play size={20} fill="currentColor" />
-                              </span>
+                              <VideoAssetCover
+                                fit="contain"
+                                playIconSize={20}
+                                poster={state.coverUrl}
+                                source={null}
+                                src={state.videoUrl}
+                              />
                             </button>
                           ) : state.kind === 'failed' || state.kind === 'running' ? (
                             <div className={`video-task-result-placeholder is-${state.kind}`} title={state.note || state.posterText}>
@@ -269,6 +284,19 @@ export function ResultPanel({
                                     disabled={isDeleting || isRetrying}
                                     menu={{
                                       items: [
+                                        {
+                                          key: 'copy-id',
+                                          icon: <CopyOutlined />,
+                                          label: '复制 ID',
+                                          onClick: () => void handleCopyTaskId(task.id),
+                                        },
+                                        {
+                                          key: 'edit',
+                                          icon: <EditOutlined />,
+                                          label: '编辑',
+                                          disabled: !isEditableVideoTask(task),
+                                          onClick: () => void onEdit(task),
+                                        },
                                         {
                                           key: 'download',
                                           icon: <DownloadOutlined />,
@@ -427,9 +455,10 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     return `视频翻译 · ${source} → ${target} · ${level}`;
   }
   if (!result) {
-    return '等待参数';
+    return '视频创作 · 等待参数';
   }
-  return [result.ratio, result.duration].filter(Boolean).join(' · ') || '等待参数';
+  const metric = [result.ratio, result.duration].filter(Boolean).join(' · ');
+  return metric ? `视频创作 · ${metric}` : '视频创作 · 等待参数';
 }
 
 function parseDurationSeconds(duration?: string | null) {
@@ -465,6 +494,11 @@ function resultModuleKey(task: VideoGenerationTask) {
     return 'video_create';
   }
   return mode;
+}
+
+function isEditableVideoTask(task: VideoGenerationTask) {
+  const mode = String(task.expertContext?.mode || '').trim();
+  return !mode || mode === 'video_create' || mode === 'video_generation';
 }
 
 function activeResultFilterCount(filters: FilterValues) {
@@ -509,6 +543,28 @@ function resetCardVideo(card: HTMLElement) {
   }
   video.pause();
   video.currentTime = 0;
+}
+
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Fall through to the DOM copy path for restricted browser contexts.
+    }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) {
+    throw new Error('copy failed');
+  }
 }
 
 function downloadFileName(task: VideoGenerationTask) {
