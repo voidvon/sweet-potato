@@ -1,11 +1,12 @@
 import { Button, Popconfirm } from 'antd';
 import { useRef, useState } from 'react';
 import type { KeyboardEvent, SyntheticEvent } from 'react';
-import { Clapperboard, LoaderCircle, Play, Trash2 } from 'lucide-react';
+import { Clapperboard, LoaderCircle, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../../../api/request';
 import type { ContentAsset } from '../../../types';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
-import { getVideoWorkSource, getVideoWorkSourceLabel } from './worksAssetSource';
+import { VideoAssetCover } from '../shared/VideoAssetCover';
+import { getVideoWorkSource } from './worksAssetSource';
 
 type WorksAssetStatus = 'completed' | 'generating' | 'failed';
 
@@ -91,8 +92,7 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
   const isCompleted = status === 'completed' && Boolean(url);
   const isVideo = asset.mimeType.startsWith('video/');
   const videoWorkSource = getVideoWorkSource(asset);
-  const videoWorkSourceLabel = getVideoWorkSourceLabel(videoWorkSource);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(() => durationSecondsFromMetadata(asset));
   const durationLabel = isVideo && videoDurationSeconds > 0 ? formatDurationLabel(videoDurationSeconds) : '';
 
@@ -104,19 +104,21 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
   }
 
   function handleMouseEnter() {
-    if (!isCompleted || !isVideo || !videoRef.current) {
+    const video = cardRef.current?.querySelector('video');
+    if (!isCompleted || !isVideo || !video) {
       return;
     }
-    videoRef.current.muted = true;
-    void videoRef.current.play().catch(() => undefined);
+    video.muted = true;
+    void video.play().catch(() => undefined);
   }
 
   function handleMouseLeave() {
-    if (!isVideo || !videoRef.current) {
+    const video = cardRef.current?.querySelector('video');
+    if (!isVideo || !video) {
       return;
     }
-    videoRef.current.pause();
-    videoRef.current.currentTime = 0;
+    video.pause();
+    video.currentTime = 0;
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -133,33 +135,30 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
     <div
       aria-disabled={!isCompleted}
       aria-label={asset.name}
-      className={`works-asset-card works-asset-card--${status}`}
+      className={`works-asset-card works-asset-card--${status}${isVideo ? ' video-asset-cover-host' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={isCompleted ? onOpen : undefined}
       onKeyDown={handleKeyDown}
       role="button"
+      ref={cardRef}
       tabIndex={isCompleted ? 0 : -1}
     >
       {isCompleted ? (
         <>
           {asset.mimeType.startsWith('image/')
             ? <img alt={asset.name} src={url} />
-            : <video muted onLoadedMetadata={handleVideoMetadata} playsInline preload="metadata" ref={videoRef} src={url} />}
+            : (
+              <VideoAssetCover
+                onLoadedMetadata={handleVideoMetadata}
+                source={videoWorkSource}
+                src={url}
+              />
+            )}
         </>
       ) : (
         <span aria-hidden="true" className="works-asset-card__placeholder">
           {status === 'failed' ? <Clapperboard size={28} /> : <LoaderCircle size={28} />}
-        </span>
-      )}
-      {isCompleted && isVideo && (
-        <span aria-hidden="true" className="works-asset-card__play">
-          <Play fill="currentColor" size={30} />
-        </span>
-      )}
-      {isVideo && videoWorkSourceLabel && (
-        <span className={`works-asset-card__source-badge works-asset-card__source-badge--${videoWorkSource}`}>
-          {videoWorkSourceLabel}
         </span>
       )}
       {durationLabel && <span className="works-asset-card__duration">{durationLabel}</span>}

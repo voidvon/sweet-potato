@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, listContentAssetGroups, listContentAssets, listVideoProductionsPage, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, getContentAsset, listContentAssetGroups, listContentAssets, listVideoProductionsPage, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
@@ -305,6 +305,15 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
   const canvas = `${ratio} · ${quality}`;
   const paramSummary = `${model} · ${canvas} · ${duration}`;
+  const hasCreationFormContent = Boolean(
+    prompt.trim()
+    || Object.values(selectedMaterials).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value))
+    || model !== 'Seedance 2.0'
+    || ratio !== '9:16'
+    || quality !== '720P'
+    || duration !== '5s'
+    || !voiceEnabled,
+  );
 
   const chooseTool = useCallback((option: ToolOption) => {
     setTool(option);
@@ -607,6 +616,88 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     message.success(`已把商品图${referenceLabels.length ? `、${referenceLabels.join('、')}` : ''}、提示词和时长带入视频创作`);
   }, []);
 
+  const editVideoProduction = useCallback(async (task: VideoGenerationTask) => {
+    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    const mode = stringFromRecord(context, 'mode');
+    if (mode && mode !== 'video_create' && mode !== 'video_generation') {
+      message.warning('暂时只支持编辑“视频”类型的生成记录');
+      return;
+    }
+
+    const referenceImageIds = stringArrayFromRecord(context, 'originalReferenceImageIds').length
+      ? stringArrayFromRecord(context, 'originalReferenceImageIds')
+      : stringArrayFromRecord(context, 'referenceImageIds');
+    const referenceVideoIds = stringArrayFromRecord(context, 'referenceVideoIds');
+    const referenceAudioIds = stringArrayFromRecord(context, 'referenceAudioIds');
+    const referenceIds = Array.from(new Set([
+      ...referenceImageIds,
+      ...referenceVideoIds,
+      ...referenceAudioIds,
+    ]));
+    const messageKey = 'video-task-edit-backfill';
+    message.loading({ content: '正在回填生成配置…', duration: 0, key: messageKey });
+
+    try {
+      const assetResults = await Promise.allSettled(referenceIds.map((id) => getContentAsset(id)));
+      const assetById = new Map<string, ContentAsset>();
+      assetResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          assetById.set(referenceIds[index], result.value);
+        }
+      });
+      const missingReferenceCount = referenceIds.length - assetById.size;
+
+      setSelectedMaterials((current) => {
+        Object.values(current).forEach((value) => revokeLocalMaterials(getLocalFiles(value)));
+        const imageMaterials = referenceImageIds.flatMap((id) => {
+          const asset = assetById.get(id);
+          return asset ? [localMaterialFromAsset('image', asset)] : [];
+        });
+        const videoMaterials = referenceVideoIds.flatMap((id) => {
+          const asset = assetById.get(id);
+          return asset ? [localMaterialFromAsset('video', asset)] : [];
+        });
+        const audioMaterials = referenceAudioIds.flatMap((id) => {
+          const asset = assetById.get(id);
+          return asset ? [localMaterialFromAsset('audio', asset)] : [];
+        });
+        return {
+          ...(imageMaterials.length ? { image: imageMaterials } : {}),
+          ...(videoMaterials.length ? { video: videoMaterials.slice(0, 1) } : {}),
+          ...(audioMaterials.length ? { audio: audioMaterials.slice(0, 3) } : {}),
+        };
+      });
+      setTool(toolOptions[0]);
+      setPrompt(stringFromRecord(context, 'userPrompt', task.prompt || ''));
+      setModel(modelLabelFromId(stringFromRecord(context, 'videoModelId')));
+      setRatio(stringFromRecord(context, 'ratio', '9:16'));
+      setQuality(qualityLabelFromContext(stringFromRecord(context, 'quality')));
+      setDuration(durationLabelFromContext(stringFromRecord(context, 'duration')));
+      setVoiceEnabled(true);
+      setShowToolMenu(false);
+      setMaterialMode(null);
+      setActiveUpload(null);
+      setUploadAnchor(null);
+      setShowModelPicker(false);
+      setSelectedModelAvatar('');
+      setPromptPanel(null);
+      setExpandedPrompt(false);
+      setActiveParam(null);
+      setFilterOpen(false);
+      message.success({
+        content: missingReferenceCount > 0
+          ? `配置已回填，${missingReferenceCount} 个已删除素材未能恢复`
+          : '视频创作配置已回填',
+        key: messageKey,
+      });
+    } catch (error) {
+      message.error({
+        content: error instanceof Error ? error.message : '视频创作配置回填失败',
+        key: messageKey,
+      });
+    }
+  }, []);
+
   const resetCreationForm = useCallback(() => {
     setPrompt('');
     setTool(toolOptions[0]);
@@ -894,6 +985,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     fillMaterial,
     fillMaterialFiles,
     handleGenerate,
+    hasCreationFormContent,
     clearMaterial,
     removeOneMaterial,
     replaceMaterialFiles,
@@ -982,6 +1074,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     deletingTaskId,
     retryVideoProduction,
     retryingTaskId,
+    editVideoProduction,
     showModelPicker,
     showToolMenu,
     tool,
@@ -1261,6 +1354,34 @@ function getAssetDurationSeconds(asset: ContentAsset) {
   const rawDuration = asset.metadata?.duration;
   const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
   return Number.isFinite(duration) && duration > 0 ? duration : undefined;
+}
+
+function localMaterialFromAsset(type: LocalMaterialFile['type'], asset: ContentAsset): LocalMaterialFile {
+  const duration = getAssetDurationSeconds(asset);
+  return {
+    assetId: asset.id,
+    audioDuration: type === 'audio' ? duration : undefined,
+    id: `${type}-${asset.id}-${crypto.randomUUID()}`,
+    name: asset.name || asset.originalFileName || asset.storedFileName || '参考素材',
+    serverFileUrl: asset.fileUrl,
+    storedFileName: asset.storedFileName,
+    trimDuration: type === 'video' ? duration : undefined,
+    type,
+    url: resolveAssetUrl(asset.fileUrl),
+  };
+}
+
+function modelLabelFromId(modelId: string) {
+  return Object.entries(modelOptionIds).find(([, id]) => id === modelId)?.[0] || 'Seedance 2.0';
+}
+
+function qualityLabelFromContext(value: string) {
+  return value.toLowerCase().includes('480') ? '480P' : '720P';
+}
+
+function durationLabelFromContext(value: string) {
+  const matched = value.match(/(\d+)/);
+  return matched ? `${matched[1]}s` : '5s';
 }
 
 function isAllowedAudioFile(file: File) {

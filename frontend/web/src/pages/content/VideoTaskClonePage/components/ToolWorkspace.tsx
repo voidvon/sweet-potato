@@ -3,6 +3,7 @@ import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
+import type { VideoGenerationTask } from '../../../../types';
 import { MaterialPanel } from './MaterialPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
@@ -104,7 +105,10 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
   ) : null,
 };
 
-export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
+export function ToolResultWorkspace({
+  onEdit,
+  state,
+}: Pick<ToolWorkspaceProps, 'state'> & { onEdit: (task: VideoGenerationTask) => Promise<void> }) {
   return (
     <ResultPanel
       filters={state.filters}
@@ -114,6 +118,7 @@ export function ToolResultWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>
       isLoadingMore={state.isLoadingMoreProductions}
       onClearFilters={state.clearFilters}
       onDelete={state.deleteVideoProduction}
+      onEdit={onEdit}
       onFilterChange={state.setFilters}
       onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
       onLoadMore={state.loadMoreVideoProductions}

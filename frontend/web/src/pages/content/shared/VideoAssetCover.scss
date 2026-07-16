@@ -1,0 +1,106 @@
+.video-asset-cover__media {
+  display: block;
+  height: 100%;
+  transition: transform 0.3s ease;
+  width: 100%;
+}
+
+.video-asset-cover__media.is-cover {
+  object-fit: cover;
+}
+
+.video-asset-cover__media.is-contain {
+  background: #000;
+  object-fit: contain;
+}
+
+.video-asset-cover__play,
+.video-asset-cover__type {
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 0.3s ease, transform 0.24s ease;
+  z-index: 1;
+}
+
+.video-asset-cover__play {
+  align-items: center;
+  color: #fff;
+  display: inline-flex;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.34));
+  inset: 0;
+  justify-content: center;
+}
+
+.video-asset-cover__type {
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+  color: #fff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 5px;
+  left: 6px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  padding: 4px 8px 4px 6px;
+  top: 6px;
+}
+
+.video-asset-cover__type::before {
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28);
+  content: '';
+  flex: 0 0 auto;
+  height: 5px;
+  width: 5px;
+}
+
+.video-asset-cover__type--video_creation {
+  background: rgba(29, 78, 216, 0.42);
+}
+
+.video-asset-cover__type--video_remake {
+  background: rgba(13, 148, 136, 0.42);
+}
+
+.video-asset-cover__type--video_translation {
+  background: rgba(126, 34, 206, 0.46);
+}
+
+.video-asset-cover__type--video_upscale {
+  background: rgba(161, 98, 7, 0.5);
+}
+
+.video-asset-cover__type--subtitle_removal {
+  background: rgba(190, 24, 93, 0.48);
+}
+
+.video-asset-cover__type--video_creation::before {
+  background: #60a5fa;
+}
+
+.video-asset-cover__type--video_remake::before {
+  background: #5eead4;
+}
+
+.video-asset-cover__type--video_translation::before {
+  background: #d8b4fe;
+}
+
+.video-asset-cover__type--video_upscale::before {
+  background: #facc15;
+}
+
+.video-asset-cover__type--subtitle_removal::before {
+  background: #fb7185;
+}
+
+.video-asset-cover-host:hover .video-asset-cover__play,
+.video-asset-cover-host:focus-visible .video-asset-cover__play {
+  opacity: 0;
+  transform: scale(0.94);
+}
