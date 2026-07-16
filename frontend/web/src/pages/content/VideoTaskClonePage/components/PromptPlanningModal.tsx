@@ -339,6 +339,11 @@ export function PromptPlanningModal({
   useEffect(() => {
     if (session?.status === 'generating') {
       thinkingAutoScrollRef.current = true;
+      setIsThinkingCollapsed(false);
+      return;
+    }
+    if (session?.status === 'ready_to_apply' || session?.status === 'applied') {
+      setIsThinkingCollapsed(true);
     }
   }, [session?.id, session?.status]);
 
