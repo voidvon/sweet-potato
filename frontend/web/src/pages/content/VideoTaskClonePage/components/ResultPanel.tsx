@@ -50,7 +50,7 @@ export function ResultPanel({
   const filterButtonRef = useRef<HTMLButtonElement | null>(null);
   const filterPanelRef = useRef<HTMLElement | null>(null);
   const sortedRecords = [...records].sort(
-    (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
   const resultGroups = groupRecordsByMetric(sortedRecords);
   const activeFilterCount = activeResultFilterCount(filters);
@@ -90,6 +90,7 @@ export function ResultPanel({
   const confirmDeleteVideo = (task: VideoGenerationTask) => {
     Modal.confirm({
       cancelText: '取消',
+      centered: true,
       content: '删除后会同时移除该任务关联的成片素材，确定继续？',
       okButtonProps: { danger: true },
       okText: '删除',
@@ -440,7 +441,7 @@ function groupRecordsByMetric(records: VideoGenerationTask[]) {
   const groups: Array<{ key: string; label: string; records: VideoGenerationTask[] }> = [];
   let previousMetricKey = '';
   records.forEach((record) => {
-    const date = new Date(record.updatedAt);
+    const date = new Date(record.createdAt);
     const metric = formatMetric(taskVideoGenerationResult(record), record);
     const metricKey = JSON.stringify([resultModuleKey(record), metric]);
     const current = groups[groups.length - 1];

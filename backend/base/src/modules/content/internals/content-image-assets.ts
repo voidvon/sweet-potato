@@ -500,7 +500,7 @@ export async function createGeneratedImageWorkAsset(input: {
   height?: number;
 }) {
   const extension = extensionForMimeType(input.mimeType);
-  const storedRelativePath = input.storedFileName || generatedMediaRelativePath('image', `work-generated-image-${randomBytes(8).toString('hex')}.${extension}`);
+  const storedRelativePath = input.storedFileName || generatedMediaRelativePath('image', `${randomBytes(8).toString('hex')}.${extension}`);
   const filePath = input.filePath || contentFilePathForRelativePath(storedRelativePath);
   const fileUrl = input.fileUrl || generatedImageFileUrl(storedRelativePath);
   if (!input.filePath) {
