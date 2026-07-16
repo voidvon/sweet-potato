@@ -367,11 +367,14 @@ function persistBillableUsageCharge(input: {
   creditBaseCost: number;
   multiplier?: number;
   priceSource?: string;
+  creditRounding?: 'precision' | 'ceil';
 }) {
   const settings = assertSystemBillingReady();
   const creditBaseCost = roundCredits(Math.max(0, input.creditBaseCost));
   const multiplier = Math.max(0, normalizeNumber(input.multiplier, 1));
-  const creditBilledCost = roundCredits(creditBaseCost * multiplier);
+  const creditBilledCost = input.creditRounding === 'ceil'
+    ? Math.ceil(creditBaseCost * multiplier)
+    : roundCredits(creditBaseCost * multiplier);
   const creditCost = creditBilledCost;
   const now = new Date().toISOString();
   const quantitySnapshot = input.quantitySnapshot || {};
@@ -1398,6 +1401,7 @@ export function recordVideoGenerationUsage(input: {
       completionTokens,
       totalTokens,
       inputTokens: 0,
+      creditRounding: 'ceil',
       hasToolUsage: Boolean(input.usage?.toolUsage && Object.keys(input.usage.toolUsage).length),
       priceSource: billing.priceSource,
     },
@@ -1411,6 +1415,7 @@ export function recordVideoGenerationUsage(input: {
     creditBaseCost: roundCredits(totalTokens / 1_000_000 * billing.creditsPer1MTokens),
     multiplier: billing.multiplier,
     priceSource: billing.priceSource,
+    creditRounding: 'ceil',
   });
 }
 

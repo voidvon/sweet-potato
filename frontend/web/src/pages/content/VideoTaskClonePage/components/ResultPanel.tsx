@@ -333,10 +333,11 @@ function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
   if (!Number.isFinite(creditCost) || creditCost < 0 || task.creditCost === null || typeof task.creditCost === 'undefined') {
     return null;
   }
+  const billedCreditCost = Math.ceil(creditCost);
   return (
-    <span className="video-task-result-credit-cost" title={`消耗 ${creditCost} 积分`}>
+    <span className="video-task-result-credit-cost" title={`消耗 ${billedCreditCost} 积分`}>
       <Zap aria-hidden="true" fill="currentColor" size={12} />
-      {creditCost}
+      {billedCreditCost}
     </span>
   );
 }

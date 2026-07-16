@@ -6,6 +6,7 @@ import {
   findReservedFixedBillableUsage,
   InsufficientStepCreditsError,
   normalizeBillingSettings,
+  recordVideoGenerationUsage,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
@@ -43,6 +44,56 @@ test('billing settings include default content planning request prices', () => {
   const settings = normalizeBillingSettings({});
   assert.equal(settings.contentPlanningAnalysisCreditsPerRequest, 2);
   assert.equal(settings.contentPlanningGenerationCreditsPerRequest, 3);
+});
+
+test('video generation rounds billed credits up before debiting the balance', () => {
+  const userId = createBillingTestUser(10);
+  const now = new Date().toISOString();
+  try {
+    const record = recordVideoGenerationUsage({
+      userId,
+      modelConfig: {
+        id: `video-billing-${userId}`,
+        type: 'video',
+        name: 'Video billing rounding test',
+        provider: 'test-provider',
+        model: 'test-video-model',
+        apiKey: 'test',
+        baseUrl: 'https://example.com',
+        temperature: 0,
+        settings: {
+          billing: {
+            creditsPer1MTokens: 1,
+            multiplier: 2,
+          },
+        },
+        isDefault: false,
+        sortOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+      sourceType: 'video_generation',
+      sourceId: `${userId}:video-generation`,
+      taskId: `${userId}:task`,
+      durationSeconds: 5,
+      usage: {
+        completionTokens: 1_534_204,
+        totalTokens: 1_534_204,
+      },
+    });
+
+    assert.equal(record.creditBaseCost, 1.534204);
+    assert.equal(record.creditBilledCost, 4);
+    assert.equal(record.creditCost, 4);
+    assert.equal(record.quantitySnapshot.creditRounding, 'ceil');
+    assert.equal(userRepository.findById(userId)?.creditBalance, 6);
+    const ledger = billingRepository.listLedgerEntries({ userId });
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].creditDelta, -4);
+    assert.equal(ledger[0].creditBilledCost, 4);
+  } finally {
+    cleanupBillingTestUser(userId);
+  }
 });
 
 test('fixed billable usage reserves credits and settles one completed record', () => {
