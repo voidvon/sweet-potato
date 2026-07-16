@@ -1,3 +1,5 @@
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
+import { jsonrepair } from 'jsonrepair';
 import { z } from 'zod';
 import { streamVideoUnderstanding } from '../video-understanding/video-understanding.client.js';
 import type { VideoUnderstandingContent } from '../video-understanding/video-understanding.types.js';
@@ -113,7 +115,7 @@ function mediaSource(asset: ContentPlanningAnalysisAsset) {
   };
 }
 
-function parseJsonResponse<T>(raw: string, schema: z.ZodType<T>): T {
+export async function parseContentPlanningAnalysisResponse<T>(raw: string, schema: z.ZodType<T>): Promise<T> {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
   const source = (fenced || raw).trim();
   const start = source.indexOf('{');
@@ -121,10 +123,16 @@ function parseJsonResponse<T>(raw: string, schema: z.ZodType<T>): T {
   if (start < 0 || end <= start) {
     throw new Error('素材理解模型未返回有效 JSON');
   }
+  const jsonSource = source.slice(start, end + 1);
+  const parser = StructuredOutputParser.fromZodSchema(schema);
   try {
-    return schema.parse(JSON.parse(source.slice(start, end + 1)));
-  } catch (error) {
-    throw new Error(`素材理解结果不符合约定格式：${error instanceof Error ? error.message : String(error)}`);
+    return await parser.parse(jsonSource);
+  } catch {
+    try {
+      return schema.parse(JSON.parse(jsonrepair(jsonSource)));
+    } catch (error) {
+      throw new Error(`素材理解结果不符合约定格式：${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }
 
@@ -175,7 +183,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
         image_url: { ...mediaSource(image), detail: 'high' as const },
       })),
     ];
-    const parsed = parseJsonResponse(await collectUnderstanding(content), productAnalysisSchema);
+    const parsed = await parseContentPlanningAnalysisResponse(await collectUnderstanding(content), productAnalysisSchema);
     const captionsByAssetId = new Map(parsed.materialCaptions.map((caption) => [caption.assetId, caption]));
     const materialCaptions: ContentPlanningMaterialCaption[] = input.images.map((image, index) => {
       const caption = captionsByAssetId.get(image.assetId) || parsed.materialCaptions[index];
@@ -215,7 +223,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
       },
       ...(input.video ? [{ type: 'video_url' as const, video_url: { ...mediaSource(input.video), fps: 2 } }] : []),
     ];
-    const parsed = parseJsonResponse(await collectUnderstanding(content), viralBreakdownSchema);
+    const parsed = await parseContentPlanningAnalysisResponse(await collectUnderstanding(content), viralBreakdownSchema);
     return {
       ...parsed,
       segments: parsed.segments.map((segment) => ({

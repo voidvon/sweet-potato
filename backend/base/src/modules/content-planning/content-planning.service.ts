@@ -29,6 +29,7 @@ import {
   type ContentPlanningAnalysisProvider,
 } from './content-planning-analysis-runtime.js';
 import { publishContentPlanningEvent } from './content-planning.events.js';
+import { buildContentPlanningWebSearchContext } from './content-planning-web-search.js';
 import { logger } from '../../shared/logger.js';
 import type {
   AgentStage,
@@ -788,6 +789,17 @@ export class ContentPlanningService {
       let session = this.getSession(userId, sessionId);
       let context: PlanningRuntimeContext = { session };
       let generation = session.generation;
+      if (session.settings.webSearch) {
+        const webSearchContext = await buildContentPlanningWebSearchContext(session);
+        context = { ...context, webSearchContext };
+        if (webSearchContext.errorMessage) {
+          logger.warn('content planning web search completed with errors', {
+            sessionId,
+            userId,
+            error: webSearchContext.errorMessage,
+          });
+        }
+      }
       const execute = async <T>(
         role: AgentStage['role'],
         action: (onAuditDelta?: (delta: string) => void) => Promise<T>,

@@ -9,6 +9,7 @@ import type {
   ContentPlanningStoryboardSegment,
   ContentPlanningDurationSeconds,
 } from './content-planning.types.js';
+import type { ContentPlanningWebSearchContext } from './content-planning-web-search.js';
 
 export type PlanningBrief = {
   summary: string;
@@ -28,6 +29,7 @@ export type PlanningScriptLines = {
 
 export type PlanningRuntimeContext = {
   session: ContentPlanningSession;
+  webSearchContext?: ContentPlanningWebSearchContext;
   brief?: PlanningBrief;
   strategies?: ContentPlanningStrategyDirection[];
   timelines?: PlanningTimeline[];
@@ -658,6 +660,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       system: [
         '你是短视频策划系统的 Planner。',
         '先系统分析商品可见特征、目标人群、使用场景、素材能力、参考视频结构、目标时长和生成参数，再整理为可执行 brief。',
+        'settings.webSearch=true 时，必须参考输入中的 webSearch.summary 和 webSearch.results 提炼实时趋势、用户关注点或竞品表达；如果搜索结果为空或失败，只能说明外部信息不足，不能编造实时数据。',
         'hardConstraints 必须覆盖总时长、画面风格、商品真实性、口播语言、无字幕/无屏幕文字、素材完整使用和禁止夸大等约束。总时长必须表述为“精确等于 settings.durationSeconds 秒”，禁止写成“以内”“不超过”或更短时长。',
         'candidateDirections 要给出数量与 candidateCount 一致的差异路线，至少覆盖氛围种草、卖点/痛点、场景/对话或参考结构适配等不同创意机制。',
         '只输出可审计的规划结论，不写逐秒分镜，不泄露隐藏思维链。',
@@ -1128,6 +1131,14 @@ function planningStageInput(context: PlanningRuntimeContext) {
     },
     referenceVideoBreakdown: session.settings.referencePolicy.useBreakdown ? session.analysis.viralBreakdown : null,
     settings: session.settings,
+    webSearch: context.webSearchContext || {
+      enabled: session.settings.webSearch,
+      queries: [],
+      results: [],
+      summary: null,
+      errorMessage: session.settings.webSearch ? '联网搜索尚未返回结果' : null,
+      searchedAt: null,
+    },
     brief: context.brief,
     strategies: context.strategies,
     timelines: context.timelines,

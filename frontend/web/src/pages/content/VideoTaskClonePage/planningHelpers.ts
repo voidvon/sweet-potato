@@ -188,6 +188,7 @@ export function displayPlanningMaterialRef(value: string) {
 }
 
 export function planningApplyPayloadToFormState(payload: PlanningApplyPayload) {
+  // Reference video guides planning structure only; it is not a generation input.
   return {
     audioMaterials: payload.allowlist.referenceAudio
       ? [planningAssetRefToLocalMaterial(payload.allowlist.referenceAudio)]
@@ -195,9 +196,6 @@ export function planningApplyPayloadToFormState(payload: PlanningApplyPayload) {
     duration: payload.allowlist.duration,
     imageMaterials: planningAssetRefsToLocalMaterials(payload.allowlist.imageMaterials),
     prompt: normalizePlanningPromptTokens(payload.allowlist.prompt),
-    videoMaterials: payload.allowlist.referenceVideo
-      ? [planningAssetRefToLocalMaterial(payload.allowlist.referenceVideo)]
-      : [],
   };
 }
 

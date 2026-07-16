@@ -1277,6 +1277,11 @@ export function settleFixedBillableUsage(input: {
       ? reservation.snapshot.usageRaw
       : {};
     billingRepository.updateReservationStatus(reservation.id, 'settled', now);
+    billingRepository.markReservedLedgerAsUsageDebit({
+      userId: reservation.userId,
+      sourceType: reservation.sourceType,
+      sourceId: reservation.sourceId,
+    });
     const record: BillableUsageRecord = {
       id: randomBytes(12).toString('hex'),
       userId: reservation.userId,

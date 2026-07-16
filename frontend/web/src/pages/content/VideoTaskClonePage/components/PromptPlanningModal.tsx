@@ -94,7 +94,6 @@ type BusyAction =
   | 'analyzing'
   | 'confirming'
   | 'generating'
-  | 'selecting'
   | 'applying';
 
 type AnalysisDraft = {
@@ -209,6 +208,8 @@ export function PromptPlanningModal({
   const analyzeLockRef = useRef(false);
   const generateLockRef = useRef(false);
   const restorePromiseRef = useRef<Promise<PlanningSession> | null>(null);
+  const syncedSessionIdRef = useRef<string | null>(null);
+  const selectCandidateRequestRef = useRef(0);
   const thinkingBodyRef = useRef<HTMLPreElement | null>(null);
   const thinkingAutoScrollRef = useRef(true);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -219,6 +220,7 @@ export function PromptPlanningModal({
   const [analysisCredits, setAnalysisCredits] = useState<number | null>(null);
   const [generationCredits, setGenerationCredits] = useState<number | null>(null);
   const [session, setSession] = useState<PlanningSession | null>(null);
+  const [hydratedSessionId, setHydratedSessionId] = useState('');
   const [viewStep, setViewStep] = useState<PlanningUiStep>('step1');
   const [errorMessage, setErrorMessage] = useState('');
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -249,9 +251,6 @@ export function PromptPlanningModal({
   const activeStep = useMemo<PlanningUiStep>(() => {
     if (busyAction === 'analyzing' || session?.status === 'analyzing') {
       return 'step1';
-    }
-    if (session?.status === 'generating') {
-      return 'step4';
     }
     return viewStep;
   }, [busyAction, session?.status, viewStep]);
@@ -284,16 +283,22 @@ export function PromptPlanningModal({
       || null,
     [selectedCandidateId, session],
   );
+  const isSessionHydrated = Boolean(session && hydratedSessionId === session.id);
+  const shouldShowDeepThink = isSessionHydrated
+    && session?.settings.deepThink === true
+    && settingsDraft.deepThink === true;
   const thinkingText = useMemo(
-    () => buildReasoningText(session?.generation),
+    () => (shouldShowDeepThink && session ? buildReasoningText(session.generation) : ''),
     [
       session?.generation.reasoningLogs,
       session?.generation.reasoningStream?.content,
       session?.generation.stageOutputs,
       session?.generation.validatorSummary,
+      shouldShowDeepThink,
     ],
   );
-  const isWaitingForThinkingDelta = session?.status === 'generating'
+  const isWaitingForThinkingDelta = shouldShowDeepThink
+    && session?.status === 'generating'
     && isReasoningStreamWaiting(session.generation);
   const captionDraftCards = useMemo(
     () => buildCaptionDraftCards(analysisDraft.materialCaptions),
@@ -317,8 +322,8 @@ export function PromptPlanningModal({
 
   const showStep1Loading = isAnalyzing;
   const showStep4Loading = isGenerating;
-  const showThinkingPanel = activeStep === 'step4' && Boolean(thinkingText);
-  const showGenerationStages = showStep4Loading && Boolean(thinkingText);
+  const showThinkingPanel = activeStep === 'step4' && shouldShowDeepThink && Boolean(thinkingText);
+  const showGenerationStages = showStep4Loading && shouldShowDeepThink && Boolean(thinkingText);
   const showReadyCandidates = (session?.status === 'ready_to_apply' || session?.status === 'applied')
     && Boolean(session.generation.candidates.length);
 
@@ -427,10 +432,19 @@ export function PromptPlanningModal({
 
   useEffect(() => {
     if (!session) {
+      syncedSessionIdRef.current = null;
+      setHydratedSessionId('');
       return;
     }
+    const isNewSession = syncedSessionIdRef.current !== session.id;
+    syncedSessionIdRef.current = session.id;
     pollSinceRef.current = session.updatedAt;
-    setViewStep(resolvePlanningStep(session));
+    setViewStep((current) => {
+      if (session.status === 'generating' && !isNewSession) {
+        return current;
+      }
+      return resolvePlanningStep(session);
+    });
     setSettingsDraft(session.settings);
     setAnalysisDraft(buildAnalysisDraft(session, session.settings.referencePolicy.useBreakdown));
     setSelectedCandidateId(session.generation.selectedCandidateId || session.generation.candidates[0]?.id || '');
@@ -443,6 +457,7 @@ export function PromptPlanningModal({
         ownedObjectUrlsRef.current,
       )));
     }
+    setHydratedSessionId(session.id);
   }, [initialPrompt, session]);
 
   useEffect(() => {
@@ -748,24 +763,29 @@ export function PromptPlanningModal({
     }
 
     const previousId = selectedCandidateId;
+    const requestId = selectCandidateRequestRef.current + 1;
+    selectCandidateRequestRef.current = requestId;
     setSelectedCandidateId(candidate.id);
     setErrorMessage('');
     if (candidate.id === session.generation.selectedCandidateId) {
       return;
     }
 
-    updateBusyAction('selecting');
     try {
       const next = await selectPlanningCandidate({
         userId: currentUser.id,
         sessionId: session.id,
         candidateId: candidate.id,
       });
+      if (selectCandidateRequestRef.current !== requestId) {
+        return;
+      }
       setSession(next);
-      updateBusyAction('idle');
     } catch (error) {
+      if (selectCandidateRequestRef.current !== requestId) {
+        return;
+      }
       setSelectedCandidateId(previousId);
-      updateBusyAction('idle');
       setErrorMessage(error instanceof Error ? error.message : '切换候选失败');
     }
   };
@@ -820,6 +840,8 @@ export function PromptPlanningModal({
     setPrompt('');
     setProductName('');
     setSession(null);
+    setHydratedSessionId('');
+    syncedSessionIdRef.current = null;
     setViewStep('step1');
     setSettingsDraft(defaultSettings);
     setAnalysisDraft(buildAnalysisDraft(null, defaultSettings.referencePolicy.useBreakdown));
@@ -853,7 +875,11 @@ export function PromptPlanningModal({
   const analyzeCopy = getAnalyzeLoadingCopy(session?.jobStage || 'idle', {
     hasVideo: hasReferenceVideo,
   });
-  const generateCopy = getGenerateLoadingCopy(session?.jobStage || 'idle', Boolean(thinkingText));
+  const generateCopy = getGenerateLoadingCopy(
+    session?.jobStage || 'idle',
+    Boolean(thinkingText),
+    shouldShowDeepThink,
+  );
   const footerPoints = activeStep === 'step3' || activeStep === 'step4' ? generationCredits : null;
 
   return (
@@ -1494,7 +1520,7 @@ export function PromptPlanningModal({
 
           <footer className="video-task-epa-footer">
               <div className="video-task-epa-footer-left">
-                <button className="video-task-epa-clear" onClick={clearAll} type="button">
+                <button className="video-task-epa-clear" disabled={isBusy} onClick={clearAll} type="button">
                   <Trash2 size={15} />
                   清除
                 </button>
@@ -1572,7 +1598,7 @@ export function PromptPlanningModal({
                       <button
                         aria-label="减少候选数量"
                         className="video-task-epa-stepper-btn"
-                        disabled={settingsDraft.candidateCount <= 1}
+                        disabled={isBusy || settingsDraft.candidateCount <= 1}
                         onClick={() => setSettingsDraft((current) => ({
                           ...current,
                           candidateCount: Math.max(1, current.candidateCount - 1),
@@ -1585,7 +1611,7 @@ export function PromptPlanningModal({
                       <button
                         aria-label="增加候选数量"
                         className="video-task-epa-stepper-btn"
-                        disabled={settingsDraft.candidateCount >= 3}
+                        disabled={isBusy || settingsDraft.candidateCount >= 3}
                         onClick={() => setSettingsDraft((current) => ({
                           ...current,
                           candidateCount: Math.min(3, current.candidateCount + 1),
@@ -2309,15 +2335,21 @@ function getAnalyzeLoadingCopy(
   };
 }
 
-function getGenerateLoadingCopy(jobStage: PlanningJobStage, hasReasoning: boolean) {
-  if (hasReasoning || jobStage === 'timeline_running' || jobStage === 'copywriter_running' || jobStage === 'visual_director_running' || jobStage === 'validator_running') {
+function getGenerateLoadingCopy(jobStage: PlanningJobStage, hasReasoning: boolean, deepThink: boolean) {
+  if (deepThink && (
+    hasReasoning
+    || jobStage === 'timeline_running'
+    || jobStage === 'copywriter_running'
+    || jobStage === 'visual_director_running'
+    || jobStage === 'validator_running'
+  )) {
     return {
       title: 'AI 正在深度思考',
       description: '构思逐秒分镜脚本，约 1-2 分钟 · 可关闭弹窗，后台继续生成',
     };
   }
   return {
-    title: '正在发起生成',
+    title: '正在生成脚本',
     description: '可关闭弹窗，后台会继续生成，重新打开自动恢复',
   };
 }
