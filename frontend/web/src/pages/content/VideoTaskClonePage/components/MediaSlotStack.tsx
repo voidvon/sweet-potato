@@ -19,7 +19,7 @@ type MediaSlotStackProps = {
   items: MediaSlotItem[];
   keepPopoverOnPreview?: boolean;
   onPreview: (item: MediaSlotItem) => void;
-  onRemove: () => void;
+  onRemove: (item: MediaSlotItem) => void;
   popoverPortal?: boolean;
   renderAudioTitle?: (item: MediaSlotItem, index: number) => string;
 };
@@ -143,7 +143,7 @@ export function MediaSlotStack({
                 className="video-task-slot-delete"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRemove();
+                  onRemove(item);
                 }}
                 type="button"
               >
@@ -217,7 +217,7 @@ export function MediaSlotStack({
             className="video-task-slot-delete"
             onClick={(event) => {
               event.stopPropagation();
-              onRemove();
+              onRemove(item);
             }}
             type="button"
           >

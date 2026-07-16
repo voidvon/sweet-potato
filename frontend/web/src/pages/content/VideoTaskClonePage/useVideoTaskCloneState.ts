@@ -14,6 +14,7 @@ import {
 } from './constants';
 import type {
   FilterValues,
+  MaterialKey,
   MaterialKind,
   MaterialMode,
   ParamKind,
@@ -438,6 +439,15 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMaterialMode(null);
   };
 
+  const fillMentionPlaceholderFiles = (kind: MaterialKey, files: File[]) => {
+    const material = tool.materials.find((item) => item.key === kind);
+    if (!material) {
+      message.warning(`当前功能不支持${kind === 'image' ? '图片' : kind === 'video' ? '视频' : '音频'}素材`);
+      return;
+    }
+    void fillMaterialFiles(material, files);
+  };
+
   const clearMaterial = (kind: MaterialKind) => {
     setSelectedMaterials((current) => {
       const next = { ...current };
@@ -447,12 +457,16 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     });
   };
 
-  const removeOneMaterial = (kind: MaterialKind) => {
+  const removeOneMaterial = (kind: MaterialKind, materialId?: string) => {
     if (getLocalFiles(selectedMaterials[kind.key]).length > 0) {
       setSelectedMaterials((current) => {
         const currentFiles = getLocalFiles(current[kind.key]);
-        revokeLocalMaterials(currentFiles.slice(-1));
-        const nextFiles = currentFiles.slice(0, -1);
+        const materialIndex = materialId
+          ? currentFiles.findIndex((file) => file.id === materialId)
+          : currentFiles.length - 1;
+        const removedIndex = materialIndex >= 0 ? materialIndex : currentFiles.length - 1;
+        revokeLocalMaterials(currentFiles.slice(removedIndex, removedIndex + 1));
+        const nextFiles = currentFiles.filter((_, index) => index !== removedIndex);
         if (nextFiles.length === 0) {
           const next = { ...current };
           delete next[kind.key];
@@ -984,6 +998,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     fillExamplePrompt,
     fillMaterial,
     fillMaterialFiles,
+    fillMentionPlaceholderFiles,
     handleGenerate,
     hasCreationFormContent,
     clearMaterial,

@@ -1,18 +1,18 @@
 import { X } from 'lucide-react';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MentionRichTextarea } from '../../../../components/MentionRichTextarea';
-import { promptMentionOptions } from '../promptMentionOptions';
-import type { SelectedMaterials } from '../types';
+import type { MaterialKey, SelectedMaterials } from '../types';
+import { PromptMentionEditor } from './PromptMentionEditor';
 
 type PromptModalProps = {
   onClose: () => void;
   onPromptChange: (prompt: string) => void;
+  onPlaceholderFiles: (kind: MaterialKey, files: File[]) => void;
   prompt: string;
   selectedMaterials: SelectedMaterials;
 };
 
-export function PromptModal({ onClose, onPromptChange, prompt, selectedMaterials }: PromptModalProps) {
+export function PromptModal({ onClose, onPlaceholderFiles, onPromptChange, prompt, selectedMaterials }: PromptModalProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -34,13 +34,14 @@ export function PromptModal({ onClose, onPromptChange, prompt, selectedMaterials
           </div>
           <button onClick={onClose} type="button"><X size={18} /></button>
         </div>
-        <MentionRichTextarea
+        <PromptMentionEditor
           minRows={10}
           onChange={onPromptChange}
-          options={promptMentionOptions(selectedMaterials)}
+          onPlaceholderFiles={onPlaceholderFiles}
           placeholder="输入提示词，可通过 @ 引用素材"
+          prompt={prompt}
+          selectedMaterials={selectedMaterials}
           suggestionContainer=".video-task-prompt-modal"
-          value={prompt}
         />
       </section>
     </div>,

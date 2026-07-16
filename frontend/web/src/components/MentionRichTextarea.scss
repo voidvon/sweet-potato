@@ -63,6 +63,52 @@
   cursor: pointer;
 }
 
+.mention-rich-textarea-chip.is-placeholder {
+  background: #f8fafc;
+  border-color: #9fb2cf;
+  border-style: dashed;
+  color: #5d6c82;
+  cursor: pointer;
+  padding-right: 8px;
+}
+
+.mention-rich-textarea-chip.is-placeholder:hover {
+  background: #f1f6fd;
+  border-color: #6f8db8;
+}
+
+.mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon {
+  background: #eef3f9;
+  color: #6b7f9d;
+  font-size: 0;
+  position: relative;
+}
+
+.mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon::before,
+.mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon::after {
+  background: currentColor;
+  border-radius: 999px;
+  content: '';
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon::before {
+  height: 2px;
+  width: 8px;
+}
+
+.mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon::after {
+  height: 8px;
+  width: 2px;
+}
+
+.mention-rich-textarea-chip.is-placeholder b {
+  color: #5d6c82;
+}
+
 .mention-rich-textarea-chip img {
   border-radius: 999px;
   height: 22px;

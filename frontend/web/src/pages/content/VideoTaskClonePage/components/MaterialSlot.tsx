@@ -12,7 +12,7 @@ type MaterialSlotProps = {
   onClear: (kind: MaterialKind) => void;
   onLocalFiles?: (kind: MaterialKind, files: FileList | File[]) => void;
   onLocalUpload?: (kind: MaterialKind) => void;
-  onRemoveOne: (kind: MaterialKind) => void;
+  onRemoveOne: (kind: MaterialKind, materialId?: string) => void;
   onOpen: (kind: MaterialKind, anchor: UploadAnchor) => void;
   onReplaceFiles?: (kind: MaterialKind, files: LocalMaterialFile[]) => void;
   openMode?: 'local' | 'popover';
@@ -82,13 +82,13 @@ export function MaterialSlot({
             {item.key === 'image' && (
               <ImageMaterialStack
                 items={getImageItems(selectedCount, selected)}
-                onRemove={() => onRemoveOne(item)}
+                onRemove={(material) => onRemoveOne(item, material.id)}
               />
             )}
             {item.key === 'audio' && (
               <AudioMaterialStack
                 items={getAudioItems(selectedCount, selected)}
-                onRemove={() => onRemoveOne(item)}
+                onRemove={(material) => onRemoveOne(item, material.id)}
                 renderAudioTitle={(_, index) => getAudioName(selected, index)}
               />
             )}

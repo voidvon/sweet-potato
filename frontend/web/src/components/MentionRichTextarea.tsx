@@ -11,6 +11,7 @@ import './MentionRichTextarea.scss';
 
 export type MentionRichTextareaOption = {
   attachmentId?: string;
+  isPlaceholder?: boolean;
   label: string;
   mimeType?: string;
   name?: string;
@@ -29,6 +30,7 @@ type MentionRichTextareaProps = {
   menuTitle?: string;
   minRows?: number;
   onChange: (value: string) => void;
+  onPlaceholderClick?: (option: MentionRichTextareaOption) => void;
   onSubmit?: () => void;
   options: MentionRichTextareaOption[];
   placeholder?: string;
@@ -64,7 +66,12 @@ type MentionPreviewImage = {
   src: string;
 };
 
+type MentionPlaceholderRequest = {
+  token: string;
+};
+
 const mentionPreviewEventName = 'mention-rich-textarea-preview';
+const mentionPlaceholderEventName = 'mention-rich-textarea-placeholder';
 
 function isAudioMention(option: Pick<MentionRichTextareaOption, 'label' | 'mimeType' | 'token'>) {
   return option.mimeType?.startsWith('audio/') || /音频/u.test(`${option.token} ${option.label}`);
@@ -143,6 +150,13 @@ const ReferenceMention = Mention.extend({
           return attachmentId ? { 'data-attachment-id': attachmentId } : {};
         },
       },
+      isPlaceholder: {
+        default: false,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-placeholder') === 'true',
+        renderHTML: (attributes: Record<string, unknown>) => (
+          attributes.isPlaceholder === true ? { 'data-placeholder': 'true' } : {}
+        ),
+      },
     };
   },
 });
@@ -151,23 +165,37 @@ function MentionChipView({ node }: NodeViewProps) {
   const previewUrl = String(node.attrs.previewUrl ?? '');
   const mimeType = String(node.attrs.mimeType ?? '');
   const attachmentId = String(node.attrs.attachmentId ?? '');
+  const isPlaceholder = node.attrs.isPlaceholder === true;
   const token = String(node.attrs.id ?? '');
   const label = String(node.attrs.label ?? token).replace(/^@/, '');
   const mentionInfo = { label, mimeType, token };
   const fallbackIcon = mentionFallbackIcon(mentionInfo);
-  const shouldShowPreview = Boolean(previewUrl && !isAudioMention(mentionInfo));
+  const shouldShowPreview = Boolean(!isPlaceholder && previewUrl && !isAudioMention(mentionInfo));
   const kind = mentionKind(mentionInfo);
   const canPreviewImage = Boolean(previewUrl && kind === 'image');
   return (
     <NodeViewWrapper
       as="span"
-      className={['mention-rich-textarea-chip', canPreviewImage ? 'is-previewable' : ''].filter(Boolean).join(' ')}
+      className={[
+        'mention-rich-textarea-chip',
+        canPreviewImage ? 'is-previewable' : '',
+        isPlaceholder ? 'is-placeholder' : '',
+      ].filter(Boolean).join(' ')}
       data-mention-kind={kind}
       data-mime-type={mimeType || undefined}
       data-preview-url={previewUrl || undefined}
       data-attachment-id={attachmentId || undefined}
       data-token={token}
       onClick={(event: MouseEvent<HTMLSpanElement>) => {
+        if (isPlaceholder) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.dispatchEvent(new CustomEvent<MentionPlaceholderRequest>(mentionPlaceholderEventName, {
+            bubbles: true,
+            detail: { token },
+          }));
+          return;
+        }
         if (!canPreviewImage) {
           return;
         }
@@ -182,8 +210,10 @@ function MentionChipView({ node }: NodeViewProps) {
         }));
       }}
     >
-      {shouldShowPreview ? <img alt={label} src={previewUrl} /> : <span className="mention-rich-textarea-chip-icon">{fallbackIcon}</span>}
-      <b>{label}</b>
+      {shouldShowPreview ? <img alt={label} src={previewUrl} /> : (
+        <span className="mention-rich-textarea-chip-icon">{isPlaceholder ? '+' : fallbackIcon}</span>
+      )}
+      <b>{isPlaceholder ? token : label}</b>
     </NodeViewWrapper>
   );
 }
@@ -202,6 +232,7 @@ function mentionContentNode(option: MentionRichTextareaOption): JSONContent {
     attrs: {
       attachmentId: option.attachmentId ?? '',
       id: option.token,
+      isPlaceholder: option.isPlaceholder === true,
       label: option.label,
       mimeType: option.mimeType ?? '',
       previewUrl: option.previewUrl ?? '',
@@ -222,7 +253,17 @@ function normalizeMentionDoc(node: JSONContent, options: MentionRichTextareaOpti
       const attachmentId = typeof currentNode.attrs?.attachmentId === 'string' ? currentNode.attrs.attachmentId : '';
       const token = typeof currentNode.attrs?.id === 'string' ? currentNode.attrs.id : '';
       const option = (attachmentId ? optionByAttachmentId.get(attachmentId) : undefined) ?? optionByToken.get(token);
-      return option ? mentionContentNode(option) : null;
+      if (!option) {
+        return null;
+      }
+      const normalizedMention = mentionContentNode(option);
+      return {
+        ...currentNode,
+        attrs: {
+          ...currentNode.attrs,
+          ...normalizedMention.attrs,
+        },
+      };
     }
 
     if (!currentNode.content) {
@@ -292,6 +333,28 @@ function nodeToPlainText(node: JSONContent): string {
     return childText.join('');
   }
   return childText.join('');
+}
+
+function isJsonContentEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left)
+      && Array.isArray(right)
+      && left.length === right.length
+      && left.every((item, index) => isJsonContentEqual(item, right[index]));
+  }
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') {
+    return false;
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key) => Object.hasOwn(rightRecord, key)
+      && isJsonContentEqual(leftRecord[key], rightRecord[key]));
 }
 
 function getActiveFallbackMentionRange(editor: Editor): FallbackMentionRange | null {
@@ -414,6 +477,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   menuTitle = '可引用素材',
   minRows = 8,
   onChange,
+  onPlaceholderClick,
   onSubmit,
   options,
   placeholder,
@@ -422,6 +486,8 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
 }, ref) {
   const minHeight = Math.max(minRows, 1) * 25 + 40;
   const optionsRef = useRef(options);
+  const onPlaceholderClickRef = useRef(onPlaceholderClick);
+  const lastEmittedValueRef = useRef(value);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [fallbackMenuOpen, setFallbackMenuOpen] = useState(false);
   const [fallbackMenuStyle, setFallbackMenuStyle] = useState<CSSProperties | undefined>();
@@ -435,6 +501,10 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
+
+  useEffect(() => {
+    onPlaceholderClickRef.current = onPlaceholderClick;
+  }, [onPlaceholderClick]);
 
   useEffect(() => {
     setFallbackSelectedIndex(0);
@@ -452,9 +522,18 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         setPreviewVisible(true);
       }
     };
+    const handlePlaceholder = (event: Event) => {
+      const detail = (event as CustomEvent<MentionPlaceholderRequest>).detail;
+      const option = optionsRef.current.find((item) => item.token === detail?.token);
+      if (option?.isPlaceholder) {
+        onPlaceholderClickRef.current?.(option);
+      }
+    };
     container.addEventListener(mentionPreviewEventName, handlePreview);
+    container.addEventListener(mentionPlaceholderEventName, handlePlaceholder);
     return () => {
       container.removeEventListener(mentionPreviewEventName, handlePreview);
+      container.removeEventListener(mentionPlaceholderEventName, handlePlaceholder);
     };
   }, []);
 
@@ -573,6 +652,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         renderHTML({ node, options: mentionOptions }) {
           const previewUrl = String(node.attrs.previewUrl ?? '');
           const mimeType = String(node.attrs.mimeType ?? '');
+          const isPlaceholder = node.attrs.isPlaceholder === true;
           const label = String(node.attrs.label ?? node.attrs.id ?? '').replace(/^@/, '');
           const mentionInfo = {
             label,
@@ -580,7 +660,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
             token: String(node.attrs.id ?? ''),
           };
           const fallbackIcon = mentionFallbackIcon(mentionInfo);
-          const shouldShowPreview = Boolean(previewUrl && !isAudioMention(mentionInfo));
+          const shouldShowPreview = Boolean(!isPlaceholder && previewUrl && !isAudioMention(mentionInfo));
           const kind = mentionKind(mentionInfo);
           const children: MentionDomChild[] = shouldShowPreview
             ? [
@@ -588,17 +668,19 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
                 ['b', {}, label],
               ]
             : [
-                ['span', { class: 'mention-rich-textarea-chip-icon' }, fallbackIcon],
-                ['b', {}, label],
+                ['span', { class: 'mention-rich-textarea-chip-icon' }, isPlaceholder ? '+' : fallbackIcon],
+                ['b', {}, isPlaceholder ? String(node.attrs.id ?? '') : label],
               ];
           return [
             'span',
             mergeAttributes(mentionOptions.HTMLAttributes, {
               'data-attachment-id': node.attrs.attachmentId,
+              'data-placeholder': isPlaceholder ? 'true' : undefined,
               'data-mention-kind': kind,
               'data-mime-type': mimeType || undefined,
               'data-preview-url': previewUrl || undefined,
               'data-token': node.attrs.id,
+              class: `mention-rich-textarea-chip${isPlaceholder ? ' is-placeholder' : ''}`,
             }),
             ...children,
           ];
@@ -694,7 +776,9 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     },
     onUpdate: ({ editor: currentEditor }) => {
       syncFallbackMenuVisibility(currentEditor);
-      onChange(nodeToPlainText(currentEditor.getJSON()));
+      const nextValue = nodeToPlainText(currentEditor.getJSON());
+      lastEmittedValueRef.current = nextValue;
+      onChange(nextValue);
     },
   });
 
@@ -712,19 +796,26 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     if (!editor) {
       return;
     }
-    const currentValue = nodeToPlainText(editor.getJSON());
+    const currentDoc = editor.getJSON();
+    const currentValue = nodeToPlainText(currentDoc);
     if (currentValue !== value) {
+      if (lastEmittedValueRef.current === value) {
+        return;
+      }
       editor.commands.setContent(plainTextToDoc(value, options), { emitUpdate: false });
+      lastEmittedValueRef.current = value;
       return;
     }
 
-    const normalizedDoc = normalizeMentionDoc(editor.getJSON(), options);
+    const normalizedDoc = normalizeMentionDoc(currentDoc, options);
     if (!normalizedDoc) {
       return;
     }
     const normalizedValue = nodeToPlainText(normalizedDoc);
-    if (normalizedValue !== currentValue) {
+    if (!isJsonContentEqual(normalizedDoc, currentDoc)) {
       editor.commands.setContent(normalizedDoc, { emitUpdate: false });
+    }
+    if (normalizedValue !== currentValue) {
       onChange(normalizedValue);
     }
   }, [editor, onChange, options, value]);

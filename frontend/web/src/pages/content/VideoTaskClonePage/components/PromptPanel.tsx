@@ -1,11 +1,10 @@
 import { Maximize } from 'lucide-react';
-import { MentionRichTextarea } from '../../../../components/MentionRichTextarea';
 import { promptPlaceholder } from '../constants';
-import { promptMentionOptions } from '../promptMentionOptions';
-import type { PromptPanel as PromptPanelKind, SelectedMaterials } from '../types';
+import type { MaterialKey, PromptPanel as PromptPanelKind, SelectedMaterials } from '../types';
 import type { User } from '../../../../types';
 import type { PlanningApplyPayload } from '../../../../api/content-planning';
 import { PromptPlanningModal } from './PromptPlanningModal';
+import { PromptMentionEditor } from './PromptMentionEditor';
 import { WorkspaceSection } from './WorkspaceSection';
 
 type PromptPanelProps = {
@@ -13,6 +12,7 @@ type PromptPanelProps = {
   onExpand: () => void;
   onPlanningApply: (payload: PlanningApplyPayload) => void;
   onPanelChange: (panel: PromptPanelKind | null) => void;
+  onPlaceholderFiles: (kind: MaterialKey, files: File[]) => void;
   onPromptChange: (prompt: string) => void;
   panel: PromptPanelKind | null;
   prompt: string;
@@ -25,6 +25,7 @@ export function PromptPanel({
   onExpand,
   onPlanningApply,
   onPanelChange,
+  onPlaceholderFiles,
   onPromptChange,
   panel,
   prompt,
@@ -38,13 +39,14 @@ export function PromptPanel({
   return (
     <WorkspaceSection className="video-task-prompt-section" title={title} variant="plain">
       <div className="video-task-prompt-box">
-        <MentionRichTextarea
+        <PromptMentionEditor
           minRows={4}
           onChange={onPromptChange}
-          options={promptMentionOptions(selectedMaterials)}
+          onPlaceholderFiles={onPlaceholderFiles}
           placeholder={promptPlaceholder}
+          prompt={prompt}
+          selectedMaterials={selectedMaterials}
           suggestionContainer="body"
-          value={prompt}
         />
         <button aria-label="展开提示词编辑器" title='展开提示词编辑器' className="video-task-expand" onClick={onExpand} type="button">
           <Maximize size={18} />

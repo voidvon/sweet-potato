@@ -86,6 +86,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
       {state.expandedPrompt && (
         <PromptModal
           onClose={() => state.setExpandedPrompt(false)}
+          onPlaceholderFiles={state.fillMentionPlaceholderFiles}
           onPromptChange={state.setPrompt}
           prompt={state.prompt}
           selectedMaterials={state.selectedMaterials}
