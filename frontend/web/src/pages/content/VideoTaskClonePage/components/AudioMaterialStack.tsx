@@ -3,7 +3,7 @@ import { MediaSlotStack, type MediaSlotItem } from './MediaSlotStack';
 
 type AudioMaterialStackProps = {
   items: MediaSlotItem[];
-  onRemove: () => void;
+  onRemove: (item: MediaSlotItem) => void;
   renderAudioTitle?: (item: MediaSlotItem, index: number) => string;
 };
 
@@ -22,10 +22,10 @@ export function AudioMaterialStack({ items, onRemove, renderAudioTitle }: AudioM
     setPlayingId(null);
   }, [items, playingId]);
 
-  const removeAudio = () => {
+  const removeAudio = (item: MediaSlotItem) => {
     audioRef.current?.pause();
     setPlayingId(null);
-    onRemove();
+    onRemove(item);
   };
 
   const togglePlayback = (item: MediaSlotItem) => {

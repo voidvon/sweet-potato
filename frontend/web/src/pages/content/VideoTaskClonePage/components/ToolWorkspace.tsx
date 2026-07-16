@@ -82,6 +82,7 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       onPlanningApply={state.applyPlanningResult}
       onExpand={() => state.setExpandedPrompt(true)}
       onPanelChange={state.setPromptPanel}
+      onPlaceholderFiles={state.fillMentionPlaceholderFiles}
       onPromptChange={state.setPrompt}
       panel={state.promptPanel}
       prompt={state.prompt}

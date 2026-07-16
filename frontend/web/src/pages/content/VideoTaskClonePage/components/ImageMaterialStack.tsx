@@ -4,7 +4,7 @@ import { MediaSlotStack, type MediaSlotItem } from './MediaSlotStack';
 
 type ImageMaterialStackProps = {
   items: MediaSlotItem[];
-  onRemove: () => void;
+  onRemove: (item: MediaSlotItem) => void;
 };
 
 export function ImageMaterialStack({ items, onRemove }: ImageMaterialStackProps) {

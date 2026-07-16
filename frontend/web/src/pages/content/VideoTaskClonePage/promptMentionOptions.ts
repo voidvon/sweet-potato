@@ -1,21 +1,11 @@
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import type { SelectedMaterials, SelectedMaterialValue } from './types';
 
-export function promptMentionOptions(selectedMaterials: SelectedMaterials): MentionRichTextareaOption[] {
+export function promptMentionOptions(selectedMaterials: SelectedMaterials, prompt = ''): MentionRichTextareaOption[] {
   return [
-    ...getImageMentionOptions(selectedMaterials.image),
-    ...Array.from({ length: selectedMaterials.video ? 1 : 0 }, (_, index) => ({
-      label: `视频${index + 1}`,
-      mimeType: 'video/mp4',
-      subtitle: getMaterialSubtitle(selectedMaterials.video, '已选参考视频'),
-      token: `@视频${index + 1}`,
-    })),
-    ...Array.from({ length: getAudioCount(selectedMaterials.audio) }, (_, index) => ({
-      label: `音频${index + 1}`,
-      mimeType: 'audio/wav',
-      subtitle: '已选参考音频',
-      token: `@音频${index + 1}`,
-    })),
+    ...getImageMentionOptions(selectedMaterials.image, getReferencedCount(prompt, '图片', 9)),
+    ...getVideoMentionOptions(selectedMaterials.video, getReferencedCount(prompt, '视频', 1)),
+    ...getAudioMentionOptions(selectedMaterials.audio, getReferencedCount(prompt, '音频', 3)),
   ];
 }
 
@@ -27,25 +17,82 @@ function getImageCount(value: SelectedMaterialValue) {
   return 1;
 }
 
-function getImageMentionOptions(value: SelectedMaterialValue): MentionRichTextareaOption[] {
+function getImageMentionOptions(value: SelectedMaterialValue, referencedCount: number): MentionRichTextareaOption[] {
+  const selectedCount = getImageCount(value);
+  const optionCount = Math.max(selectedCount, referencedCount);
   if (Array.isArray(value)) {
-    return value.slice(0, 9).map((item, index) => ({
-      label: `图片${index + 1}`,
-      mimeType: 'image/png',
-      name: item.name || `图片${index + 1}`,
-      previewUrl: item.url,
-      subtitle: '已选参考图',
-      token: `@图片${index + 1}`,
-    }));
+    return Array.from({ length: optionCount }, (_, index) => {
+      const item = value[index];
+      return item ? {
+        label: `图片${index + 1}`,
+        mimeType: 'image/png',
+        name: item.name || `图片${index + 1}`,
+        previewUrl: item.url,
+        subtitle: '已选参考图',
+        token: `@图片${index + 1}`,
+      } : emptyMentionOption('图片', 'image/png', index, '点击上传对应的参考图');
+    });
   }
 
-  const count = getImageCount(value);
-  return Array.from({ length: count }, (_, index) => ({
-    label: `图片${index + 1}`,
-    mimeType: 'image/png',
-    subtitle: '已选参考图',
-    token: `@图片${index + 1}`,
-  }));
+  return Array.from({ length: optionCount }, (_, index) => (
+    index < selectedCount ? {
+      label: `图片${index + 1}`,
+      mimeType: 'image/png',
+      subtitle: '已选参考图',
+      token: `@图片${index + 1}`,
+    } : emptyMentionOption('图片', 'image/png', index, '点击上传对应的参考图')
+  ));
+}
+
+function getVideoMentionOptions(value: SelectedMaterialValue, referencedCount: number): MentionRichTextareaOption[] {
+  const selectedCount = Array.isArray(value) ? Math.min(value.length, 1) : value ? 1 : 0;
+  return Array.from({ length: Math.max(selectedCount, referencedCount) }, (_, index) => (
+    index < selectedCount ? {
+      label: `视频${index + 1}`,
+      mimeType: 'video/mp4',
+      subtitle: getMaterialSubtitle(value, '已选参考视频'),
+      token: `@视频${index + 1}`,
+    } : emptyMentionOption('视频', 'video/mp4', index, '点击上传对应的参考视频')
+  ));
+}
+
+function getAudioMentionOptions(value: SelectedMaterialValue, referencedCount: number): MentionRichTextareaOption[] {
+  const selectedCount = getAudioCount(value);
+  return Array.from({ length: Math.max(selectedCount, referencedCount) }, (_, index) => (
+    index < selectedCount ? {
+      label: `音频${index + 1}`,
+      mimeType: 'audio/wav',
+      subtitle: '已选参考音频',
+      token: `@音频${index + 1}`,
+    } : emptyMentionOption('音频', 'audio/wav', index, '点击上传对应的参考音频')
+  ));
+}
+
+function emptyMentionOption(
+  kind: '图片' | '视频' | '音频',
+  mimeType: string,
+  index: number,
+  subtitle: string,
+): MentionRichTextareaOption {
+  return {
+    isPlaceholder: true,
+    label: `${kind}${index + 1}`,
+    mimeType,
+    subtitle,
+    token: `@${kind}${index + 1}`,
+  };
+}
+
+function getReferencedCount(prompt: string, kind: '图片' | '视频' | '音频', limit: number) {
+  let maxIndex = 0;
+  for (const match of prompt.matchAll(/@(图片|视频|音频)(\d+)/gu)) {
+    if (match[1] !== kind) continue;
+    const index = Number(match[2]);
+    if (Number.isFinite(index)) {
+      maxIndex = Math.max(maxIndex, index);
+    }
+  }
+  return Math.min(maxIndex, limit);
 }
 
 function getAudioCount(value: SelectedMaterialValue) {
