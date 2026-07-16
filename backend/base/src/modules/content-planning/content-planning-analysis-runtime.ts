@@ -136,6 +136,41 @@ export async function parseContentPlanningAnalysisResponse<T>(raw: string, schem
   }
 }
 
+export async function parseContentPlanningAnalysisWithRetry<T>(
+  raw: string,
+  schema: z.ZodType<T>,
+  retry: () => Promise<string>,
+): Promise<T> {
+  try {
+    return await parseContentPlanningAnalysisResponse(raw, schema);
+  } catch {
+    try {
+      return await parseContentPlanningAnalysisResponse(await retry(), schema);
+    } catch (error) {
+      throw new Error(`素材理解自动重试后仍失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
+function withStrictJsonRetryInstruction(content: VideoUnderstandingContent[]) {
+  const instruction = [
+    '上一次输出未通过 JSON 解析或结构校验，请重新理解全部素材并从头生成一份新的分析结果。',
+    '不要复述或局部修补上一次输出。只输出一个严格合法的 JSON 对象，不要 Markdown、解释文字或注释。',
+    '确保属性之间使用逗号分隔、字符串中的引号正确转义，并完整匹配上文要求的输出结构。',
+  ].join('\n');
+  let instructionAdded = false;
+  const retried = content.map((item) => {
+    if (!instructionAdded && (item.type === 'input_text' || item.type === 'text')) {
+      instructionAdded = true;
+      return { ...item, text: `${item.text}\n\n${instruction}` };
+    }
+    return item;
+  });
+  return instructionAdded
+    ? retried
+    : [{ type: 'input_text' as const, text: instruction }, ...retried];
+}
+
 async function collectUnderstanding(content: VideoUnderstandingContent[]) {
   let output = '';
   for await (const event of streamVideoUnderstanding({
@@ -156,6 +191,15 @@ async function collectUnderstanding(content: VideoUnderstandingContent[]) {
     throw new Error('素材理解模型返回内容为空');
   }
   return output;
+}
+
+async function collectParsedUnderstanding<T>(content: VideoUnderstandingContent[], schema: z.ZodType<T>) {
+  const raw = await collectUnderstanding(content);
+  return parseContentPlanningAnalysisWithRetry(
+    raw,
+    schema,
+    () => collectUnderstanding(withStrictJsonRetryInstruction(content)),
+  );
 }
 
 class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvider {
@@ -183,7 +227,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
         image_url: { ...mediaSource(image), detail: 'high' as const },
       })),
     ];
-    const parsed = await parseContentPlanningAnalysisResponse(await collectUnderstanding(content), productAnalysisSchema);
+    const parsed = await collectParsedUnderstanding(content, productAnalysisSchema);
     const captionsByAssetId = new Map(parsed.materialCaptions.map((caption) => [caption.assetId, caption]));
     const materialCaptions: ContentPlanningMaterialCaption[] = input.images.map((image, index) => {
       const caption = captionsByAssetId.get(image.assetId) || parsed.materialCaptions[index];
@@ -223,7 +267,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
       },
       ...(input.video ? [{ type: 'video_url' as const, video_url: { ...mediaSource(input.video), fps: 2 } }] : []),
     ];
-    const parsed = await parseContentPlanningAnalysisResponse(await collectUnderstanding(content), viralBreakdownSchema);
+    const parsed = await collectParsedUnderstanding(content, viralBreakdownSchema);
     return {
       ...parsed,
       segments: parsed.segments.map((segment) => ({

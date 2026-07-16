@@ -222,8 +222,8 @@ export function buildContentPlanningPrompt(
     fr: '法文',
   }[session.settings.spokenLanguage];
   const requirements = [
-    `${session.settings.durationSeconds} 秒`,
-    '9:16 竖屏',
+    // `${session.settings.durationSeconds} 秒`,
+    // '9:16 竖屏',
     `风格：${session.settings.styleKeywords.join('、') || '干净明亮'}`,
     session.settings.displayOnly ? '仅视觉展示，不生成口播' : `口播语言：${spokenLanguage}`,
     '全程不添加字幕、弹窗文字或屏幕 UI',
@@ -771,8 +771,8 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
           text: context.session.settings.displayOnly
             ? ''
             : output.lines.find((line) => line.segmentId === segment.id)?.text
-              ?? output.lines[index]?.text
-              ?? '',
+            ?? output.lines[index]?.text
+            ?? '',
         })),
       };
     });

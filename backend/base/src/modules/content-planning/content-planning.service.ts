@@ -985,9 +985,6 @@ export class ContentPlanningService {
     if (!candidate) {
       throw new Error('planning candidate not found');
     }
-    if (candidate.issues.length) {
-      throw new Error('该候选仍有未修复问题，无法选择');
-    }
     return contentPlanningRepository.updateSession(sessionId, {
       generation: { ...session.generation, selectedCandidateId: candidateId },
     });

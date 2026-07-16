@@ -794,10 +794,11 @@ test('candidate validation allows explicit no-screen-text instructions', async (
   contentPlanningRepository.deleteSession(created.id);
 });
 
-test('candidates with unresolved validation issues cannot be selected or applied', async () => {
+test('candidates with unresolved validation issues can be selected but not applied', async () => {
   const userId = `planning-test-${Date.now()}-unresolved-candidate`;
   const { created, ready } = await advanceSessionToReady(userId);
-  const candidate = ready.generation.candidates[0];
+  const candidate = ready.generation.candidates.find((item) => item.id !== ready.generation.selectedCandidateId)
+    || ready.generation.candidates[0];
   assert.ok(candidate);
   const updated = contentPlanningRepository.updateSession(created.id, {
     generation: {
@@ -805,15 +806,12 @@ test('candidates with unresolved validation issues cannot be selected or applied
       candidates: ready.generation.candidates.map((item) => item.id === candidate.id
         ? { ...item, issues: ['仍有未修复问题'] }
         : item),
-      selectedCandidateId: candidate.id,
     },
   });
   assert.ok(updated);
 
-  assert.throws(
-    () => contentPlanningService.selectCandidate(userId, created.id, candidate.id),
-    /仍有未修复问题/u,
-  );
+  const selected = contentPlanningService.selectCandidate(userId, created.id, candidate.id);
+  assert.equal(selected?.generation.selectedCandidateId, candidate.id);
   assert.throws(
     () => contentPlanningService.apply(userId, created.id, candidate.id),
     /仍有未修复问题/u,
