@@ -19,6 +19,8 @@ import { getContentPlanningBillingCredits } from '../src/modules/billing/billing
 import { contentRepository } from '../src/modules/content/content.repository.js';
 import { contentPlanningRepository } from '../src/modules/content-planning/content-planning.repository.js';
 import { ContentPlanningService } from '../src/modules/content-planning/content-planning.service.js';
+import { modelConfigRepository } from '../src/modules/model-configs/model-config.repository.js';
+import { db } from '../src/db/database.js';
 import type {
   ContentPlanningAnalysisBilling,
   ContentPlanningGenerationBilling,
@@ -242,6 +244,15 @@ class CountingDeterministicPlanningProvider extends DeterministicContentPlanning
 
   override async planner(context: PlanningRuntimeContext) {
     this.plannerCalls += 1;
+    return super.planner(context);
+  }
+}
+
+class WebSearchRecordingPlanningProvider extends DeterministicContentPlanningAgentProvider {
+  webSearchContext: PlanningRuntimeContext['webSearchContext'] = undefined;
+
+  override async planner(context: PlanningRuntimeContext) {
+    this.webSearchContext = context.webSearchContext;
     return super.planner(context);
   }
 }
@@ -639,6 +650,91 @@ test('fallback agent pipeline produces candidates and an allowlist apply payload
   assert.doesNotMatch(applied.allowlist.prompt, /Create a|Use these image references|; camera |; lighting /u);
   assert.deepEqual(Object.keys(applied.allowlist).sort(), ['duration', 'imageMaterials', 'prompt']);
   contentPlanningRepository.deleteSession(created.id);
+});
+
+test('web search enabled uses the configured model web_search tool before planning generation', async () => {
+  const originalFetch = globalThis.fetch;
+  const previousDefaultLlm = modelConfigRepository.list('llm').find((item) => Boolean(item.isDefault));
+  const testModelConfig = {
+    id: `planning-web-search-model-${Date.now()}`,
+    type: 'llm' as const,
+    name: 'Planning web search test model',
+    provider: 'volcengine',
+    model: 'doubao-seed-2-1-pro-260628',
+    apiKey: 'test-api-key',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    temperature: 0.7,
+    settings: {},
+    isDefault: true,
+    sortOrder: -100,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const requestedUrls: string[] = [];
+  const requestedBodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (input, init) => {
+    requestedUrls.push(String(input));
+    requestedBodies.push(JSON.parse(String(init?.body || '{}')) as Record<string, unknown>);
+    return new Response(JSON.stringify({
+      output_text: JSON.stringify({
+        summary: '近期用户关注轻量、快速和可见效果。',
+        results: [
+          {
+            query: 'Test product 短视频 爆款 卖点 趋势',
+            title: 'Test product 爆款趋势',
+            url: 'https://example.com/trend',
+            snippet: '近期用户关注轻量、快速和可见效果。',
+          },
+        ],
+      }),
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200,
+    });
+  }) as typeof fetch;
+  modelConfigRepository.save(testModelConfig, 'insert');
+
+  const provider = new WebSearchRecordingPlanningProvider();
+  const service = new ContentPlanningService(
+    provider,
+    new DeterministicContentPlanningAnalysisProvider(),
+    noOpAnalysisBilling,
+    noOpGenerationBilling,
+  );
+  const userId = `planning-test-${Date.now()}-web-search`;
+  const { created, configured } = await advanceSessionToConfiguring(userId, service);
+  try {
+    service.updateSettings({
+      userId,
+      sessionId: created.id,
+      settings: { ...configured.settings, webSearch: true },
+    });
+    service.generate(userId, created.id);
+    await waitFor(
+      () => service.getSession(userId, created.id),
+      (session) => session.status === 'ready_to_apply',
+    );
+
+    assert.ok(requestedUrls.some((url) => url === 'https://ark.cn-beijing.volces.com/api/v3/responses'));
+    assert.equal(requestedBodies[0]?.model, 'doubao-seed-2-1-pro-260628');
+    assert.deepEqual(requestedBodies[0]?.tools, [{ type: 'web_search' }]);
+    assert.equal(requestedBodies[0]?.stream, false);
+    assert.equal(provider.webSearchContext?.enabled, true);
+    assert.match(provider.webSearchContext?.summary || '', /轻量/u);
+    assert.equal(provider.webSearchContext?.results[0]?.url, 'https://example.com/trend');
+    assert.match(provider.webSearchContext?.results[0]?.snippet || '', /轻量/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousDefaultLlm) {
+      modelConfigRepository.save({
+        ...previousDefaultLlm,
+        isDefault: true,
+        updatedAt: new Date().toISOString(),
+      }, 'update');
+    }
+    db.prepare('DELETE FROM model_configs WHERE id = ?').run(testModelConfig.id);
+    contentPlanningRepository.deleteSession(created.id);
+  }
 });
 
 test('display-only candidates accept empty dialogue while spoken candidates require it', async () => {
