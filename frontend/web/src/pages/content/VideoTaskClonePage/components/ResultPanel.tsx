@@ -1,8 +1,7 @@
 import { CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw, Search } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw } from 'lucide-react';
 import { Button, Dropdown, Modal, message } from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
@@ -23,7 +22,7 @@ type ResultPanelProps = {
   onDelete: (task: VideoGenerationTask) => Promise<boolean>;
   onEdit: (task: VideoGenerationTask) => Promise<void>;
   onFilterChange: (filters: FilterValues) => void;
-  onFilterToggle: () => void;
+  onFilterOpenChange: (open: boolean) => void;
   onLoadMore: () => Promise<void>;
   onRetry: (task: VideoGenerationTask) => Promise<void>;
   records: VideoGenerationTask[];
@@ -41,7 +40,7 @@ export function ResultPanel({
   onDelete,
   onEdit,
   onFilterChange,
-  onFilterToggle,
+  onFilterOpenChange,
   onLoadMore,
   onRetry,
   records,
@@ -49,44 +48,13 @@ export function ResultPanel({
   retryingTaskId,
 }: ResultPanelProps) {
   const [previewVideo, setPreviewVideo] = useState<ResultVideoPreview | null>(null);
-  const [searchDraft, setSearchDraft] = useState(String(filters.搜索 || ''));
-  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
-  const filterPanelRef = useRef<HTMLElement | null>(null);
   const sortedRecords = [...records].sort(
     (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
   const resultGroups = groupRecordsByMetric(sortedRecords);
   const activeFilterCount = activeResultFilterCount(filters);
 
-  useEffect(() => {
-    setSearchDraft(String(filters.搜索 || ''));
-  }, [filters.搜索]);
-
-  useEffect(() => {
-    if (!isFilterOpen) {
-      return undefined;
-    }
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      if (filterButtonRef.current?.contains(target) || filterPanelRef.current?.contains(target)) {
-        return;
-      }
-      onFilterToggle();
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isFilterOpen, onFilterToggle]);
-
-  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    onFilterChange({ ...filters, 搜索: searchDraft.trim() });
-  };
-
   const handleClearFilters = () => {
-    setSearchDraft('');
     onClearFilters();
   };
 
@@ -126,6 +94,32 @@ export function ResultPanel({
     }
   };
 
+  const filterDropdownContent = (
+    <aside className="video-task-filter-panel">
+      <div className="video-task-popover-head">
+        <strong>筛选生成记录</strong>
+        <button onClick={handleClearFilters} type="button">清空</button>
+      </div>
+      {filterGroups.map((group) => (
+        <div className="video-task-filter-group" key={group.label}>
+          <span>{group.label}</span>
+          <div>
+            {group.options.map((option) => (
+              <button
+                className={filters[group.label] === option ? 'is-active' : ''}
+                key={option}
+                onClick={() => onFilterChange({ ...filters, [group.label]: option })}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </aside>
+  );
+
   return (
     <section className="video-task-result" aria-label="视频结果">
       <header className="video-task-result-header">
@@ -133,52 +127,26 @@ export function ResultPanel({
           <h1>视频结果</h1>
           <p>{sortedRecords.length > 0 ? '按时间倒序展示生成记录' : '生成完成后会显示在这里'}</p>
         </div>
-        <button
-          className={activeFilterCount > 0 ? 'video-task-filter has-filters' : 'video-task-filter'}
-          onClick={onFilterToggle}
-          ref={filterButtonRef}
-          type="button"
+        <Dropdown
+          classNames={{ root: 'video-task-filter-dropdown' }}
+          destroyOnHidden
+          menu={{ items: [] }}
+          onOpenChange={onFilterOpenChange}
+          open={isFilterOpen}
+          placement="bottomRight"
+          popupRender={() => filterDropdownContent}
+          trigger={['click']}
         >
-          <Filter size={18} />
-          筛选
-          {activeFilterCount > 0 ? <span className="video-task-filter-count">{activeFilterCount}</span> : null}
-        </button>
+          <button
+            className={activeFilterCount > 0 ? 'video-task-filter has-filters' : 'video-task-filter'}
+            type="button"
+          >
+            <Filter size={18} />
+            筛选
+            {activeFilterCount > 0 ? <span className="video-task-filter-count">{activeFilterCount}</span> : null}
+          </button>
+        </Dropdown>
       </header>
-
-      {isFilterOpen && (
-        <aside className="video-task-filter-panel" ref={filterPanelRef}>
-          <div className="video-task-popover-head">
-            <strong>筛选生成记录</strong>
-            <button onClick={handleClearFilters} type="button">清空</button>
-          </div>
-          <form className="video-task-search" onSubmit={handleSearchSubmit}>
-            <Search size={16} />
-            <input
-              onChange={(event) => setSearchDraft(event.target.value)}
-              placeholder="搜索ID/时长/时间"
-              value={searchDraft}
-            />
-            <button type="submit">搜索</button>
-          </form>
-          {filterGroups.map((group) => (
-            <div className="video-task-filter-group" key={group.label}>
-              <span>{group.label}</span>
-              <div>
-                {group.options.map((option) => (
-                  <button
-                    className={filters[group.label] === option ? 'is-active' : ''}
-                    key={option}
-                    onClick={() => onFilterChange({ ...filters, [group.label]: option })}
-                    type="button"
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </aside>
-      )}
 
       {isLoading && sortedRecords.length === 0 ? (
         <div className="video-task-empty-state">
@@ -502,7 +470,7 @@ function isEditableVideoTask(task: VideoGenerationTask) {
 }
 
 function activeResultFilterCount(filters: FilterValues) {
-  let count = String(filters.搜索 || '').trim() ? 1 : 0;
+  let count = 0;
   filterGroups.forEach((group) => {
     const value = String(filters[group.label] || '').trim();
     const defaultValue = group.options[0] || '';

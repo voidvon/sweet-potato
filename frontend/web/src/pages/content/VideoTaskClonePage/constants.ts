@@ -147,7 +147,6 @@ export const filterGroups: FilterGroup[] = [
 ];
 
 export const defaultFilters: FilterValues = {
-  搜索: '',
   比例: '全部比例',
   时间: '全部时间',
   状态: '全部状态',

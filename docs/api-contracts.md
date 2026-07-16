@@ -39,7 +39,10 @@
 
 - `GET /api/content/video-productions` 传入 `page` 与 `pageSize` 时返回 `{ items, page, pageSize, total }`；`pageSize` 最大为 `100`。
 - 未传 `page` 时继续返回 `VideoGenerationTask[]`，兼容已有调用方。
-- `search`、`time`、`status` 筛选先作用于完整结果集，再进行分页。
+- 时间筛选使用 `createdAtFrom`（包含）和 `createdAtTo`（不包含）两个 ISO 时间边界，并按任务创建时间过滤。
+- 比例筛选使用 `ratio`，直接匹配任务的 `aspectRatio` 字段；新任务会在生成开始时写入该值。
+- 普通视频生成使用用户选择的比例；高清放大、字幕擦除和视频翻译根据源视频宽高归一为支持的比例。
+- `status` 筛选先作用于查询结果，再进行分页。
 - `/app/content/create_video` 的结果时间线固定以每页 `20` 条加载，滚动接近底部时自动请求下一页。
 
 ## 2026-07-15 视频站点价格配置

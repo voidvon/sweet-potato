@@ -914,9 +914,10 @@ export function createContentRouter() {
   router.get('/video-productions', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       void contentService.listVideoProductions(getCurrentUserId(req), {
+        createdAtFrom: req.query.createdAtFrom,
+        createdAtTo: req.query.createdAtTo,
         search: req.query.search,
         ratio: req.query.ratio,
-        time: req.query.time,
         status: req.query.status,
         page: req.query.page,
         pageSize: req.query.pageSize,

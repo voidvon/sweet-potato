@@ -62,6 +62,45 @@ const defaultVideoTranslationConfig: VideoTranslationConfig = {
 
 const videoProductionsPageSize = 20;
 
+function createdAtRangeFromTimeFilter(filter: string) {
+  const value = String(filter || '').trim();
+  if (!value || value === '全部时间') {
+    return {};
+  }
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+  if (value === '今天') {
+    return {
+      createdAtFrom: todayStart.toISOString(),
+      createdAtTo: tomorrowStart.toISOString(),
+    };
+  }
+
+  if (value === '近 7 天') {
+    const rangeStart = new Date(todayStart);
+    rangeStart.setDate(rangeStart.getDate() - 6);
+    return {
+      createdAtFrom: rangeStart.toISOString(),
+      createdAtTo: tomorrowStart.toISOString(),
+    };
+  }
+
+  if (value === '近 30 天') {
+    const rangeStart = new Date(todayStart);
+    rangeStart.setDate(rangeStart.getDate() - 29);
+    return {
+      createdAtFrom: rangeStart.toISOString(),
+      createdAtTo: tomorrowStart.toISOString(),
+    };
+  }
+
+  return {};
+}
+
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
@@ -165,12 +204,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           Math.ceil(loadedProductionCountRef.current / videoProductionsPageSize) * videoProductionsPageSize,
         )
         : videoProductionsPageSize;
+      const createdAtRange = createdAtRangeFromTimeFilter(filters.时间);
       const result = await listVideoProductionsPage(currentUser.id, {
+        ...createdAtRange,
         page: 1,
         pageSize,
-        search: filters.搜索,
         ratio: filters.比例,
-        time: filters.时间,
         status: filters.状态,
       });
       if (requestVersion !== productionRequestVersionRef.current) {
@@ -202,12 +241,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const requestVersion = productionRequestVersionRef.current;
     const page = loadedProductionPageRef.current + 1;
     try {
+      const createdAtRange = createdAtRangeFromTimeFilter(filters.时间);
       const result = await listVideoProductionsPage(currentUser.id, {
+        ...createdAtRange,
         page,
         pageSize: videoProductionsPageSize,
-        search: filters.搜索,
         ratio: filters.比例,
-        time: filters.时间,
         status: filters.状态,
       });
       if (requestVersion !== productionRequestVersionRef.current) {

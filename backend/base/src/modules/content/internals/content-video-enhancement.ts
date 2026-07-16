@@ -14,6 +14,7 @@ import {
 import { contentRepository, emptyVideoParseResult } from '../content.repository.js';
 import type { CreateVideoEnhancementPayload, VideoGenerationResult, VideoGenerationTask } from '../content.types.js';
 import { createFinishedVideoAsset, createPendingFinishedVideoAsset, markFinishedVideoAssetFailed } from './content-image-assets.js';
+import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -135,7 +136,7 @@ async function failEnhancementTask(taskId: string, reason: string) {
       version: 1,
       taskId,
       duration: '',
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'failed',
     }),
@@ -221,7 +222,7 @@ async function completeEnhancementTask(task: VideoGenerationTask, worker: Enhanc
       version: 1,
       taskId: task.id,
       duration: '',
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'completed',
     }),
@@ -282,7 +283,7 @@ export async function refreshVideoEnhancementTask(task: VideoGenerationTask) {
         version: 1,
         taskId: task.id,
         duration: '',
-        ratio: '',
+        ratio: task.aspectRatio,
         generatedAt: new Date().toISOString(),
         status: 'running',
       }),
@@ -346,6 +347,7 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
     throw new Error(`不支持的目标分辨率：${resolution}`);
   }
   const fileSizeBytes = sourceAsset.fileSize || (await stat(sourceAsset.filePath)).size;
+  const aspectRatio = await resolveSourceVideoAspectRatio(sourceAsset);
   const videoUpscaleCredits = estimateVideoUpscaleCredits();
   const vodUploadCredits = estimateVodUploadCredits(fileSizeBytes);
   assertSufficientStepCredits({
@@ -361,8 +363,10 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
     title,
     prompt: `使用火山引擎 VOD AIGC 画质增强至 ${resolution}`,
     parseResult: { ...emptyVideoParseResult },
+    aspectRatio,
     expertContext: {
       mode: 'video_upscale',
+      ratio: aspectRatio,
       sourceAssetId: sourceAsset.id,
       enhancementResolution: resolution,
       enhancementConfig: 'aigc',
@@ -386,7 +390,7 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
       title,
       provider: 'volcengine-vod',
       model: 'moe-aigc-enhance',
-      ratio: '',
+      ratio: aspectRatio,
       duration: '',
       mode: 'video_upscale',
       materialContext: { sourceAssetId: sourceAsset.id, resolution },
@@ -400,7 +404,7 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
       model: 'moe-aigc-enhance',
       videoUrl: null,
       duration: '',
-      ratio: '',
+      ratio: aspectRatio,
       assetId: pendingAsset.id,
       renderMode: 'provider_generation',
       renderStatus: 'queued',

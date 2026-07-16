@@ -830,25 +830,16 @@ function normalizeVideoProductionSearch(value: unknown) {
   return raw.replace(dateMatch[0], normalizedDate);
 }
 
-function videoProductionTimeRange(filter: unknown): {
-  updatedAtFrom?: string;
-  updatedAtTo?: string;
-} {
-  const value = String(filter || '').trim();
-  if (!value || value === '全部时间') {
-    return {};
+function normalizeVideoProductionBoundary(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return undefined;
   }
-  const now = dayjs();
-  if (value === '今天') {
-    return { updatedAtFrom: now.startOf('day').toISOString() };
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
   }
-  if (value === '近 7 天') {
-    return { updatedAtFrom: now.subtract(7, 'day').toISOString() };
-  }
-  if (value === '近 30 天') {
-    return { updatedAtFrom: now.subtract(30, 'day').toISOString() };
-  }
-  return {};
+  return parsed.toISOString();
 }
 
 function videoProductionStatusLabel(task: VideoGenerationTask) {
@@ -869,22 +860,15 @@ function videoProductionStatusLabel(task: VideoGenerationTask) {
 }
 
 function filterVideoProductionsOnServer(tasks: VideoGenerationTask[], input: {
-  ratio?: unknown;
   status?: unknown;
 }) {
-  const ratio = String(input.ratio || '').trim();
   const status = String(input.status || '').trim();
-  const matchesRatio = (task: VideoGenerationTask) => (
-    !ratio
-    || ratio === '全部比例'
-    || String(generationResultForTask(task)?.ratio || task.expertContext?.ratio || '').trim() === ratio
-  );
   const matchesStatus = (task: VideoGenerationTask) => (
     !status
     || status === '全部状态'
     || videoProductionStatusLabel(task) === status
   );
-  return tasks.filter((task) => matchesRatio(task) && matchesStatus(task));
+  return tasks.filter(matchesStatus);
 }
 
 function isCompletedFinishedAsset(asset: ContentAsset) {
@@ -1853,21 +1837,24 @@ export const contentService = {
   },
 
   async listVideoProductions(userId: string, filters: {
+    createdAtFrom?: unknown;
+    createdAtTo?: unknown;
     ratio?: unknown;
     search?: unknown;
-    time?: unknown;
     status?: unknown;
     page?: unknown;
     pageSize?: unknown;
   } = {}) {
     assertUserId(userId);
-    const timeRange = videoProductionTimeRange(filters.time);
     const tasks = contentRepository
       .listVideoTasks(userId, {
         modes: ['video_create', 'video_upscale', 'subtitle_removal', 'video_translation'],
+        createdAtFrom: normalizeVideoProductionBoundary(filters.createdAtFrom),
+        createdAtTo: normalizeVideoProductionBoundary(filters.createdAtTo),
+        aspectRatio: String(filters.ratio || '').trim() === '全部比例'
+          ? undefined
+          : String(filters.ratio || '').trim() || undefined,
         search: normalizeVideoProductionSearch(filters.search),
-        updatedAtFrom: timeRange.updatedAtFrom,
-        updatedAtTo: timeRange.updatedAtTo,
         limit: 500,
       });
     const refreshed = await Promise.all(tasks.map(async (task) => {
@@ -1899,7 +1886,7 @@ export const contentService = {
     schedulePendingGeneratedVideoMirrors({ userId, limit: 20 });
     const filtered = filterVideoProductionsOnServer(
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
-      { ratio: filters.ratio, status: filters.status },
+      { status: filters.status },
     );
     const requestedPage = Number(filters.page);
     if (!Number.isFinite(requestedPage) || requestedPage < 1) {
@@ -2883,6 +2870,7 @@ export const contentService = {
           title,
           parseResult,
           expertContext: nextExpertContext,
+          aspectRatio: ratio,
         })
         : contentRepository.createVideoTaskFromPrompt({
           userId: payload.userId,
@@ -2891,6 +2879,7 @@ export const contentService = {
           title,
           parseResult,
           expertContext: nextExpertContext,
+          aspectRatio: ratio,
         });
       if (!task) {
         throw new Error('视频制作任务创建失败');

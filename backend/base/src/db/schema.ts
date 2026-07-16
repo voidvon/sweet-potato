@@ -462,6 +462,7 @@ export function migrateDatabase() {
       selected_voice_id TEXT,
       selected_scene_id TEXT,
       generated_video_url TEXT,
+      aspect_ratio TEXT NOT NULL DEFAULT '',
       failure_reason TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -677,9 +678,14 @@ export function migrateDatabase() {
   addColumnIfMissing('video_generation_tasks', 'selected_voice_id', 'selected_voice_id TEXT');
   addColumnIfMissing('video_generation_tasks', 'selected_scene_id', 'selected_scene_id TEXT');
   addColumnIfMissing('video_generation_tasks', 'generated_video_url', 'generated_video_url TEXT');
+  addColumnIfMissing('video_generation_tasks', 'aspect_ratio', "aspect_ratio TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('video_generation_tasks', 'prompt', "prompt TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('video_generation_tasks', 'selected_skill_ids', "selected_skill_ids TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('video_generation_tasks', 'expert_context', "expert_context TEXT NOT NULL DEFAULT '{}'");
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_video_generation_tasks_user_ratio_created
+    ON video_generation_tasks(user_id, aspect_ratio, created_at DESC)
+  `);
   addColumnIfMissing('xingtu_search_drafts', 'automation_filters', 'automation_filters TEXT');
 
   migrateContentFilesDirectory();

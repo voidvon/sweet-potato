@@ -71,6 +71,7 @@ type VideoTaskRow = {
   selected_voice_id: string | null;
   selected_scene_id: string | null;
   generated_video_url: string | null;
+  aspect_ratio: string;
   credit_cost?: number | null;
   failure_reason: string | null;
   created_at: string;
@@ -215,6 +216,7 @@ function serializeVideoTask(row: VideoTaskRow): VideoGenerationTask {
     selectedVoiceId: row.selected_voice_id,
     selectedSceneId: row.selected_scene_id,
     generatedVideoUrl: row.generated_video_url,
+    aspectRatio: row.aspect_ratio,
     creditCost: typeof row.credit_cost === 'number' ? Number(row.credit_cost || 0) : null,
     failureReason: row.failure_reason,
     createdAt: row.created_at,
@@ -847,8 +849,9 @@ export const contentRepository = {
     mode?: string;
     modes?: string[];
     search?: string;
-    updatedAtFrom?: string;
-    updatedAtTo?: string;
+    createdAtFrom?: string;
+    createdAtTo?: string;
+    aspectRatio?: string;
     limit?: number;
   } = {}) {
     const clauses = ['user_id = @userId'];
@@ -871,13 +874,17 @@ export const contentRepository = {
         clauses.push(`json_extract(expert_context, '$.mode') IN (${modeParams.join(', ')})`);
       }
     }
-    if (options.updatedAtFrom) {
-      clauses.push('updated_at >= @updatedAtFrom');
-      params.updatedAtFrom = options.updatedAtFrom;
+    if (options.createdAtFrom) {
+      clauses.push('created_at >= @createdAtFrom');
+      params.createdAtFrom = options.createdAtFrom;
     }
-    if (options.updatedAtTo) {
-      clauses.push('updated_at < @updatedAtTo');
-      params.updatedAtTo = options.updatedAtTo;
+    if (options.createdAtTo) {
+      clauses.push('created_at < @createdAtTo');
+      params.createdAtTo = options.createdAtTo;
+    }
+    if (options.aspectRatio) {
+      clauses.push('aspect_ratio = @aspectRatio');
+      params.aspectRatio = options.aspectRatio;
     }
     const searchTokens = Array.from(new Set(
       String(options.search || '')
@@ -984,6 +991,7 @@ export const contentRepository = {
     prompt?: string;
     selectedSkillIds?: string[];
     expertContext?: Record<string, unknown>;
+    aspectRatio: string;
   }) {
     const now = new Date().toISOString();
     const id = randomUUID();
@@ -992,11 +1000,11 @@ export const contentRepository = {
       INSERT INTO video_generation_tasks (
         id, user_id, source_url, prompt, title, status, raw_parse_result, editable_parse_result,
         selected_skill_ids, expert_context, selected_digital_human_id, selected_voice_id, selected_scene_id,
-        generated_video_url, failure_reason, created_at, updated_at
+        generated_video_url, aspect_ratio, failure_reason, created_at, updated_at
       )
       VALUES (
         @id, @userId, @sourceUrl, @prompt, @title, 'waiting_edit', @parseResult, @parseResult,
-        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, NULL, @now, @now
+        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
       )
     `).run({
       id,
@@ -1007,6 +1015,7 @@ export const contentRepository = {
       parseResult,
       selectedSkillIds: JSON.stringify(input.selectedSkillIds || []),
       expertContext: JSON.stringify(input.expertContext || {}),
+      aspectRatio: input.aspectRatio,
       now,
     });
     return this.findVideoTask(id);
@@ -1016,6 +1025,7 @@ export const contentRepository = {
     expertContext: Record<string, unknown>;
     parseResult: VideoParseResult;
     title: string;
+    aspectRatio: string;
   }) {
     const now = new Date().toISOString();
     const id = randomUUID();
@@ -1023,11 +1033,11 @@ export const contentRepository = {
       INSERT INTO video_generation_tasks (
         id, user_id, source_url, prompt, title, status, raw_parse_result, editable_parse_result,
         selected_skill_ids, expert_context, selected_digital_human_id, selected_voice_id, selected_scene_id,
-        generated_video_url, failure_reason, created_at, updated_at
+        generated_video_url, aspect_ratio, failure_reason, created_at, updated_at
       )
       VALUES (
         @id, @userId, '', @prompt, @title, 'waiting_edit', @parseResult, @parseResult,
-        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, NULL, @now, @now
+        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
       )
     `).run({
       id,
@@ -1037,6 +1047,7 @@ export const contentRepository = {
       parseResult: JSON.stringify(input.parseResult),
       selectedSkillIds: JSON.stringify(input.selectedSkillIds || []),
       expertContext: JSON.stringify(input.expertContext),
+      aspectRatio: input.aspectRatio,
       now,
     });
     return this.findVideoTask(id);
@@ -1047,6 +1058,7 @@ export const contentRepository = {
     parseResult: VideoParseResult;
     title: string;
     selectedSkillIds?: string[];
+    aspectRatio: string;
   }) {
     const current = this.findVideoTask(id);
     if (!current) {
@@ -1067,6 +1079,7 @@ export const contentRepository = {
           selected_voice_id = NULL,
           selected_scene_id = NULL,
           generated_video_url = NULL,
+          aspect_ratio = @aspectRatio,
           failure_reason = NULL,
           updated_at = @updatedAt
       WHERE id = @id
@@ -1077,6 +1090,7 @@ export const contentRepository = {
       parseResult,
       selectedSkillIds: JSON.stringify(input.selectedSkillIds || []),
       expertContext: JSON.stringify(input.expertContext),
+      aspectRatio: input.aspectRatio,
       updatedAt,
     });
     return this.findVideoTask(id);

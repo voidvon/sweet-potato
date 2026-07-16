@@ -121,7 +121,7 @@ export function ToolResultWorkspace({
       onDelete={state.deleteVideoProduction}
       onEdit={onEdit}
       onFilterChange={state.setFilters}
-      onFilterToggle={() => state.setFilterOpen(!state.filterOpen)}
+      onFilterOpenChange={state.setFilterOpen}
       onLoadMore={state.loadMoreVideoProductions}
       onRetry={state.retryVideoProduction}
       records={state.videoProductions}

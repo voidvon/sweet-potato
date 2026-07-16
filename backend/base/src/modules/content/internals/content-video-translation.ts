@@ -15,6 +15,7 @@ import {
   createPendingFinishedVideoAsset,
   markFinishedVideoAssetFailed,
 } from './content-image-assets.js';
+import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -129,7 +130,7 @@ async function failVideoTranslationTask(taskId: string, reason: string) {
       version: 1,
       taskId,
       duration: '',
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'failed',
     }),
@@ -191,7 +192,7 @@ async function completeVideoTranslationTask(task: VideoGenerationTask, worker: T
       version: 1,
       taskId: task.id,
       duration: durationLabel,
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'completed',
     }),
@@ -337,6 +338,7 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
   const translationTypes = normalizeTranslationTypes(payload.translationTypes);
   const subtitleSource = payload.subtitleSource === 'asr' ? 'asr' : 'ocr';
   const subtitleConfig = normalizeSubtitleConfig(payload);
+  const aspectRatio = await resolveSourceVideoAspectRatio(sourceAsset);
   const title = `${path.parse(sourceAsset.name || sourceAsset.originalFileName).name || '视频'}-${targetLanguage}翻译`;
   const task = contentRepository.createParsedVideoTask({
     userId: payload.userId,
@@ -344,8 +346,10 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
     title,
     prompt: `使用火山引擎 VOD 将视频从 ${sourceLanguage} 翻译为 ${targetLanguage}`,
     parseResult: { ...emptyVideoParseResult },
+    aspectRatio,
     expertContext: {
       mode: 'video_translation',
+      ratio: aspectRatio,
       sourceAssetId: sourceAsset.id,
       videoTranslationSourceLanguage: sourceLanguage,
       videoTranslationTargetLanguage: targetLanguage,
@@ -363,7 +367,7 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
     title,
     provider: 'volcengine-vod',
     model: 'ai-video-translation',
-    ratio: '',
+    ratio: aspectRatio,
     duration: '',
     mode: 'video_translation',
     materialContext: {
@@ -384,7 +388,7 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
     model: 'ai-video-translation',
     videoUrl: null,
     duration: '',
-    ratio: '',
+    ratio: aspectRatio,
     assetId: pendingAsset.id,
     renderMode: 'provider_generation',
     renderStatus: 'queued',

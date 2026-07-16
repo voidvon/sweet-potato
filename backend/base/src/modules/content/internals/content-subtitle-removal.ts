@@ -15,6 +15,7 @@ import {
   createPendingFinishedVideoAsset,
   markFinishedVideoAssetFailed,
 } from './content-image-assets.js';
+import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -116,7 +117,7 @@ async function failSubtitleRemovalTask(taskId: string, reason: string) {
       version: 1,
       taskId,
       duration: '',
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'failed',
     }),
@@ -175,7 +176,7 @@ async function completeSubtitleRemovalTask(task: VideoGenerationTask, worker: Su
       version: 1,
       taskId: task.id,
       duration: '',
-      ratio: '',
+      ratio: task.aspectRatio,
       generatedAt: new Date().toISOString(),
       status: 'completed',
     }),
@@ -325,6 +326,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
   const contentType = payload.contentType === 'text' ? 'text' : 'subtitle';
   const locations = normalizeLocations({ ...payload, mode });
   const clipFilter = normalizeClipFilter(payload);
+  const aspectRatio = await resolveSourceVideoAspectRatio(sourceAsset);
 
   const modeLabel = mode === 'auto' ? '智能识别' : mode === 'auto_region' ? '智能框选' : '强制框选';
   const title = `${path.parse(sourceAsset.name || sourceAsset.originalFileName).name || '视频'}-字幕擦除`;
@@ -334,8 +336,10 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
     title,
     prompt: `使用火山引擎 VOD ${modeLabel}擦除字幕`,
     parseResult: { ...emptyVideoParseResult },
+    aspectRatio,
     expertContext: {
       mode: 'subtitle_removal',
+      ratio: aspectRatio,
       sourceAssetId: sourceAsset.id,
       subtitleRemovalMode: mode,
       subtitleRemovalContentType: contentType,
@@ -352,7 +356,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
     title,
     provider: 'volcengine-vod',
     model: 'subtitle-erase',
-    ratio: '',
+    ratio: aspectRatio,
     duration: '',
     mode: 'subtitle_removal',
     materialContext: { sourceAssetId: sourceAsset.id, mode, contentType, locations, clipFilter },
@@ -366,7 +370,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
     model: 'subtitle-erase',
     videoUrl: null,
     duration: '',
-    ratio: '',
+    ratio: aspectRatio,
     assetId: pendingAsset.id,
     renderMode: 'provider_generation',
     renderStatus: 'queued',
