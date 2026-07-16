@@ -75,6 +75,23 @@ function migrateContentFilesDirectory() {
   });
 }
 
+function backfillSettledContentPlanningLedgerTypes() {
+  db.prepare(`
+    UPDATE credit_ledger
+    SET type = 'usage_debit'
+    WHERE type = 'reserve_debit'
+      AND source_type IN ('content_planning_analysis', 'content_planning_generation')
+      AND EXISTS (
+        SELECT 1
+        FROM credit_reservations
+        WHERE credit_reservations.user_id = credit_ledger.user_id
+          AND credit_reservations.source_type = credit_ledger.source_type
+          AND credit_reservations.source_id = credit_ledger.source_id
+          AND credit_reservations.status = 'settled'
+      )
+  `).run();
+}
+
 export function migrateDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -650,6 +667,7 @@ export function migrateDatabase() {
   addColumnIfMissing('xingtu_search_drafts', 'automation_filters', 'automation_filters TEXT');
 
   migrateContentFilesDirectory();
+  backfillSettledContentPlanningLedgerTypes();
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_key

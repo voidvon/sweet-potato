@@ -382,6 +382,17 @@ export const billingRepository = {
     });
   },
 
+  markReservedLedgerAsUsageDebit(input: { userId: string; sourceType: string; sourceId: string }) {
+    return db.prepare(`
+      UPDATE credit_ledger
+      SET type = 'usage_debit'
+      WHERE user_id = @userId
+        AND source_type = @sourceType
+        AND source_id = @sourceId
+        AND type = 'reserve_debit'
+    `).run(input).changes;
+  },
+
   createBillableUsageRecord(record: BillableUsageRecord) {
     db.prepare(`
       INSERT INTO billable_usage_records (

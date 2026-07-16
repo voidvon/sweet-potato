@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { db } from '../src/db/database.js';
+import { migrateDatabase } from '../src/db/schema.js';
 import {
   findReservedFixedBillableUsage,
   InsufficientStepCreditsError,
@@ -61,6 +62,7 @@ test('fixed billable usage reserves credits and settles one completed record', (
     });
     assert.equal(userRepository.findById(userId)?.creditBalance, 8);
     assert.equal(billingRepository.findReservation(reservation.id)?.status, 'reserved');
+    assert.equal(billingRepository.listLedgerEntries({ userId }).at(0)?.type, 'reserve_debit');
 
     const record = settleFixedBillableUsage({
       reservation,
@@ -74,6 +76,10 @@ test('fixed billable usage reserves credits and settles one completed record', (
     assert.equal(record.status, 'completed');
     assert.equal(record.requestSnapshot.imageCount, 1);
     assert.equal(billingRepository.findReservation(reservation.id)?.status, 'settled');
+    const ledger = billingRepository.listLedgerEntries({ userId });
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].type, 'usage_debit');
+    assert.equal(ledger[0].creditDelta, -2);
     assert.equal(userRepository.findById(userId)?.creditBalance, 8);
   } finally {
     cleanupBillingTestUser(userId);
@@ -122,6 +128,34 @@ test('fixed billable usage recovers a reserved generation charge by session', ()
       sessionId,
     })?.id, reservation.id);
     releaseFixedBillableUsage(reservation);
+  } finally {
+    cleanupBillingTestUser(userId);
+  }
+});
+
+test('migration backfills settled content planning reserve ledger as usage debit', () => {
+  const userId = createBillingTestUser(10);
+  const sessionId = `planning-session-${Date.now()}`;
+  try {
+    const reservation = reserveFixedBillableUsage({
+      userId,
+      category: 'content_planning_generation',
+      sourceType: 'content_planning_generation',
+      sourceId: `${sessionId}:generation:test`,
+      sessionId,
+      credits: 3,
+      step: 'content_planning_generation',
+      stepLabel: '爆款策划脚本生成',
+    });
+    billingRepository.updateReservationStatus(reservation.id, 'settled', new Date().toISOString());
+    assert.equal(billingRepository.listLedgerEntries({ userId }).at(0)?.type, 'reserve_debit');
+
+    migrateDatabase();
+
+    const ledger = billingRepository.listLedgerEntries({ userId });
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0].type, 'usage_debit');
+    assert.equal(ledger[0].creditDelta, -3);
   } finally {
     cleanupBillingTestUser(userId);
   }
