@@ -36,17 +36,17 @@ test('resolveCharacterReferenceImageIds falls back to all mentions when prompt c
   assert.deepEqual(result, ['img-1', 'img-2']);
 });
 
-test('seedance rejected image fallback uses referenced character images first when message has no index', () => {
+test('seedance rejected image fallback uses all reference images when message has no index', () => {
   const result = resolveSeedanceRejectedSourceAssetIds({
     message: 'The request failed because the input image may contain real person.',
     originalReferenceImageIds: ['img-1', 'img-2', 'img-3'],
     characterReferenceImageIds: ['img-2'],
   });
 
-  assert.deepEqual(result, ['img-2']);
+  assert.deepEqual(result, ['img-1', 'img-2', 'img-3']);
 });
 
-test('seedance rejected image fallback uses all reference images when message has no index and no explicit character refs', () => {
+test('seedance rejected image fallback still uses all reference images when no character refs exist', () => {
   const result = resolveSeedanceRejectedSourceAssetIds({
     message: 'The request failed because the input image may contain real person.',
     originalReferenceImageIds: ['img-1', 'img-2'],

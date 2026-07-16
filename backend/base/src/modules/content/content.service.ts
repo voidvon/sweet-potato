@@ -607,10 +607,11 @@ export function resolveSeedanceRejectedSourceAssetIds(input: {
       : undefined;
     return assetId ? [assetId] : [];
   }
-  const characterReferenceImageIds = stringArray(input.characterReferenceImageIds);
-  if (characterReferenceImageIds.length) {
-    return Array.from(new Set(characterReferenceImageIds));
-  }
+  // Ark/Seedance often reports only a generic "input image may contain real person"
+  // without content[N]. In that case we cannot know which reference image tripped
+  // moderation. Upload every original reference image to the virtual portrait
+  // library so multi-image person/product references do not leave one ordinary
+  // data:image payload behind and fail again.
   return originalReferenceImageIds;
 }
 
