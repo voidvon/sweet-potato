@@ -2291,6 +2291,10 @@ function formatCandidateScript(candidate: PlanningCandidate) {
   const storyboard = candidate.script?.storyboard || candidate.storyboard;
   const title = candidate.script?.title || candidate.title;
   const summary = candidate.script?.summary || candidate.summary;
+  const materialRefs = [...new Set(storyboard.flatMap((segment) => [
+    ...segment.materialRefs,
+    ...(segment.visual.match(/@image[1-9]\b/giu) || []),
+  ]))];
   const scenePlan = storyboard
     .map((segment) => `${segment.startSecond}-${segment.endSecond}s ${segment.title}`)
     .join('；');
@@ -2303,6 +2307,7 @@ function formatCandidateScript(candidate: PlanningCandidate) {
     candidate.hook ? `- 开场钩子：${candidate.hook}` : '',
     candidate.audienceAngle ? `- 受众角度：${candidate.audienceAngle}` : '',
     candidate.tags.length ? `- 内容标签：${candidate.tags.join('、')}` : '',
+    ...(materialRefs.length ? ['', '## 素材参考', `- 全片商品外观统一参考：${materialRefs.join('、')}`] : []),
     '',
     '## 场景与光线',
     `- 镜头场景安排：${scenePlan || '按逐秒镜头执行'}`,
@@ -2316,7 +2321,7 @@ function formatCandidateScript(candidate: PlanningCandidate) {
       '',
       `### ${segment.startSecond}-${segment.endSecond}s｜${segment.title}`,
       segment.camera ? `- 景别/角度与运镜：${segment.camera}` : '',
-      segment.visual ? `- 画面：${segment.visual}` : '',
+      segment.visual ? `- 画面：${segment.visual.replace(/\s*@image[1-9]\b/giu, '').trim()}` : '',
       segment.action ? `- 主体动作：${segment.action}` : '',
       segment.spaceRelation ? `- 空间关系：${segment.spaceRelation}` : '',
       segment.lighting ? `- 光线：${segment.lighting}` : '',

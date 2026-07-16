@@ -176,6 +176,40 @@ function materialToken(index: number) {
   return `@image${index + 1}`;
 }
 
+function materialTokensIn(value: string) {
+  return value.match(/@image[1-9]\b/giu) || [];
+}
+
+export function stripContentPlanningMaterialTokens(value: string) {
+  return value.replace(/\s*@image[1-9]\b/giu, '').trim();
+}
+
+export function normalizeContentPlanningStoryboardMaterialRefs(
+  storyboard: ContentPlanningStoryboardSegment[],
+  materialCount: number,
+) {
+  const seen = new Set<string>();
+  return storyboard.map((segment) => {
+    const refs = validMaterialRefs([
+      ...segment.materialRefs,
+      ...materialTokensIn(segment.visual),
+      ...materialTokensIn(segment.action),
+    ], materialCount).filter((ref) => {
+      if (seen.has(ref)) {
+        return false;
+      }
+      seen.add(ref);
+      return true;
+    });
+    return {
+      ...segment,
+      visual: stripContentPlanningMaterialTokens(segment.visual),
+      action: stripContentPlanningMaterialTokens(segment.action),
+      materialRefs: refs,
+    };
+  });
+}
+
 function buildStoryboard(
   session: ContentPlanningSession,
   strategy: ContentPlanningStrategyDirection,
@@ -239,6 +273,11 @@ export function buildContentPlanningPrompt(
     .map((segment) => `${segment.startSecond}-${segment.endSecond}s ${segment.title}`)
     .join('；');
   const lightingPlan = [...new Set(storyboard.map((segment) => segment.lighting.trim()).filter(Boolean))].join('；');
+  const materialReferenceLines = session.materialBundle.imageMaterials.map((material, index) => {
+    const caption = session.analysis.materialCaptions.find((item) => item.assetId === material.assetId);
+    const description = stripContentPlanningMaterialTokens(caption?.description || material.name);
+    return `- ${description}，全片商品外观统一参考 ${materialToken(index)}`;
+  });
   const parts = [
     '## 视频总览',
     `- 标题：${plan.title}`,
@@ -247,6 +286,7 @@ export function buildContentPlanningPrompt(
     plan.audienceAngle ? `- 受众角度：${plan.audienceAngle}` : '',
     plan.tags?.length ? `- 内容标签：${plan.tags.join('、')}` : '',
     `- 口播设置：${session.settings.displayOnly ? '无口播，仅视觉展示' : `${spokenLanguage}，按各镜头时长控制语速与字数`}`,
+    ...(materialReferenceLines.length ? ['', '## 素材参考', ...materialReferenceLines] : []),
     '',
     '## 场景与光线',
     `- 镜头场景安排：${scenePlan || '按逐秒镜头执行'}`,
@@ -260,8 +300,7 @@ export function buildContentPlanningPrompt(
   ];
 
   storyboard.forEach((segment) => {
-    const missingRefs = segment.materialRefs.filter((ref) => !segment.visual.includes(ref));
-    const visual = [segment.visual, ...missingRefs].filter(Boolean).join(' ');
+    const visual = stripContentPlanningMaterialTokens(segment.visual);
     parts.push(
       '',
       `### ${segment.startSecond}-${segment.endSecond}s｜${segment.title}`,
@@ -303,6 +342,7 @@ export function contentPlanningCandidateInvariantIssues(
   const storyboard = candidate.storyboard;
   const epsilon = 0.001;
   let expectedStart = 0;
+  const seenMaterialRefs = new Set<string>();
 
   if (!storyboard.length) {
     issues.push('候选脚本没有可执行分镜');
@@ -316,10 +356,11 @@ export function contentPlanningCandidateInvariantIssues(
     if (invalidRefs.length) {
       issues.push(`分镜 ${index + 1} 包含无效素材引用：${invalidRefs.join('、')}`);
     }
-    const detachedRefs = segment.materialRefs.filter((ref) => !segment.visual.includes(ref));
-    if (detachedRefs.length) {
-      issues.push(`分镜 ${index + 1} 的素材引用未出现在对应画面描述中：${detachedRefs.join('、')}`);
+    const duplicateRefs = segment.materialRefs.filter((ref) => seenMaterialRefs.has(ref));
+    if (duplicateRefs.length) {
+      issues.push(`分镜 ${index + 1} 重复使用全片素材引用：${duplicateRefs.join('、')}`);
     }
+    segment.materialRefs.forEach((ref) => seenMaterialRefs.add(ref));
     if (hasPositiveScreenTextInstruction(`${segment.visual}\n${segment.action}`)) {
       issues.push(`分镜 ${index + 1} 包含屏幕文字或字幕展示指令`);
     }
@@ -410,7 +451,7 @@ function rebuildCandidateFromRepair(
   } catch (error) {
     throw new Error(`Repair Agent 返回的候选 ${candidate.id} 无法映射到原分镜：${error instanceof Error ? error.message : String(error)}`);
   }
-  const storyboard = candidate.storyboard.map((segment, index): ContentPlanningStoryboardSegment => {
+  const storyboard = normalizeContentPlanningStoryboardMaterialRefs(candidate.storyboard.map((segment, index): ContentPlanningStoryboardSegment => {
     const repairedSegment = repairedSegments[index];
     if (!repairedSegment) {
       throw new Error(`Repair Agent 未返回候选 ${candidate.id} 的第 ${index + 1} 条分镜`);
@@ -430,7 +471,7 @@ function rebuildCandidateFromRepair(
         session.materialBundle.imageMaterials.length,
       ),
     };
-  });
+  }), session.materialBundle.imageMaterials.length);
   const fullScript = fullScriptFor(storyboard);
   const prompt = buildContentPlanningPrompt(session, storyboard, {
     title: repair.title,
@@ -492,11 +533,12 @@ async function assessConfiguredCandidates(
         ? '这是自动修复后的最终复核。issues 只列仍会阻止候选执行的约束错误；可选优化写入 summary，不要列为 issue。'
         : '这是自动修复前的首次校验，请给出准确、可执行的结构化问题与修复建议。',
       '逐条检查总时长、时间轴连续性、素材使用、核心卖点覆盖、口播字数是否可说完、无字幕约束、商品真实性、JSON 字段完整性和违规夸大。',
+      'issues 只能填写真实存在、需要修复的问题；“无其他问题”“其余均合规”“卖点覆盖完整”等正面结论只能写入 summary，禁止作为 issue 返回。',
       '逐条检查每个分镜是否只有一个连续镜头；单段内再次出现多个时间点、场景跳切、图片轮播或互相冲突的景别时必须列为问题。',
       '检查 visual、action、camera、lighting、spaceRelation、soundEffect 是否具体可拍且各司其职；只有“高级感、氛围感、画面干净”等空泛词而缺少可见细节时必须给出修复建议。',
       'settings.displayOnly=true 表示用户明确选择“只展示”，所有 dialogue 为空是正确行为，不得把无口播列为问题；只有 displayOnly=false 时才检查口播是否缺失。',
       '发现 visual/action 中出现字幕、弹窗大字、屏幕文字，或素材外观被无依据改写时必须列为问题并给出可执行修正。',
-      'materialRefs 只允许标记该分镜实际使用的素材；不能因为素材在其他分镜使用就重复标记。',
+      '每个 @imageN 是全片商品身份参考，只能在整个候选的 materialRefs 中出现一次；不要要求它重复内联到 visual，最终提示词会集中生成“素材参考”区。',
       '必须给每个 candidateId 返回评分、问题与修复建议，并选择综合质量最高且可执行的一条。',
       '不要输出思维链，只输出可审计的检查结论。',
     ].join('\n'),
@@ -525,7 +567,7 @@ async function repairConfiguredCandidates(
       '每段只保留一个连续可拍镜头；若原分镜在单段内包含多个时间点、场景跳切或图片轮播，必须收敛为一个主场景、一个主体动作和一套一致景别。',
       '把空泛画面改成可拍摄描述，补齐场景背景、商品可见细节、景别与角度、运镜、光源方向与光质、主体占比和前中后景关系。',
       'settings.displayOnly=true 时所有 dialogue 必须为空字符串，这是用户选择的无口播模式；displayOnly=false 时才补充可在对应时段说完的口播。',
-      '素材只在实际出现的分镜填写 materialRefs，并在 visual 句末内联同一个 @imageN；不得为了覆盖素材而错误绑定。',
+      '每个 @imageN 只保留在首次实际使用分镜的 materialRefs 中，后续分镜不得重复；visual 和 action 中不要写素材 token，最终提示词会集中生成“素材参考”区。',
       '全程不得安排字幕、弹窗大字、屏幕文字或 UI 文案。',
       '一次性修复所有给定候选，不要输出思维链。',
     ].join('\n'),
@@ -617,7 +659,10 @@ export class DeterministicContentPlanningAgentProvider implements ContentPlannin
     return strategies.map((strategy) => {
       const timeline = timelines.find((item) => item.strategyId === strategy.id) || { strategyId: strategy.id, segments: [] };
       const lines = scripts.find((item) => item.strategyId === strategy.id) || { strategyId: strategy.id, lines: [] };
-      const storyboard = buildStoryboard(context.session, strategy, timeline, lines);
+      const storyboard = normalizeContentPlanningStoryboardMaterialRefs(
+        buildStoryboard(context.session, strategy, timeline, lines),
+        context.session.materialBundle.imageMaterials.length,
+      );
       const fullScript = fullScriptFor(storyboard);
       const prompt = buildContentPlanningPrompt(context.session, storyboard, {
         title: strategy.title,
@@ -830,7 +875,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
         'camera 必须同时写明景别、拍摄角度和运镜方式；lighting 必须写明光源方向、光质及动态变化；spaceRelation 必须写明主体位置、画面占比和前中后景关系。',
         'soundEffect 必须区分环境音、动作音与 BGM 的起始、延续或收尾。禁止使用“画面高级”“氛围拉满”“完全匹配设计”等无法直接拍摄的空泛描述代替具体画面。',
         '当前成片全程无字幕、无弹窗大字、无屏幕 UI 文案，禁止在 visual 或 action 中安排任何文字叠加。',
-        '使用上传图片时，在 visual 中先自然描述图片可见主体和细节，再在句末内联对应 @imageN；materialRefs 同步填写同一标签，仅供系统校验，不作为分镜展示字段。',
+        '使用上传图片时，visual 只自然描述可见主体和细节，不要写 @imageN；每个素材 token 仅在其首次实际使用分镜的 materialRefs 中填写一次，后续分镜不得重复。最终提示词会自动在开头集中生成“素材参考”区。',
         '不得把平铺图直接虚构为真人上身实拍；需要上身效果时必须明确为基于参考商品外观生成，并保持商品颜色、版型和纹理稳定。',
       ].join('\n'),
       user: planningStageInput(context),
@@ -843,7 +888,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
       if (!output || !timeline || !lines) {
         throw new Error(`Visual Director 未返回策略 ${strategy.id} 的完整分镜`);
       }
-      const storyboard = timeline.segments.map((segment, index): ContentPlanningStoryboardSegment => {
+      const storyboard = normalizeContentPlanningStoryboardMaterialRefs(timeline.segments.map((segment, index): ContentPlanningStoryboardSegment => {
         const visual = output.storyboard[index];
         if (!visual) {
           throw new Error(`Visual Director 返回的策略 ${strategy.id} 分镜数量不足`);
@@ -864,7 +909,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
           spaceRelation: visual.spaceRelation,
           materialRefs: validMaterialRefs(visual.materialRefs, context.session.materialBundle.imageMaterials.length),
         };
-      });
+      }), context.session.materialBundle.imageMaterials.length);
       const fullScript = fullScriptFor(storyboard);
       const prompt = buildContentPlanningPrompt(context.session, storyboard, {
         title: output.title,

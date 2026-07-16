@@ -5,6 +5,7 @@ import {
   contentPlanningCandidateInvariantIssues,
   DeterministicContentPlanningAgentProvider,
   extractPartialJsonStringField,
+  normalizeContentPlanningStoryboardMaterialRefs,
   normalizePlanningTimelineSegments,
   orderContentPlanningRepairSegments,
   projectPlanningAuditStream,
@@ -642,6 +643,7 @@ test('fallback agent pipeline produces candidates and an allowlist apply payload
   assert.equal(applied.allowlist.prompt, selected.prompt);
   assert.match(applied.allowlist.prompt, /^## /u);
   assert.match(applied.allowlist.prompt, /## 视频总览/u);
+  assert.match(applied.allowlist.prompt, /## 素材参考/u);
   assert.match(applied.allowlist.prompt, /## 场景与光线/u);
   assert.match(applied.allowlist.prompt, /## 生成要求/u);
   assert.match(applied.allowlist.prompt, /## 逐秒镜头拆解列表/u);
@@ -650,6 +652,8 @@ test('fallback agent pipeline produces candidates and an allowlist apply payload
   assert.match(applied.allowlist.prompt, /- 景别\/角度与运镜：/u);
   assert.match(applied.allowlist.prompt, /空间关系：/u);
   assert.match(applied.allowlist.prompt, /口播：/u);
+  assert.equal(applied.allowlist.prompt.match(/@image1/gu)?.length, 1);
+  assert.doesNotMatch(applied.allowlist.prompt.split('## 逐秒镜头拆解列表')[1] || '', /@image1/u);
   assert.doesNotMatch(applied.allowlist.prompt, /Create a|Use these image references|; camera |; lighting /u);
   assert.deepEqual(Object.keys(applied.allowlist).sort(), ['duration', 'imageMaterials', 'prompt']);
   contentPlanningRepository.deleteSession(created.id);
@@ -757,23 +761,30 @@ test('display-only candidates accept empty dialogue while spoken candidates requ
   contentPlanningRepository.deleteSession(created.id);
 });
 
-test('candidate validation rejects material refs detached from the visual description', async () => {
-  const userId = `planning-test-${Date.now()}-detached-material-ref`;
+test('storyboard material refs are lifted out of shot text and kept only at first use', async () => {
+  const userId = `planning-test-${Date.now()}-normalized-material-ref`;
   const { created, ready } = await advanceSessionToReady(userId);
   const candidate = ready.generation.candidates[0];
   assert.ok(candidate);
-  const firstSegment = candidate.storyboard[0];
-  assert.ok(firstSegment);
-  const detachedCandidate = {
+  const storyboard = normalizeContentPlanningStoryboardMaterialRefs(candidate.storyboard.map((segment) => ({
+    ...segment,
+    visual: `${segment.visual} @image1`,
+    materialRefs: ['@image1'],
+  })), ready.materialBundle.imageMaterials.length);
+
+  assert.deepEqual(storyboard[0]?.materialRefs, ['@image1']);
+  assert.ok(storyboard.slice(1).every((segment) => segment.materialRefs.length === 0));
+  assert.ok(storyboard.every((segment) => !segment.visual.includes('@image1')));
+
+  const duplicateCandidate = {
     ...candidate,
-    storyboard: candidate.storyboard.map((segment, index) => index === 0
-      ? { ...segment, visual: segment.visual.replace(/@image1/gu, ''), materialRefs: ['@image1'] }
+    storyboard: candidate.storyboard.map((segment, index) => index < 2
+      ? { ...segment, materialRefs: ['@image1'] }
       : segment),
   };
-
   assert.match(
-    contentPlanningCandidateInvariantIssues(ready, detachedCandidate).join('\n'),
-    /素材引用未出现在对应画面描述中/u,
+    contentPlanningCandidateInvariantIssues(ready, duplicateCandidate).join('\n'),
+    /重复使用全片素材引用/u,
   );
   contentPlanningRepository.deleteSession(created.id);
 });
