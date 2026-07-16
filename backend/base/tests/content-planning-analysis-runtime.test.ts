@@ -76,3 +76,49 @@ test('content planning analysis retries at most once', async () => {
   );
   assert.equal(retryCount, 1);
 });
+
+test('content planning analysis asks the model to format the retried response after validation still fails', async () => {
+  let retryCount = 0;
+  let formatCount = 0;
+  const retriedRaw = '[{"title":"方案一","summary":"数组中的结果一","tags":[]},{"title":"方案二","summary":"数组中的结果二","tags":[]}]';
+  const result = await parseContentPlanningAnalysisWithRetry(
+    '{"title":"参考视频","summary":123,"tags":[]}',
+    testSchema,
+    async () => {
+      retryCount += 1;
+      return retriedRaw;
+    },
+    async (raw, validationError) => {
+      formatCount += 1;
+      assert.equal(raw, retriedRaw);
+      assert.match(validationError instanceof Error ? validationError.message : String(validationError), /expected object, received array/u);
+      return '{"title":"参考视频","summary":"格式化后输出","tags":[]}';
+    },
+  );
+
+  assert.equal(retryCount, 1);
+  assert.equal(formatCount, 1);
+  assert.equal(result.summary, '格式化后输出');
+});
+
+test('content planning analysis formats the retried response at most once', async () => {
+  let retryCount = 0;
+  let formatCount = 0;
+  await assert.rejects(
+    parseContentPlanningAnalysisWithRetry(
+      '{"title":"参考视频","summary":123,"tags":[]}',
+      testSchema,
+      async () => {
+        retryCount += 1;
+        return '{"title":"参考视频","summary":456,"tags":[]}';
+      },
+      async () => {
+        formatCount += 1;
+        return '{"title":"参考视频","summary":789,"tags":[]}';
+      },
+    ),
+    /素材理解 JSON 格式化兜底后仍失败/u,
+  );
+  assert.equal(retryCount, 1);
+  assert.equal(formatCount, 1);
+});

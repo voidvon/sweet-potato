@@ -452,7 +452,7 @@ export class ContentPlanningService {
     private readonly analysisProvider: ContentPlanningAnalysisProvider = createContentPlanningAnalysisProvider(),
     private readonly analysisBilling: ContentPlanningAnalysisBilling = defaultContentPlanningAnalysisBilling,
     private readonly generationBilling: ContentPlanningGenerationBilling = defaultContentPlanningGenerationBilling,
-  ) {}
+  ) { }
 
   getClientConfig() {
     return getContentPlanningBillingCredits();
@@ -629,10 +629,19 @@ export class ContentPlanningService {
         this.analysisBilling.complete({ reservation: analysisReservation, sessionId });
       }
     } catch (error) {
+      logger.error('content planning analysis failed', {
+        sessionId,
+        userId,
+        error: errorMessage(error),
+      });
+      let userFacingError = analysisReservation
+        ? '素材识别失败，积分已回退，请重新尝试'
+        : '素材理解失败，请重新尝试';
       if (analysisReservation) {
         try {
           this.analysisBilling.fail(analysisReservation);
         } catch (billingError) {
+          userFacingError = '素材理解失败，积分回退处理中，请稍后重试';
           logger.error('content planning analysis credit release failed', {
             sessionId,
             userId,
@@ -643,7 +652,7 @@ export class ContentPlanningService {
       contentPlanningRepository.updateSession(sessionId, {
         status: 'failed',
         jobStage: 'failed',
-        errorMessage: errorMessage(error),
+        errorMessage: userFacingError,
       });
     } finally {
       runningAnalysisJobs.delete(sessionId);

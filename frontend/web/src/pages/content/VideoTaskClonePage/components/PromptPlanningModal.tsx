@@ -1448,7 +1448,7 @@ export function PromptPlanningModal({
                           type="button"
                         >
                           <div>
-                            <span className="video-task-epa-thinking-dot" />
+                            <span className={`video-task-epa-thinking-dot${isGenerating ? ' is-running' : ''}`} />
                             <strong>深度思考过程</strong>
                           </div>
                           <span>{isThinkingCollapsed ? '展开' : '收起'} {isThinkingCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>
@@ -1563,8 +1563,8 @@ export function PromptPlanningModal({
                       onClick={() => void handleAnalyze()}
                       type="button"
                     >
-                      {isAnalyzing ? <LoaderCircle className="is-spinning" size={16} /> : null}
-                      {isAnalyzing ? '分析中...' : `${copy.action}${analysisCreditLabel}`}
+                      {isAnalyzing || isGenerating ? <LoaderCircle className="is-spinning" size={16} /> : null}
+                      {isGenerating ? '生成中...' : isAnalyzing ? '分析中...' : `${copy.action}${analysisCreditLabel}`}
                     </button>
                   </>
                 ) : null}
@@ -1592,8 +1592,8 @@ export function PromptPlanningModal({
                       }}
                       type="button"
                     >
-                      {busyAction === 'confirming' ? <LoaderCircle className="is-spinning" size={16} /> : null}
-                      下一步
+                      {busyAction === 'confirming' || isGenerating ? <LoaderCircle className="is-spinning" size={16} /> : null}
+                      {isGenerating ? '生成中...' : '下一步'}
                     </button>
                   </>
                 ) : null}
@@ -1646,8 +1646,8 @@ export function PromptPlanningModal({
                       onClick={() => void handleGenerate()}
                       type="button"
                     >
-                      {busyAction === 'generating' ? <LoaderCircle className="is-spinning" size={16} /> : null}
-                      {`生成脚本${generationCreditLabel}`}
+                      {isGenerating ? <LoaderCircle className="is-spinning" size={16} /> : null}
+                      {isGenerating ? '生成中...' : `生成脚本${generationCreditLabel}`}
                     </button>
                   </>
                 ) : null}
@@ -1667,8 +1667,8 @@ export function PromptPlanningModal({
                       onClick={() => void handleGenerate(true)}
                       type="button"
                     >
-                      {busyAction === 'generating' ? <LoaderCircle className="is-spinning" size={16} /> : <RefreshCcw size={15} />}
-                      {session?.status === 'generating' ? '生成中...' : `重新生成${generationCreditLabel}`}
+                      {isGenerating ? <LoaderCircle className="is-spinning" size={16} /> : <RefreshCcw size={15} />}
+                      {isGenerating ? '生成中...' : `重新生成${generationCreditLabel}`}
                     </button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"

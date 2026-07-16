@@ -1731,7 +1731,7 @@
   width: 8px;
 }
 
-.video-task-epa-thinking-dot::after {
+.video-task-epa-thinking-dot.is-running::after {
   animation: video-task-epa-thinking-pulse 1.6s ease-out infinite;
   border: 1px solid rgba(124, 156, 45, 0.55);
   border-radius: inherit;
@@ -1809,7 +1809,7 @@
 @media (prefers-reduced-motion: reduce) {
   .video-task-epa-stage-pill.is-running,
   .video-task-epa-loading-progress::after,
-  .video-task-epa-thinking-dot::after,
+  .video-task-epa-thinking-dot.is-running::after,
   .video-task-epa-thinking-dots i {
     animation: none;
   }
