@@ -15,8 +15,10 @@ type PromptPanelProps = {
   onPlaceholderFiles: (kind: MaterialKey, files: File[]) => void;
   onPromptChange: (prompt: string) => void;
   panel: PromptPanelKind | null;
+  placeholder?: string;
   prompt: string;
   selectedMaterials: SelectedMaterials;
+  showPlanning?: boolean;
   title?: string;
 };
 
@@ -28,8 +30,10 @@ export function PromptPanel({
   onPlaceholderFiles,
   onPromptChange,
   panel,
+  placeholder = promptPlaceholder,
   prompt,
   selectedMaterials,
+  showPlanning = true,
   title = '提示词 / 需求',
 }: PromptPanelProps) {
   const openPanel = (nextPanel: PromptPanelKind) => {
@@ -43,7 +47,7 @@ export function PromptPanel({
           minRows={4}
           onChange={onPromptChange}
           onPlaceholderFiles={onPlaceholderFiles}
-          placeholder={promptPlaceholder}
+          placeholder={placeholder}
           prompt={prompt}
           selectedMaterials={selectedMaterials}
           suggestionContainer="body"
@@ -51,13 +55,15 @@ export function PromptPanel({
         <button aria-label="展开提示词编辑器" title='展开提示词编辑器' className="video-task-expand" onClick={onExpand} type="button">
           <Maximize size={18} />
         </button>
-        <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
-          <span className="video-task-one-click-spark">✨</span>
-          一键策划
-        </button>
+        {showPlanning ? (
+          <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
+            <span className="video-task-one-click-spark">✨</span>
+            一键策划
+          </button>
+        ) : null}
       </div>
 
-      {panel && (
+      {showPlanning && panel && (
         <PromptPlanningModal
           currentUser={currentUser}
           initialPrompt={prompt}

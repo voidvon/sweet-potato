@@ -5,14 +5,26 @@ import type { MaterialKey, SelectedMaterials } from '../types';
 import { PromptMentionEditor } from './PromptMentionEditor';
 
 type PromptModalProps = {
+  description?: string;
   onClose: () => void;
   onPromptChange: (prompt: string) => void;
   onPlaceholderFiles: (kind: MaterialKey, files: File[]) => void;
+  placeholder?: string;
   prompt: string;
   selectedMaterials: SelectedMaterials;
+  title?: string;
 };
 
-export function PromptModal({ onClose, onPlaceholderFiles, onPromptChange, prompt, selectedMaterials }: PromptModalProps) {
+export function PromptModal({
+  description = '描述镜头、主体动作、风格和节奏，输入 @ 引用素材',
+  onClose,
+  onPlaceholderFiles,
+  onPromptChange,
+  placeholder = '输入提示词，可通过 @ 引用素材',
+  prompt,
+  selectedMaterials,
+  title = '提示词 / 需求',
+}: PromptModalProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -29,8 +41,8 @@ export function PromptModal({ onClose, onPlaceholderFiles, onPromptChange, promp
       <section>
         <div className="video-task-model-head">
           <div>
-            <strong>提示词 / 需求</strong>
-            <p>描述镜头、主体动作、风格和节奏，输入 @ 引用素材</p>
+            <strong>{title}</strong>
+            <p>{description}</p>
           </div>
           <button onClick={onClose} type="button"><X size={18} /></button>
         </div>
@@ -38,7 +50,7 @@ export function PromptModal({ onClose, onPlaceholderFiles, onPromptChange, promp
           minRows={10}
           onChange={onPromptChange}
           onPlaceholderFiles={onPlaceholderFiles}
-          placeholder="输入提示词，可通过 @ 引用素材"
+          placeholder={placeholder}
           prompt={prompt}
           selectedMaterials={selectedMaterials}
           suggestionContainer=".video-task-prompt-modal"

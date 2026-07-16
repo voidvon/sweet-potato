@@ -5,6 +5,7 @@ import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
 import type { VideoGenerationTask } from '../../../../types';
 import { MaterialPanel } from './MaterialPanel';
+import { MarketingVideoPanel } from './MarketingVideoPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
@@ -88,6 +89,21 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       prompt={state.prompt}
       selectedMaterials={state.selectedMaterials}
       title={block.title}
+    />
+  ) : null,
+  'marketing-video-form': (block, state) => block.type === 'marketing-video-form' ? (
+    <MarketingVideoPanel
+      config={state.marketingVideoConfig}
+      currentUser={state.currentUser}
+      onChange={state.setMarketingVideoConfig}
+      onExpand={() => state.setExpandedPrompt(true)}
+      onPlanningApply={state.applyPlanningResult}
+      onPanelChange={state.setPromptPanel}
+      onPlaceholderFiles={state.fillMentionPlaceholderFiles}
+      onPromptChange={state.setPrompt}
+      panel={state.promptPanel}
+      prompt={state.prompt}
+      selectedMaterials={state.selectedMaterials}
     />
   ) : null,
   'subtitle-removal': (block, state) => block.type === 'subtitle-removal' ? (

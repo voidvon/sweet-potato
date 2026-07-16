@@ -730,6 +730,10 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
                     menuTitle,
                   },
                 });
+                Object.assign(component.element.style, {
+                  position: 'fixed',
+                  zIndex: '10050',
+                });
                 unmount = props.mount(component.element, {
                   autoUpdate: {
                     animationFrame: true,
