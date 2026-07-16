@@ -3114,7 +3114,7 @@ export async function mergeGeneratedVideoSegments(input: {
     throw new Error('至少需要两个分段才能合并');
   }
   const listFilePath = path.join(contentFilesDir, `video-segments-${input.taskId}-${Date.now()}.txt`);
-  const storedFileName = `generated-video-${input.taskId}-${Date.now()}.mp4`;
+  const storedFileName = `${input.taskId}-${Date.now()}.mp4`;
   const storedRelativePath = generatedMediaRelativePath('video', storedFileName);
   const concatOutputPath = path.join(contentFilesDir, `generated-video-concat-${input.taskId}-${Date.now()}.mp4`);
   const outputPath = contentFilePathForRelativePath(storedRelativePath);

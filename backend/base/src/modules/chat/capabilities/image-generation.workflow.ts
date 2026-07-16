@@ -1253,7 +1253,7 @@ async function persistGeneratedImageAttachment(input: {
   const { conversationId, generated, index, outputCount, prepared, userId } = input;
   const slotIndex = input.slotIndex ?? index;
   const extension = extensionForMimeType(generated.mimeType);
-  const storedFileName = `chat-generated-image-${randomBytes(8).toString('hex')}.${extension}`;
+  const storedFileName = `${randomBytes(8).toString('hex')}.${extension}`;
   const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
   const filePath = contentFilePathForRelativePath(storedRelativePath);
   const dimensions = imageDimensions(generated.buffer, generated.mimeType);

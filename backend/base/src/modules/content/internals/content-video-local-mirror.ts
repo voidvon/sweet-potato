@@ -182,7 +182,7 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       throw new Error('下载生成视频失败：响应体为空');
     }
     const extension = generatedVideoExtension(remoteVideoUrl, response.headers.get('content-type'));
-    const storedFileName = `generated-video-${input.taskId}-${randomUUID()}${extension}`;
+    const storedFileName = `${input.taskId}-${randomUUID()}${extension}`;
     const storedRelativePath = generatedMediaRelativePath('video', storedFileName);
     const localVideoUrl = fileUrlForContentRelativePath(storedRelativePath);
     filePath = contentFilePathForRelativePath(storedRelativePath);

@@ -1970,53 +1970,16 @@ export const contentService = {
       throw new Error('素材不存在');
     }
     const videoTaskId = linkedVideoTaskId(asset);
-    if (videoTaskId) {
-      this.clearFinishedVideoTaskResult(videoTaskId);
-    }
+    const linkedVideoTask = videoTaskId ? contentRepository.findVideoTask(videoTaskId) : null;
     await Promise.all(localFilePaths.map((filePath) => rm(filePath, { force: true })));
+    if (linkedVideoTask?.userId === asset.userId) {
+      await this.deleteVideoTask(linkedVideoTask.id, asset.userId);
+    }
     if (asset.resourceType === 'finished_video') {
       await cleanupUnreferencedFinishedAssetInputs(asset);
       await cleanupChatGeneratedImageInputs(asset);
     }
     return { ok: true };
-  },
-
-  clearFinishedVideoTaskResult(id: string) {
-    const current = contentRepository.findVideoTask(id);
-    if (!current) {
-      return null;
-    }
-    const editableParseResult = {
-      ...current.editableParseResult,
-      videoGenerationResult: undefined,
-    };
-    const expertContext = { ...current.expertContext };
-    delete expertContext.generatedVideoUrl;
-    delete expertContext.videoGenerationResult;
-    delete expertContext.videoResult;
-    const taskWithParse = this.updateVideoParseResult(id, {
-      editableParseResult,
-      selectedDigitalHumanId: current.selectedDigitalHumanId,
-      selectedSceneId: current.selectedSceneId,
-      selectedVoiceId: current.selectedVoiceId,
-    });
-    const clearedTask = contentRepository.clearVideoTaskGeneratedResult(id);
-    if (!clearedTask) {
-      return taskWithParse;
-    }
-    return contentRepository.updateVideoTaskContext(id, {
-      selectedSkillIds: clearedTask.selectedSkillIds,
-      expertContext: {
-        ...expertContext,
-        currentStep: current.expertContext.currentStep === 'video_generated'
-          ? 'video_generation'
-          : current.expertContext.currentStep,
-        requiredUserAction: current.expertContext.currentStep === 'video_generated'
-          ? 'generate_video'
-          : current.expertContext.requiredUserAction,
-        updatedAt: new Date().toISOString(),
-      },
-    });
   },
 
   async generateDigitalHumanThreeView(

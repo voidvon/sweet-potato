@@ -341,7 +341,8 @@ export function ChatMessageList({
 
   function isGeneratedImageAttachment(attachment: ChatAttachment) {
     return attachment.kind === 'image'
-      && (attachment.name.startsWith('generated-image') || attachment.url.includes('chat-generated-image-'));
+      && (attachment.imageGenerationSlotIndex !== undefined
+        || attachment.name.startsWith('generated-image'));
   }
 
   async function downloadAttachment(attachment: ChatAttachment) {
