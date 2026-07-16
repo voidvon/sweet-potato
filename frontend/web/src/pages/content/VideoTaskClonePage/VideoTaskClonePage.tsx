@@ -4,6 +4,7 @@ import { Modal } from 'antd';
 import { ModelPicker } from './components/ModelPicker';
 import { PromptModal } from './components/PromptModal';
 import { ToolSwitcher } from './components/ToolSwitcher';
+import { StoryboardHistoryPanel } from './components/StoryboardHistoryPanel';
 import { ToolResultWorkspace, ToolWorkspace } from './components/ToolWorkspace';
 import { toolOptions } from './constants';
 import { useVideoTaskCloneState } from './useVideoTaskCloneState';
@@ -74,7 +75,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         <ToolWorkspace state={state} />
       </section>
 
-      {state.tool.key === 'marketing-video' ? <StoryboardHistoryPanel /> : null}
+      {state.tool.key === 'marketing-video' ? <StoryboardHistoryPanel state={state} /> : null}
 
       <ToolResultWorkspace onEdit={handleEditProduction} state={state} />
 
@@ -104,23 +105,5 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         />
       )}
     </div>
-  );
-}
-
-function StoryboardHistoryPanel() {
-  return (
-    <section className="video-task-storyboard-history" aria-label="分镜历史">
-      <header className="video-task-result-header">
-        <div className="video-task-result-header-copy">
-          <h1>分镜历史</h1>
-          <p>生成的分镜会显示在这里</p>
-        </div>
-      </header>
-
-      <div className="video-task-storyboard-empty">
-        <strong>暂无分镜历史</strong>
-        <p>提交营销视频任务后，可在这里查看生成的分镜。</p>
-      </div>
-    </section>
   );
 }

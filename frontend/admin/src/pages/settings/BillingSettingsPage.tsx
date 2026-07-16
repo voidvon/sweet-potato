@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Divider, Form, InputNumber, message } from 'antd';
+import { Button, Card, Divider, Form, InputNumber, Select, message } from 'antd';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
-import type { BillingSettings } from '../../types';
+import type { BillingSettings, ModelConfig } from '../../types';
 import { getBillingSettings, updateBillingSettings } from '../../api/billing';
+import { listModelConfigs } from '../../api/model-config';
 
 type BillingFormValues = Pick<
   BillingSettings,
@@ -10,6 +11,8 @@ type BillingFormValues = Pick<
   | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'
   | 'contentPlanningGenerationCreditsPerRequest'
+  | 'marketingVideoCreditsPerRequest'
+  | 'marketingVideoStoryboardModelConfigId'
   | 'videoUpscaleCreditsPerRequest'
   | 'subtitleRemovalCreditsPerSecond'
   | 'videoTranslationSubtitleCreditsPerSecond'
@@ -33,16 +36,29 @@ export function BillingSettingsPage() {
   const [form] = Form.useForm<BillingFormValues>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [imageModels, setImageModels] = useState<Array<ModelConfig & { id: string }>>([]);
 
   async function loadSettings() {
     setLoading(true);
     try {
-      const settings = await getBillingSettings();
+      const [settings, models] = await Promise.all([
+        getBillingSettings(),
+        listModelConfigs('image'),
+      ]);
+      const availableImageModels = models.filter(
+        (model): model is ModelConfig & { id: string } => Boolean(model.id),
+      );
+      const selectedStoryboardModelId = availableImageModels.some((model) => model.id === settings.marketingVideoStoryboardModelConfigId)
+        ? settings.marketingVideoStoryboardModelConfigId
+        : availableImageModels.find((model) => model.isDefault)?.id || availableImageModels[0]?.id || '';
+      setImageModels(availableImageModels);
       form.setFieldsValue({
         videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
         videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
         contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
         contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
+        marketingVideoCreditsPerRequest: settings.marketingVideoCreditsPerRequest,
+        marketingVideoStoryboardModelConfigId: selectedStoryboardModelId,
         videoUpscaleCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,
         subtitleRemovalCreditsPerSecond: settings.subtitleRemovalCreditsPerSecond,
         videoTranslationSubtitleCreditsPerSecond: settings.videoTranslationSubtitleCreditsPerSecond,
@@ -92,6 +108,8 @@ export function BillingSettingsPage() {
               videoUnderstandingCreditsPer1MTokens: 0,
               contentPlanningAnalysisCreditsPerRequest: 2,
               contentPlanningGenerationCreditsPerRequest: 3,
+              marketingVideoCreditsPerRequest: 15,
+              marketingVideoStoryboardModelConfigId: '',
               videoUpscaleCreditsPerRequest: 20,
               subtitleRemovalCreditsPerSecond: 2,
               videoTranslationSubtitleCreditsPerSecond: 1,
@@ -146,6 +164,37 @@ export function BillingSettingsPage() {
               ]}
             >
               <InputNumber min={0} precision={6} style={priceInputStyle} />
+            </Form.Item>
+
+            <Divider orientation="horizontal" titlePlacement="left">营销视频生成</Divider>
+            <Form.Item
+              label="生成价格 (Credit / 次)"
+              extra="提交营销视频生成任务时使用的固定单次价格。"
+              name="marketingVideoCreditsPerRequest"
+              rules={[
+                { required: true, message: '请输入营销视频生成单次价格' },
+                { validator: nonNegativePriceValidator('营销视频生成单次价格') },
+              ]}
+            >
+              <InputNumber min={0} precision={6} style={priceInputStyle} />
+            </Form.Item>
+            <Form.Item
+              label="分镜模型"
+              extra="用于营销视频分镜图片生成，列表包含所有已配置的图片模型。"
+              name="marketingVideoStoryboardModelConfigId"
+              rules={[{ required: true, message: '请选择分镜模型' }]}
+            >
+              <Select
+                disabled={imageModels.length === 0}
+                options={imageModels.map((model) => ({
+                  label: `${model.name} (${model.provider} / ${model.model})`,
+                  value: model.id,
+                }))}
+                placeholder={imageModels.length > 0 ? '请选择图片模型' : '暂无可用图片模型'}
+                showSearch
+                optionFilterProp="label"
+                style={priceInputStyle}
+              />
             </Form.Item>
 
             <Divider orientation="horizontal" titlePlacement="left">视频处理</Divider>

@@ -46,7 +46,7 @@ export function MarketingVideoPanel({
     <div className="video-task-marketing-form">
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-product-name">商品名称</label>}
+        title={<label htmlFor="marketing-product-name">商品名称 <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input
@@ -60,7 +60,7 @@ export function MarketingVideoPanel({
 
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-product-category">商品类目</label>}
+        title={<label htmlFor="marketing-product-category">商品类目 <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input
@@ -74,7 +74,7 @@ export function MarketingVideoPanel({
 
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-selling-points">核心卖点</label>}
+        title={<label htmlFor="marketing-selling-points">核心卖点 <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input.TextArea

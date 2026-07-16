@@ -12,6 +12,7 @@ import { getErrorMessage, sendError } from '../../shared/http.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
+import { marketingVideoStoryboardService } from './marketing-video-storyboard.service.js';
 import {
   contentAssetThumbnailPath,
   normalizeContentThumbnailSize,
@@ -926,6 +927,37 @@ export function createContentRouter() {
         .catch((error) => sendError(res, 400, getErrorMessage(error, '视频制作记录获取失败')));
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '视频制作记录获取失败'));
+    }
+  });
+
+  router.get('/marketing-video-storyboards', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      res.json(marketingVideoStoryboardService.list(getCurrentUserId(req)));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '营销视频分镜历史获取失败'));
+    }
+  });
+
+  router.post('/marketing-video-storyboards', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      const task = marketingVideoStoryboardService.create({
+        userId: getCurrentUserId(req),
+        productName: String(req.body.productName || ''),
+        productCategory: String(req.body.productCategory || ''),
+        sellingPoints: String(req.body.sellingPoints || ''),
+        referenceImageIds: Array.isArray(req.body.referenceImageIds) ? req.body.referenceImageIds : [],
+      });
+      res.status(201).json(task);
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '营销视频分镜任务创建失败'));
+    }
+  });
+
+  router.post('/marketing-video-storyboards/:id/retry', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      res.json(marketingVideoStoryboardService.retry(getCurrentUserId(req), String(req.params.id || '')));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '营销视频分镜重新生成失败'));
     }
   });
 

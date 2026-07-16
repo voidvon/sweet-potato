@@ -6,6 +6,8 @@ export type BillingSettings = {
   videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;
   contentPlanningGenerationCreditsPerRequest: number;
+  marketingVideoCreditsPerRequest: number;
+  marketingVideoStoryboardModelConfigId: string;
   videoUpscaleCreditsPerRequest: number;
   subtitleRemovalCreditsPerSecond: number;
   videoTranslationSubtitleCreditsPerSecond: number;
@@ -78,6 +80,7 @@ export type LlmUsageRecord = {
 export type BillableUsageCategory =
   | 'content_planning_analysis'
   | 'content_planning_generation'
+  | 'marketing_video_storyboard'
   | 'image_generation'
   | 'video_generation'
   | 'video_upscale'

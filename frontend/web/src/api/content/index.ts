@@ -2,6 +2,7 @@ import type {
   ContentAsset,
   ContentAssetGroup,
   ContentAssetResourceType,
+  MarketingVideoStoryboard,
   VideoGenerationTask,
   PaginatedResult,
 } from '../../types';
@@ -17,6 +18,7 @@ enum Api {
   trimReferenceVideo = '/api/content/reference-video/trim',
   videoTasks = '/api/content/video-tasks',
   videoProductions = '/api/content/video-productions',
+  marketingVideoStoryboards = '/api/content/marketing-video-storyboards',
   videoEnhancements = '/api/content/video-enhancements',
   subtitleRemovals = '/api/content/subtitle-removals',
   videoTranslations = '/api/content/video-translations',
@@ -429,6 +431,28 @@ export function createVideoProduction(payload: {
   return request<VideoGenerationTask>(Api.videoProductions, {
     method: 'POST',
     body: JSON.stringify(requestPayload),
+  });
+}
+
+export function listMarketingVideoStoryboards() {
+  return request<MarketingVideoStoryboard[]>(Api.marketingVideoStoryboards);
+}
+
+export function createMarketingVideoStoryboard(payload: {
+  productName: string;
+  productCategory: string;
+  sellingPoints: string;
+  referenceImageIds: string[];
+}) {
+  return request<MarketingVideoStoryboard>(Api.marketingVideoStoryboards, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function retryMarketingVideoStoryboard(id: string) {
+  return request<MarketingVideoStoryboard>(`${Api.marketingVideoStoryboards}/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
   });
 }
 

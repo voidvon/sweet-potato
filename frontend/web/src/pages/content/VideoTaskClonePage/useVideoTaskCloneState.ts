@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, getContentAsset, listContentAssetGroups, listContentAssets, listVideoProductionsPage, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
-import type { ContentAsset, ContentAssetResourceType, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
+import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
   defaultFilters,
   examplePrompt,
@@ -143,6 +143,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [retryingTaskId, setRetryingTaskId] = useState('');
   const [deletingTaskId, setDeletingTaskId] = useState('');
   const [marketingVideoConfig, setMarketingVideoConfig] = useState<MarketingVideoConfig>(defaultMarketingVideoConfig);
+  const [marketingStoryboards, setMarketingStoryboards] = useState<MarketingVideoStoryboard[]>([]);
+  const [selectedMarketingStoryboardId, setSelectedMarketingStoryboardId] = useState('');
+  const [isLoadingMarketingStoryboards, setIsLoadingMarketingStoryboards] = useState(false);
+  const [retryingMarketingStoryboardId, setRetryingMarketingStoryboardId] = useState('');
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
@@ -169,6 +173,39 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       ignore = true;
     };
   }, []);
+
+  const loadMarketingStoryboards = useCallback(async (silent = false) => {
+    if (!silent) setIsLoadingMarketingStoryboards(true);
+    try {
+      const tasks = await listMarketingVideoStoryboards();
+      setMarketingStoryboards(tasks);
+      return tasks;
+    } catch (error) {
+      if (!silent) {
+        message.error(error instanceof Error ? error.message : '分镜历史加载失败');
+      }
+      return [];
+    } finally {
+      if (!silent) setIsLoadingMarketingStoryboards(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMarketingStoryboards();
+  }, [currentUser.id, loadMarketingStoryboards]);
+
+  const hasGeneratingMarketingStoryboard = useMemo(
+    () => marketingStoryboards.some((task) => task.status === 'generating'),
+    [marketingStoryboards],
+  );
+
+  useEffect(() => {
+    if (!hasGeneratingMarketingStoryboard) return undefined;
+    const timer = window.setInterval(() => {
+      void loadMarketingStoryboards(true);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [hasGeneratingMarketingStoryboard, loadMarketingStoryboards]);
 
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
@@ -301,6 +338,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     () => (
       tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
       && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
+      && (tool.key !== 'marketing-video'
+        || (marketingVideoConfig.productName.trim().length > 0
+          && marketingVideoConfig.productCategory.trim().length > 0
+          && marketingVideoConfig.sellingPoints.trim().length > 0))
       && (tool.workspace.generate.handler !== 'subtitle-removal'
         || subtitleRemovalConfig.mode === 'auto'
         || subtitleRemovalConfig.locations.length > 0)
@@ -309,7 +350,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           && (!videoTranslationConfig.hardSubtitles
             || videoTranslationConfig.subtitlePlacementConfig.locations.length > 0)))
     ),
-    [prompt, selectedMaterials, subtitleRemovalConfig, tool.materials, tool.workspace.generate.handler, videoTranslationConfig],
+    [marketingVideoConfig, prompt, selectedMaterials, subtitleRemovalConfig, tool.key, tool.materials, tool.workspace.generate.handler, videoTranslationConfig],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
   const selectedVideoDuration = getLocalFiles(selectedMaterials.video)[0]?.trimDuration;
@@ -321,6 +362,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     if (tool.workspace.generate.handler === 'video-upscale') {
       return formatCreditAmount(billing.videoUpscaleCreditsPerRequest);
+    }
+    if (tool.key === 'marketing-video') {
+      return formatCreditAmount(billing.marketingVideoCreditsPerRequest);
     }
     if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
       return '';
@@ -343,7 +387,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return formatCreditAmount(billedVideoSeconds * creditsPerSecond);
     }
     return '';
-  }, [selectedVideoDuration, siteConfig, tool.workspace.generate.handler, videoTranslationConfig]);
+  }, [selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
 
   useEffect(() => {
     if (hasSelectedAudio) {
@@ -787,7 +831,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, []);
 
   const handleGenerate = useCallback(async () => {
-    if (tool.workspace.generate.handler === 'pending') {
+    if (tool.workspace.generate.handler === 'pending' && tool.key !== 'marketing-video') {
       message.warning(`${tool.label}功能正在接入生成能力`);
       return;
     }
@@ -803,6 +847,21 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         uploadGroupIdsRef,
         voiceEnabled,
       });
+      if (tool.key === 'marketing-video') {
+        const storyboard = await createMarketingVideoStoryboard({
+          productName: marketingVideoConfig.productName.trim(),
+          productCategory: marketingVideoConfig.productCategory.trim(),
+          sellingPoints: marketingVideoConfig.sellingPoints.trim(),
+          referenceImageIds: prepared.referenceImageIds,
+        });
+        setMarketingStoryboards((current) => [
+          storyboard,
+          ...current.filter((task) => task.id !== storyboard.id),
+        ]);
+        setSelectedMarketingStoryboardId(storyboard.id);
+        message.success('营销视频分镜任务已提交');
+        return;
+      }
       if (tool.workspace.generate.handler === 'video-upscale') {
         const sourceAssetId = prepared.referenceVideoIds[0];
         if (!sourceAssetId) {
@@ -889,6 +948,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     duration,
     loadLibraryAssets,
     loadVideoProductions,
+    marketingVideoConfig,
     model,
     prompt,
     quality,
@@ -897,10 +957,26 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     selectedMaterials,
     subtitleRemovalConfig,
     tool.label,
+    tool.key,
     tool.workspace.generate.handler,
     voiceEnabled,
     videoTranslationConfig,
   ]);
+
+  const retryMarketingStoryboard = useCallback(async (id: string) => {
+    if (retryingMarketingStoryboardId) return;
+    try {
+      setRetryingMarketingStoryboardId(id);
+      const task = await retryMarketingVideoStoryboard(id);
+      setMarketingStoryboards((current) => current.map((item) => item.id === task.id ? task : item));
+      setSelectedMarketingStoryboardId(task.id);
+      message.success('已重新提交分镜生成');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重新生成分镜失败');
+    } finally {
+      setRetryingMarketingStoryboardId('');
+    }
+  }, [retryingMarketingStoryboardId]);
 
   const retryVideoProduction = useCallback(async (task: VideoGenerationTask) => {
     if (retrySubmittingRef.current) {
@@ -1061,7 +1137,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     isLoadingProductions,
     isGenerating,
     materialMode,
+    marketingStoryboards,
     marketingVideoConfig,
+    isLoadingMarketingStoryboards,
+    retryingMarketingStoryboardId,
+    retryMarketingStoryboard,
+    selectedMarketingStoryboardId,
+    setSelectedMarketingStoryboardId,
     model,
     loadMoreVideoProductions,
     paramSummary,

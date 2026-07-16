@@ -115,6 +115,8 @@ export function migrateDatabase() {
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
       content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2,
       content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3,
+      marketing_video_credits_per_request REAL NOT NULL DEFAULT 15,
+      marketing_video_storyboard_model_config_id TEXT NOT NULL DEFAULT '',
       video_upscale_credits_per_request REAL NOT NULL DEFAULT 20,
       subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2,
       video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1,
@@ -450,6 +452,30 @@ export function migrateDatabase() {
       PRIMARY KEY (asset_id, reference_type, reference_id, role)
     );
 
+    CREATE TABLE IF NOT EXISTS marketing_video_storyboards (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      product_category TEXT NOT NULL,
+      selling_points TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      reference_image_ids TEXT NOT NULL DEFAULT '[]',
+      model_config_id TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'generating',
+      image_asset_id TEXT,
+      image_url TEXT,
+      reservation_id TEXT,
+      credit_cost REAL NOT NULL DEFAULT 0,
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_marketing_video_storyboards_user_created
+      ON marketing_video_storyboards(user_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS temporary_asset_cleanup_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id TEXT NOT NULL,
@@ -633,6 +659,8 @@ export function migrateDatabase() {
   addColumnIfMissing('billing_settings', 'video_understanding_credits_per_1m_tokens', 'video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'content_planning_analysis_credits_per_request', 'content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'content_planning_generation_credits_per_request', 'content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3');
+  addColumnIfMissing('billing_settings', 'marketing_video_credits_per_request', 'marketing_video_credits_per_request REAL NOT NULL DEFAULT 15');
+  addColumnIfMissing('billing_settings', 'marketing_video_storyboard_model_config_id', "marketing_video_storyboard_model_config_id TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('billing_settings', 'video_upscale_credits_per_request', 'video_upscale_credits_per_request REAL NOT NULL DEFAULT 20');
   addColumnIfMissing('billing_settings', 'subtitle_removal_credits_per_second', 'subtitle_removal_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'video_translation_subtitle_credits_per_second', 'video_translation_subtitle_credits_per_second REAL NOT NULL DEFAULT 1');
@@ -1015,6 +1043,18 @@ export function migrateDatabase() {
       isDefault: config.isDefault ? 1 : 0,
     });
   });
+
+  db.exec(`
+    UPDATE billing_settings
+    SET marketing_video_storyboard_model_config_id = COALESCE((
+      SELECT id
+      FROM model_configs
+      WHERE type = 'image'
+      ORDER BY is_default DESC, sort_order ASC, updated_at DESC
+      LIMIT 1
+    ), '')
+    WHERE marketing_video_storyboard_model_config_id = ''
+  `);
 
   const llmModelPricingCount = db.prepare('SELECT COUNT(*) as count FROM llm_model_pricing').get() as { count: number };
   if (llmModelPricingCount.count === 0) {

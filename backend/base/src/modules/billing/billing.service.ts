@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { db } from '../../db/database.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
+import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { findLlmModelPricing } from '../model-configs/llm-model-pricing.service.js';
 import { userRepository } from '../users/user.repository.js';
 import { billingRepository } from './billing.repository.js';
@@ -997,6 +998,15 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
       input.contentPlanningGenerationCreditsPerRequest,
       normalizeNumber(fallbackRecord.contentPlanningGenerationCreditsPerRequest, 3),
     ),
+    marketingVideoCreditsPerRequest: normalizeNumber(
+      input.marketingVideoCreditsPerRequest,
+      normalizeNumber(fallbackRecord.marketingVideoCreditsPerRequest, 15),
+    ),
+    marketingVideoStoryboardModelConfigId: String(
+      input.marketingVideoStoryboardModelConfigId
+      ?? fallbackRecord.marketingVideoStoryboardModelConfigId
+      ?? '',
+    ).trim(),
     videoUpscaleCreditsPerRequest: normalizeNumber(
       input.videoUpscaleCreditsPerRequest,
       normalizeNumber(fallbackRecord.videoUpscaleCreditsPerRequest, 20),
@@ -1153,6 +1163,7 @@ export function saveBillingSettings(settings: BillingSettings) {
     settings.videoUnderstandingCreditsPer1MTokens,
     settings.contentPlanningAnalysisCreditsPerRequest,
     settings.contentPlanningGenerationCreditsPerRequest,
+    settings.marketingVideoCreditsPerRequest,
     settings.videoUpscaleCreditsPerRequest,
     settings.subtitleRemovalCreditsPerSecond,
     settings.videoTranslationSubtitleCreditsPerSecond,
@@ -1162,6 +1173,12 @@ export function saveBillingSettings(settings: BillingSettings) {
   ];
   if (prices.some((price) => !Number.isFinite(price) || price < 0)) {
     throw new Error('计费单价必须是大于或等于 0 的数字');
+  }
+  const storyboardModel = settings.marketingVideoStoryboardModelConfigId
+    ? modelConfigRepository.find(settings.marketingVideoStoryboardModelConfigId)
+    : null;
+  if (!storyboardModel || storyboardModel.type !== 'image') {
+    throw new Error('请选择有效的营销视频分镜图片模型');
   }
   billingRepository.saveSettings(settings);
   return settings;

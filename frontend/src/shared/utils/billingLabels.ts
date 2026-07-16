@@ -10,6 +10,7 @@ const sourceTypeMap: Record<string, string> = {
   content_planning_timeline: '爆款策划 · 时间轴设计',
   content_planning_validator: '爆款策划 · 结果校验',
   content_planning_visual_director: '爆款策划 · 分镜导演',
+  marketing_video_storyboard: '营销视频 · 分镜生成',
   content_planning_writer: '爆款策划 · 文案创作',
   director_material_table: '导演素材表',
   finished_video: '成片',

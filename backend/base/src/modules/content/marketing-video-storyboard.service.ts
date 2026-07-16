@@ -1,0 +1,248 @@
+import { randomUUID } from 'node:crypto';
+import {
+  findReservedFixedBillableUsage,
+  getBillingSettings,
+  releaseFixedBillableUsage,
+  reserveFixedBillableUsage,
+  settleFixedBillableUsage,
+} from '../billing/billing.service.js';
+import type { CreditReservation } from '../billing/billing.types.js';
+import { modelConfigRepository } from '../model-configs/model-config.repository.js';
+import { contentRepository } from './content.repository.js';
+import {
+  createGeneratedImageWorkAsset,
+  editImageWithJsonReferences,
+  generateImageWithConfiguredModel,
+} from './internals/content-image-assets.js';
+import {
+  marketingVideoStoryboardRepository,
+  type MarketingVideoStoryboard,
+} from './marketing-video-storyboard.repository.js';
+
+type CreateMarketingVideoStoryboardInput = {
+  userId: string;
+  productName: string;
+  productCategory: string;
+  sellingPoints: string;
+  referenceImageIds?: string[];
+};
+
+const runningStoryboardIds = new Set<string>();
+
+function requiredText(value: unknown, label: string) {
+  const text = String(value || '').trim();
+  if (!text) {
+    throw new Error(`${label}不能为空`);
+  }
+  return text;
+}
+
+function normalizedSellingPoints(value: unknown) {
+  const points = String(value || '')
+    .split(/\r?\n/)
+    .map((point) => point.trim())
+    .filter(Boolean);
+  if (!points.length) {
+    throw new Error('核心卖点不能为空');
+  }
+  return points.join('；');
+}
+
+function storyboardPrompt(input: Pick<CreateMarketingVideoStoryboardInput, 'productName' | 'productCategory' | 'sellingPoints'>) {
+  return [
+    '围绕这款产品，帮我生成TVC六宫格分镜，每个六宫格必须带镜头，视觉，文案',
+    `商品名称：{{${input.productName}}}`,
+    `商品类目：{{${input.productCategory}}}`,
+    `核心卖点：{{${input.sellingPoints}}}`,
+  ].join('\n');
+}
+
+function selectedStoryboardModel() {
+  const settings = getBillingSettings();
+  if (!settings) {
+    throw new Error('系统计费配置不存在');
+  }
+  const modelConfig = settings.marketingVideoStoryboardModelConfigId
+    ? modelConfigRepository.find(settings.marketingVideoStoryboardModelConfigId)
+    : null;
+  if (!modelConfig || modelConfig.type !== 'image') {
+    throw new Error('后台尚未配置有效的营销视频分镜模型');
+  }
+  return { settings, modelConfig };
+}
+
+function referenceAssets(userId: string, ids: string[]) {
+  return ids.map((id) => {
+    const asset = contentRepository.findAsset(id);
+    if (!asset || asset.userId !== userId || !asset.mimeType.startsWith('image/')) {
+      throw new Error('商品参考图不存在或无权访问');
+    }
+    return asset;
+  });
+}
+
+function reserve(task: MarketingVideoStoryboard) {
+  const { settings } = selectedStoryboardModel();
+  const credits = Math.max(0, Number(settings.marketingVideoCreditsPerRequest || 0));
+  if (credits <= 0) {
+    return null;
+  }
+  return reserveFixedBillableUsage({
+    userId: task.userId,
+    category: 'marketing_video_storyboard',
+    sourceType: 'marketing_video_storyboard',
+    sourceId: `${task.id}:storyboard:${randomUUID()}`,
+    sessionId: task.id,
+    credits,
+    step: 'marketing_video_storyboard',
+    stepLabel: '营销视频分镜生成',
+    requestSnapshot: {
+      productName: task.productName,
+      productCategory: task.productCategory,
+      referenceImageCount: task.referenceImageIds.length,
+    },
+  });
+}
+
+async function runGeneration(taskId: string, reservation: CreditReservation | null) {
+  runningStoryboardIds.add(taskId);
+  const task = marketingVideoStoryboardRepository.findById(taskId);
+  if (!task) {
+    if (reservation) releaseFixedBillableUsage(reservation);
+    runningStoryboardIds.delete(taskId);
+    return;
+  }
+  try {
+    const modelConfig = modelConfigRepository.find(task.modelConfigId);
+    if (!modelConfig || modelConfig.type !== 'image') {
+      throw new Error('分镜任务使用的图片模型已不存在');
+    }
+    const references = referenceAssets(task.userId, task.referenceImageIds);
+    const generated = references.length > 0
+      ? await editImageWithJsonReferences({
+        prompt: task.prompt,
+        referenceAssets: references,
+        modelConfig,
+      })
+      : await generateImageWithConfiguredModel({
+        prompt: task.prompt,
+        modelConfig,
+      });
+    const asset = await createGeneratedImageWorkAsset({
+      userId: task.userId,
+      buffer: generated.buffer,
+      mimeType: generated.mimeType,
+      title: `${task.title} 分镜`,
+      provider: modelConfig.provider,
+      model: modelConfig.model,
+      mode: 'marketing_video_storyboard',
+      modeTitle: '营销视频分镜',
+      prompt: task.prompt,
+    });
+    marketingVideoStoryboardRepository.markReady(task.id, {
+      imageAssetId: asset.id,
+      imageUrl: asset.fileUrl,
+    });
+    if (reservation) {
+      settleFixedBillableUsage({
+        reservation,
+        category: 'marketing_video_storyboard',
+        provider: modelConfig.provider,
+        model: modelConfig.model,
+        sessionId: task.id,
+        responseSnapshot: { imageAssetId: asset.id, imageUrl: asset.fileUrl },
+      });
+    }
+  } catch (error) {
+    marketingVideoStoryboardRepository.markFailed(
+      task.id,
+      error instanceof Error ? error.message : '分镜生成失败',
+    );
+    if (reservation) releaseFixedBillableUsage(reservation);
+  } finally {
+    runningStoryboardIds.delete(taskId);
+  }
+}
+
+function startGeneration(task: MarketingVideoStoryboard) {
+  const { settings, modelConfig } = selectedStoryboardModel();
+  const reservation = reserve(task);
+  const updated = marketingVideoStoryboardRepository.markGenerating(task.id, {
+    reservationId: reservation?.id || null,
+    creditCost: Number(settings.marketingVideoCreditsPerRequest || 0),
+    modelConfigId: modelConfig.id,
+    modelName: modelConfig.name || modelConfig.model,
+  });
+  if (!updated) {
+    if (reservation) releaseFixedBillableUsage(reservation);
+    throw new Error('分镜任务更新失败');
+  }
+  void runGeneration(task.id, reservation);
+  return updated;
+}
+
+export const marketingVideoStoryboardService = {
+  list(userId: string) {
+    return marketingVideoStoryboardRepository.listByUser(requiredText(userId, '用户')).map((task) => {
+      if (task.status !== 'generating' || runningStoryboardIds.has(task.id)) {
+        return task;
+      }
+      const reservation = findReservedFixedBillableUsage({
+        sourceType: 'marketing_video_storyboard',
+        sessionId: task.id,
+      });
+      if (reservation) releaseFixedBillableUsage(reservation);
+      return marketingVideoStoryboardRepository.markFailed(task.id, '服务重启导致分镜生成中断，请重新生成') || task;
+    });
+  },
+
+  create(input: CreateMarketingVideoStoryboardInput) {
+    const userId = requiredText(input.userId, '用户');
+    const productName = requiredText(input.productName, '商品名称');
+    const productCategory = requiredText(input.productCategory, '商品类目');
+    const sellingPoints = normalizedSellingPoints(input.sellingPoints);
+    const referenceImageIds = [...new Set((input.referenceImageIds || []).map(String).filter(Boolean))].slice(0, 5);
+    referenceAssets(userId, referenceImageIds);
+    const { settings, modelConfig } = selectedStoryboardModel();
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const task: MarketingVideoStoryboard = {
+      id,
+      userId,
+      title: `营销视频 #${String(Math.floor(Math.random() * 10_000)).padStart(4, '0')}`,
+      productName,
+      productCategory,
+      sellingPoints,
+      prompt: storyboardPrompt({ productName, productCategory, sellingPoints }),
+      referenceImageIds,
+      modelConfigId: modelConfig.id,
+      modelName: modelConfig.name || modelConfig.model,
+      status: 'generating',
+      imageAssetId: null,
+      imageUrl: null,
+      reservationId: null,
+      creditCost: Number(settings.marketingVideoCreditsPerRequest || 0),
+      errorMessage: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    marketingVideoStoryboardRepository.create(task);
+    try {
+      return startGeneration(task);
+    } catch (error) {
+      marketingVideoStoryboardRepository.delete(task.id);
+      throw error;
+    }
+  },
+
+  retry(userId: string, id: string) {
+    const task = marketingVideoStoryboardRepository.findById(id);
+    if (!task || task.userId !== userId) {
+      throw new Error('分镜任务不存在');
+    }
+    if (task.status === 'generating') {
+      throw new Error('分镜正在生成中');
+    }
+    return startGeneration(task);
+  },
+};

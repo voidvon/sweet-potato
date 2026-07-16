@@ -118,6 +118,8 @@ export type BillingSettings = {
   videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;
   contentPlanningGenerationCreditsPerRequest: number;
+  marketingVideoCreditsPerRequest: number;
+  marketingVideoStoryboardModelConfigId: string;
   videoUpscaleCreditsPerRequest: number;
   subtitleRemovalCreditsPerSecond: number;
   videoTranslationSubtitleCreditsPerSecond: number;
@@ -130,6 +132,28 @@ export type BillingSettings = {
 
 export type SiteConfig = {
   billing: Omit<BillingSettings, 'id' | 'createdAt'>;
+};
+
+export type MarketingVideoStoryboardStatus = 'generating' | 'ready' | 'failed';
+
+export type MarketingVideoStoryboard = {
+  id: string;
+  userId: string;
+  title: string;
+  productName: string;
+  productCategory: string;
+  sellingPoints: string;
+  prompt: string;
+  referenceImageIds: string[];
+  modelConfigId: string;
+  modelName: string;
+  status: MarketingVideoStoryboardStatus;
+  imageAssetId?: string | null;
+  imageUrl?: string | null;
+  creditCost: number;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type LlmBillingSettings = {
@@ -242,6 +266,7 @@ export type BillableUsageRecord = {
   category:
     | 'content_planning_analysis'
     | 'content_planning_generation'
+    | 'marketing_video_storyboard'
     | 'image_generation'
     | 'video_generation'
     | 'video_upscale'
