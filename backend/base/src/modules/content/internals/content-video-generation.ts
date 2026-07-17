@@ -1920,7 +1920,7 @@ export async function collectSeedanceVideoUrls(context: Record<string, unknown>)
           : '',
         anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.tosPublicUrl),
         anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.url),
-        anonymizeReferenceVideos ? '' : publicMaterialUrl(metadata.sourceUrl),
+        anonymizeReferenceVideos ? '' : publicMaterialUrl(seedanceReferenceVideoMetadataSourceUrl(metadata)),
       ].filter(Boolean);
       const resolved = candidates.find((candidate) => isPublicHttpUrl(candidate));
       if (resolved) {
@@ -1949,6 +1949,10 @@ export async function collectSeedanceVideoUrls(context: Record<string, unknown>)
       return '';
     }));
   return Array.from(new Set(urls.filter(Boolean)));
+}
+
+export function seedanceReferenceVideoMetadataSourceUrl(metadata: Record<string, unknown>) {
+  return metadata.source === 'remote_video_download' ? '' : String(metadata.sourceUrl || '').trim();
 }
 
 export async function collectSeedanceAudioUrls(context: Record<string, unknown>, audioUrl?: string) {

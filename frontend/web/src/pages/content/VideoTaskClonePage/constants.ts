@@ -58,9 +58,19 @@ export const toolOptions: ToolOption[] = [
     label: '跳舞复刻',
     description: '参考视频动作和音乐，生成主体角色跳舞视频。',
     materialHint: '上传人物素材',
-    materials: [{ key: 'image', label: '人物图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 }],
+    materials: [
+      { key: 'image', label: '人物图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+    ],
     submitText: '开始复刻',
-    workspace: { blocks: [{ id: 'material', type: 'material' }], generate: { handler: 'pending' } },
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'dance-remake-form', type: 'dance-remake-form' },
+        { id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false },
+      ],
+      generate: { handler: 'dance-remake' },
+    },
   },
   {
     key: 'marketing-video',

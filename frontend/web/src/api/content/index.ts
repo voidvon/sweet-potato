@@ -412,6 +412,7 @@ export function listVideoProductionsPage(userId: string, filters: {
 
 export function createVideoProduction(payload: {
   userId: string;
+  taskMode?: 'video_create' | 'dance_remake';
   retryTaskId?: string;
   prompt?: string;
   quality: string;
@@ -426,6 +427,7 @@ export function createVideoProduction(payload: {
   referenceVideoIds?: string[];
   referenceAudioIds?: string[];
   characterReferenceImageIds?: string[];
+  generateAudio?: boolean;
 }) {
   const { userId: _userId, ...requestPayload } = payload;
   return request<VideoGenerationTask>(Api.videoProductions, {

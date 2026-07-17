@@ -71,6 +71,15 @@ function parseSizeMb(value: string | undefined, fallbackMb: number) {
 export const contentUploadLimitBytes = parseSizeMb(process.env.CONTENT_UPLOAD_LIMIT_MB, 20);
 export const vodUploadLimitBytes = parseSizeMb(process.env.VOD_UPLOAD_LIMIT_MB, 500);
 
+const videoSourcePreviewTokenTtlSeconds = Number(process.env.VIDEO_SOURCE_PREVIEW_TOKEN_TTL_SECONDS || 3600);
+
+export const videoSourcePreviewConfig = {
+  secret: String(process.env.VIDEO_SOURCE_PREVIEW_SECRET || authTokenSecret).trim(),
+  tokenTtlSeconds: Number.isFinite(videoSourcePreviewTokenTtlSeconds) && videoSourcePreviewTokenTtlSeconds > 0
+    ? Math.max(60, videoSourcePreviewTokenTtlSeconds)
+    : 3600,
+};
+
 export const volcengineVodConfig = {
   playbackBaseUrl: String(process.env.VOLCENGINE_VOD_PLAYBACK_BASE_URL || '').trim().replace(/\/+$/, ''),
 };

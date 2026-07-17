@@ -9,6 +9,7 @@ const publicApiPaths = new Set([
   '/api/auth/register',
   '/api/auth/login',
   '/api/content/real-person/callback',
+  '/api/video-source/preview',
 ]);
 
 function readQueryToken(req: Request) {

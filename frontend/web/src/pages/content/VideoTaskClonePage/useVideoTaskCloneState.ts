@@ -5,6 +5,7 @@ import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
+import { createDanceRemake, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
   defaultFilters,
@@ -13,6 +14,7 @@ import {
   toolOptions,
 } from './constants';
 import type {
+  DanceRemakeMode,
   FilterValues,
   MarketingVideoConfig,
   MaterialKey,
@@ -29,7 +31,7 @@ import type {
   VideoTranslationConfig,
   WorksTab,
 } from './types';
-import { readVideoDuration, readVideoUrlDuration, shouldTrimReferenceVideo } from './videoMetadata';
+import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, readVideoDuration, readVideoUrlDuration, shouldTrimReferenceVideo } from './videoMetadata';
 import { planningApplyPayloadToFormState } from './planningHelpers';
 
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
@@ -114,6 +116,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>('enhanced');
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(initialTool);
   const [showToolMenu, setShowToolMenu] = useState(false);
@@ -125,9 +128,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [selectedModelAvatar, setSelectedModelAvatar] = useState('');
   const [promptPanel, setPromptPanel] = useState<PromptPanel | null>(null);
   const [expandedPrompt, setExpandedPrompt] = useState(false);
-  const [model, setModel] = useState('Seedance 2.0');
+  const [model, setModel] = useState(initialTool.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
   const [ratio, setRatio] = useState('9:16');
-  const [quality, setQuality] = useState('720P');
+  const [quality, setQuality] = useState(initialTool.key === 'dance-remake' ? '480P' : '720P');
   const [duration, setDuration] = useState('5s');
   const [activeParam, setActiveParam] = useState<ParamKind | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -452,6 +455,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
+    setDanceRemakeMode('enhanced');
+    setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
+    setQuality(option.key === 'dance-remake' ? '480P' : '720P');
   }, []);
 
   const chooseMaterialTab = (mode: MaterialMode) => {
@@ -693,6 +699,36 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMaterialMode(null);
   };
 
+  const resolveVideoSource = async (input: string) => {
+    const messageKey = 'video-source-resolve';
+    message.loading({ content: '正在解析视频链接', duration: 0, key: messageKey });
+    try {
+      const { source } = await requestVideoSourceResolve(input);
+      const localMaterial = {
+        id: `video-${source.platform}-${source.externalId}-${crypto.randomUUID()}`,
+        mediaDuration: source.durationMs > 0 ? source.durationMs / 1000 : undefined,
+        name: source.title || `${source.platform} 参考视频`,
+        remoteMetadata: source as unknown as Record<string, unknown>,
+        remoteSourceUrl: source.sourceUrl,
+        serverFileUrl: source.downloadUrl,
+        type: 'video',
+        url: resolveAssetUrl(source.previewUrl),
+      } satisfies LocalMaterialFile;
+      setSelectedMaterials((current) => {
+        revokeLocalMaterials(getLocalFiles(current.video));
+        return { ...current, video: [localMaterial] };
+      });
+      message.success({ content: '视频链接解析完成', key: messageKey });
+      return true;
+    } catch (error) {
+      message.error({
+        content: error instanceof Error ? error.message : '视频链接解析失败',
+        key: messageKey,
+      });
+      return false;
+    }
+  };
+
   const chooseModelAsset = (asset: ContentAsset) => {
     const imageMaterial = tool.materials.find((item) => item.key === 'image');
     if (!imageMaterial) return;
@@ -858,6 +894,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
+    setDanceRemakeMode('enhanced');
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -874,6 +911,46 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     try {
       setIsGenerating(true);
+      if (tool.workspace.generate.handler === 'dance-remake') {
+        const [characterImageAssetId] = await ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: getLocalFiles(selectedMaterials.image),
+          uploadGroupIdsRef,
+        });
+        const referenceVideo = getLocalFiles(selectedMaterials.video)[0];
+        if (!characterImageAssetId) throw new Error('请上传人物素材');
+        if (!referenceVideo) throw new Error('请上传或粘贴参考视频');
+
+        let referenceVideoAssetId = referenceVideo.assetId;
+        if (!referenceVideo.remoteSourceUrl && !referenceVideoAssetId) {
+          [referenceVideoAssetId] = await ensureMaterialAssetIds({
+            currentUser,
+            resourceType: 'other',
+            files: [referenceVideo],
+            uploadGroupIdsRef,
+          });
+        }
+        await createDanceRemake({
+          characterImageAssetId,
+          mode: danceRemakeMode,
+          preserveAudio: voiceEnabled,
+          quality: mapQualityLabel(quality),
+          ratio,
+          referenceVideoAssetId,
+          remoteVideo: referenceVideo.remoteSourceUrl ? {
+            input: referenceVideo.remoteSourceUrl,
+            trimEnd: referenceVideo.trimEnd,
+            trimStart: referenceVideo.trimStart,
+          } : undefined,
+          videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+        });
+        await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
+        chooseTool(tool);
+        setVoiceEnabled(true);
+        message.success('跳舞复刻任务已提交');
+        return;
+      }
       const prepared = await prepareGenerationMaterials({
         currentUser,
         prompt,
@@ -979,7 +1056,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
   }, [
     canGenerate,
+    chooseTool,
     currentUser,
+    danceRemakeMode,
     duration,
     loadLibraryAssets,
     loadVideoProductions,
@@ -1182,6 +1261,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     canGenerate,
     canvas,
     currentUser,
+    danceRemakeMode,
     chooseAudio,
     chooseLibraryAsset,
     chooseMaterialTab,
@@ -1279,6 +1359,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
     },
     setFilters,
+    setDanceRemakeMode,
     setMarketingVideoConfig,
     setPrompt,
     setPromptPanel: (panel: PromptPanel | null) => {
@@ -1301,6 +1382,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     videoTranslationConfig,
     deleteVideoProduction,
     deletingTaskId,
+    resolveVideoSource,
     retryVideoProduction,
     retryingTaskId,
     editVideoProduction,
@@ -1491,6 +1573,7 @@ function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: str
   const prompt = stringFromRecord(context, 'userPrompt', task.prompt || '');
   return {
     userId,
+    taskMode: context.mode === 'dance_remake' ? 'dance_remake' as const : 'video_create' as const,
     retryTaskId: task.id,
     prompt,
     quality: stringFromRecord(context, 'quality', '标清 (720p)'),
@@ -1507,6 +1590,7 @@ function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: str
     referenceVideoIds: stringArrayFromRecord(context, 'referenceVideoIds'),
     referenceAudioIds: stringArrayFromRecord(context, 'referenceAudioIds'),
     characterReferenceImageIds: stringArrayFromRecord(context, 'characterReferenceImageIds'),
+    generateAudio: context.generateAudio !== false,
   };
 }
 
@@ -1557,7 +1641,11 @@ function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {
 }
 
 function hasVideoRequiringTrim(selectedMaterials: SelectedMaterials) {
-  return getLocalFiles(selectedMaterials.video).some((file) => shouldTrimReferenceVideo(file.trimDuration));
+  return getLocalFiles(selectedMaterials.video).some((file) => {
+    if (file.trimDuration !== undefined) return shouldTrimReferenceVideo(file.trimDuration);
+    if (file.file) return shouldTrimReferenceVideo(file.trimDuration);
+    return (file.mediaDuration ?? 0) > MAX_REFERENCE_VIDEO_DURATION_SECONDS;
+  });
 }
 
 function getAudioDurationTotal(files: LocalMaterialFile[]) {

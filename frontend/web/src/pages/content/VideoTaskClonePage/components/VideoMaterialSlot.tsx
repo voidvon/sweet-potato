@@ -5,9 +5,9 @@ import { resolveAssetUrl } from '../../../../api/request';
 import { materialIcon } from './materialIcon';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
-import { TrimReferenceVideoModal, type TrimSelection } from './TrimReferenceVideoModal';
+import { TrimReferenceVideoModal, type RemoteTrimSelection, type TrimSelection } from './TrimReferenceVideoModal';
 import type { LocalMaterialFile, SelectedMaterialValue } from '../types';
-import { shouldTrimReferenceVideo } from '../videoMetadata';
+import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, shouldTrimReferenceVideo } from '../videoMetadata';
 
 type VideoMaterialSlotProps = {
   onClear: () => void;
@@ -16,9 +16,9 @@ type VideoMaterialSlotProps = {
 };
 
 export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMaterialSlotProps) {
-  const [trimFile, setTrimFile] = useState<File | null>(getPendingVideoFile(selected));
   const [previewVideo, setPreviewVideo] = useState<ConfirmedReferenceVideo | null>(null);
   const file = Array.isArray(selected) ? selected[0] : null;
+  const pendingTrim = getPendingVideo(selected);
   const video = file ? toConfirmedReferenceVideo(file) : null;
   const name = file?.name ?? (typeof selected === 'string' ? selected : '参考视频 01');
 
@@ -43,10 +43,19 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
     } satisfies LocalMaterialFile;
 
     onTrimmed(nextFile);
-    setTrimFile(null);
     if (previousVideo) {
       void deleteServerReferenceVideo(previousVideo);
     }
+  };
+
+  const confirmRemoteTrim = (selection: RemoteTrimSelection) => {
+    if (!pendingTrim || pendingTrim.file) return;
+    onTrimmed({
+      ...pendingTrim,
+      trimDuration: Number((selection.end - selection.start).toFixed(1)),
+      trimEnd: Number(selection.end.toFixed(1)),
+      trimStart: Number(selection.start.toFixed(1)),
+    });
   };
 
   const clearVideo = () => {
@@ -92,16 +101,21 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
         </div>
       </div>
 
-      {trimFile && (
+      {pendingTrim?.file ? (
         <TrimReferenceVideoModal
-          file={trimFile}
-          onCancel={() => {
-            setTrimFile(null);
-            clearVideo();
-          }}
+          file={pendingTrim.file}
+          onCancel={clearVideo}
           onConfirm={confirmTrim}
         />
-      )}
+      ) : pendingTrim ? (
+        <TrimReferenceVideoModal
+          duration={pendingTrim.mediaDuration || 0}
+          name={pendingTrim.name}
+          onCancel={clearVideo}
+          onConfirm={confirmRemoteTrim}
+          videoUrl={pendingTrim.url}
+        />
+      ) : null}
       {previewVideo && (
         <ReferenceVideoPreviewModal
           onClose={() => setPreviewVideo(null)}
@@ -112,14 +126,20 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
   );
 }
 
-function getPendingVideoFile(selected: SelectedMaterialValue) {
+function getPendingVideo(selected: SelectedMaterialValue) {
   const file = Array.isArray(selected) ? selected[0] : null;
-  if (!file?.file) return null;
-  return shouldTrimReferenceVideo(file.trimDuration) ? file.file : null;
+  if (!file) return null;
+  if (file.trimDuration !== undefined) {
+    return shouldTrimReferenceVideo(file.trimDuration) ? file : null;
+  }
+  if (file.file) {
+    return shouldTrimReferenceVideo(file.trimDuration) ? file : null;
+  }
+  return (file.mediaDuration ?? 0) > MAX_REFERENCE_VIDEO_DURATION_SECONDS ? file : null;
 }
 
 function toConfirmedReferenceVideo(file: LocalMaterialFile): ConfirmedReferenceVideo {
-  const duration = file.trimDuration ?? 15;
+  const duration = file.trimDuration ?? file.mediaDuration ?? 15;
   return {
     assetId: file.assetId,
     duration,
@@ -133,6 +153,7 @@ function toConfirmedReferenceVideo(file: LocalMaterialFile): ConfirmedReferenceV
 }
 
 async function deleteServerReferenceVideo(video: ConfirmedReferenceVideo) {
+  if (!video.assetId && !video.storedFileName) return;
   if (!video.storedFileName && (!video.fileUrl || video.fileUrl.startsWith('blob:'))) return;
   try {
     await deleteReferenceVideo({

@@ -5,6 +5,7 @@ import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
 import type { VideoGenerationTask } from '../../../../types';
 import { MaterialPanel } from './MaterialPanel';
+import { DanceRemakePanel } from './DanceRemakePanel';
 import { MarketingVideoPanel } from './MarketingVideoPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
@@ -58,6 +59,21 @@ type WorkspaceBlockRenderer = (block: WorkspaceBlock, state: VideoTaskCloneState
 const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer> = {
   material: (block, state) => block.type === 'material' ? (
     <ToolMaterialPanel showVoiceToggle={block.showVoiceToggle === true} state={state} />
+  ) : null,
+  'dance-remake-form': (block, state) => block.type === 'dance-remake-form' ? (
+    <DanceRemakePanel
+      mode={state.danceRemakeMode}
+      onMaterialClear={state.clearMaterial}
+      onMaterialLocalFiles={state.fillMaterialFiles}
+      onMaterialRemoveOne={state.removeOneMaterial}
+      onMaterialReplaceFiles={state.replaceMaterialFiles}
+      onModeChange={state.setDanceRemakeMode}
+      onVideoUrlSubmit={state.resolveVideoSource}
+      onVoiceChange={state.setVoiceEnabled}
+      selectedMaterials={state.selectedMaterials}
+      tool={state.tool}
+      voiceEnabled={state.voiceEnabled}
+    />
   ) : null,
   parameters: (block, state) => block.type === 'parameters' ? (
     <ParameterPanel

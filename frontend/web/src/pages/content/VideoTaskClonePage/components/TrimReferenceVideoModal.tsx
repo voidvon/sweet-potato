@@ -8,24 +8,44 @@ const MAX_SELECTION_SECONDS = MAX_REFERENCE_VIDEO_DURATION_SECONDS;
 const DEFAULT_DURATION_SECONDS = 33.1;
 const sliderBehaviorProps = { allowCross: false };
 
-export type TrimSelection = {
+type TrimRange = {
   duration: number;
   end: number;
-  file: File;
   start: number;
 };
 
-type TrimReferenceVideoModalProps = {
+export type TrimSelection = TrimRange & {
+  file: File;
+};
+
+export type RemoteTrimSelection = TrimRange;
+
+type LocalTrimProps = {
   file: File;
   onCancel: () => void;
   onConfirm: (selection: TrimSelection) => Promise<void> | void;
+  duration?: number;
+  name?: string;
+  videoUrl?: never;
 };
 
-export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimReferenceVideoModalProps) {
+type RemoteTrimProps = {
+  duration: number;
+  file?: never;
+  name: string;
+  onCancel: () => void;
+  onConfirm: (selection: RemoteTrimSelection) => Promise<void> | void;
+  videoUrl: string;
+};
+
+type TrimReferenceVideoModalProps = LocalTrimProps | RemoteTrimProps;
+
+export function TrimReferenceVideoModal(props: TrimReferenceVideoModalProps) {
+  const isRemote = !props.file;
   const activeRangeHandleRef = useRef<'end' | 'start' | null>(null);
   const lastRangeHandleValueRef = useRef<number | null>(null);
   const processingTimerRef = useRef<number | null>(null);
-  const [duration, setDuration] = useState(DEFAULT_DURATION_SECONDS);
+  const [duration, setDuration] = useState(props.duration ?? DEFAULT_DURATION_SECONDS);
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(MAX_SELECTION_SECONDS);
   const [errorMessage, setErrorMessage] = useState('');
@@ -33,7 +53,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
   const [open, setOpen] = useState(true);
   const [progress, setProgress] = useState(0);
   const rangeValueRef = useRef({ end: MAX_SELECTION_SECONDS, start: 0 });
-  const videoUrl = useObjectUrl(file);
+  const videoUrl = useVideoUrl(props.file, props.videoUrl);
 
   const safeDuration = Math.max(duration, MIN_SELECTION_SECONDS);
   const selectionLength = Math.max(end - start, 0);
@@ -122,7 +142,11 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
     }, 360);
 
     try {
-      await onConfirm({ duration: safeDuration, end, file, start });
+      if (props.file) {
+        await props.onConfirm({ duration: safeDuration, end, file: props.file, start });
+      } else {
+        await props.onConfirm({ duration: safeDuration, end, start });
+      }
       setProgress(100);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '参考视频剪辑失败');
@@ -143,7 +167,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
   return (
     <Modal
       afterOpenChange={(nextOpen) => {
-        if (!nextOpen) onCancel();
+        if (!nextOpen) props.onCancel();
       }}
       cancelButtonProps={{ disabled: isProcessing }}
       cancelText="取消"
@@ -153,7 +177,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
       keyboard={!isProcessing}
       mask={{ closable: !isProcessing }}
       okButtonProps={{ disabled: isSelectionInvalid }}
-      okText={isProcessing ? `剪辑中 ${progress}%` : '剪辑并使用'}
+      okText={isProcessing ? `${isRemote ? '保存中' : '剪辑中'} ${progress}%` : isRemote ? '使用此片段' : '剪辑并使用'}
       onCancel={() => setOpen(false)}
       onOk={() => void confirmTrim()}
       open={open}
@@ -170,7 +194,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
           <VideoPreviewPlayer
             duration={duration}
             loopAtEnd
-            name={file.name || '参考视频'}
+            name={props.name || props.file?.name || '参考视频'}
             onDurationChange={handleDurationChange}
             playbackEnd={end}
             playbackStart={start}
@@ -212,7 +236,7 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
 
         {isProcessing && (
           <Flex gap="small" vertical>
-            <Alert message="视频正在剪辑处理中，请保持窗口打开。" showIcon type="info" />
+            <Alert message={isRemote ? '正在保存视频片段，请保持窗口打开。' : '视频正在剪辑处理中，请保持窗口打开。'} showIcon type="info" />
             <Progress percent={progress} status="active" />
           </Flex>
         )}
@@ -223,14 +247,18 @@ export function TrimReferenceVideoModal({ file, onCancel, onConfirm }: TrimRefer
   );
 }
 
-function useObjectUrl(file: File) {
+function useVideoUrl(file?: File, remoteUrl?: string) {
   const [url, setUrl] = useState('');
 
   useEffect(() => {
+    if (!file) {
+      setUrl(remoteUrl || '');
+      return undefined;
+    }
     const objectUrl = URL.createObjectURL(file);
     setUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
-  }, [file]);
+  }, [file, remoteUrl]);
 
   return url;
 }

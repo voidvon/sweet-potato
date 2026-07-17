@@ -15,6 +15,7 @@ import { createRoleRouter } from './modules/roles/role.routes.js';
 import { createSiteConfigRouter } from './modules/site-config/site-config.routes.js';
 import { createUserRouter } from './modules/users/user.routes.js';
 import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
+import { createVideoSourceRouter } from './modules/video-source/video-source.routes.js';
 import { createVideoUnderstandingRouter } from './modules/video-understanding/video-understanding.routes.js';
 import { createXingtuSearchDraftRouter } from './modules/xingtu-search-drafts/xingtu-search-draft.routes.js';
 import { requireAuth } from './shared/auth.middleware.js';
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api/content', createContentRouter());
   app.use('/api/content-planning', createContentPlanningRouter());
   app.use('/api/video-remake', createVideoRemakeRouter());
+  app.use('/api/video-source', createVideoSourceRouter());
   app.use('/api/video-understanding', createVideoUnderstandingRouter());
   app.use('/api/xingtu/search-drafts', createXingtuSearchDraftRouter());
   app.use('/api/billing', createBillingRouter());

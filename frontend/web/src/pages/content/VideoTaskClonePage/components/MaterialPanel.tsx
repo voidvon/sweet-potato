@@ -389,7 +389,11 @@ export function MaterialPanel({
     >
 
       <div className="video-task-material-grid">
-        {tool.materials.filter((item) => !isVideoTranslation || item.key === 'video').map((item) => {
+        {tool.materials.filter((item) => {
+          if (isVideoTranslation) return item.key === 'video';
+          if (tool.key === 'dance-remake') return item.key === 'image';
+          return true;
+        }).map((item) => {
           const selected = selectedMaterials[item.key];
           return (
             <MaterialSlot

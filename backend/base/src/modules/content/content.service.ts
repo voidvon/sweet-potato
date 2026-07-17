@@ -473,6 +473,11 @@ function implicitUploadGroupName(resourceType: ContentResourceType) {
   return implicitDefaultGroupName(resourceType);
 }
 
+export function shouldUseImplicitUploadGroup(metadata?: Record<string, unknown>) {
+  return metadata?.source === 'local_upload'
+    || (metadata?.temporary === true && metadata?.kind === 'video_create_reference_upload');
+}
+
 async function deleteLocalVirtualPortraitAsset(asset: ContentAsset) {
   contentRepository.deleteAsset(asset.id);
   if (asset.filePath && existsSync(asset.filePath)) {
@@ -1851,7 +1856,7 @@ export const contentService = {
     assertUserId(userId);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'video_upscale', 'subtitle_removal', 'video_translation'],
+        modes: ['video_create', 'dance_remake', 'video_upscale', 'subtitle_removal', 'video_translation'],
         createdAtFrom: normalizeVideoProductionBoundary(filters.createdAtFrom),
         createdAtTo: normalizeVideoProductionBoundary(filters.createdAtTo),
         aspectRatio: String(filters.ratio || '').trim() === '全部比例'
@@ -1956,7 +1961,7 @@ export const contentService = {
   },
 
   createAsset(payload: CreateAssetPayload) {
-    const usesImplicitUploadGroup = payload.metadata?.source === 'local_upload';
+    const usesImplicitUploadGroup = shouldUseImplicitUploadGroup(payload.metadata);
     if (!payload.groupId && (shouldUseImplicitDefaultGroup(payload.resourceType) || usesImplicitUploadGroup)) {
       const groupName = usesImplicitUploadGroup
         ? implicitUploadGroupName(payload.resourceType)
@@ -2845,9 +2850,10 @@ export const contentService = {
         duration,
         generationResult: pendingResult,
       });
-      const title = `视频制作 ${ratio} ${duration}`;
+      const taskMode = payload.taskMode || 'video_create';
+      const title = taskMode === 'dance_remake' ? `跳舞复刻 ${duration}` : `视频制作 ${ratio} ${duration}`;
       const expertContext = {
-        mode: 'video_create',
+        mode: taskMode,
         traceId,
         quality,
         ratio,
@@ -2862,6 +2868,7 @@ export const contentService = {
         referenceVideoIds: payload.referenceVideoIds || [],
         referenceAudioIds: payload.referenceAudioIds || [],
         characterReferenceImageIds,
+        generateAudio: payload.generateAudio !== false,
         skipVideoBilling: payload.skipVideoBilling === true,
         videoBillingReservationId: String(payload.videoBillingReservationId || ''),
         userPrompt,
@@ -3084,6 +3091,9 @@ export const contentService = {
         },
         providerId: videoModelProviderId,
         modelId: videoModelId,
+        seedanceOptions: {
+          generateAudio: taskContext.generateAudio !== false,
+        },
       });
       materialContext = buildMaterialContext(referenceImageIds);
       try {

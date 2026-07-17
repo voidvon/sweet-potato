@@ -10,6 +10,8 @@ export type ToolKey =
   | 'subtitle-removal'
   | 'video-translation';
 
+export type DanceRemakeMode = 'standard' | 'enhanced';
+
 export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
 
 export type SubtitleRemovalContentType = 'subtitle' | 'text';
@@ -69,6 +71,7 @@ export type MaterialKind = {
 
 export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
+  | { id: string; type: 'dance-remake-form' }
   | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
   | { id: string; type: 'marketing-video-form' }
@@ -87,7 +90,7 @@ export type ToolOption = {
   workspace: {
     blocks: WorkspaceBlock[];
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'dance-remake' | 'pending';
     };
   };
 };
@@ -117,7 +120,10 @@ export type LocalMaterialFile = {
   audioDuration?: number;
   file?: File;
   id: string;
+  mediaDuration?: number;
   name: string;
+  remoteMetadata?: Record<string, unknown>;
+  remoteSourceUrl?: string;
   serverFileUrl?: string;
   storedFileName?: string;
   trimDuration?: number;

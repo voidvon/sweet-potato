@@ -2,6 +2,22 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-17 公共视频链接解析
+
+- `POST /api/video-source/resolve` 根据分享文案或视频链接解析公共视频信息，要求当前用户具备 `web.module.content.create_video` 权限；服务端不下载或保存视频文件。
+- 请求体为 `{ "input": string }`；服务端会从分享文案中提取首个 HTTP(S) URL。首期仅支持抖音，小红书和快手返回明确的暂不支持提示。
+- 成功响应为 `{ source }`。`source` 包含平台、视频 ID、标题、封面、真实无水印地址、带水印地址、时长、宽高、发布时间、发布者资料、音乐资料、互动统计和签名后的 `previewUrl`。
+- 抖音解析全程使用移动端 User-Agent：短链逐跳解析为长链，提取视频 ID，优先请求 `iteminfo`，并以分享页 SSR 数据作为兼容兜底；真实地址通过将播放地址中的 `/playwm/` 替换为 `/play/` 获得。
+- 所有解析重定向均校验协议、平台域名和目标 IP，拒绝本地及内网地址。接口只返回平台信息，不请求真实视频文件地址。
+- `GET /api/video-source/preview?token=...` 是视频预览流代理，支持浏览器 `Range` 请求并转发 `Content-Range`、`Content-Length`、`Accept-Ranges`、`ETag` 等必要响应头，不把视频写入磁盘。
+- `preview` 使用 `/resolve` 签发的 HMAC 令牌访问，不接受客户端直接传入目标 URL。令牌自身承担预览授权，因此该路径不要求额外 Bearer Header，默认有效期为 1 小时。
+- `VIDEO_SOURCE_PREVIEW_SECRET` 可单独配置预览签名密钥，未设置时复用服务端认证密钥；`VIDEO_SOURCE_PREVIEW_TOKEN_TTL_SECONDS` 可调整有效期，最小为 60 秒。
+- `POST /api/video-source/dance-remakes` 提交跳舞复刻。请求包含 `characterImageAssetId`、可选的 `referenceVideoAssetId` 或 `remoteVideo`、`mode`、`preserveAudio`、`quality`、`ratio` 和 `videoModelId`。
+- 跳舞复刻提交成功只返回 `{ "ok": true }`；任务详情和后续状态统一通过 `GET /api/content/video-productions` 获取。
+- `remoteVideo` 包含原始分享内容 `input` 以及可选的 `trimStart`、`trimEnd`。服务端会重新解析真实地址，下载源视频，并使用 FFmpeg 截取 4-15 秒区间；超过 15 秒的视频必须显式提供截取区间。
+- 远程裁剪结果以 `assetKind = dance_remake_reference_video` 的临时素材保存。人物图、本地参考视频也在提交时以临时素材上传；视频任务创建后统一写入素材引用并转为 `retained`。
+- 跳舞复刻任务复用视频制作后台生成与计费链路，`expertContext.mode = dance_remake`。增强模式会强化动作、镜头和节奏复刻提示；`preserveAudio = false` 时向 Seedance 提交 `generate_audio = false`。
+
 ## 2026-07-16 视频制作临时素材生命周期
 
 - 视频制作页面上传的图片、视频和音频以 `temporary` 状态写入 `content_assets`，默认过期时间为上传后 24 小时。
