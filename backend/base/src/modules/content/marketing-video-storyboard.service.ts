@@ -126,7 +126,7 @@ function optimizedStoryboardPrompt(
     ...(includesPreviousStoryboard ? [
       `参考图${previousStoryboardImageNumber}是上一版生成的分镜结果，请保留其中有效的商品信息和画面内容，并在此基础上优化。`,
     ] : []),
-    `本次优化要求：{{${optimizationInstruction}}}`,
+    ...(optimizationInstruction ? [`本次优化要求：{{${optimizationInstruction}}}`] : []),
   ].join('\n');
 }
 
@@ -360,7 +360,7 @@ export const marketingVideoStoryboardService = {
     if (task.status === 'generating') {
       throw new Error('分镜正在生成中');
     }
-    const instruction = requiredText(optimizationInstruction, '分镜优化说明');
+    const instruction = String(optimizationInstruction || '').trim();
     if (instruction.length > 2000) {
       throw new Error('分镜优化说明不能超过 2000 个字符');
     }

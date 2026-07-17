@@ -168,7 +168,7 @@ function StoryboardDetail({
   const [optimizationInstruction, setOptimizationInstruction] = useState('');
   const submitRetry = async () => {
     const instruction = optimizationInstruction.trim();
-    if (!instruction || retrying) return;
+    if (retrying) return;
     const submitted = await onRetry(instruction);
     if (!submitted) return;
     setOptimizationInstruction('');
@@ -184,7 +184,7 @@ function StoryboardDetail({
     >
       <div className="video-task-storyboard-retry-copy">
         <strong>优化分镜</strong>
-        <p>写下不满意的地方，系统会结合原商品信息、产品图和当前分镜结果重新生成。</p>
+        <p>可补充不满意的地方；留空则结合原商品信息、产品图和当前分镜结果直接重试。</p>
       </div>
       <Input.TextArea
         autoFocus
@@ -203,7 +203,6 @@ function StoryboardDetail({
           取消
         </Button>
         <Button
-          disabled={!optimizationInstruction.trim()}
           htmlType="submit"
           loading={retrying}
           type="primary"
