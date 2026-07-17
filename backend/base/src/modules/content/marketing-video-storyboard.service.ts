@@ -8,10 +8,12 @@ import {
 } from '../billing/billing.service.js';
 import type { CreditReservation } from '../billing/billing.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
+import { isUpstreamModelError } from '../model-providers/provider-error.js';
 import { contentRepository } from './content.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
 import {
   createGeneratedImageWorkAsset,
+  editImageWithConfiguredModel,
   editImageWithJsonReferences,
   generateImageWithConfiguredModel,
 } from './internals/content-image-assets.js';
@@ -92,6 +94,21 @@ function referenceAssets(userId: string, ids: string[]) {
   });
 }
 
+function storyboardGenerationErrorMessage(error: unknown) {
+  if (!isUpstreamModelError(error)) {
+    return error instanceof Error ? error.message : '分镜生成失败';
+  }
+  const status = error.status ? `HTTP ${error.status}` : '';
+  const code = error.code ? error.code.replace(/^provider_/, '') : '';
+  const context = [status, code].filter(Boolean).join(' / ');
+  const providerMessage = String(error.providerMessage || '').trim();
+  const message = String(error.message || '').trim() || '图片模型请求失败';
+  const detail = providerMessage && providerMessage !== message
+    ? `${message}；供应商信息：${providerMessage}`
+    : message;
+  return context ? `图片模型请求失败（${context}）：${detail}` : `图片模型请求失败：${detail}`;
+}
+
 function reserve(task: MarketingVideoStoryboard) {
   const { settings } = selectedStoryboardModel();
   const credits = Math.max(0, Number(settings.marketingVideoCreditsPerRequest || 0));
@@ -130,11 +147,17 @@ async function runGeneration(taskId: string, reservation: CreditReservation | nu
     }
     const references = referenceAssets(task.userId, task.referenceImageIds);
     const generated = references.length > 0
-      ? await editImageWithJsonReferences({
-        prompt: task.prompt,
-        referenceAssets: references,
-        modelConfig,
-      })
+      ? await (modelConfig.provider === 'openai-images'
+        ? editImageWithConfiguredModel({
+          prompt: task.prompt,
+          referenceAssets: references,
+          modelConfig,
+        })
+        : editImageWithJsonReferences({
+          prompt: task.prompt,
+          referenceAssets: references,
+          modelConfig,
+        }))
       : await generateImageWithConfiguredModel({
         prompt: task.prompt,
         modelConfig,
@@ -167,7 +190,7 @@ async function runGeneration(taskId: string, reservation: CreditReservation | nu
   } catch (error) {
     marketingVideoStoryboardRepository.markFailed(
       task.id,
-      error instanceof Error ? error.message : '分镜生成失败',
+      storyboardGenerationErrorMessage(error),
     );
     if (reservation) releaseFixedBillableUsage(reservation);
   } finally {
@@ -196,14 +219,16 @@ export const marketingVideoStoryboardService = {
   list(userId: string) {
     return marketingVideoStoryboardRepository.listByUser(requiredText(userId, '用户')).map((task) => {
       if (task.status !== 'generating' || runningStoryboardIds.has(task.id)) {
-        return task;
+        const videoTask = task.videoTaskId ? contentRepository.findVideoTask(task.videoTaskId) : null;
+        return { ...task, videoStatus: videoTask?.status || null };
       }
       const reservation = findReservedFixedBillableUsage({
         sourceType: 'marketing_video_storyboard',
         sessionId: task.id,
       });
       if (reservation) releaseFixedBillableUsage(reservation);
-      return marketingVideoStoryboardRepository.markFailed(task.id, '服务重启导致分镜生成中断，请重新生成') || task;
+      const failedTask = marketingVideoStoryboardRepository.markFailed(task.id, '服务重启导致分镜生成中断，请重新生成') || task;
+      return { ...failedTask, videoStatus: null };
     });
   },
 
@@ -233,6 +258,7 @@ export const marketingVideoStoryboardService = {
       status: 'generating',
       imageAssetId: null,
       imageUrl: null,
+      videoTaskId: null,
       reservationId: null,
       creditCost: Number(settings.marketingVideoCreditsPerRequest || 0),
       errorMessage: null,
@@ -269,6 +295,17 @@ export const marketingVideoStoryboardService = {
     return startGeneration(task);
   },
 
+  delete(userId: string, id: string) {
+    const task = marketingVideoStoryboardRepository.findById(id);
+    if (!task || task.userId !== userId) {
+      throw new Error('分镜任务不存在');
+    }
+    if (task.status === 'generating') {
+      throw new Error('分镜正在生成中，暂时无法删除');
+    }
+    marketingVideoStoryboardRepository.delete(task.id);
+  },
+
   async generateVideo(userId: string, id: string, input: GenerateMarketingVideoInput) {
     const task = marketingVideoStoryboardRepository.findById(id);
     if (!task || task.userId !== userId) {
@@ -291,7 +328,7 @@ export const marketingVideoStoryboardService = {
       `核心卖点：${task.sellingPoints}`,
       ...(task.additionalPrompt ? [`补充要求：${task.additionalPrompt}`] : []),
     ].join('\n');
-    return contentService.createVideoProduction({
+    const videoTask = await contentService.createVideoProduction({
       userId,
       prompt,
       quality: String(input.quality || '标清 (720p)'),
@@ -302,5 +339,7 @@ export const marketingVideoStoryboardService = {
       referenceImageIds: [...task.referenceImageIds, task.imageAssetId],
       skipVideoBilling: true,
     });
+    marketingVideoStoryboardRepository.markVideoSubmitted(task.id, videoTask.id);
+    return videoTask;
   },
 };

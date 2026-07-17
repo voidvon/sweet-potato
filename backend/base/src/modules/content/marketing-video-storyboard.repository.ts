@@ -17,6 +17,7 @@ export type MarketingVideoStoryboard = {
   status: MarketingVideoStoryboardStatus;
   imageAssetId: string | null;
   imageUrl: string | null;
+  videoTaskId: string | null;
   reservationId: string | null;
   creditCost: number;
   errorMessage: string | null;
@@ -39,6 +40,7 @@ type MarketingVideoStoryboardRow = {
   status: MarketingVideoStoryboardStatus;
   image_asset_id: string | null;
   image_url: string | null;
+  video_task_id: string | null;
   reservation_id: string | null;
   credit_cost: number;
   error_message: string | null;
@@ -71,6 +73,7 @@ function serialize(row: MarketingVideoStoryboardRow): MarketingVideoStoryboard {
     status: row.status,
     imageAssetId: row.image_asset_id,
     imageUrl: row.image_url,
+    videoTaskId: row.video_task_id,
     reservationId: row.reservation_id,
     creditCost: Number(row.credit_cost || 0),
     errorMessage: row.error_message,
@@ -85,11 +88,11 @@ export const marketingVideoStoryboardRepository = {
       INSERT INTO marketing_video_storyboards (
         id, user_id, title, product_name, product_category, selling_points, additional_prompt, prompt,
         reference_image_ids, model_config_id, model_name, status, image_asset_id,
-        image_url, reservation_id, credit_cost, error_message, created_at, updated_at
+        image_url, video_task_id, reservation_id, credit_cost, error_message, created_at, updated_at
       ) VALUES (
         @id, @userId, @title, @productName, @productCategory, @sellingPoints, @additionalPrompt, @prompt,
         @referenceImageIds, @modelConfigId, @modelName, @status, @imageAssetId,
-        @imageUrl, @reservationId, @creditCost, @errorMessage, @createdAt, @updatedAt
+        @imageUrl, @videoTaskId, @reservationId, @creditCost, @errorMessage, @createdAt, @updatedAt
       )
     `).run({ ...task, referenceImageIds: JSON.stringify(task.referenceImageIds) });
     return task;
@@ -111,6 +114,16 @@ export const marketingVideoStoryboardRepository = {
 
   delete(id: string) {
     db.prepare('DELETE FROM marketing_video_storyboards WHERE id = ?').run(id);
+  },
+
+  markVideoSubmitted(id: string, videoTaskId: string) {
+    const updatedAt = new Date().toISOString();
+    db.prepare(`
+      UPDATE marketing_video_storyboards
+      SET video_task_id = ?, updated_at = ?
+      WHERE id = ?
+    `).run(videoTaskId, updatedAt, id);
+    return this.findById(id);
   },
 
   markGenerating(id: string, input: { reservationId: string | null; creditCost: number; modelConfigId: string; modelName: string }) {

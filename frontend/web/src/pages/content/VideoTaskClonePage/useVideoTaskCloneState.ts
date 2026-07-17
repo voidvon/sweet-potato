@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
@@ -148,6 +148,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [isLoadingMarketingStoryboards, setIsLoadingMarketingStoryboards] = useState(false);
   const [retryingMarketingStoryboardId, setRetryingMarketingStoryboardId] = useState('');
   const [generatingMarketingVideoId, setGeneratingMarketingVideoId] = useState('');
+  const [deletingMarketingStoryboardId, setDeletingMarketingStoryboardId] = useState('');
   const [subtitleRemovalConfig, setSubtitleRemovalConfig] = useState<SubtitleRemovalConfig>(defaultSubtitleRemovalConfig);
   const [videoTranslationConfig, setVideoTranslationConfig] = useState<VideoTranslationConfig>(defaultVideoTranslationConfig);
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
@@ -196,7 +197,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, [currentUser.id, loadMarketingStoryboards]);
 
   const hasGeneratingMarketingStoryboard = useMemo(
-    () => marketingStoryboards.some((task) => task.status === 'generating'),
+    () => marketingStoryboards.some((task) => (
+      task.status === 'generating'
+      || task.videoStatus === 'pending'
+      || task.videoStatus === 'parsing'
+      || task.videoStatus === 'waiting_edit'
+      || task.videoStatus === 'generating'
+    )),
     [marketingStoryboards],
   );
 
@@ -993,14 +1000,32 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         videoModelProviderId: 'volcengine-seedance',
         videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
       });
-      await loadVideoProductions(true);
+      await Promise.all([
+        loadVideoProductions(true),
+        loadMarketingStoryboards(true),
+      ]);
       message.success('视频生成任务已提交，可在右侧视频结果中查看');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '视频生成任务提交失败');
     } finally {
       setGeneratingMarketingVideoId('');
     }
-  }, [duration, generatingMarketingVideoId, loadVideoProductions, model, quality, ratio]);
+  }, [duration, generatingMarketingVideoId, loadMarketingStoryboards, loadVideoProductions, model, quality, ratio]);
+
+  const deleteMarketingStoryboard = useCallback(async (id: string) => {
+    if (deletingMarketingStoryboardId) return;
+    try {
+      setDeletingMarketingStoryboardId(id);
+      await deleteMarketingVideoStoryboard(id);
+      setMarketingStoryboards((current) => current.filter((task) => task.id !== id));
+      setSelectedMarketingStoryboardId('');
+      message.success('分镜任务已删除');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '分镜任务删除失败');
+    } finally {
+      setDeletingMarketingStoryboardId('');
+    }
+  }, [deletingMarketingStoryboardId]);
 
   const retryVideoProduction = useCallback(async (task: VideoGenerationTask) => {
     if (retrySubmittingRef.current) {
@@ -1168,6 +1193,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     retryMarketingStoryboard,
     generateMarketingVideo,
     generatingMarketingVideoId,
+    deleteMarketingStoryboard,
+    deletingMarketingStoryboardId,
     selectedMarketingStoryboardId,
     setSelectedMarketingStoryboardId,
     model,

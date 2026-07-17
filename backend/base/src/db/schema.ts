@@ -467,6 +467,7 @@ export function migrateDatabase() {
       status TEXT NOT NULL DEFAULT 'generating',
       image_asset_id TEXT,
       image_url TEXT,
+      video_task_id TEXT,
       reservation_id TEXT,
       credit_cost REAL NOT NULL DEFAULT 0,
       error_message TEXT,
@@ -669,6 +670,25 @@ export function migrateDatabase() {
   addColumnIfMissing('billing_settings', 'video_translation_face_credits_per_second', 'video_translation_face_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'video_translation_erase_source_credits_per_second', 'video_translation_erase_source_credits_per_second REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('marketing_video_storyboards', 'additional_prompt', "additional_prompt TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('marketing_video_storyboards', 'video_task_id', 'video_task_id TEXT');
+  db.exec(`
+    UPDATE marketing_video_storyboards AS storyboard
+    SET video_task_id = (
+      SELECT video_task.id
+      FROM video_generation_tasks AS video_task
+      WHERE video_task.user_id = storyboard.user_id
+        AND video_task.created_at >= storyboard.created_at
+        AND EXISTS (
+          SELECT 1
+          FROM json_each(video_task.expert_context, '$.referenceImageIds') AS reference_image
+          WHERE CAST(reference_image.value AS TEXT) = storyboard.image_asset_id
+        )
+      ORDER BY video_task.created_at DESC
+      LIMIT 1
+    )
+    WHERE storyboard.video_task_id IS NULL
+      AND storyboard.image_asset_id IS NOT NULL
+  `);
   const storyboardRetentionNow = new Date().toISOString();
   db.prepare(`
     INSERT OR IGNORE INTO content_asset_references (

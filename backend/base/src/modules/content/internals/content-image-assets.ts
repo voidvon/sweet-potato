@@ -50,6 +50,22 @@ export function imageGenerationsUrl(baseUrl: string) {
   return `${baseUrl.replace(/\/+$/, '')}/images/generations`;
 }
 
+function generatedImageErrorMessage(data: unknown, fallback: string) {
+  const record = isRecord(data) ? data : {};
+  const error = isRecord(record.error) ? record.error : {};
+  const parts = [
+    error.message,
+    error.code,
+    error.type,
+    error.param,
+    record.message,
+    record.detail,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+  return [...new Set(parts)].join(' · ') || fallback;
+}
+
 function imageGenerationSize(config: { provider?: string; settings?: Record<string, unknown> }) {
   const size = config.settings && typeof config.settings.imageSize === 'string'
     ? config.settings.imageSize.trim()
@@ -92,9 +108,10 @@ export async function parseGeneratedImageResponse(response: Response, config: { 
     throw new Error(preview ? `图片模型返回了无法解析的响应：${preview}` : '图片模型返回了无法解析的响应');
   }
   if (!response.ok) {
-    const message = (data as { error?: { message?: string }; message?: string })?.error?.message
-      || (data as { message?: string })?.message
-      || imageModelHttpErrorMessage(response.status, preview);
+    const message = generatedImageErrorMessage(
+      data,
+      imageModelHttpErrorMessage(response.status, preview),
+    );
     throw normalizeUpstreamModelError({
       message,
       status: response.status,
@@ -293,10 +310,11 @@ export async function editImageWithConfiguredModel(input: {
       if (input.outputCompression !== undefined) {
         form.set('output_compression', String(input.outputCompression));
       }
+      const imageFieldName = config.provider === 'openai-images' ? 'image[]' : 'image';
       for (const asset of input.referenceAssets.slice(0, 6)) {
         const bytes = await readFile(asset.filePath);
         const blob = new Blob([bytes], { type: asset.mimeType || 'image/png' });
-        form.append('image', blob, asset.originalFileName || 'reference.png');
+        form.append(imageFieldName, blob, asset.originalFileName || 'reference.png');
       }
       const response = await fetch(imageEditsUrl(config.baseUrl), {
         method: 'POST',

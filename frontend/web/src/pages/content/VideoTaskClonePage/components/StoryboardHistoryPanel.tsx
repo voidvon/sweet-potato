@@ -1,5 +1,5 @@
-import { Button, Image, Spin } from 'antd';
-import { ArrowLeft, Play, RefreshCw, Sparkles } from 'lucide-react';
+import { Button, Image, Popconfirm, Spin } from 'antd';
+import { ArrowLeft, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { MarketingVideoStoryboard } from '../../../../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -9,11 +9,26 @@ type StoryboardHistoryPanelProps = {
   state: VideoTaskCloneState;
 };
 
-const statusLabels: Record<MarketingVideoStoryboard['status'], string> = {
+type StoryboardDisplayStatus = MarketingVideoStoryboard['status']
+  | 'video-generating'
+  | 'video-ready'
+  | 'video-failed';
+
+const statusLabels: Record<StoryboardDisplayStatus, string> = {
   generating: '分镜生成中',
   ready: '待生成视频',
   failed: '生成失败',
+  'video-generating': '视频生成中',
+  'video-ready': '视频已生成',
+  'video-failed': '视频生成失败',
 };
+
+function displayStatus(task: MarketingVideoStoryboard): StoryboardDisplayStatus {
+  if (!task.videoTaskId) return task.status;
+  if (task.videoStatus === 'success') return 'video-ready';
+  if (task.videoStatus === 'failed') return 'video-failed';
+  return 'video-generating';
+}
 
 function dateGroupLabel(value: string) {
   const date = new Date(value);
@@ -31,7 +46,9 @@ export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
     <section className="video-task-storyboard-history" aria-label="分镜历史">
       {selectedTask ? (
         <StoryboardDetail
+          deleting={state.deletingMarketingStoryboardId === selectedTask.id}
           onBack={() => state.setSelectedMarketingStoryboardId('')}
+          onDelete={() => void state.deleteMarketingStoryboard(selectedTask.id)}
           onGenerateVideo={() => void state.generateMarketingVideo(selectedTask)}
           onRetry={() => void state.retryMarketingStoryboard(selectedTask.id)}
           generatingVideo={state.generatingMarketingVideoId === selectedTask.id}
@@ -108,8 +125,9 @@ function StoryboardList({
 }
 
 function StoryboardPreview({ task }: { task: MarketingVideoStoryboard }) {
+  const currentStatus = displayStatus(task);
   return (
-    <div className={`video-task-storyboard-preview is-${task.status}`}>
+    <div className={`video-task-storyboard-preview is-${currentStatus}`}>
       {task.imageUrl ? (
         <img alt={`${task.title} 分镜`} src={resolveAssetUrl(task.imageUrl)} />
       ) : (
@@ -117,28 +135,34 @@ function StoryboardPreview({ task }: { task: MarketingVideoStoryboard }) {
           {Array.from({ length: 6 }, (_, index) => <span key={index} />)}
         </div>
       )}
-      <span className="video-task-storyboard-status">{statusLabels[task.status]}</span>
+      <span className="video-task-storyboard-status">{statusLabels[currentStatus]}</span>
     </div>
   );
 }
 
 function StoryboardDetail({
+  deleting,
   generatingVideo,
   onBack,
+  onDelete,
   onGenerateVideo,
   onRetry,
   retrying,
   state,
   task,
 }: {
+  deleting: boolean;
   generatingVideo: boolean;
   onBack: () => void;
+  onDelete: () => void;
   onGenerateVideo: () => void;
   onRetry: () => void;
   retrying: boolean;
   state: VideoTaskCloneState;
   task: MarketingVideoStoryboard;
 }) {
+  const currentStatus = displayStatus(task);
+  const videoIsActive = currentStatus === 'video-generating';
   return (
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header">
@@ -155,7 +179,7 @@ function StoryboardDetail({
       <div className="video-task-storyboard-detail">
         <div className="video-task-storyboard-detail-title">
           <h2>{task.title}</h2>
-          <span className={`is-${task.status}`}>{statusLabels[task.status]}</span>
+          <span className={`is-${currentStatus}`}>{statusLabels[currentStatus]}</span>
         </div>
 
         {task.status === 'generating' ? (
@@ -203,20 +227,44 @@ function StoryboardDetail({
             />
             <div className="video-task-storyboard-actions">
               <Button
-                disabled={task.status !== 'ready' || generatingVideo}
-                icon={<Play fill="currentColor" size={16} />}
+                disabled={task.status !== 'ready' || generatingVideo || (Boolean(task.videoTaskId) && task.videoStatus !== 'failed')}
+                icon={<Play fill="currentColor" size={14} />}
                 onClick={onGenerateVideo}
                 type="primary"
               >
-                {generatingVideo ? '提交中' : '生成视频'}
+                {generatingVideo
+                  ? '提交中'
+                  : task.videoStatus === 'failed'
+                    ? '重新生成视频'
+                    : task.videoStatus === 'success'
+                      ? '视频已生成'
+                      : '生成视频'}
               </Button>
               <Button
-                disabled={retrying}
-                icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={16} />}
+                color="default"
+                disabled={retrying || videoIsActive}
+                icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={14} />}
                 onClick={onRetry}
+                variant="filled"
               >
                 {retrying ? '提交中' : '重试分镜'}
               </Button>
+              <Popconfirm
+                cancelText="取消"
+                description="删除后将无法恢复，已生成的视频结果不会被删除。"
+                okButtonProps={{ danger: true, loading: deleting }}
+                okText="确认删除"
+                onConfirm={onDelete}
+                title="确定删除这条分镜任务？"
+              >
+                <Button
+                  aria-label="删除分镜任务"
+                  danger
+                  disabled={deleting}
+                  icon={<Trash2 size={14} />}
+                  type="text"
+                />
+              </Popconfirm>
             </div>
           </>
         )}

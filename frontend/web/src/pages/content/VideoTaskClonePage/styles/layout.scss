@@ -1142,16 +1142,24 @@
   top: 8px;
 }
 
-.video-task-storyboard-preview.is-generating .video-task-storyboard-status {
+.video-task-storyboard-preview.is-generating .video-task-storyboard-status,
+.video-task-storyboard-preview.is-video-generating .video-task-storyboard-status {
   background: #edf6ff;
   border-color: #c7def8;
   color: #2364aa;
 }
 
-.video-task-storyboard-preview.is-failed .video-task-storyboard-status {
+.video-task-storyboard-preview.is-failed .video-task-storyboard-status,
+.video-task-storyboard-preview.is-video-failed .video-task-storyboard-status {
   background: var(--color-danger-soft);
   border-color: #fecaca;
   color: var(--color-danger);
+}
+
+.video-task-storyboard-preview.is-video-ready .video-task-storyboard-status {
+  background: #ecfdf3;
+  border-color: #a7e3bc;
+  color: #147a3d;
 }
 
 .video-task-storyboard-mini-grid,
@@ -1197,16 +1205,24 @@
   padding: 4px 10px;
 }
 
-.video-task-storyboard-detail-title > span.is-generating {
+.video-task-storyboard-detail-title > span.is-generating,
+.video-task-storyboard-detail-title > span.is-video-generating {
   background: #edf6ff;
   border-color: #c7def8;
   color: #2364aa;
 }
 
-.video-task-storyboard-detail-title > span.is-failed {
+.video-task-storyboard-detail-title > span.is-failed,
+.video-task-storyboard-detail-title > span.is-video-failed {
   background: var(--color-danger-soft);
   border-color: #fecaca;
   color: var(--color-danger);
+}
+
+.video-task-storyboard-detail-title > span.is-video-ready {
+  background: #ecfdf3;
+  border-color: #a7e3bc;
+  color: #147a3d;
 }
 
 .video-task-storyboard-image,

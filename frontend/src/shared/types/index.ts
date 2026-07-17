@@ -151,6 +151,8 @@ export type MarketingVideoStoryboard = {
   status: MarketingVideoStoryboardStatus;
   imageAssetId?: string | null;
   imageUrl?: string | null;
+  videoTaskId?: string | null;
+  videoStatus?: VideoGenerationTask['status'] | null;
   creditCost: number;
   errorMessage?: string | null;
   createdAt: string;

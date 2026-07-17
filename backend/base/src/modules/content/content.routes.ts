@@ -962,6 +962,15 @@ export function createContentRouter() {
     }
   });
 
+  router.delete('/marketing-video-storyboards/:id', requirePermission('web.module.content.create_video'), (req, res) => {
+    try {
+      marketingVideoStoryboardService.delete(getCurrentUserId(req), String(req.params.id || ''));
+      res.status(204).send();
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '营销视频分镜删除失败'));
+    }
+  });
+
   router.post('/marketing-video-storyboards/:id/generate-video', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
       void marketingVideoStoryboardService.generateVideo(

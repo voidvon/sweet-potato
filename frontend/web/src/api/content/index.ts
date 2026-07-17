@@ -457,6 +457,12 @@ export function retryMarketingVideoStoryboard(id: string) {
   });
 }
 
+export function deleteMarketingVideoStoryboard(id: string) {
+  return request<void>(`${Api.marketingVideoStoryboards}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 export function generateVideoFromMarketingStoryboard(id: string, payload: {
   quality: string;
   ratio: string;
