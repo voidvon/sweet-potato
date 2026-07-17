@@ -1,4 +1,4 @@
-import { Button, Image, Input, Popconfirm, Popover, Spin } from 'antd';
+import { Button, Image, Input, Modal, Popconfirm, Popover, Spin } from 'antd';
 import { ArrowLeft, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
@@ -50,7 +50,7 @@ export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
           deleting={state.deletingMarketingStoryboardId === selectedTask.id}
           onBack={() => state.setSelectedMarketingStoryboardId('')}
           onDelete={() => void state.deleteMarketingStoryboard(selectedTask.id)}
-          onGenerateVideo={() => void state.generateMarketingVideo(selectedTask)}
+          onGenerateVideo={() => state.generateMarketingVideo(selectedTask)}
           onRetry={(optimizationInstruction) => state.retryMarketingStoryboard(selectedTask.id, optimizationInstruction)}
           generatingVideo={state.generatingMarketingVideoId === selectedTask.id}
           retrying={state.retryingMarketingStoryboardId === selectedTask.id}
@@ -156,7 +156,7 @@ function StoryboardDetail({
   generatingVideo: boolean;
   onBack: () => void;
   onDelete: () => void;
-  onGenerateVideo: () => void;
+  onGenerateVideo: () => Promise<void>;
   onRetry: (optimizationInstruction: string) => Promise<boolean>;
   retrying: boolean;
   state: VideoTaskCloneState;
@@ -166,6 +166,20 @@ function StoryboardDetail({
   const videoIsActive = currentStatus === 'video-generating';
   const [retryPopoverOpen, setRetryPopoverOpen] = useState(false);
   const [optimizationInstruction, setOptimizationInstruction] = useState('');
+  const confirmGenerateVideo = () => {
+    Modal.confirm({
+      cancelText: '取消',
+      centered: true,
+      content: (
+        <p>
+          预计消耗 {state.marketingVideoGenerationPriceLabel || '--'} 积分，当前操作不包含在本次营销视频分镜生成内。确认继续吗？
+        </p>
+      ),
+      okText: '确认生成',
+      onOk: onGenerateVideo,
+      title: '生成视频',
+    });
+  };
   const submitRetry = async () => {
     const instruction = optimizationInstruction.trim();
     if (retrying) return;
@@ -278,7 +292,7 @@ function StoryboardDetail({
               <Button
                 disabled={task.status !== 'ready' || generatingVideo || (Boolean(task.videoTaskId) && task.videoStatus !== 'failed')}
                 icon={<Play fill="currentColor" size={14} />}
-                onClick={onGenerateVideo}
+                onClick={confirmGenerateVideo}
                 type="primary"
               >
                 {generatingVideo

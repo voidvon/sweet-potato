@@ -67,6 +67,8 @@ const defaultMarketingVideoConfig: MarketingVideoConfig = {
   sellingPoints: '',
 };
 
+const marketingVideoDuration = '15s';
+
 const videoProductionsPageSize = 20;
 
 function createdAtRangeFromTimeFilter(filter: string) {
@@ -397,6 +399,21 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     return '';
   }, [selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
+
+  const marketingVideoGenerationPriceLabel = useMemo(() => {
+    const billing = siteConfig?.billing;
+    const durationSeconds = Number.parseFloat(marketingVideoDuration);
+    if (!billing || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      return '';
+    }
+    const is480p = quality === '480P';
+    const creditsPerSecond = model === 'Seedance 2.0 Fast'
+      ? (is480p ? billing.seedance2FastCreditsPerSecond480p : billing.seedance2FastCreditsPerSecond720p)
+      : model === 'Seedance 2.0 Mini'
+        ? (is480p ? billing.seedance2MiniCreditsPerSecond480p : billing.seedance2MiniCreditsPerSecond720p)
+        : (is480p ? billing.seedance2CreditsPerSecond480p : billing.seedance2CreditsPerSecond720p);
+    return formatCreditAmount(Number((durationSeconds * creditsPerSecond).toFixed(6)));
+  }, [model, quality, siteConfig]);
 
   useEffect(() => {
     if (hasSelectedAudio) {
@@ -1007,7 +1024,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       await generateVideoFromMarketingStoryboard(storyboard.id, {
         quality: mapQualityLabel(quality),
         ratio,
-        duration,
+        duration: marketingVideoDuration,
         videoModelProviderId: 'volcengine-seedance',
         videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
       });
@@ -1021,7 +1038,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     } finally {
       setGeneratingMarketingVideoId('');
     }
-  }, [duration, generatingMarketingVideoId, loadMarketingStoryboards, loadVideoProductions, model, quality, ratio]);
+  }, [generatingMarketingVideoId, loadMarketingStoryboards, loadVideoProductions, model, quality, ratio]);
 
   const deleteMarketingStoryboard = useCallback(async (id: string) => {
     if (deletingMarketingStoryboardId) return;
@@ -1199,6 +1216,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     materialMode,
     marketingStoryboards,
     marketingVideoConfig,
+    marketingVideoGenerationPriceLabel,
     isLoadingMarketingStoryboards,
     retryingMarketingStoryboardId,
     retryMarketingStoryboard,
