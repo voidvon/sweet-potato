@@ -1,5 +1,6 @@
-import { Button, Image, Popconfirm, Spin } from 'antd';
+import { Button, Image, Input, Popconfirm, Popover, Spin } from 'antd';
 import { ArrowLeft, Play, RefreshCw, Sparkles, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { MarketingVideoStoryboard } from '../../../../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -50,7 +51,7 @@ export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
           onBack={() => state.setSelectedMarketingStoryboardId('')}
           onDelete={() => void state.deleteMarketingStoryboard(selectedTask.id)}
           onGenerateVideo={() => void state.generateMarketingVideo(selectedTask)}
-          onRetry={() => void state.retryMarketingStoryboard(selectedTask.id)}
+          onRetry={(optimizationInstruction) => state.retryMarketingStoryboard(selectedTask.id, optimizationInstruction)}
           generatingVideo={state.generatingMarketingVideoId === selectedTask.id}
           retrying={state.retryingMarketingStoryboardId === selectedTask.id}
           state={state}
@@ -156,13 +157,62 @@ function StoryboardDetail({
   onBack: () => void;
   onDelete: () => void;
   onGenerateVideo: () => void;
-  onRetry: () => void;
+  onRetry: (optimizationInstruction: string) => Promise<boolean>;
   retrying: boolean;
   state: VideoTaskCloneState;
   task: MarketingVideoStoryboard;
 }) {
   const currentStatus = displayStatus(task);
   const videoIsActive = currentStatus === 'video-generating';
+  const [retryPopoverOpen, setRetryPopoverOpen] = useState(false);
+  const [optimizationInstruction, setOptimizationInstruction] = useState('');
+  const submitRetry = async () => {
+    const instruction = optimizationInstruction.trim();
+    if (!instruction || retrying) return;
+    const submitted = await onRetry(instruction);
+    if (!submitted) return;
+    setOptimizationInstruction('');
+    setRetryPopoverOpen(false);
+  };
+  const retryPopoverContent = (
+    <form
+      className="video-task-storyboard-retry-popover"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submitRetry();
+      }}
+    >
+      <div className="video-task-storyboard-retry-copy">
+        <strong>优化分镜</strong>
+        <p>写下不满意的地方，系统会结合原商品信息、产品图和当前分镜结果重新生成。</p>
+      </div>
+      <Input.TextArea
+        autoFocus
+        maxLength={2000}
+        onChange={(event) => setOptimizationInstruction(event.target.value)}
+        placeholder="例如：加强产品特写，减少空镜，让画面节奏更紧凑"
+        rows={4}
+        value={optimizationInstruction}
+      />
+      <div className="video-task-storyboard-retry-actions">
+        <Button
+          disabled={retrying}
+          onClick={() => setRetryPopoverOpen(false)}
+          type="text"
+        >
+          取消
+        </Button>
+        <Button
+          disabled={!optimizationInstruction.trim()}
+          htmlType="submit"
+          loading={retrying}
+          type="primary"
+        >
+          提交重试
+        </Button>
+      </div>
+    </form>
+  );
   return (
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header">
@@ -240,15 +290,25 @@ function StoryboardDetail({
                       ? '视频已生成'
                       : '生成视频'}
               </Button>
-              <Button
-                color="default"
-                disabled={retrying || videoIsActive}
-                icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={14} />}
-                onClick={onRetry}
-                variant="filled"
+              <Popover
+                arrow
+                content={retryPopoverContent}
+                onOpenChange={(open) => {
+                  if (!retrying) setRetryPopoverOpen(open);
+                }}
+                open={retryPopoverOpen}
+                placement="topRight"
+                trigger="click"
               >
-                {retrying ? '提交中' : '重试分镜'}
-              </Button>
+                <Button
+                  color="default"
+                  disabled={retrying || videoIsActive}
+                  icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={14} />}
+                  variant="filled"
+                >
+                  {retrying ? '提交中' : '重试分镜'}
+                </Button>
+              </Popover>
               <Popconfirm
                 cancelText="取消"
                 description="删除后将无法恢复，已生成的视频结果不会被删除。"

@@ -981,16 +981,18 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     videoTranslationConfig,
   ]);
 
-  const retryMarketingStoryboard = useCallback(async (id: string) => {
-    if (retryingMarketingStoryboardId) return;
+  const retryMarketingStoryboard = useCallback(async (id: string, optimizationInstruction: string) => {
+    if (retryingMarketingStoryboardId) return false;
     try {
       setRetryingMarketingStoryboardId(id);
-      const task = await retryMarketingVideoStoryboard(id);
+      const task = await retryMarketingVideoStoryboard(id, optimizationInstruction);
       setMarketingStoryboards((current) => current.map((item) => item.id === task.id ? task : item));
       setSelectedMarketingStoryboardId(task.id);
       message.success('已重新提交分镜生成');
+      return true;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '重新生成分镜失败');
+      return false;
     } finally {
       setRetryingMarketingStoryboardId('');
     }

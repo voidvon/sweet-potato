@@ -116,6 +116,16 @@ export const marketingVideoStoryboardRepository = {
     db.prepare('DELETE FROM marketing_video_storyboards WHERE id = ?').run(id);
   },
 
+  updatePrompt(id: string, prompt: string) {
+    const updatedAt = new Date().toISOString();
+    db.prepare(`
+      UPDATE marketing_video_storyboards
+      SET prompt = ?, updated_at = ?
+      WHERE id = ?
+    `).run(prompt, updatedAt, id);
+    return this.findById(id);
+  },
+
   markVideoSubmitted(id: string, videoTaskId: string) {
     const updatedAt = new Date().toISOString();
     db.prepare(`
@@ -131,6 +141,7 @@ export const marketingVideoStoryboardRepository = {
     db.prepare(`
       UPDATE marketing_video_storyboards
       SET status = 'generating', image_asset_id = NULL, image_url = NULL,
+          video_task_id = NULL,
           reservation_id = @reservationId, credit_cost = @creditCost,
           model_config_id = @modelConfigId, model_name = @modelName,
           error_message = NULL, updated_at = @updatedAt

@@ -956,7 +956,11 @@ export function createContentRouter() {
 
   router.post('/marketing-video-storyboards/:id/retry', requirePermission('web.module.content.create_video'), (req, res) => {
     try {
-      res.json(marketingVideoStoryboardService.retry(getCurrentUserId(req), String(req.params.id || '')));
+      res.json(marketingVideoStoryboardService.retry(
+        getCurrentUserId(req),
+        String(req.params.id || ''),
+        String(req.body.optimizationInstruction || ''),
+      ));
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '营销视频分镜重新生成失败'));
     }

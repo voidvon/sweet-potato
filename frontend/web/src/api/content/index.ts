@@ -451,9 +451,10 @@ export function createMarketingVideoStoryboard(payload: {
   });
 }
 
-export function retryMarketingVideoStoryboard(id: string) {
+export function retryMarketingVideoStoryboard(id: string, optimizationInstruction: string) {
   return request<MarketingVideoStoryboard>(`${Api.marketingVideoStoryboards}/${encodeURIComponent(id)}/retry`, {
     method: 'POST',
+    body: JSON.stringify({ optimizationInstruction }),
   });
 }
 

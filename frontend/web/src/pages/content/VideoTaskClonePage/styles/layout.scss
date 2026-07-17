@@ -1307,6 +1307,38 @@
   margin-top: 14px;
 }
 
+.video-task-storyboard-retry-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(420px, calc(100vw - 72px));
+}
+
+.video-task-storyboard-retry-copy strong {
+  color: var(--video-task-ink);
+  display: block;
+  font-size: 17px;
+  line-height: 24px;
+}
+
+.video-task-storyboard-retry-copy p {
+  color: #8b95a4;
+  font-size: 13px;
+  line-height: 20px;
+  margin: 6px 0 0;
+}
+
+.video-task-storyboard-retry-popover .ant-input {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.video-task-storyboard-retry-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 @keyframes video-task-storyboard-pulse {
   from { opacity: 0.55; }
   to { opacity: 1; }

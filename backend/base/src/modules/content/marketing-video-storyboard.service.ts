@@ -115,6 +115,21 @@ function storyboardPrompt(input: Pick<CreateMarketingVideoStoryboardInput, 'prod
   ].join('\n');
 }
 
+function optimizedStoryboardPrompt(
+  task: MarketingVideoStoryboard,
+  optimizationInstruction: string,
+  includesPreviousStoryboard: boolean,
+) {
+  const previousStoryboardImageNumber = task.referenceImageIds.length + 1;
+  return [
+    storyboardPrompt(task),
+    ...(includesPreviousStoryboard ? [
+      `参考图${previousStoryboardImageNumber}是上一版生成的分镜结果，请保留其中有效的商品信息和画面内容，并在此基础上优化。`,
+    ] : []),
+    `本次优化要求：{{${optimizationInstruction}}}`,
+  ].join('\n');
+}
+
 function selectedStoryboardModel() {
   const settings = getBillingSettings();
   if (!settings) {
@@ -154,7 +169,7 @@ function storyboardGenerationErrorMessage(error: unknown) {
   return context ? `图片模型请求失败（${context}）：${detail}` : `图片模型请求失败：${detail}`;
 }
 
-function reserve(task: MarketingVideoStoryboard) {
+function reserve(task: MarketingVideoStoryboard, retryReferenceImageIds: string[] = []) {
   const { settings } = selectedStoryboardModel();
   const credits = Math.max(0, Number(settings.marketingVideoCreditsPerRequest || 0));
   if (credits <= 0) {
@@ -172,12 +187,17 @@ function reserve(task: MarketingVideoStoryboard) {
     requestSnapshot: {
       productName: task.productName,
       productCategory: task.productCategory,
-      referenceImageCount: task.referenceImageIds.length,
+      referenceImageCount: task.referenceImageIds.length + retryReferenceImageIds.length,
+      isOptimizationRetry: retryReferenceImageIds.length > 0,
     },
   });
 }
 
-async function runGeneration(taskId: string, reservation: CreditReservation | null) {
+async function runGeneration(
+  taskId: string,
+  reservation: CreditReservation | null,
+  retryReferenceImageIds: string[] = [],
+) {
   runningStoryboardIds.add(taskId);
   const task = marketingVideoStoryboardRepository.findById(taskId);
   if (!task) {
@@ -190,7 +210,10 @@ async function runGeneration(taskId: string, reservation: CreditReservation | nu
     if (!modelConfig || modelConfig.type !== 'image') {
       throw new Error('分镜任务使用的图片模型已不存在');
     }
-    const references = referenceAssets(task.userId, task.referenceImageIds);
+    const references = referenceAssets(task.userId, [
+      ...task.referenceImageIds,
+      ...retryReferenceImageIds,
+    ]);
     const generated = references.length > 0
       ? await (modelConfig.provider === 'openai-images'
         ? editImageWithConfiguredModel({
@@ -243,9 +266,9 @@ async function runGeneration(taskId: string, reservation: CreditReservation | nu
   }
 }
 
-function startGeneration(task: MarketingVideoStoryboard) {
+function startGeneration(task: MarketingVideoStoryboard, retryReferenceImageIds: string[] = []) {
   const { settings, modelConfig } = selectedStoryboardModel();
-  const reservation = reserve(task);
+  const reservation = reserve(task, retryReferenceImageIds);
   const updated = marketingVideoStoryboardRepository.markGenerating(task.id, {
     reservationId: reservation?.id || null,
     creditCost: Number(settings.marketingVideoCreditsPerRequest || 0),
@@ -256,7 +279,7 @@ function startGeneration(task: MarketingVideoStoryboard) {
     if (reservation) releaseFixedBillableUsage(reservation);
     throw new Error('分镜任务更新失败');
   }
-  void runGeneration(task.id, reservation);
+  void runGeneration(task.id, reservation, retryReferenceImageIds);
   return updated;
 }
 
@@ -329,7 +352,7 @@ export const marketingVideoStoryboardService = {
     }
   },
 
-  retry(userId: string, id: string) {
+  retry(userId: string, id: string, optimizationInstruction: string) {
     const task = marketingVideoStoryboardRepository.findById(id);
     if (!task || task.userId !== userId) {
       throw new Error('分镜任务不存在');
@@ -337,7 +360,19 @@ export const marketingVideoStoryboardService = {
     if (task.status === 'generating') {
       throw new Error('分镜正在生成中');
     }
-    return startGeneration(task);
+    const instruction = requiredText(optimizationInstruction, '分镜优化说明');
+    if (instruction.length > 2000) {
+      throw new Error('分镜优化说明不能超过 2000 个字符');
+    }
+    const retryReferenceImageIds = task.imageAssetId ? [task.imageAssetId] : [];
+    const updated = marketingVideoStoryboardRepository.updatePrompt(
+      task.id,
+      optimizedStoryboardPrompt(task, instruction, retryReferenceImageIds.length > 0),
+    );
+    if (!updated) {
+      throw new Error('分镜优化说明保存失败');
+    }
+    return startGeneration(updated, retryReferenceImageIds);
   },
 
   delete(userId: string, id: string) {
