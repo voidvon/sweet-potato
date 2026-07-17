@@ -12,6 +12,7 @@ import {
 } from '../../config/env.js';
 import { createTraceId, logger } from '../../shared/logger.js';
 import { chatRepository } from '../chat/chat.repository.js';
+import { releaseReservedFixedBillableUsage } from '../billing/billing.service.js';
 import { contentModules } from './content.defaults.js';
 import { publishContentEvent } from './content.events.js';
 import { contentRepository } from './content.repository.js';
@@ -2857,6 +2858,7 @@ export const contentService = {
         referenceAudioIds: payload.referenceAudioIds || [],
         characterReferenceImageIds,
         skipVideoBilling: payload.skipVideoBilling === true,
+        videoBillingReservationId: String(payload.videoBillingReservationId || ''),
         userPrompt,
       };
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
@@ -3169,6 +3171,9 @@ export const contentService = {
       });
     } catch (error) {
       const failureReason = userFacingVideoGenerationError(error);
+      if (typeof taskContext.videoBillingReservationId === 'string') {
+        releaseReservedFixedBillableUsage(taskContext.videoBillingReservationId);
+      }
       logger.error('video generation failed', {
         taskId: id,
         userId: current.userId,

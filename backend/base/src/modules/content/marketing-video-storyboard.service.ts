@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   findReservedFixedBillableUsage,
   getBillingSettings,
+  releaseReservedFixedBillableUsage,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
@@ -40,6 +41,50 @@ type GenerateMarketingVideoInput = {
 };
 
 const runningStoryboardIds = new Set<string>();
+
+function marketingVideoDurationSeconds(value: unknown) {
+  const match = String(value || '').match(/\d+(?:\.\d+)?/);
+  const seconds = Number(match?.[0] || 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error('视频时长无效');
+  }
+  return seconds;
+}
+
+function marketingVideoPrice(input: {
+  settings: NonNullable<ReturnType<typeof getBillingSettings>>;
+  modelId: string;
+  quality: string;
+  duration: string;
+}) {
+  const resolution = /480p/i.test(input.quality) ? '480p' : '720p';
+  const prices = {
+    'doubao-seedance-2-0-260128': {
+      '720p': input.settings.seedance2CreditsPerSecond720p,
+      '480p': input.settings.seedance2CreditsPerSecond480p,
+    },
+    'doubao-seedance-2-0-fast-260128': {
+      '720p': input.settings.seedance2FastCreditsPerSecond720p,
+      '480p': input.settings.seedance2FastCreditsPerSecond480p,
+    },
+    'doubao-seedance-2-0-mini-260615': {
+      '720p': input.settings.seedance2MiniCreditsPerSecond720p,
+      '480p': input.settings.seedance2MiniCreditsPerSecond480p,
+    },
+  } as const;
+  const modelPrices = prices[input.modelId as keyof typeof prices];
+  if (!modelPrices) {
+    throw new Error('当前视频模型尚未配置按秒价格');
+  }
+  const durationSeconds = marketingVideoDurationSeconds(input.duration);
+  const creditsPerSecond = Number(modelPrices[resolution]);
+  return {
+    resolution,
+    durationSeconds,
+    creditsPerSecond,
+    credits: Number((durationSeconds * creditsPerSecond).toFixed(6)),
+  };
+}
 
 function requiredText(value: unknown, label: string) {
   const text = String(value || '').trim();
@@ -328,18 +373,57 @@ export const marketingVideoStoryboardService = {
       `核心卖点：${task.sellingPoints}`,
       ...(task.additionalPrompt ? [`补充要求：${task.additionalPrompt}`] : []),
     ].join('\n');
-    const videoTask = await contentService.createVideoProduction({
+    const settings = getBillingSettings();
+    if (!settings) {
+      throw new Error('系统计费配置不存在');
+    }
+    const quality = String(input.quality || '标清 (720p)');
+    const duration = String(input.duration || '5s');
+    const videoModelProviderId = String(input.videoModelProviderId || 'volcengine-seedance');
+    const videoModelId = String(input.videoModelId || 'doubao-seedance-2-0-260128');
+    const price = marketingVideoPrice({ settings, modelId: videoModelId, quality, duration });
+    const reservation = reserveFixedBillableUsage({
       userId,
-      prompt,
-      quality: String(input.quality || '标清 (720p)'),
-      ratio: String(input.ratio || '9:16'),
-      duration: String(input.duration || '5s'),
-      videoModelProviderId: String(input.videoModelProviderId || 'volcengine-seedance'),
-      videoModelId: String(input.videoModelId || ''),
-      referenceImageIds: [...task.referenceImageIds, task.imageAssetId],
-      skipVideoBilling: true,
+      category: 'video_generation',
+      sourceType: 'marketing_video_generation',
+      sourceId: `${task.id}:video:${randomUUID()}`,
+      sessionId: task.id,
+      credits: price.credits,
+      step: 'marketing_video_generation',
+      stepLabel: '营销视频生成',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: price.durationSeconds,
+        resolution: price.resolution,
+        configuredCreditsPerSecond: price.creditsPerSecond,
+        priceSource: 'system-billing-settings',
+      },
+      requestSnapshot: {
+        storyboardId: task.id,
+        quality,
+        duration,
+        videoModelProviderId,
+        videoModelId,
+      },
     });
-    marketingVideoStoryboardRepository.markVideoSubmitted(task.id, videoTask.id);
-    return videoTask;
+    try {
+      const videoTask = await contentService.createVideoProduction({
+        userId,
+        prompt,
+        quality,
+        ratio: String(input.ratio || '9:16'),
+        duration,
+        videoModelProviderId,
+        videoModelId,
+        referenceImageIds: [...task.referenceImageIds, task.imageAssetId],
+        skipVideoBilling: false,
+        videoBillingReservationId: reservation.id,
+      });
+      marketingVideoStoryboardRepository.markVideoSubmitted(task.id, videoTask.id);
+      return videoTask;
+    } catch (error) {
+      releaseReservedFixedBillableUsage(reservation.id);
+      throw error;
+    }
   },
 };

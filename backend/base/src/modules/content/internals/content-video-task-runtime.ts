@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { releaseReservedFixedBillableUsage } from '../../billing/billing.service.js';
 import type { VideoModelOption } from '../../video-models/video-model-provider.types.js';
 import { publishContentEvent } from '../content.events.js';
 import { contentRepository } from '../content.repository.js';
@@ -72,6 +73,9 @@ export function applyVideoGenerationStatusToTask(
 
   if (providerResult.status === 'failed') {
     const failureReason = providerResult.errorMessage || '视频生成失败';
+    if (typeof taskContext.videoBillingReservationId === 'string') {
+      releaseReservedFixedBillableUsage(taskContext.videoBillingReservationId);
+    }
     contentRepository.markVideoTaskFailed(task.id, failureReason);
     markFinishedVideoAssetFailed(result?.assetId, failureReason);
     const failedResult: VideoGenerationResult = {
@@ -148,6 +152,9 @@ export function applyVideoGenerationStatusToTask(
     recordVideoGenerationUsageIfNeeded({
       userId: task.userId,
       skipBilling: taskContext.skipVideoBilling === true,
+      fixedBillingReservationId: typeof taskContext.videoBillingReservationId === 'string'
+        ? taskContext.videoBillingReservationId
+        : undefined,
       taskId: task.id,
       sourceType: typeof result?.sourceType === 'string' && result.sourceType.trim()
         ? result.sourceType.trim()

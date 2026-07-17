@@ -281,7 +281,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           dataSource={rechargeRecords}
           loading={ledgerLoading}
           rowKey="id"
-          pagination={{ pageSize: 8, showSizeChanger: false }}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
           scroll={{ x: 900 }}
         />
       ),
@@ -295,7 +295,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           dataSource={ledger}
           loading={ledgerLoading}
           rowKey="id"
-          pagination={{ pageSize: 8, showSizeChanger: false }}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
           scroll={{ x: 900 }}
         />
       ),

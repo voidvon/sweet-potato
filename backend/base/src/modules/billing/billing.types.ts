@@ -2,6 +2,12 @@ import type { AiModelConfig } from '../model-configs/model-config.types.js';
 
 export type BillingSettings = {
   id: 1;
+  seedance2CreditsPerSecond720p: number;
+  seedance2CreditsPerSecond480p: number;
+  seedance2FastCreditsPerSecond720p: number;
+  seedance2FastCreditsPerSecond480p: number;
+  seedance2MiniCreditsPerSecond720p: number;
+  seedance2MiniCreditsPerSecond480p: number;
   videoUploadCreditsPerMb: number;
   videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;

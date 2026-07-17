@@ -976,6 +976,30 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
 
   return {
     id: 1,
+    seedance2CreditsPerSecond720p: normalizeNumber(
+      input.seedance2CreditsPerSecond720p,
+      normalizeNumber(fallbackRecord.seedance2CreditsPerSecond720p, 20),
+    ),
+    seedance2CreditsPerSecond480p: normalizeNumber(
+      input.seedance2CreditsPerSecond480p,
+      normalizeNumber(fallbackRecord.seedance2CreditsPerSecond480p, 12),
+    ),
+    seedance2FastCreditsPerSecond720p: normalizeNumber(
+      input.seedance2FastCreditsPerSecond720p,
+      normalizeNumber(fallbackRecord.seedance2FastCreditsPerSecond720p, 18),
+    ),
+    seedance2FastCreditsPerSecond480p: normalizeNumber(
+      input.seedance2FastCreditsPerSecond480p,
+      normalizeNumber(fallbackRecord.seedance2FastCreditsPerSecond480p, 11),
+    ),
+    seedance2MiniCreditsPerSecond720p: normalizeNumber(
+      input.seedance2MiniCreditsPerSecond720p,
+      normalizeNumber(fallbackRecord.seedance2MiniCreditsPerSecond720p, 15),
+    ),
+    seedance2MiniCreditsPerSecond480p: normalizeNumber(
+      input.seedance2MiniCreditsPerSecond480p,
+      normalizeNumber(fallbackRecord.seedance2MiniCreditsPerSecond480p, 7),
+    ),
     videoUploadCreditsPerMb: normalizeNumber(
       numberFromRecord(input, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']),
       numberFromRecord(fallbackRecord, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']) || 0,
@@ -1159,6 +1183,12 @@ export function getSiteConfig(): SiteConfig | null {
 
 export function saveBillingSettings(settings: BillingSettings) {
   const prices = [
+    settings.seedance2CreditsPerSecond720p,
+    settings.seedance2CreditsPerSecond480p,
+    settings.seedance2FastCreditsPerSecond720p,
+    settings.seedance2FastCreditsPerSecond480p,
+    settings.seedance2MiniCreditsPerSecond720p,
+    settings.seedance2MiniCreditsPerSecond480p,
     settings.videoUploadCreditsPerMb,
     settings.videoUnderstandingCreditsPer1MTokens,
     settings.contentPlanningAnalysisCreditsPerRequest,
@@ -1193,12 +1223,14 @@ export function reserveFixedBillableUsage(input: {
   credits: number;
   step: string;
   stepLabel: string;
+  pricingMode?: BillableUsagePricingMode;
+  quantitySnapshot?: Record<string, unknown>;
   requestSnapshot?: Record<string, unknown>;
 }) {
   const settings = assertSystemBillingReady();
   const credits = roundCredits(Math.max(0, normalizeNumber(input.credits, 0)));
   const now = new Date().toISOString();
-  const quantitySnapshot = {
+  const quantitySnapshot = input.quantitySnapshot || {
     requests: 1,
     configuredCreditsPerRequest: credits,
     priceSource: 'system-billing-settings',
@@ -1206,7 +1238,7 @@ export function reserveFixedBillableUsage(input: {
   const snapshot = buildBillableSnapshot({
     settings,
     category: input.category,
-    pricingMode: 'per_request',
+    pricingMode: input.pricingMode || 'per_request',
     quantitySnapshot,
     requestSnapshot: input.requestSnapshot || {},
     responseSnapshot: {},
@@ -1274,6 +1306,7 @@ export function settleFixedBillableUsage(input: {
   category: BillableUsageCategory;
   provider?: string;
   model?: string;
+  taskId?: string;
   sessionId?: string;
   responseSnapshot?: Record<string, unknown>;
 }) {
@@ -1296,6 +1329,7 @@ export function settleFixedBillableUsage(input: {
     const usageRaw = isRecord(reservation.snapshot.usageRaw)
       ? reservation.snapshot.usageRaw
       : {};
+    const pricingMode = String(reservation.snapshot.pricingMode || 'per_request') as BillableUsagePricingMode;
     billingRepository.updateReservationStatus(reservation.id, 'settled', now);
     billingRepository.markReservedLedgerAsUsageDebit({
       userId: reservation.userId,
@@ -1311,10 +1345,10 @@ export function settleFixedBillableUsage(input: {
       model: input.model || null,
       sourceType: reservation.sourceType,
       sourceId: reservation.sourceId,
-      taskId: null,
+      taskId: input.taskId || null,
       sessionId: input.sessionId || null,
       groupId: null,
-      pricingMode: 'per_request',
+      pricingMode,
       quantitySnapshot,
       usageRaw,
       requestSnapshot,
@@ -1329,6 +1363,33 @@ export function settleFixedBillableUsage(input: {
     return record;
   });
   return transaction();
+}
+
+export function settleReservedFixedBillableUsage(input: {
+  reservationId: string;
+  category: BillableUsageCategory;
+  provider?: string;
+  model?: string;
+  taskId?: string;
+  sessionId?: string;
+  responseSnapshot?: Record<string, unknown>;
+}) {
+  const reservation = billingRepository.findReservation(input.reservationId);
+  if (!reservation || reservation.status !== 'reserved') {
+    return null;
+  }
+  return settleFixedBillableUsage({
+    ...input,
+    reservation,
+  });
+}
+
+export function releaseReservedFixedBillableUsage(reservationId: string) {
+  const reservation = billingRepository.findReservation(reservationId);
+  if (!reservation || reservation.status !== 'reserved') {
+    return;
+  }
+  releaseFixedBillableUsage(reservation);
 }
 
 export function findReservedFixedBillableUsage(input: { sourceType: string; sessionId: string }) {

@@ -5,7 +5,11 @@ import path from 'node:path';
 import { TosClient } from '@volcengine/tos-sdk';
 import { contentPublicBaseUrl, volcengineTosConfig } from '../../../config/env.js';
 import { createTraceId, logger, logsDir } from '../../../shared/logger.js';
-import { findBillableUsageRecordByCategoryAndSourceId, recordVideoGenerationUsage } from '../../billing/billing.service.js';
+import {
+  findBillableUsageRecordByCategoryAndSourceId,
+  recordVideoGenerationUsage,
+  settleReservedFixedBillableUsage,
+} from '../../billing/billing.service.js';
 import { modelConfigRepository } from '../../model-configs/model-config.repository.js';
 import type { VideoModelOption, VideoModelProvider } from '../../video-models/video-model-provider.types.js';
 import { getVideoModelProvider } from '../../video-models/video-model.registry.js';
@@ -303,9 +307,21 @@ export function recordVideoGenerationUsageIfNeeded(input: {
   responseSnapshot?: Record<string, unknown>;
   usageRaw?: Record<string, unknown>;
   skipBilling?: boolean;
+  fixedBillingReservationId?: string;
 }) {
   if (input.skipBilling) {
     return null;
+  }
+  if (input.fixedBillingReservationId) {
+    return settleReservedFixedBillableUsage({
+      reservationId: input.fixedBillingReservationId,
+      category: 'video_generation',
+      provider: input.providerId,
+      model: input.modelId,
+      taskId: input.taskId,
+      sessionId: input.taskId,
+      responseSnapshot: input.responseSnapshot,
+    });
   }
   const sourceId = effectiveVideoGenerationSourceId(input.jobId, input.fallbackSourceId);
   if (!sourceId || findBillableUsageRecordByCategoryAndSourceId('video_generation', sourceId)) {
@@ -2683,6 +2699,9 @@ export async function callConfiguredVideoModel(input: {
       recordVideoGenerationUsageIfNeeded({
         userId: task.userId,
         skipBilling: input.context.skipVideoBilling === true,
+        fixedBillingReservationId: typeof input.context.videoBillingReservationId === 'string'
+          ? input.context.videoBillingReservationId
+          : undefined,
         sourceType: typeof flowContext.source === 'string' && flowContext.source.trim()
           ? flowContext.source.trim()
           : 'video_generation',

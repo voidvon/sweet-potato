@@ -27,6 +27,12 @@ export function getSiteConfig() {
 
 export function updateBillingSettings(payload: Pick<
   BillingSettings,
+  | 'seedance2CreditsPerSecond720p'
+  | 'seedance2CreditsPerSecond480p'
+  | 'seedance2FastCreditsPerSecond720p'
+  | 'seedance2FastCreditsPerSecond480p'
+  | 'seedance2MiniCreditsPerSecond720p'
+  | 'seedance2MiniCreditsPerSecond480p'
   | 'videoUploadCreditsPerMb'
   | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'

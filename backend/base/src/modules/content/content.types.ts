@@ -345,6 +345,7 @@ export type CreateVideoProductionPayload = {
   referenceAudioIds?: string[];
   characterReferenceImageIds?: string[];
   skipVideoBilling?: boolean;
+  videoBillingReservationId?: string;
 };
 
 export type CreateVideoEnhancementPayload = {

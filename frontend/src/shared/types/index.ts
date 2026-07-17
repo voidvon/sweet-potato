@@ -114,6 +114,12 @@ export type RouteResourceMutationPayload = {
 
 export type BillingSettings = {
   id: number;
+  seedance2CreditsPerSecond720p: number;
+  seedance2CreditsPerSecond480p: number;
+  seedance2FastCreditsPerSecond720p: number;
+  seedance2FastCreditsPerSecond480p: number;
+  seedance2MiniCreditsPerSecond720p: number;
+  seedance2MiniCreditsPerSecond480p: number;
   videoUploadCreditsPerMb: number;
   videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;

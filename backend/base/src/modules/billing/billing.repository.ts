@@ -19,6 +19,12 @@ function parseJsonObject(value: string): Record<string, unknown> {
 
 type BillingSettingsRow = {
   id: number;
+  seedance_2_credits_per_second_720p: number;
+  seedance_2_credits_per_second_480p: number;
+  seedance_2_fast_credits_per_second_720p: number;
+  seedance_2_fast_credits_per_second_480p: number;
+  seedance_2_mini_credits_per_second_720p: number;
+  seedance_2_mini_credits_per_second_480p: number;
   video_upload_credits_per_mb: number;
   video_upload_credits_per_second?: number;
   video_understanding_credits_per_1m_tokens?: number;
@@ -120,6 +126,12 @@ function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
       : 0;
   return {
     id: 1,
+    seedance2CreditsPerSecond720p: Number(row.seedance_2_credits_per_second_720p ?? 20),
+    seedance2CreditsPerSecond480p: Number(row.seedance_2_credits_per_second_480p ?? 12),
+    seedance2FastCreditsPerSecond720p: Number(row.seedance_2_fast_credits_per_second_720p ?? 18),
+    seedance2FastCreditsPerSecond480p: Number(row.seedance_2_fast_credits_per_second_480p ?? 11),
+    seedance2MiniCreditsPerSecond720p: Number(row.seedance_2_mini_credits_per_second_720p ?? 15),
+    seedance2MiniCreditsPerSecond480p: Number(row.seedance_2_mini_credits_per_second_480p ?? 7),
     videoUploadCreditsPerMb: typeof row.video_upload_credits_per_mb === 'number'
       ? Number(row.video_upload_credits_per_mb || 0)
       : Number(row.video_upload_credits_per_second || 0),
@@ -238,7 +250,10 @@ export const billingRepository = {
   saveSettings(settings: BillingSettings) {
     db.prepare(`
       INSERT INTO billing_settings (
-        id, video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens,
+        id, seedance_2_credits_per_second_720p, seedance_2_credits_per_second_480p,
+        seedance_2_fast_credits_per_second_720p, seedance_2_fast_credits_per_second_480p,
+        seedance_2_mini_credits_per_second_720p, seedance_2_mini_credits_per_second_480p,
+        video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens,
         content_planning_analysis_credits_per_request, content_planning_generation_credits_per_request,
         marketing_video_credits_per_request, marketing_video_storyboard_model_config_id,
         video_upscale_credits_per_request, subtitle_removal_credits_per_second,
@@ -247,7 +262,10 @@ export const billingRepository = {
         created_at, updated_at
       )
       VALUES (
-        @id, @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens,
+        @id, @seedance2CreditsPerSecond720p, @seedance2CreditsPerSecond480p,
+        @seedance2FastCreditsPerSecond720p, @seedance2FastCreditsPerSecond480p,
+        @seedance2MiniCreditsPerSecond720p, @seedance2MiniCreditsPerSecond480p,
+        @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens,
         @contentPlanningAnalysisCreditsPerRequest, @contentPlanningGenerationCreditsPerRequest,
         @marketingVideoCreditsPerRequest, @marketingVideoStoryboardModelConfigId,
         @videoUpscaleCreditsPerRequest, @subtitleRemovalCreditsPerSecond,
@@ -256,6 +274,12 @@ export const billingRepository = {
         @createdAt, @updatedAt
       )
       ON CONFLICT(id) DO UPDATE SET
+        seedance_2_credits_per_second_720p = excluded.seedance_2_credits_per_second_720p,
+        seedance_2_credits_per_second_480p = excluded.seedance_2_credits_per_second_480p,
+        seedance_2_fast_credits_per_second_720p = excluded.seedance_2_fast_credits_per_second_720p,
+        seedance_2_fast_credits_per_second_480p = excluded.seedance_2_fast_credits_per_second_480p,
+        seedance_2_mini_credits_per_second_720p = excluded.seedance_2_mini_credits_per_second_720p,
+        seedance_2_mini_credits_per_second_480p = excluded.seedance_2_mini_credits_per_second_480p,
         video_upload_credits_per_mb = excluded.video_upload_credits_per_mb,
         video_understanding_credits_per_1m_tokens = excluded.video_understanding_credits_per_1m_tokens,
         content_planning_analysis_credits_per_request = excluded.content_planning_analysis_credits_per_request,
@@ -271,6 +295,12 @@ export const billingRepository = {
         updated_at = excluded.updated_at
     `).run({
       id: 1,
+      seedance2CreditsPerSecond720p: settings.seedance2CreditsPerSecond720p,
+      seedance2CreditsPerSecond480p: settings.seedance2CreditsPerSecond480p,
+      seedance2FastCreditsPerSecond720p: settings.seedance2FastCreditsPerSecond720p,
+      seedance2FastCreditsPerSecond480p: settings.seedance2FastCreditsPerSecond480p,
+      seedance2MiniCreditsPerSecond720p: settings.seedance2MiniCreditsPerSecond720p,
+      seedance2MiniCreditsPerSecond480p: settings.seedance2MiniCreditsPerSecond480p,
       videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
       videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
       contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,

@@ -9,6 +9,7 @@ import {
   recordVideoGenerationUsage,
   releaseFixedBillableUsage,
   reserveFixedBillableUsage,
+  settleReservedFixedBillableUsage,
   settleFixedBillableUsage,
 } from '../src/modules/billing/billing.service.js';
 import { billingRepository } from '../src/modules/billing/billing.repository.js';
@@ -44,6 +45,16 @@ test('billing settings include default content planning request prices', () => {
   const settings = normalizeBillingSettings({});
   assert.equal(settings.contentPlanningAnalysisCreditsPerRequest, 2);
   assert.equal(settings.contentPlanningGenerationCreditsPerRequest, 3);
+});
+
+test('billing settings include default Seedance prices by model and resolution', () => {
+  const settings = normalizeBillingSettings({});
+  assert.equal(settings.seedance2CreditsPerSecond720p, 20);
+  assert.equal(settings.seedance2CreditsPerSecond480p, 12);
+  assert.equal(settings.seedance2FastCreditsPerSecond720p, 18);
+  assert.equal(settings.seedance2FastCreditsPerSecond480p, 11);
+  assert.equal(settings.seedance2MiniCreditsPerSecond720p, 15);
+  assert.equal(settings.seedance2MiniCreditsPerSecond480p, 7);
 });
 
 test('video generation rounds billed credits up before debiting the balance', () => {
@@ -154,6 +165,46 @@ test('fixed billable usage releases reserved credits after failure', () => {
     releaseFixedBillableUsage(reservation);
     assert.equal(billingRepository.findReservation(reservation.id)?.status, 'released');
     assert.equal(userRepository.findById(userId)?.creditBalance, 10);
+  } finally {
+    cleanupBillingTestUser(userId);
+  }
+});
+
+test('fixed video generation charge settles as per-second usage linked to the video task', () => {
+  const userId = createBillingTestUser(200);
+  const taskId = `${userId}:video-task`;
+  try {
+    const reservation = reserveFixedBillableUsage({
+      userId,
+      category: 'video_generation',
+      sourceType: 'marketing_video_generation',
+      sourceId: `${taskId}:generation`,
+      credits: 100,
+      step: 'marketing_video_generation',
+      stepLabel: '营销视频生成',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: 5,
+        resolution: '720p',
+        configuredCreditsPerSecond: 20,
+      },
+    });
+
+    const record = settleReservedFixedBillableUsage({
+      reservationId: reservation.id,
+      category: 'video_generation',
+      provider: 'volcengine-seedance',
+      model: 'doubao-seedance-2-0-260128',
+      taskId,
+    });
+
+    assert.ok(record);
+    assert.equal(record.pricingMode, 'per_second');
+    assert.equal(record.taskId, taskId);
+    assert.equal(record.creditCost, 100);
+    assert.equal(record.quantitySnapshot.seconds, 5);
+    assert.equal(record.quantitySnapshot.resolution, '720p');
+    assert.equal(userRepository.findById(userId)?.creditBalance, 100);
   } finally {
     cleanupBillingTestUser(userId);
   }

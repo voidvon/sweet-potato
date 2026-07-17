@@ -111,6 +111,12 @@ export function migrateDatabase() {
     CREATE TABLE IF NOT EXISTS billing_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       enabled INTEGER NOT NULL DEFAULT 1,
+      seedance_2_credits_per_second_720p REAL NOT NULL DEFAULT 20,
+      seedance_2_credits_per_second_480p REAL NOT NULL DEFAULT 12,
+      seedance_2_fast_credits_per_second_720p REAL NOT NULL DEFAULT 18,
+      seedance_2_fast_credits_per_second_480p REAL NOT NULL DEFAULT 11,
+      seedance_2_mini_credits_per_second_720p REAL NOT NULL DEFAULT 15,
+      seedance_2_mini_credits_per_second_480p REAL NOT NULL DEFAULT 7,
       video_upload_credits_per_mb REAL NOT NULL DEFAULT 0,
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
       content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2,
@@ -657,6 +663,12 @@ export function migrateDatabase() {
   addColumnIfMissing('users', 'is_blacklisted', 'is_blacklisted INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'credit_balance', 'credit_balance REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'last_login_at', 'last_login_at TEXT');
+  addColumnIfMissing('billing_settings', 'seedance_2_credits_per_second_720p', 'seedance_2_credits_per_second_720p REAL NOT NULL DEFAULT 20');
+  addColumnIfMissing('billing_settings', 'seedance_2_credits_per_second_480p', 'seedance_2_credits_per_second_480p REAL NOT NULL DEFAULT 12');
+  addColumnIfMissing('billing_settings', 'seedance_2_fast_credits_per_second_720p', 'seedance_2_fast_credits_per_second_720p REAL NOT NULL DEFAULT 18');
+  addColumnIfMissing('billing_settings', 'seedance_2_fast_credits_per_second_480p', 'seedance_2_fast_credits_per_second_480p REAL NOT NULL DEFAULT 11');
+  addColumnIfMissing('billing_settings', 'seedance_2_mini_credits_per_second_720p', 'seedance_2_mini_credits_per_second_720p REAL NOT NULL DEFAULT 15');
+  addColumnIfMissing('billing_settings', 'seedance_2_mini_credits_per_second_480p', 'seedance_2_mini_credits_per_second_480p REAL NOT NULL DEFAULT 7');
   addColumnIfMissing('billing_settings', 'video_upload_credits_per_mb', 'video_upload_credits_per_mb REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'video_understanding_credits_per_1m_tokens', 'video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'content_planning_analysis_credits_per_request', 'content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2');
