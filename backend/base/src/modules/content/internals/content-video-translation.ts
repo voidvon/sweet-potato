@@ -16,6 +16,7 @@ import {
   markFinishedVideoAssetFailed,
 } from './content-image-assets.js';
 import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
+import { assertCreateVideoSourceDuration } from './content-video-duration.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -325,11 +326,8 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
   if (sourceAsset.mimeType.toLowerCase() !== 'video/mp4' && path.extname(sourceFileName).toLowerCase() !== '.mp4') {
     throw new Error('视频翻译仅支持 MP4 格式');
   }
-  const sourceDuration = Number(sourceAsset.metadata?.duration);
-  if (Number.isFinite(sourceDuration) && sourceDuration > 600) {
-    throw new Error('视频翻译仅支持时长不超过 10 分钟的视频');
-  }
   if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) throw new Error('源视频尚未保存到本地，请稍后重试');
+  await assertCreateVideoSourceDuration(sourceAsset);
   const sourceLanguage = String(payload.sourceLanguage || '').trim().toLowerCase();
   const targetLanguage = String(payload.targetLanguage || '').trim().toLowerCase();
   if (!sourceLanguages.has(sourceLanguage)) throw new Error(`不支持的源语言：${sourceLanguage || '空'}`);

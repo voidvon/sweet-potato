@@ -15,6 +15,7 @@ import { contentRepository, emptyVideoParseResult } from '../content.repository.
 import type { CreateVideoEnhancementPayload, VideoGenerationResult, VideoGenerationTask } from '../content.types.js';
 import { createFinishedVideoAsset, createPendingFinishedVideoAsset, markFinishedVideoAssetFailed } from './content-image-assets.js';
 import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
+import { assertCreateVideoSourceDuration } from './content-video-duration.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -342,6 +343,7 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
   if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) {
     throw new Error('待放大视频尚未保存到本地，请稍后重试');
   }
+  await assertCreateVideoSourceDuration(sourceAsset);
   const resolution = String(payload.resolution || '1080p').toLowerCase();
   if (!['1080p', '2k', '4k'].includes(resolution)) {
     throw new Error(`不支持的目标分辨率：${resolution}`);

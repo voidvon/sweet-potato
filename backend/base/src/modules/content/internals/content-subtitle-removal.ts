@@ -16,6 +16,7 @@ import {
   markFinishedVideoAssetFailed,
 } from './content-image-assets.js';
 import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
+import { assertCreateVideoSourceDuration } from './content-video-duration.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
@@ -322,6 +323,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
   if (!sourceAsset || sourceAsset.userId !== payload.userId) throw new Error('待擦除字幕的视频素材不存在');
   if (!sourceAsset.mimeType.startsWith('video/')) throw new Error('请选择视频素材进行字幕擦除');
   if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) throw new Error('源视频尚未保存到本地，请稍后重试');
+  await assertCreateVideoSourceDuration(sourceAsset);
   const mode = payload.mode === 'auto_region' || payload.mode === 'manual' ? payload.mode : 'auto';
   const contentType = payload.contentType === 'text' ? 'text' : 'subtitle';
   const locations = normalizeLocations({ ...payload, mode });

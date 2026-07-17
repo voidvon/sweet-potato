@@ -29,7 +29,7 @@ import type {
   VideoTranslationConfig,
   WorksTab,
 } from './types';
-import { readVideoDuration, readVideoUrlDuration } from './videoMetadata';
+import { readVideoDuration, readVideoUrlDuration, shouldTrimReferenceVideo } from './videoMetadata';
 import { planningApplyPayloadToFormState } from './planningHelpers';
 
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
@@ -346,6 +346,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     () => (
       tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
       && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
+      && !hasVideoRequiringTrim(selectedMaterials)
       && (tool.key !== 'marketing-video'
         || (marketingVideoConfig.productName.trim().length > 0
           && marketingVideoConfig.productCategory.trim().length > 0
@@ -506,13 +507,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       type: kind.key,
       url: URL.createObjectURL(file),
     }))) satisfies LocalMaterialFile[];
-    const localFiles = tool.key === 'video-translation' && kind.key === 'video'
-      ? inspectedFiles.filter((file) => !file.trimDuration || file.trimDuration <= 600)
-      : inspectedFiles;
-    if (localFiles.length < inspectedFiles.length) {
-      revokeLocalMaterials(inspectedFiles.filter((file) => !localFiles.includes(file)));
-      message.warning('视频翻译仅支持时长不超过 10 分钟的视频');
-    }
+    const localFiles = inspectedFiles;
 
     setSelectedMaterials((current) => {
       const currentFiles = getLocalFiles(current[kind.key]);
@@ -646,9 +641,19 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const videoDuration = kind.key === 'video'
       ? getAssetDurationSeconds(asset) ?? await readVideoUrlDuration(url)
       : undefined;
+    let trimFile: File | undefined;
+    if (kind.key === 'video' && shouldTrimReferenceVideo(videoDuration)) {
+      try {
+        trimFile = await downloadAssetAsFile(asset, getAssetTrimSourceUrl(asset, url));
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '作品视频读取失败，请重试');
+        return;
+      }
+    }
     const localMaterial = {
       assetId: asset.id,
       audioDuration: kind.key === 'audio' ? getAssetDurationSeconds(asset) : undefined,
+      file: trimFile,
       id: `${kind.key}-${asset.id}-${crypto.randomUUID()}`,
       name: asset.name || asset.originalFileName || asset.storedFileName || kind.label,
       trimDuration: videoDuration,
@@ -841,6 +846,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const handleGenerate = useCallback(async () => {
     if (tool.workspace.generate.handler === 'pending' && tool.key !== 'marketing-video') {
       message.warning(`${tool.label}功能正在接入生成能力`);
+      return;
+    }
+    if (hasVideoRequiringTrim(selectedMaterials)) {
+      message.warning('所选视频需先剪辑至 15 秒以内');
       return;
     }
     if (!canGenerate) {
@@ -1527,6 +1536,10 @@ function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {
   return Array.isArray(value) ? value : [];
 }
 
+function hasVideoRequiringTrim(selectedMaterials: SelectedMaterials) {
+  return getLocalFiles(selectedMaterials.video).some((file) => shouldTrimReferenceVideo(file.trimDuration));
+}
+
 function getAudioDurationTotal(files: LocalMaterialFile[]) {
   return files.reduce((total, file) => total + getAudioDuration(file), 0);
 }
@@ -1554,6 +1567,25 @@ function getAssetDurationSeconds(asset: ContentAsset) {
   const rawDuration = asset.metadata?.duration;
   const duration = typeof rawDuration === 'number' ? rawDuration : Number(rawDuration);
   return Number.isFinite(duration) && duration > 0 ? duration : undefined;
+}
+
+async function downloadAssetAsFile(asset: ContentAsset, url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('作品视频读取失败，请重试');
+  }
+  const blob = await response.blob();
+  const name = asset.originalFileName || asset.name || asset.storedFileName || '参考视频.mp4';
+  return new File([blob], name, {
+    type: asset.mimeType || blob.type || 'video/mp4',
+  });
+}
+
+function getAssetTrimSourceUrl(asset: ContentAsset, fallbackUrl: string) {
+  const localMirrorUrl = asset.metadata?.localMirrorUrl;
+  return typeof localMirrorUrl === 'string' && localMirrorUrl.trim()
+    ? resolveAssetUrl(localMirrorUrl)
+    : fallbackUrl;
 }
 
 function localMaterialFromAsset(type: LocalMaterialFile['type'], asset: ContentAsset): LocalMaterialFile {

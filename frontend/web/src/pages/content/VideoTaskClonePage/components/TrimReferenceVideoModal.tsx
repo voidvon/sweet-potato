@@ -1,9 +1,10 @@
 import { Alert, Descriptions, Flex, Modal, Progress, Slider, Typography } from 'antd';
 import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react';
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
+import { MAX_REFERENCE_VIDEO_DURATION_SECONDS } from '../videoMetadata';
 
 const MIN_SELECTION_SECONDS = 4;
-const MAX_SELECTION_SECONDS = 15;
+const MAX_SELECTION_SECONDS = MAX_REFERENCE_VIDEO_DURATION_SECONDS;
 const DEFAULT_DURATION_SECONDS = 33.1;
 const sliderBehaviorProps = { allowCross: false };
 

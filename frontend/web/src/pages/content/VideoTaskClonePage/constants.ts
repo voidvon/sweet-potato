@@ -2,7 +2,7 @@ import type { FilterGroup, FilterValues, MaterialKind, ToolOption } from './type
 
 export const defaultMaterials: MaterialKind[] = [
   { key: 'image', label: '参考图', hint: '最多 9 张', maxCount: 9, meta: '可选' },
-  { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '可选' },
+  { key: 'video', label: '参考视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '可选' },
   { key: 'audio', label: '参考音频', hint: '最多 3 段', maxCount: 3, meta: '可选' },
 ];
 
@@ -28,7 +28,7 @@ export const toolOptions: ToolOption[] = [
     label: '视频高清放大',
     description: '上传已有视频，生成高清版本。',
     materialHint: '上传待放大视频',
-    materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
+    materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始高清放大',
     workspace: { blocks: [{ id: 'material', type: 'material' }], generate: { handler: 'video-upscale' } },
   },
@@ -82,7 +82,7 @@ export const toolOptions: ToolOption[] = [
     label: '字幕擦除',
     description: '上传源视频，擦除画面中的硬字幕。',
     materialHint: '上传源视频',
-    materials: [{ key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 }],
+    materials: [{ key: 'video', label: '源视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 }],
     submitText: '开始擦除',
     workspace: {
       blocks: [
@@ -98,7 +98,7 @@ export const toolOptions: ToolOption[] = [
     description: '上传源视频并选择目标语言，生成翻译视频。',
     materialHint: '上传源视频',
     materials: [
-      { key: 'video', label: '源视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'video', label: '源视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 },
       { key: 'audio', label: '参考音频', hint: '最多 1 段', maxCount: 1, meta: '可选' },
     ],
     submitText: '开始翻译',

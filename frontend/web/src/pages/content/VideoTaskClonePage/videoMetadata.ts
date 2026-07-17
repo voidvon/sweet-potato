@@ -1,3 +1,5 @@
+export const MAX_REFERENCE_VIDEO_DURATION_SECONDS = 15;
+
 export function readVideoDuration(file: File) {
   return new Promise<number | undefined>((resolve) => {
     const video = document.createElement('video');
@@ -43,5 +45,5 @@ export function readVideoUrlDuration(url: string) {
 }
 
 export function shouldTrimReferenceVideo(duration: number | undefined) {
-  return !Number.isFinite(duration) || !duration || duration > 15;
+  return !Number.isFinite(duration) || !duration || duration > MAX_REFERENCE_VIDEO_DURATION_SECONDS;
 }

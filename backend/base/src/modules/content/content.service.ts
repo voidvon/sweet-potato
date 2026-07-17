@@ -58,6 +58,7 @@ import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile,
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
+import { assertCreateVideoSourcesDuration } from './internals/content-video-duration.js';
 import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRemovalTasks } from './internals/content-subtitle-removal.js';
 import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
@@ -2790,6 +2791,10 @@ export const contentService = {
       referenceVideoIds: payload.referenceVideoIds,
       referenceAudioIds: payload.referenceAudioIds,
     });
+    await assertCreateVideoSourcesDuration([
+      ...(materialContext.references.videoGroup?.assets || []),
+      ...materialContext.references.videos,
+    ]);
     const prompt = composeVideoProductionPrompt({
       userPrompt,
       quality,
