@@ -172,9 +172,6 @@ export function deleteRouteResource(id: string) {
   if (routeResourceRepository.countChildren(id) > 0) {
     throw new Error('请先删除子资源');
   }
-  if (routeResourceRepository.countRoleAssignments(id) > 0) {
-    throw new Error('当前资源已被角色使用，无法删除');
-  }
   routeResourceRepository.delete(id);
   invalidateResourcePermissionCache();
 }

@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Avatar, Dropdown, Menu, Modal } from 'antd';
+import { Avatar, Drawer, Dropdown, Menu, Modal } from 'antd';
 import type { MenuProps } from 'antd';
-import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import { CloseOutlined, LogoutOutlined, MenuOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation, useMatches, useNavigate, useOutlet, type UIMatch } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
 import './WorkspaceShellLayout.scss';
@@ -23,6 +23,7 @@ export type WorkspaceMenuItem = {
   icon?: unknown;
   key: string;
   label?: unknown;
+  selectedIcon?: unknown;
 };
 
 type ShellUser = {
@@ -43,6 +44,7 @@ type WorkspaceShellLayoutProps<User extends ShellUser> = {
   loginPath: string;
   onLogout: () => void;
   sidebarMenuItems: WorkspaceMenuItem[];
+  compactSidebar?: boolean;
 };
 
 type WorkspaceHeaderContextValue = {
@@ -50,6 +52,21 @@ type WorkspaceHeaderContextValue = {
 };
 
 const WorkspaceHeaderContext = createContext<WorkspaceHeaderContextValue | null>(null);
+
+function containsSelectedMenuItem(item: WorkspaceMenuItem, selectedKey: string | null): boolean {
+  return item.key === selectedKey || Boolean(item.children?.some((child) => containsSelectedMenuItem(child, selectedKey)));
+}
+
+function resolveSelectedMenuIcons(items: WorkspaceMenuItem[], selectedKey: string | null): WorkspaceMenuItem[] {
+  return items.map((item) => {
+    const { selectedIcon, ...menuItem } = item;
+    return {
+      ...menuItem,
+      children: item.children ? resolveSelectedMenuIcons(item.children, selectedKey) : undefined,
+      icon: selectedIcon && containsSelectedMenuItem(item, selectedKey) ? selectedIcon : item.icon,
+    };
+  });
+}
 
 export function useWorkspaceHeader() {
   const context = useContext(WorkspaceHeaderContext);
@@ -71,6 +88,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   loginPath,
   onLogout,
   sidebarMenuItems,
+  compactSidebar = false,
 }: WorkspaceShellLayoutProps<User>) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,10 +100,16 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   );
   const [openKeys, setOpenKeys] = useState<string[]>(routeState.defaultOpenKeys);
   const [headerExtra, setHeaderExtra] = useState<ReactNode>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const syncedPathnameRef = useRef(location.pathname);
   const workspaceHeaderContextValue = useMemo(
     () => ({ setHeaderExtra }),
     [setHeaderExtra],
+  );
+  const resolvedSidebarMenuItems = useMemo(
+    () => resolveSelectedMenuIcons(sidebarMenuItems, routeState.selectedMenuKey),
+    [routeState.selectedMenuKey, sidebarMenuItems],
   );
 
   useEffect(() => {
@@ -105,7 +129,21 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   useEffect(() => {
     setHeaderExtra(null);
+    setIsMobileSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!compactSidebar) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
+    syncViewport();
+    mediaQuery.addEventListener('change', syncViewport);
+
+    return () => mediaQuery.removeEventListener('change', syncViewport);
+  }, [compactSidebar]);
 
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
@@ -135,56 +173,102 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     navigate(defaultPath);
   };
 
+  const renderSidebarBody = (mobile: boolean) => (
+    <>
+      <nav className="module-nav">
+        <Menu
+          items={resolvedSidebarMenuItems as MenuProps['items']}
+          mode={mobile || !compactSidebar ? 'inline' : 'vertical'}
+          onClick={({ key }) => {
+            if (key.startsWith('/')) {
+              navigate(key);
+              if (mobile) {
+                setIsMobileSidebarOpen(false);
+              }
+            }
+          }}
+          onOpenChange={setOpenKeys}
+          selectedKeys={routeState.selectedMenuKey ? [routeState.selectedMenuKey] : []}
+          {...(mobile || !compactSidebar ? { openKeys } : {})}
+        />
+      </nav>
+
+      <Dropdown
+        classNames={{ root: 'settings-dropdown-overlay' }}
+        menu={{ items: settingsItems, onClick: handleSettingsClick }}
+        styles={{ root: { minWidth: 184 } }}
+        placement="top"
+        trigger={['click']}
+      >
+        <button className="settings-trigger" type="button">
+          <Avatar
+            className="settings-avatar"
+            icon={<UserOutlined />}
+            size={34}
+            src={currentUser.avatarUrl}
+          />
+          <div>
+            <strong>{currentUser.displayName || currentUser.username}</strong>
+            <span>{accountLabel}</span>
+          </div>
+          <span className="settings-icon">
+            <SettingOutlined />
+          </span>
+          <span className="settings-mobile-label">设置与支持</span>
+        </button>
+      </Dropdown>
+    </>
+  );
+
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
+    <main className={`app-shell${compactSidebar ? ' app-shell-compact-sidebar' : ''}`}>
+      {compactSidebar ? (
+        <button
+          aria-label="打开导航菜单"
+          className="mobile-sidebar-trigger"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          type="button"
+        >
+          <MenuOutlined />
+        </button>
+      ) : null}
+
+      <aside aria-label="主导航" className="sidebar desktop-sidebar">
         <div className="brand">
           <img className="brand-logo" src={brandLogoSrc} alt={appName} />
-          <div>
+          <div className="brand-copy">
             <strong>{appName}</strong>
             {appSubtitle ? <span>{appSubtitle}</span> : null}
           </div>
         </div>
-
-        <nav className="module-nav">
-          <Menu
-            items={sidebarMenuItems as MenuProps['items']}
-            mode="inline"
-            onClick={({ key }) => {
-              if (key.startsWith('/')) {
-                navigate(key);
-              }
-            }}
-            onOpenChange={setOpenKeys}
-            openKeys={openKeys}
-            selectedKeys={routeState.selectedMenuKey ? [routeState.selectedMenuKey] : []}
-          />
-        </nav>
-
-        <Dropdown
-          classNames={{ root: 'settings-dropdown-overlay' }}
-          menu={{ items: settingsItems, onClick: handleSettingsClick }}
-          styles={{ root: { minWidth: 184 } }}
-          placement="top"
-          trigger={['click']}
-        >
-          <button className="settings-trigger" type="button">
-            <Avatar
-              className="settings-avatar"
-              icon={<UserOutlined />}
-              size={34}
-              src={currentUser.avatarUrl}
-            />
-            <div>
-              <strong>{currentUser.displayName || currentUser.username}</strong>
-              <span>{accountLabel}</span>
-            </div>
-            <span className="settings-icon">
-              <SettingOutlined />
-            </span>
-          </button>
-        </Dropdown>
+        {renderSidebarBody(false)}
       </aside>
+
+      {compactSidebar && isMobileViewport ? (
+        <Drawer
+          closeIcon={<CloseOutlined />}
+          closable={{ placement: 'end' }}
+          destroyOnHidden
+          onClose={() => setIsMobileSidebarOpen(false)}
+          open={isMobileSidebarOpen}
+          placement="left"
+          rootClassName="workspace-mobile-drawer"
+          title={(
+            <div className="mobile-drawer-brand">
+              <img className="brand-logo" src={brandLogoSrc} alt={appName} />
+              <div className="brand-copy">
+                <strong>{appName}</strong>
+                {appSubtitle ? <span>{appSubtitle}</span> : null}
+              </div>
+            </div>
+          )}
+          width={392}
+        >
+          <aside aria-label="主导航" className="mobile-sidebar-content">
+            {renderSidebarBody(true)}
+          </aside>
+        </Drawer>
+      ) : null}
 
       <section className={`workspace${routeState.isChatPage ? ' chat-workspace' : ''}${routeState.isContentStudioPage ? ' workspace-studio' : ''}${routeState.isContentStudioVideoCreatePage ? ' workspace-studio-video-create' : ''}`}>
         {!routeState.hideWorkspaceHeader ? (
