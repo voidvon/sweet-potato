@@ -1,0 +1,83 @@
+.dance-remake-mode-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dance-remake-mode-option {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  color: #172033;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.dance-remake-mode-option:hover {
+  border-color: #a9c8ff;
+}
+
+.dance-remake-mode-option:focus-visible {
+  outline: 2px solid rgba(22, 119, 255, 0.28);
+  outline-offset: 2px;
+}
+
+.dance-remake-mode-option.is-active {
+  background: #f5f9ff;
+  border-color: #4f91f7;
+  box-shadow: 0 0 0 1px rgba(79, 145, 247, 0.08);
+}
+
+.dance-remake-mode-option strong {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.dance-remake-mode-option span {
+  color: #7b8495;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dance-remake-audio-option.ant-checkbox-wrapper {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  box-sizing: border-box;
+  color: #172033;
+  display: flex;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 10px;
+  padding: 10px 12px;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  width: 100%;
+}
+
+.dance-remake-audio-option.ant-checkbox-wrapper:hover {
+  border-color: #a9c8ff;
+}
+
+.dance-remake-audio-option .ant-checkbox {
+  margin-top: 1px;
+}
+
+.dance-remake-audio-option > span:last-child {
+  padding-inline-end: 0;
+}
+
+@media (max-width: 560px) {
+  .dance-remake-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
