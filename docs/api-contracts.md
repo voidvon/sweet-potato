@@ -66,7 +66,8 @@
 ## 2026-07-15 视频制作记录分页
 
 - `GET /api/content/video-productions` 传入 `page` 与 `pageSize` 时返回 `{ items, page, pageSize, total }`；`pageSize` 最大为 `100`。
-- 未传 `page` 时继续返回 `VideoGenerationTask[]`，兼容已有调用方。
+- `GET /api/content/video-productions` 返回视频制作列表专用 DTO，不返回 `userId`、`prompt`、源地址、原始解析结果、素材引用、生成配置、技能/数字人选择或供应商原始字段；`expertContext` 仅包含列表展示需要的白名单参数。编辑、重试和参考素材预览按任务 ID 请求详情。
+- 未传 `page` 时返回同一列表 DTO 的数组，兼容已有响应外层结构。
 - 时间筛选使用 `createdAtFrom`（包含）和 `createdAtTo`（不包含）两个 ISO 时间边界，并按任务创建时间过滤。
 - 比例筛选使用 `ratio`，直接匹配任务的 `aspectRatio` 字段；新任务会在生成开始时写入该值。
 - 普通视频生成使用用户选择的比例；高清放大、字幕擦除和视频翻译根据源视频宽高归一为支持的比例。

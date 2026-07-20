@@ -37,14 +37,14 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
   const [open, setOpen] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [resolvedTask, setResolvedTask] = useState<VideoGenerationTask | null>(video.task || null);
+  const [resolvedTask, setResolvedTask] = useState<VideoGenerationTask | null>(null);
   const [referenceAssets, setReferenceAssets] = useState<ReferenceMaterialPreviewAsset[]>(video.referenceAssets || []);
   const [isLoadingReferences, setIsLoadingReferences] = useState(Boolean(video.taskId || video.task));
   const [referenceImage, setReferenceImage] = useState<ReferenceMaterialPreviewAsset | null>(null);
   const [referenceVideo, setReferenceVideo] = useState<ConfirmedReferenceVideo | null>(null);
   const [playingAudioAssetId, setPlayingAudioAssetId] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const task = video.task || resolvedTask;
+  const task = resolvedTask || video.task;
   const completedAt = taskCompletionTime(task) || video.completedAt;
   const elapsedTime = useMemo(() => formatElapsedTime(
     task?.createdAt || video.createdAt,
@@ -62,15 +62,15 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
 
     async function loadReferences() {
       setIsLoadingReferences(true);
-      let nextTask = video.task || null;
-      if (!nextTask && video.taskId) {
+      let nextTask: VideoGenerationTask | null = null;
+      if (video.taskId) {
         try {
           nextTask = await getVideoTask(video.taskId);
           if (!cancelled) setResolvedTask(nextTask);
         } catch {
           nextTask = null;
         }
-      }
+      } else nextTask = video.task || null;
 
       const assetIds = Array.from(new Set([
         ...(video.referenceAssetIds || []),

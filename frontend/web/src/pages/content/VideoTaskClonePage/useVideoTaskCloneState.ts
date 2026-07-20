@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, getVideoTask, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import { createDanceRemake, createSubjectReplace, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
@@ -824,7 +824,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, []);
 
   const editVideoProduction = useCallback(async (task: VideoGenerationTask) => {
-    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    let detailTask: VideoGenerationTask;
+    try {
+      detailTask = await getVideoTask(task.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     const mode = stringFromRecord(context, 'mode');
     if (mode && mode !== 'video_create' && mode !== 'video_generation') {
       message.warning('暂时只支持编辑“视频”类型的生成记录');
@@ -875,7 +882,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         };
       });
       setTool(toolOptions[0]);
-      setPrompt(stringFromRecord(context, 'userPrompt', task.prompt || ''));
+      setPrompt(stringFromRecord(context, 'userPrompt', detailTask.prompt || ''));
       setModel(modelLabelFromId(stringFromRecord(context, 'videoModelId')));
       setRatio(stringFromRecord(context, 'ratio', '9:16'));
       setQuality(qualityLabelFromContext(stringFromRecord(context, 'quality')));
@@ -1215,7 +1222,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (retrySubmittingRef.current) {
       return;
     }
-    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    let detailTask: VideoGenerationTask;
+    try {
+      detailTask = await getVideoTask(task.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     if (context.mode === 'video_upscale') {
       const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
       if (!sourceAssetId) {
@@ -1301,8 +1315,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         : stringArrayFromRecord(context, 'referenceImageIds');
       const [referenceVideoAssetId] = stringArrayFromRecord(context, 'referenceVideoIds');
       const storedRemoteVideo = subjectReplaceRemoteVideoFromRecord(context);
-      const remoteVideo = storedRemoteVideo || (!referenceVideoAssetId && /^https?:\/\//i.test(task.sourceUrl)
-        ? { input: task.sourceUrl }
+      const remoteVideo = storedRemoteVideo || (!referenceVideoAssetId && /^https?:\/\//i.test(detailTask.sourceUrl)
+        ? { input: detailTask.sourceUrl }
         : undefined);
       const storedSubjectType = stringFromRecord(context, 'subjectReplaceType', stringFromRecord(context, 'subjectType', 'model'));
       const retrySubjectType = isSubjectReplaceType(storedSubjectType) ? storedSubjectType : 'model';
@@ -1332,7 +1346,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
       return;
     }
-    const payload = buildRetryVideoProductionPayload(task, currentUser.id);
+    const payload = buildRetryVideoProductionPayload(detailTask, currentUser.id);
     if (!payload.prompt?.trim()) {
       message.warning('当前记录缺少可重试的提示词，请重新配置后再生成');
       return;

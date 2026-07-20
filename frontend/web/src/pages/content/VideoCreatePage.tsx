@@ -4,6 +4,7 @@ import {
   createContentAssetGroup,
   createVideoProduction,
   deleteVideoTask,
+  getVideoTask,
   listContentAssetGroups,
   listContentAssets,
   listVideoProductions,
@@ -94,10 +95,11 @@ function formatDate(value: string) {
 
 function taskMeta(task: VideoGenerationTask) {
   const context = task.expertContext || {};
+  const result = task.editableParseResult.videoGenerationResult;
   return {
     quality: String(context.quality || '标清 (720p)'),
-    ratio: String(context.ratio || '9:16'),
-    duration: String(context.duration || '5秒'),
+    ratio: String(context.ratio || result?.ratio || task.aspectRatio || '9:16'),
+    duration: String(context.duration || result?.duration || '5秒'),
     videoModelProviderId: typeof context.videoModelProviderId === 'string' ? context.videoModelProviderId : '',
     videoModelId: typeof context.videoModelId === 'string' ? context.videoModelId : '',
     referenceImageIds: Array.isArray(context.referenceImageIds) ? context.referenceImageIds.map(String) : [],
@@ -635,9 +637,16 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
     return meta.referenceAudioIds.length ? meta.referenceAudioIds : audioAssets.filter((asset) => asset.groupId === meta.referenceAudioGroupId).map((asset) => asset.id);
   }
 
-  function applyRecordToForm(record: VideoGenerationTask) {
-    const meta = taskMeta(record);
-    setPrompt(record.prompt || defaultPrompt);
+  async function applyRecordToForm(record: VideoGenerationTask) {
+    let detailRecord: VideoGenerationTask;
+    try {
+      detailRecord = await getVideoTask(record.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const meta = taskMeta(detailRecord);
+    setPrompt(detailRecord.prompt || defaultPrompt);
     setQuality(qualityOptions.includes(meta.quality) ? meta.quality : '标清 (720p)');
     setRatio(ratioOptions.includes(meta.ratio) ? meta.ratio : '9:16');
     setDuration(meta.duration || '5秒');
@@ -651,8 +660,15 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
   }
 
   async function handleRegenerate(record: VideoGenerationTask) {
-    const meta = taskMeta(record);
-    const nextPrompt = (record.prompt || prompt).trim();
+    let detailRecord: VideoGenerationTask;
+    try {
+      detailRecord = await getVideoTask(record.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const meta = taskMeta(detailRecord);
+    const nextPrompt = (detailRecord.prompt || prompt).trim();
     if (!nextPrompt) {
       message.warning('该记录缺少提示词，无法重新生成');
       return;
@@ -1121,7 +1137,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                 {errorMessage && errorMessage !== status.note ? <div className="video-record-note failed">{errorMessage}</div> : null}
                 {assetId ? <div className="video-record-note">已入库成片素材：{assetId.slice(0, 8)}</div> : null}
                 <div className="card-actions-row">
-                  <button className="action-text-btn" onClick={() => applyRecordToForm(record)} type="button">重新编辑</button>
+                  <button className="action-text-btn" onClick={() => void applyRecordToForm(record)} type="button">重新编辑</button>
                   <button className="action-text-btn" onClick={() => void handleRegenerate(record)} type="button">重新生成</button>
                   <button className="action-text-btn" disabled={!videoUrl} onClick={() => window.open(videoUrl, '_blank', 'noreferrer')} type="button">打开</button>
                   <a className={videoUrl ? 'action-text-btn' : 'action-text-btn disabled'} href={videoUrl || undefined} download>下载</a>

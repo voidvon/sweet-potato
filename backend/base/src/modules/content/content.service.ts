@@ -63,6 +63,7 @@ import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRe
 import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
+import { toVideoProductionView } from './internals/content-video-production-view.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
 
 dayjs.extend(customParseFormat);
@@ -1896,9 +1897,10 @@ export const contentService = {
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
       { status: filters.status },
     );
+    const views = filtered.map(toVideoProductionView);
     const requestedPage = Number(filters.page);
     if (!Number.isFinite(requestedPage) || requestedPage < 1) {
-      return filtered;
+      return views;
     }
     const page = Math.max(1, Math.floor(requestedPage));
     const requestedPageSize = Number(filters.pageSize);
@@ -1907,10 +1909,10 @@ export const contentService = {
       : 20;
     const offset = (page - 1) * pageSize;
     return {
-      items: filtered.slice(offset, offset + pageSize),
+      items: views.slice(offset, offset + pageSize),
       page,
       pageSize,
-      total: filtered.length,
+      total: views.length,
     };
   },
 
