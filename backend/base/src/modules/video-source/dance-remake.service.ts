@@ -102,7 +102,7 @@ async function prepareDanceRemake(
         : null;
     if (!videoAsset) throw new VideoSourceError('请选择参考视频');
     const duration = await probeDuration(videoAsset.filePath);
-    const durationSeconds = Math.max(4, Math.min(15, Math.round(duration)));
+    const durationSeconds = billedReferenceVideoDurationSeconds(duration);
     const settings = getBillingSettings();
     if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
     const price = resolveDanceRemakePrice({
@@ -207,6 +207,13 @@ export function resolveDanceRemakeGenerationOptions(input: Pick<DanceRemakeInput
     quality: input.quality,
     videoModelId: input.videoModelId,
   };
+}
+
+export function billedReferenceVideoDurationSeconds(duration: number) {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new VideoSourceError('参考视频时长无效');
+  }
+  return Math.max(4, Math.min(15, Math.ceil(duration)));
 }
 
 export function resolveDanceRemakePrice(input: {

@@ -8,8 +8,8 @@
 - 请求体包含 `subjectType`、`imageAssetIds`、本地 `referenceVideoAssetId` 或短视频 `remoteVideo`、`preserveAudio`、`quality` 和 `videoModelId`。
 - 非服饰类型必须提供一张图片；服饰类型第一张为正面图、可选第二张为反面图，最多两张。所有素材必须属于当前登录用户。
 - 接口立即返回 `VideoGenerationTask`。短视频链接的下载、裁剪和时长探测在后台执行，任务准备状态为 `expertContext.mode = "subject_replace"`。
-- 生成时长取参考视频实际时长并限制为 `4-15` 秒，画面比例固定为 `9:16`；结果继续通过 `GET /api/content/video-productions` 查询。
-- 主体替换调用现有 Seedance 视频生成链路，按后台配置的模型、清晰度和实际生成秒数记录 `video_generation` 消费；素材准备失败不会产生视频生成扣费。
+- 生成与计费时长取参考视频实际时长并向上取整后限制为 `4-15` 秒，例如 `9.01` 秒按 `10` 秒；画面比例固定为 `9:16`，结果继续通过 `GET /api/content/video-productions` 查询。
+- 主体替换调用现有 Seedance 视频生成链路，参考视频时长确定后按后台配置的模型、清晰度和实际生成秒数预留 `video_generation` 积分；成功时按预留金额结算，失败时释放，供应商 token usage 不覆盖该按秒价格。
 
 ## 2026-07-17 公共视频链接解析
 

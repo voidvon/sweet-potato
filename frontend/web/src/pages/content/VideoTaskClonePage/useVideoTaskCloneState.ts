@@ -388,7 +388,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
         return '';
       }
-      const durationSeconds = Math.max(4, Math.min(15, Math.round(selectedVideoDuration)));
+      const durationSeconds = Math.max(4, Math.min(15, Math.ceil(selectedVideoDuration)));
       const isStandard = tool.workspace.generate.handler === 'dance-remake' && danceRemakeMode === 'standard';
       const effectiveModel = isStandard ? 'Seedance 2.0 Mini' : model;
       const is480p = isStandard || quality === '480P';

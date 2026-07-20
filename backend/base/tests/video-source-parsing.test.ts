@@ -15,6 +15,7 @@ import { createVideoPreviewToken, verifyVideoPreviewToken } from '../src/modules
 import { extractFirstHttpUrl } from '../src/modules/video-source/video-source.service.js';
 import type { ResolvedVideoSource } from '../src/modules/video-source/video-source.types.js';
 import {
+  billedReferenceVideoDurationSeconds,
   normalizeDanceTrimRange,
   resolveDanceRemakeGenerationOptions,
   resolveDanceRemakePrice,
@@ -238,6 +239,14 @@ test('dance remake price uses the effective model, resolution, and duration', ()
     creditsPerSecond: 18,
     resolution: '720p',
   });
+});
+
+test('reference video billing duration always rounds partial seconds up', () => {
+  assert.equal(billedReferenceVideoDurationSeconds(9), 9);
+  assert.equal(billedReferenceVideoDurationSeconds(9.01), 10);
+  assert.equal(billedReferenceVideoDurationSeconds(9.99), 10);
+  assert.equal(billedReferenceVideoDurationSeconds(3.2), 4);
+  assert.equal(billedReferenceVideoDurationSeconds(15), 15);
 });
 
 test('subject replacement prompts bind the selected image roles and source video', () => {

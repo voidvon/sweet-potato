@@ -1,6 +1,17 @@
+import { randomUUID } from 'node:crypto';
+import {
+  getBillingSettings,
+  releaseReservedFixedBillableUsage,
+  reserveFixedBillableUsage,
+} from '../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
-import { materializeRemoteVideo, probeDuration } from './dance-remake.service.js';
+import {
+  billedReferenceVideoDurationSeconds,
+  materializeRemoteVideo,
+  probeDuration,
+  resolveDanceRemakePrice,
+} from './dance-remake.service.js';
 import { VideoSourceError } from './video-source.types.js';
 
 const subjectTypes = new Set(['model', 'clothing', 'face', 'background', 'product']);
@@ -83,11 +94,58 @@ async function prepareSubjectReplace(
   imageAssetIds: string[],
   localVideoAssetId?: string,
 ) {
+  let reservationId = '';
   try {
     const video = localVideoAssetId
       ? ownAsset(localVideoAssetId, input.userId, 'video')
       : await materializeRemoteVideo({ ...input.remoteVideo!, userId: input.userId });
-    const durationSeconds = Math.max(4, Math.min(15, Math.round(await probeDuration(video.filePath))));
+    const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(video.filePath));
+    const settings = getBillingSettings();
+    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
+    const price = resolveDanceRemakePrice({
+      durationSeconds,
+      quality: input.quality,
+      settings,
+      videoModelId: input.videoModelId,
+    });
+    const billingSourceId = `subject-replace:${randomUUID()}`;
+    const reservation = reserveFixedBillableUsage({
+      userId: input.userId,
+      category: 'video_generation',
+      sourceType: 'subject_replace_generation',
+      sourceId: billingSourceId,
+      sessionId: billingSourceId,
+      credits: price.credits,
+      step: 'subject_replace_generation',
+      stepLabel: '主体替换',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: durationSeconds,
+        resolution: price.resolution,
+        configuredCreditsPerSecond: price.creditsPerSecond,
+        priceSource: 'system-billing-settings',
+      },
+      requestSnapshot: {
+        subjectType: input.subjectType,
+        quality: input.quality,
+        duration: `${durationSeconds}s`,
+        videoModelId: input.videoModelId,
+      },
+    });
+    reservationId = reservation.id;
+    const preparingTask = contentRepository.findVideoTask(taskId);
+    if (!preparingTask || preparingTask.status !== 'generating') {
+      throw new VideoSourceError('主体替换准备任务已停止', 409);
+    }
+    contentRepository.updateVideoTaskContext(taskId, {
+      selectedSkillIds: preparingTask.selectedSkillIds,
+      expertContext: {
+        ...preparingTask.expertContext,
+        subjectReplacePreparationStatus: 'billing_reserved',
+        videoBillingReservationId: reservation.id,
+        updatedAt: new Date().toISOString(),
+      },
+    });
     await contentService.createVideoProduction({
       userId: input.userId,
       taskMode: 'subject_replace',
@@ -105,8 +163,10 @@ async function prepareSubjectReplace(
         : [],
       generateAudio: input.preserveAudio,
       skipVideoBilling: false,
+      videoBillingReservationId: reservation.id,
     });
   } catch (error) {
+    if (reservationId) releaseReservedFixedBillableUsage(reservationId);
     const current = contentRepository.findVideoTask(taskId);
     if (!current || current.status === 'success' || current.status === 'failed') return;
     const reason = error instanceof Error ? error.message : String(error || '主体替换素材准备失败');
