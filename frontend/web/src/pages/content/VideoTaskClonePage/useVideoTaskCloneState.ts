@@ -353,6 +353,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const canGenerate = useMemo(
     () => (
       tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
+      && (tool.key !== 'subject-replace'
+        || (getLocalFiles(selectedMaterials.image).length > 0
+          && getLocalFiles(selectedMaterials.video).length > 0))
       && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
       && !hasVideoRequiringTrim(selectedMaterials)
       && (tool.key !== 'marketing-video'
@@ -1292,6 +1295,43 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
       return;
     }
+    if (context.mode === 'subject_replace') {
+      const imageAssetIds = stringArrayFromRecord(context, 'originalReferenceImageIds').length
+        ? stringArrayFromRecord(context, 'originalReferenceImageIds')
+        : stringArrayFromRecord(context, 'referenceImageIds');
+      const [referenceVideoAssetId] = stringArrayFromRecord(context, 'referenceVideoIds');
+      const storedRemoteVideo = subjectReplaceRemoteVideoFromRecord(context);
+      const remoteVideo = storedRemoteVideo || (!referenceVideoAssetId && /^https?:\/\//i.test(task.sourceUrl)
+        ? { input: task.sourceUrl }
+        : undefined);
+      const storedSubjectType = stringFromRecord(context, 'subjectReplaceType', stringFromRecord(context, 'subjectType', 'model'));
+      const retrySubjectType = isSubjectReplaceType(storedSubjectType) ? storedSubjectType : 'model';
+      if (!imageAssetIds.length || (!referenceVideoAssetId && !remoteVideo)) {
+        message.warning('当前记录缺少主体图片或视频来源，无法重试');
+        return;
+      }
+      try {
+        retrySubmittingRef.current = true;
+        setRetryingTaskId(task.id);
+        await createSubjectReplace({
+          imageAssetIds,
+          preserveAudio: context.generateAudio !== false,
+          quality: stringFromRecord(context, 'quality', '标清 (720p)'),
+          referenceVideoAssetId,
+          remoteVideo,
+          subjectType: retrySubjectType,
+          videoModelId: stringFromRecord(context, 'videoModelId', modelOptionIds['Seedance 2.0']),
+        });
+        await loadVideoProductions(true);
+        message.success('已重新提交主体替换任务');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '主体替换重试失败');
+      } finally {
+        retrySubmittingRef.current = false;
+        setRetryingTaskId('');
+      }
+      return;
+    }
     const payload = buildRetryVideoProductionPayload(task, currentUser.id);
     if (!payload.prompt?.trim()) {
       message.warning('当前记录缺少可重试的提示词，请重新配置后再生成');
@@ -1642,6 +1682,24 @@ function videoTranslationSubtitleConfigFromRecord(record: Record<string, unknown
     subtitleConfig.showLines = Number(stored.showLines ?? 2);
   }
   return subtitleConfig;
+}
+
+function isSubjectReplaceType(value: string): value is SubjectReplaceType {
+  return ['model', 'clothing', 'face', 'background', 'product'].includes(value);
+}
+
+function subjectReplaceRemoteVideoFromRecord(record: Record<string, unknown>) {
+  const value = record.subjectReplaceRemoteVideo;
+  if (!isRecord(value)) return undefined;
+  const input = stringFromRecord(value, 'input');
+  if (!input) return undefined;
+  const trimStart = Number(value.trimStart);
+  const trimEnd = Number(value.trimEnd);
+  return {
+    input,
+    trimStart: Number.isFinite(trimStart) ? trimStart : undefined,
+    trimEnd: Number.isFinite(trimEnd) ? trimEnd : undefined,
+  };
 }
 
 function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: string) {

@@ -385,7 +385,9 @@ function viewState(task: VideoGenerationTask) {
       coverUrl,
       previewVideo: {
         duration: parseDurationSeconds(result?.duration),
-        name: task.title,
+        name: task.expertContext?.mode === 'subject_replace'
+          ? formatMetric(result, task)
+          : task.title,
         task,
         taskId: task.id,
         videoUrl,
@@ -440,7 +442,21 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     return '跳舞复刻';
   }
   if (task?.expertContext?.mode === 'subject_replace') {
-    return '主体替换';
+    const type = String(
+      task.expertContext.subjectReplaceType
+      || task.expertContext.subjectType
+      || 'model',
+    );
+    const typeLabel = {
+      model: '模特',
+      clothing: '服饰',
+      face: '人脸',
+      background: '背景',
+      product: '商品',
+    }[type] || '模特';
+    const quality = String(task.expertContext.quality || '标清 (720p)');
+    const qualityLabel = /480p/i.test(quality) ? '480P' : '720P';
+    return `模特 / 商品替换 · ${typeLabel} · ${qualityLabel}`;
   }
   if (task?.expertContext?.mode === 'video_upscale') {
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();

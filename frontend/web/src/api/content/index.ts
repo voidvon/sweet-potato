@@ -427,6 +427,12 @@ export function createVideoProduction(payload: {
   referenceVideoIds?: string[];
   referenceAudioIds?: string[];
   characterReferenceImageIds?: string[];
+  subjectReplaceType?: string;
+  subjectReplaceRemoteVideo?: {
+    input: string;
+    trimEnd?: number;
+    trimStart?: number;
+  };
   generateAudio?: boolean;
 }) {
   const { userId: _userId, ...requestPayload } = payload;

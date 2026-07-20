@@ -77,6 +77,8 @@ export const subjectReplaceService = {
         referenceVideoIds: localVideo ? [localVideo.id] : [],
         generateAudio: input.preserveAudio,
         subjectType: input.subjectType,
+        subjectReplaceType: input.subjectType,
+        subjectReplaceRemoteVideo: input.remoteVideo || null,
         createdAt: new Date().toISOString(),
       },
     });
@@ -99,6 +101,20 @@ async function prepareSubjectReplace(
     const video = localVideoAssetId
       ? ownAsset(localVideoAssetId, input.userId, 'video')
       : await materializeRemoteVideo({ ...input.remoteVideo!, userId: input.userId });
+    const materializedTask = contentRepository.findVideoTask(taskId);
+    if (!materializedTask || materializedTask.status !== 'generating') {
+      throw new VideoSourceError('主体替换准备任务已停止', 409);
+    }
+    contentRepository.updateVideoTaskContext(taskId, {
+      selectedSkillIds: materializedTask.selectedSkillIds,
+      expertContext: {
+        ...materializedTask.expertContext,
+        referenceVideoIds: [video.id],
+        subjectReplacePreparationStatus: 'video_materialized',
+        materializedReferenceVideoAssetId: video.id,
+        updatedAt: new Date().toISOString(),
+      },
+    });
     const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(video.filePath));
     const settings = getBillingSettings();
     if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
@@ -161,6 +177,8 @@ async function prepareSubjectReplace(
       characterReferenceImageIds: ['model', 'face'].includes(input.subjectType)
         ? [imageAssetIds[0]]
         : [],
+      subjectReplaceType: input.subjectType,
+      subjectReplaceRemoteVideo: input.remoteVideo,
       generateAudio: input.preserveAudio,
       skipVideoBilling: false,
       videoBillingReservationId: reservation.id,
@@ -196,12 +214,12 @@ function ownAsset(id: string, userId: string, kind: 'image' | 'video') {
 
 export function subjectReplacePrompt(type: SubjectReplaceType, imageCount: number, preserveAudio: boolean) {
   const instruction = {
-    model: '使用图片1中的模特替换视频1中的人物主体，严格保持参考视频的动作、镜头、构图和节奏，保持新模特身份与外观稳定。',
+    model: '将视频1中的原模特完整替换为图片1中的模特。图片1中的人物是唯一的人物身份和外观来源，生成视频中的人物必须严格使用图片1模特的人脸、五官、发型、发色、服装、配饰、体型和整体人物特征，不得保留或混合视频1原模特的人脸、发型、服装或身份特征。视频1只用于参考动作、身体姿态、表情变化、镜头运动、构图和节奏；让图片1中的同一个完整人物自然执行视频1中的动作，确保所有镜头里人脸、发型、服装和人物身份始终一致稳定。',
     clothing: imageCount > 1
       ? '使用图片1的服饰正面和图片2的服饰反面替换视频1中人物的服饰，严格保持人物身份、动作、镜头、构图和节奏，确保服饰前后细节一致稳定。'
       : '使用图片1中的服饰替换视频1中人物的服饰，严格保持人物身份、动作、镜头、构图和节奏，保持服饰细节稳定。',
     face: '使用图片1中的人脸替换视频1中人物的人脸，严格保持参考视频的动作、表情、镜头、构图和节奏，保持新面部身份稳定自然。',
-    background: '使用图片1中的背景替换视频1的背景，严格保持前景主体、动作、镜头、构图和节奏，确保前景边缘自然、背景稳定。',
+    background: '图片1仅用于提供背景环境，必须完全忽略图片1中出现的任何人物、人脸、人体、服饰和动作，不得将其作为主体参考。只替换视频1的背景区域；视频1中的前景人物是唯一的人物身份来源，必须完整保留其人脸、身份、发型、服装、体态、动作和表情，严禁换人、换脸、改变人物外观或新增人物。严格保持视频1的镜头、构图和节奏，确保前景人物边缘自然、背景稳定。',
     product: '使用图片1中的商品替换视频1中的商品主体，严格保持参考视频的手部动作、镜头、构图和节奏，保持商品外观与细节稳定。',
   }[type];
   return preserveAudio

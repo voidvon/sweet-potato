@@ -2899,6 +2899,8 @@ export const contentService = {
         referenceVideoIds: payload.referenceVideoIds || [],
         referenceAudioIds: payload.referenceAudioIds || [],
         characterReferenceImageIds,
+        subjectReplaceType: String(payload.subjectReplaceType || ''),
+        subjectReplaceRemoteVideo: payload.subjectReplaceRemoteVideo || null,
         generateAudio: payload.generateAudio !== false,
         skipVideoBilling: payload.skipVideoBilling === true,
         videoBillingReservationId: String(payload.videoBillingReservationId || ''),

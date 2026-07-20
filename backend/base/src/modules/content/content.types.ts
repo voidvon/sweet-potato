@@ -346,6 +346,12 @@ export type CreateVideoProductionPayload = {
   referenceVideoIds?: string[];
   referenceAudioIds?: string[];
   characterReferenceImageIds?: string[];
+  subjectReplaceType?: string;
+  subjectReplaceRemoteVideo?: {
+    input: string;
+    trimEnd?: number;
+    trimStart?: number;
+  };
   generateAudio?: boolean;
   skipVideoBilling?: boolean;
   videoBillingReservationId?: string;

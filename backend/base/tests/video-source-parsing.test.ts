@@ -250,12 +250,19 @@ test('reference video billing duration always rounds partial seconds up', () => 
 });
 
 test('subject replacement prompts bind the selected image roles and source video', () => {
-  assert.match(subjectReplacePrompt('model', 1, true), /图片1中的模特/);
-  assert.match(subjectReplacePrompt('model', 1, true), /视频1/);
-  assert.match(subjectReplacePrompt('model', 1, true), /保留并参考原视频中的音乐和节奏/);
+  const modelPrompt = subjectReplacePrompt('model', 1, true);
+  assert.match(modelPrompt, /图片1中的人物是唯一的人物身份和外观来源/);
+  assert.match(modelPrompt, /人脸、五官、发型、发色、服装、配饰、体型/);
+  assert.match(modelPrompt, /不得保留或混合视频1原模特/);
+  assert.match(modelPrompt, /视频1只用于参考动作、身体姿态、表情变化、镜头运动、构图和节奏/);
+  assert.match(modelPrompt, /保留并参考原视频中的音乐和节奏/);
   assert.match(subjectReplacePrompt('clothing', 2, false), /图片1的服饰正面和图片2的服饰反面/);
   assert.match(subjectReplacePrompt('clothing', 2, false), /不生成声音/);
-  assert.match(subjectReplacePrompt('background', 1, true), /替换视频1的背景/);
+  const backgroundPrompt = subjectReplacePrompt('background', 1, true);
+  assert.match(backgroundPrompt, /图片1仅用于提供背景环境/);
+  assert.match(backgroundPrompt, /完全忽略图片1中出现的任何人物、人脸、人体、服饰和动作/);
+  assert.match(backgroundPrompt, /视频1中的前景人物是唯一的人物身份来源/);
+  assert.match(backgroundPrompt, /严禁换人、换脸/);
   assert.match(subjectReplacePrompt('product', 1, true), /商品替换视频1中的商品主体/);
 });
 
