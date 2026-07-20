@@ -364,6 +364,9 @@ function viewState(task: VideoGenerationTask) {
   const isVideoTranslation = task.expertContext?.mode === 'video_translation';
   const isDanceRemakePreparing = task.expertContext?.mode === 'dance_remake'
     && task.expertContext?.currentStep === 'dance_remake_preparing';
+  const isSubjectReplacePreparing = task.expertContext?.mode === 'subject_replace'
+    && task.expertContext?.currentStep === 'subject_replace_preparing';
+  const isPreparing = isDanceRemakePreparing || isSubjectReplacePreparing;
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
   const isOrphanPending = task.status !== 'generating'
@@ -415,9 +418,9 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: isDanceRemakePreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
-    posterText: isDanceRemakePreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
-    note: isDanceRemakePreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
+    label: isPreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
+    posterText: isPreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
+    note: isPreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,
@@ -435,6 +438,9 @@ function resolveTaskMediaUrl(value?: string | null) {
 function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask) {
   if (task?.expertContext?.mode === 'dance_remake') {
     return '跳舞复刻';
+  }
+  if (task?.expertContext?.mode === 'subject_replace') {
+    return '主体替换';
   }
   if (task?.expertContext?.mode === 'video_upscale') {
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();

@@ -2,6 +2,15 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-20 主体替换视频生成
+
+- `POST /api/video-source/subject-replaces` 提交模特、服饰、人脸、背景或商品替换任务，要求 `web.module.content.create_video` 权限。
+- 请求体包含 `subjectType`、`imageAssetIds`、本地 `referenceVideoAssetId` 或短视频 `remoteVideo`、`preserveAudio`、`quality` 和 `videoModelId`。
+- 非服饰类型必须提供一张图片；服饰类型第一张为正面图、可选第二张为反面图，最多两张。所有素材必须属于当前登录用户。
+- 接口立即返回 `VideoGenerationTask`。短视频链接的下载、裁剪和时长探测在后台执行，任务准备状态为 `expertContext.mode = "subject_replace"`。
+- 生成时长取参考视频实际时长并限制为 `4-15` 秒，画面比例固定为 `9:16`；结果继续通过 `GET /api/content/video-productions` 查询。
+- 主体替换调用现有 Seedance 视频生成链路，按后台配置的模型、清晰度和实际生成秒数记录 `video_generation` 消费；素材准备失败不会产生视频生成扣费。
+
 ## 2026-07-17 公共视频链接解析
 
 - `POST /api/video-source/resolve` 根据分享文案或视频链接解析公共视频信息，要求当前用户具备 `web.module.content.create_video` 权限；服务端不下载或保存视频文件。

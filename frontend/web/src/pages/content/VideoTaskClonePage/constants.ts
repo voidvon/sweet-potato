@@ -56,7 +56,7 @@ export const toolOptions: ToolOption[] = [
         { id: 'subject-replace-form', type: 'subject-replace-form' },
         { id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false },
       ],
-      generate: { handler: 'pending' },
+      generate: { handler: 'subject-replace' },
     },
   },
   {

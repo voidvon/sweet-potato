@@ -231,7 +231,7 @@ function videoTaskCreditCost(row: VideoTaskRow, expertContext: Record<string, un
   }
   const mode = String(expertContext.mode || '').trim();
   const isCompletedProduction = row.status === 'success'
-    && (!mode || ['video_create', 'video_generation', 'video_upscale', 'subtitle_removal', 'video_translation'].includes(mode));
+    && (!mode || ['video_create', 'video_generation', 'subject_replace', 'video_upscale', 'subtitle_removal', 'video_translation'].includes(mode));
   if (!isCompletedProduction) {
     return null;
   }

@@ -19,6 +19,7 @@ import {
   resolveDanceRemakeGenerationOptions,
   resolveDanceRemakePrice,
 } from '../src/modules/video-source/dance-remake.service.js';
+import { subjectReplacePrompt } from '../src/modules/video-source/subject-replace.service.js';
 import { shouldUseImplicitUploadGroup } from '../src/modules/content/content.service.js';
 import { seedanceReferenceVideoMetadataSourceUrl } from '../src/modules/content/internals/content-video-generation.js';
 
@@ -237,6 +238,16 @@ test('dance remake price uses the effective model, resolution, and duration', ()
     creditsPerSecond: 18,
     resolution: '720p',
   });
+});
+
+test('subject replacement prompts bind the selected image roles and source video', () => {
+  assert.match(subjectReplacePrompt('model', 1, true), /图片1中的模特/);
+  assert.match(subjectReplacePrompt('model', 1, true), /视频1/);
+  assert.match(subjectReplacePrompt('model', 1, true), /保留并参考原视频中的音乐和节奏/);
+  assert.match(subjectReplacePrompt('clothing', 2, false), /图片1的服饰正面和图片2的服饰反面/);
+  assert.match(subjectReplacePrompt('clothing', 2, false), /不生成声音/);
+  assert.match(subjectReplacePrompt('background', 1, true), /替换视频1的背景/);
+  assert.match(subjectReplacePrompt('product', 1, true), /商品替换视频1中的商品主体/);
 });
 
 test('remote temporary reference videos use the implicit upload group', () => {

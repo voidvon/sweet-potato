@@ -330,7 +330,7 @@ export type CreateVideoTaskFromPromptPayload = {
 
 export type CreateVideoProductionPayload = {
   userId: string;
-  taskMode?: 'video_create' | 'dance_remake';
+  taskMode?: 'video_create' | 'dance_remake' | 'subject_replace';
   precreatedTaskId?: string;
   retryTaskId?: string;
   prompt?: string;

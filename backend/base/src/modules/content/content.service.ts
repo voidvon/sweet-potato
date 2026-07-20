@@ -1856,7 +1856,7 @@ export const contentService = {
     assertUserId(userId);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'dance_remake', 'video_upscale', 'subtitle_removal', 'video_translation'],
+        modes: ['video_create', 'dance_remake', 'subject_replace', 'video_upscale', 'subtitle_removal', 'video_translation'],
         createdAtFrom: normalizeVideoProductionBoundary(filters.createdAtFrom),
         createdAtTo: normalizeVideoProductionBoundary(filters.createdAtTo),
         aspectRatio: String(filters.ratio || '').trim() === '全部比例'
@@ -2426,17 +2426,25 @@ export const contentService = {
 
   resumeRunningVideoGenerations() {
     contentRepository.listGeneratingVideoTasks()
-      .filter((task) => task.expertContext?.mode === 'dance_remake'
-        && task.expertContext?.currentStep === 'dance_remake_preparing')
+      .filter((task) => (
+        task.expertContext?.mode === 'dance_remake'
+          && task.expertContext?.currentStep === 'dance_remake_preparing'
+      ) || (
+        task.expertContext?.mode === 'subject_replace'
+          && task.expertContext?.currentStep === 'subject_replace_preparing'
+      ))
       .forEach((task) => {
         const reservationId = String(task.expertContext?.videoBillingReservationId || '').trim();
         if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+        const isSubjectReplace = task.expertContext?.mode === 'subject_replace';
         contentRepository.updateVideoTaskContext(task.id, {
           selectedSkillIds: task.selectedSkillIds,
           expertContext: {
             ...task.expertContext,
-            currentStep: 'dance_remake_preparation_failed',
-            danceRemakePreparationStatus: 'failed',
+            currentStep: isSubjectReplace
+              ? 'subject_replace_preparation_failed'
+              : 'dance_remake_preparation_failed',
+            ...(isSubjectReplace ? {} : { danceRemakePreparationStatus: 'failed' }),
             requiredUserAction: 'resubmit',
             updatedAt: new Date().toISOString(),
           },
@@ -2870,7 +2878,11 @@ export const contentService = {
         generationResult: pendingResult,
       });
       const taskMode = payload.taskMode || 'video_create';
-      const title = taskMode === 'dance_remake' ? `跳舞复刻 ${duration}` : `视频制作 ${ratio} ${duration}`;
+      const title = taskMode === 'dance_remake'
+        ? `跳舞复刻 ${duration}`
+        : taskMode === 'subject_replace'
+          ? `主体替换 ${duration}`
+          : `视频制作 ${ratio} ${duration}`;
       const expertContext = {
         mode: taskMode,
         traceId,
@@ -2893,12 +2905,16 @@ export const contentService = {
         userPrompt,
       };
       const precreatedTask = precreatedTaskId ? this.getVideoTask(precreatedTaskId, payload.userId) : null;
-      if (precreatedTask && (
-        payload.taskMode !== 'dance_remake'
-        || precreatedTask.expertContext?.mode !== 'dance_remake'
-        || precreatedTask.expertContext?.currentStep !== 'dance_remake_preparing'
-      )) {
-        throw new Error('跳舞复刻准备任务状态无效');
+      const hasValidPrecreatedTask = !precreatedTask || (
+        payload.taskMode === 'dance_remake'
+          ? precreatedTask.expertContext?.mode === 'dance_remake'
+            && precreatedTask.expertContext?.currentStep === 'dance_remake_preparing'
+          : payload.taskMode === 'subject_replace'
+            && precreatedTask.expertContext?.mode === 'subject_replace'
+            && precreatedTask.expertContext?.currentStep === 'subject_replace_preparing'
+      );
+      if (!hasValidPrecreatedTask) {
+        throw new Error('视频准备任务状态无效');
       }
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
       const shouldReuseRetryTask = retryTask?.status === 'failed';

@@ -12,6 +12,8 @@ export type ToolKey =
 
 export type DanceRemakeMode = 'standard' | 'enhanced';
 
+export type SubjectReplaceType = 'model' | 'clothing' | 'face' | 'background' | 'product';
+
 export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
 
 export type SubtitleRemovalContentType = 'subtitle' | 'text';
@@ -91,7 +93,7 @@ export type ToolOption = {
   workspace: {
     blocks: WorkspaceBlock[];
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'dance-remake' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'dance-remake' | 'subject-replace' | 'pending';
     };
   };
 };

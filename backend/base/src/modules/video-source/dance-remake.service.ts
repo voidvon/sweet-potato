@@ -257,7 +257,7 @@ function ownAsset(id: string, userId: string, kind: 'image' | 'video') {
   return asset;
 }
 
-async function materializeRemoteVideo(input: { input: string; trimEnd?: number; trimStart?: number; userId: string }) {
+export async function materializeRemoteVideo(input: { input: string; trimEnd?: number; trimStart?: number; userId: string }) {
   const source = await videoSourceService.resolve(input.input);
   const id = `${source.platform}-${source.externalId}-${randomUUID()}`;
   const outputRelativePath = inputMediaRelativePath('video', `${id}-trimmed.mp4`);
@@ -342,7 +342,7 @@ async function downloadVideo(url: string, referer: string, filePath: string) {
   if (!size) throw new VideoSourceError('参考视频下载结果为空', 502);
 }
 
-async function probeDuration(filePath: string) {
+export async function probeDuration(filePath: string) {
   try {
     const { stdout } = await execFileAsync('ffprobe', [
       '-v', 'error', '-show_entries', 'format=duration',

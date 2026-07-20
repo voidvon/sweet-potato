@@ -1,5 +1,6 @@
 import { Checkbox } from 'antd';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import type { SubjectReplaceType } from '../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import { MaterialPanel } from './MaterialPanel';
 import { MaterialSlot } from './MaterialSlot';
@@ -7,13 +8,11 @@ import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import './SubjectReplacePanel.scss';
 
-type SubjectType = 'model' | 'clothing' | 'face' | 'background' | 'product';
-
 type SubjectReplacePanelProps = {
   state: VideoTaskCloneState;
 };
 
-const subjectTypes: Array<{ key: SubjectType; label: string; uploadLabel: string }> = [
+const subjectTypes: Array<{ key: SubjectReplaceType; label: string; uploadLabel: string }> = [
   { key: 'model', label: '模特', uploadLabel: '模特图' },
   { key: 'clothing', label: '服饰', uploadLabel: '服饰图' },
   { key: 'face', label: '人脸', uploadLabel: '人脸图' },
@@ -22,7 +21,7 @@ const subjectTypes: Array<{ key: SubjectType; label: string; uploadLabel: string
 ];
 
 export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
-  const [subjectType, setSubjectType] = useState<SubjectType>('model');
+  const subjectType = state.subjectReplaceType;
   const selectedType = subjectTypes.find((item) => item.key === subjectType) ?? subjectTypes[0];
   const subjectTool = useMemo(() => ({
     ...state.tool,
@@ -38,11 +37,11 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
   const selectedImages = Array.isArray(state.selectedMaterials.image) ? state.selectedMaterials.image : [];
   const hasFrontImage = Boolean(state.selectedMaterials.image);
 
-  const chooseSubjectType = (nextType: SubjectType) => {
+  const chooseSubjectType = (nextType: SubjectReplaceType) => {
     if (subjectType === 'clothing' && nextType !== 'clothing' && selectedImages.length > 1 && imageMaterial) {
       state.replaceMaterialFiles(imageMaterial, selectedImages.slice(0, 1));
     }
-    setSubjectType(nextType);
+    state.setSubjectReplaceType(nextType);
   };
 
   if (!videoMaterial || !imageMaterial) return null;

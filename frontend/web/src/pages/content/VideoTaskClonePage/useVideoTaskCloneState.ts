@@ -5,7 +5,7 @@ import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
-import { createDanceRemake, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
+import { createDanceRemake, createSubjectReplace, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import {
   defaultFilters,
@@ -26,6 +26,7 @@ import type {
   SelectedMaterials,
   SelectedMaterialValue,
   SubtitleRemovalConfig,
+  SubjectReplaceType,
   ToolOption,
   UploadAnchor,
   VideoTranslationConfig,
@@ -117,6 +118,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const retrySubmittingRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>('enhanced');
+  const [subjectReplaceType, setSubjectReplaceType] = useState<SubjectReplaceType>('model');
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(initialTool);
   const [showToolMenu, setShowToolMenu] = useState(false);
@@ -368,7 +370,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     [marketingVideoConfig, prompt, selectedMaterials, subtitleRemovalConfig, tool.key, tool.materials, tool.workspace.generate.handler, videoTranslationConfig],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
-  const selectedVideoDuration = getLocalFiles(selectedMaterials.video)[0]?.trimDuration;
+  const selectedVideoFile = getLocalFiles(selectedMaterials.video)[0];
+  const selectedVideoDuration = selectedVideoFile?.trimDuration ?? selectedVideoFile?.mediaDuration;
 
   const videoPriceLabel = useMemo(() => {
     const billing = siteConfig?.billing;
@@ -381,12 +384,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (tool.key === 'marketing-video') {
       return formatCreditAmount(billing.marketingVideoCreditsPerRequest);
     }
-    if (tool.workspace.generate.handler === 'dance-remake') {
+    if (tool.workspace.generate.handler === 'dance-remake' || tool.workspace.generate.handler === 'subject-replace') {
       if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
         return '';
       }
       const durationSeconds = Math.max(4, Math.min(15, Math.round(selectedVideoDuration)));
-      const isStandard = danceRemakeMode === 'standard';
+      const isStandard = tool.workspace.generate.handler === 'dance-remake' && danceRemakeMode === 'standard';
       const effectiveModel = isStandard ? 'Seedance 2.0 Mini' : model;
       const is480p = isStandard || quality === '480P';
       const creditsPerSecond = effectiveModel === 'Seedance 2.0 Fast'
@@ -472,6 +475,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
     setDanceRemakeMode('enhanced');
+    setSubjectReplaceType('model');
     setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
     setQuality(option.key === 'dance-remake' ? '480P' : '720P');
   }, []);
@@ -924,6 +928,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
     setDanceRemakeMode('enhanced');
+    setSubjectReplaceType('model');
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -978,6 +983,45 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         chooseTool(tool);
         setVoiceEnabled(true);
         message.success('跳舞复刻任务已提交');
+        return;
+      }
+      if (tool.workspace.generate.handler === 'subject-replace') {
+        const imageAssetIds = await ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: getLocalFiles(selectedMaterials.image),
+          uploadGroupIdsRef,
+        });
+        const referenceVideo = getLocalFiles(selectedMaterials.video)[0];
+        if (!imageAssetIds.length) throw new Error('请上传主体图片');
+        if (!referenceVideo) throw new Error('请上传或粘贴参考视频');
+
+        let referenceVideoAssetId = referenceVideo.assetId;
+        if (!referenceVideo.remoteSourceUrl && !referenceVideoAssetId) {
+          [referenceVideoAssetId] = await ensureMaterialAssetIds({
+            currentUser,
+            resourceType: 'other',
+            files: [referenceVideo],
+            uploadGroupIdsRef,
+          });
+        }
+        await createSubjectReplace({
+          imageAssetIds,
+          preserveAudio: voiceEnabled,
+          quality: mapQualityLabel(quality),
+          referenceVideoAssetId,
+          remoteVideo: referenceVideo.remoteSourceUrl ? {
+            input: referenceVideo.remoteSourceUrl,
+            trimEnd: referenceVideo.trimEnd,
+            trimStart: referenceVideo.trimStart,
+          } : undefined,
+          subjectType: subjectReplaceType,
+          videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+        });
+        await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
+        chooseTool(tool);
+        setVoiceEnabled(true);
+        message.success('主体替换任务已提交');
         return;
       }
       const prepared = await prepareGenerationMaterials({
@@ -1099,6 +1143,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     resetCreationForm,
     selectedMaterials,
     subtitleRemovalConfig,
+    subjectReplaceType,
     tool.label,
     tool.key,
     tool.workspace.generate.handler,
@@ -1406,7 +1451,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setVoiceEnabled(enabled);
     },
     setSubtitleRemovalConfig,
+    setSubjectReplaceType,
     subtitleRemovalConfig,
+    subjectReplaceType,
     setVideoTranslationConfig,
     videoTranslationConfig,
     deleteVideoProduction,
@@ -1602,7 +1649,11 @@ function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: str
   const prompt = stringFromRecord(context, 'userPrompt', task.prompt || '');
   return {
     userId,
-    taskMode: context.mode === 'dance_remake' ? 'dance_remake' as const : 'video_create' as const,
+    taskMode: context.mode === 'dance_remake'
+      ? 'dance_remake' as const
+      : context.mode === 'subject_replace'
+        ? 'subject_replace' as const
+        : 'video_create' as const,
     retryTaskId: task.id,
     prompt,
     quality: stringFromRecord(context, 'quality', '标清 (720p)'),
