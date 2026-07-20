@@ -75,7 +75,8 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       voiceEnabled={state.voiceEnabled}
     />
   ) : null,
-  parameters: (block, state) => block.type === 'parameters' ? (
+  parameters: (block, state) => block.type === 'parameters'
+    && !(state.tool.key === 'dance-remake' && state.danceRemakeMode === 'standard') ? (
     <ParameterPanel
       activeParam={state.activeParam}
       canvas={state.canvas}

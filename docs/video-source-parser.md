@@ -19,9 +19,10 @@ GET /api/video-source/preview?token=...
 
 POST /api/video-source/dance-remakes
   → 校验人物图和参考视频归属
-    → 远程视频重新解析、下载并按选择区间裁剪
-      → 创建临时参考视频素材
-        → 提交 Seedance 后台生成任务并保留输入素材
+    → 创建 dance_remake_preparing 任务并立即返回
+      → 后台重新解析、下载并按选择区间裁剪远程视频
+        → 创建临时参考视频素材并预扣积分
+          → 复用同一任务提交 Seedance 并保留输入素材
 ```
 
 ## 扩展平台

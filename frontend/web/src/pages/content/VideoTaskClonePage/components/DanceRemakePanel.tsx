@@ -1,6 +1,6 @@
-import { Card, Checkbox, Col, Radio, Row, Space, Typography } from 'antd';
-import { AppForm } from '../../../../components/AppForm';
+import { Checkbox, Flex } from 'antd';
 import type { DanceRemakeMode, LocalMaterialFile, MaterialKind, SelectedMaterials, ToolOption } from '../types';
+import { SelectionCardGroup } from './SelectionCardGroup';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 
@@ -51,38 +51,34 @@ export function DanceRemakePanel({
         description="选择适合当前素材的视频复刻模式。"
         title="模型选择"
       >
-        <Radio.Group onChange={(event) => onModeChange(event.target.value)} value={mode}>
-          <Row gutter={[12, 12]}>
-            <Col xs={24} sm={12}>
-              <Card size="small">
-                <Radio value="standard">
-                  <Space direction="vertical" size={0}>
-                    <Typography.Text strong>标准模式</Typography.Text>
-                    <Typography.Text type="secondary">轻量视频复刻。</Typography.Text>
-                  </Space>
-                </Radio>
-              </Card>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Card size="small">
-                <Radio value="enhanced">
-                  <Space direction="vertical" size={0}>
-                    <Typography.Text strong>增强模式</Typography.Text>
-                    <Typography.Text type="secondary">动作、镜头和节奏复刻更强。</Typography.Text>
-                  </Space>
-                </Radio>
-              </Card>
-            </Col>
-          </Row>
-        </Radio.Group>
+        <Flex gap={12} vertical>
+          <SelectionCardGroup
+            ariaLabel="视频复刻模式"
+            columns={2}
+            options={[
+              {
+                description: '轻量视频复刻。',
+                key: 'standard',
+                onSelect: () => onModeChange('standard'),
+                selected: mode === 'standard',
+                title: '标准模式',
+              },
+              {
+                description: '动作、镜头和节奏复刻更强。',
+                key: 'enhanced',
+                onSelect: () => onModeChange('enhanced'),
+                selected: mode === 'enhanced',
+                title: '增强模式',
+              },
+            ]}
+          />
 
-        <AppForm>
-          <AppForm.Item>
+          {mode === 'enhanced' && (
             <Checkbox checked={voiceEnabled} onChange={(event) => onVoiceChange(event.target.checked)}>
               保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。
             </Checkbox>
-          </AppForm.Item>
-        </AppForm>
+          )}
+        </Flex>
       </WorkspaceSection>
     </>
   );

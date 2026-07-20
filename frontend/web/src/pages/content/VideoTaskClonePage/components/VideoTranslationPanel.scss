@@ -83,88 +83,6 @@
   padding: 0;
 }
 
-.video-translation-choice-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.video-translation-choice-grid.is-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.video-translation-choice-grid.is-two {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.video-translation-choice {
-  background: #fff;
-  border: 1px solid var(--video-task-border);
-  border-radius: 12px;
-  color: var(--video-task-ink);
-  cursor: pointer;
-  min-height: 84px;
-  padding: 11px 10px;
-  position: relative;
-  text-align: left;
-  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
-}
-
-.video-translation-choice:hover {
-  border-color: var(--video-task-accent-border);
-}
-
-.video-translation-choice.is-selected {
-  background: #edf9d9;
-  border-color: #b9e575;
-  box-shadow: 0 8px 20px rgba(130, 190, 50, 0.08);
-}
-
-.video-translation-choice.is-locked {
-  cursor: default;
-}
-
-.video-translation-choice-heading {
-  align-items: center;
-  display: flex;
-  gap: 5px;
-  line-height: 18px;
-}
-
-.video-translation-choice-heading svg {
-  color: #475569;
-  flex: 0 0 auto;
-}
-
-.video-translation-choice-heading strong {
-  font-size: 12px;
-  font-weight: 720;
-}
-
-.video-translation-choice-heading em {
-  color: #5b6875;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 650;
-}
-
-.video-translation-choice > small {
-  color: #6f7668;
-  display: block;
-  font-size: 10.5px;
-  line-height: 15px;
-  margin-top: 6px;
-}
-
-.video-translation-choice-check {
-  background: #8cc63f;
-  border-radius: 50%;
-  color: #fff;
-  padding: 1px;
-  position: absolute;
-  right: 7px;
-  top: 7px;
-}
-
 .video-translation-toggle-row {
   align-items: center;
   display: grid;
@@ -309,14 +227,4 @@
 .video-translation-select-row.is-disabled,
 .video-translation-font-row.is-disabled {
   opacity: 0.48;
-}
-
-@media (max-width: 480px) {
-  .video-translation-choice-grid.is-three {
-    grid-template-columns: 1fr;
-  }
-
-  .video-translation-choice {
-    min-height: 72px;
-  }
 }

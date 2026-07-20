@@ -196,6 +196,7 @@ export function ResultPanel({
                     const state = viewState(task);
                     const isRetrying = retryingTaskId === task.id;
                     const isDeleting = deletingTaskId === task.id;
+                    const canRetry = task.expertContext?.currentStep !== 'dance_remake_preparation_failed';
                     return (
                       <article className={`video-task-result-card is-${state.kind}`} key={task.id}>
                         <div className="video-task-result-preview">
@@ -245,17 +246,19 @@ export function ResultPanel({
                               ) : null}
                               {state.kind !== 'running' ? (
                                 <div className="video-task-result-action-row">
-                                  <Button
-                                    className="video-task-result-retry"
-                                    color="default"
-                                    disabled={isRetrying || isDeleting}
-                                    icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
-                                    onClick={() => void onRetry(task)}
-                                    size="small"
-                                    variant="filled"
-                                  >
-                                    {isRetrying ? '提交中' : '再次生成'}
-                                  </Button>
+                                  {canRetry ? (
+                                    <Button
+                                      className="video-task-result-retry"
+                                      color="default"
+                                      disabled={isRetrying || isDeleting}
+                                      icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
+                                      onClick={() => void onRetry(task)}
+                                      size="small"
+                                      variant="filled"
+                                    >
+                                      {isRetrying ? '提交中' : '再次生成'}
+                                    </Button>
+                                  ) : null}
 
                                   <Dropdown
                                     overlayClassName="video-task-result-more-menu"
@@ -359,6 +362,8 @@ function viewState(task: VideoGenerationTask) {
   const isUpscale = task.expertContext?.mode === 'video_upscale';
   const isSubtitleRemoval = task.expertContext?.mode === 'subtitle_removal';
   const isVideoTranslation = task.expertContext?.mode === 'video_translation';
+  const isDanceRemakePreparing = task.expertContext?.mode === 'dance_remake'
+    && task.expertContext?.currentStep === 'dance_remake_preparing';
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
   const isOrphanPending = task.status !== 'generating'
@@ -410,9 +415,9 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
-    posterText: isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
-    note: result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
+    label: isDanceRemakePreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
+    posterText: isDanceRemakePreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
+    note: isDanceRemakePreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,

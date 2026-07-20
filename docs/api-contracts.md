@@ -13,10 +13,10 @@
 - `preview` 使用 `/resolve` 签发的 HMAC 令牌访问，不接受客户端直接传入目标 URL。令牌自身承担预览授权，因此该路径不要求额外 Bearer Header，默认有效期为 1 小时。
 - `VIDEO_SOURCE_PREVIEW_SECRET` 可单独配置预览签名密钥，未设置时复用服务端认证密钥；`VIDEO_SOURCE_PREVIEW_TOKEN_TTL_SECONDS` 可调整有效期，最小为 60 秒。
 - `POST /api/video-source/dance-remakes` 提交跳舞复刻。请求包含 `characterImageAssetId`、可选的 `referenceVideoAssetId` 或 `remoteVideo`、`mode`、`preserveAudio`、`quality`、`ratio` 和 `videoModelId`。
-- 跳舞复刻提交成功只返回 `{ "ok": true }`；任务详情和后续状态统一通过 `GET /api/content/video-productions` 获取。
+- 跳舞复刻接口先创建 `dance_remake_preparing` 任务并立即返回 `{ "ok": true }`；远程视频解析、下载、裁剪、计费预扣和 Seedance 提交在后台继续执行，任务详情和后续状态统一通过 `GET /api/content/video-productions` 获取。
 - `remoteVideo` 包含原始分享内容 `input` 以及可选的 `trimStart`、`trimEnd`。服务端会重新解析真实地址，下载源视频，并使用 FFmpeg 截取 4-15 秒区间；超过 15 秒的视频必须显式提供截取区间。
 - 远程裁剪结果以 `assetKind = dance_remake_reference_video` 的临时素材保存。人物图、本地参考视频也在提交时以临时素材上传；视频任务创建后统一写入素材引用并转为 `retained`。
-- 跳舞复刻任务复用视频制作后台生成与计费链路，`expertContext.mode = dance_remake`。增强模式会强化动作、镜头和节奏复刻提示；`preserveAudio = false` 时向 Seedance 提交 `generate_audio = false`。
+- 跳舞复刻任务复用视频制作后台生成与计费链路，`expertContext.mode = dance_remake`。素材准备完成后按最终模型、清晰度和裁剪时长预扣积分，准备或生成失败释放预扣，生成成功结算且不会重复扣费。增强模式会强化动作、镜头和节奏复刻提示；`preserveAudio = false` 时向 Seedance 提交 `generate_audio = false`。
 
 ## 2026-07-16 视频制作临时素材生命周期
 
