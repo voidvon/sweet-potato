@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DouyinVideoSourceProvider, extractDouyinVideoId } from '../src/modules/video-source/providers/douyin-video-source.provider.js';
+import {
+  extractKuaishouPhoto,
+  extractKuaishouPhotoId,
+  KuaishouVideoSourceProvider,
+} from '../src/modules/video-source/providers/kuaishou-video-source.provider.js';
 import { createVideoPreviewToken, verifyVideoPreviewToken } from '../src/modules/video-source/video-source.preview.js';
 import { extractFirstHttpUrl } from '../src/modules/video-source/video-source.service.js';
 import type { ResolvedVideoSource } from '../src/modules/video-source/video-source.types.js';
@@ -70,6 +75,43 @@ test('Douyin provider only accepts actual Douyin hosts', () => {
   assert.equal(provider.supports(new URL('https://v.douyin.com/JPa1xhq/')), true);
   assert.equal(provider.supports(new URL('https://www.iesdouyin.com/share/video/123/')), true);
   assert.equal(provider.supports(new URL('https://douyin.com.example.org/video/123')), false);
+});
+
+test('Kuaishou provider accepts share and redirected hosts', () => {
+  const provider = new KuaishouVideoSourceProvider();
+  assert.equal(provider.supports(new URL('https://v.kuaishou.com/7cc0e1F5')), true);
+  assert.equal(provider.supports(new URL('https://v.m.chenzhongtech.com/fw/photo/3xbzg49t6i9kerw')), true);
+  assert.equal(provider.supports(new URL('https://kuaishou.com.example.org/short-video/example')), false);
+});
+
+test('extractKuaishouPhoto reads video metadata from SSR state', () => {
+  const html = `<html><script>window.INIT_STATE = ${JSON.stringify({
+    unrelated: { value: true },
+    video: {
+      caption: '#性感热舞',
+      coverUrls: [{ url: 'https://image.example.com/cover.jpg' }],
+      duration: 9266,
+      mainMvUrls: [{ url: 'https://video.example.com/video.mp4' }],
+      photoId: '5241908628105208698',
+      userName: '萱宝吖',
+      viewCount: 668429,
+    },
+  })}</script></html>`;
+  const photo = extractKuaishouPhoto(html);
+  assert.equal(photo?.caption, '#性感热舞');
+  assert.equal(photo?.photoId, '5241908628105208698');
+  assert.equal(photo?.viewCount, 668429);
+});
+
+test('extractKuaishouPhotoId supports redirected and standard video paths', () => {
+  assert.equal(
+    extractKuaishouPhotoId('https://v.m.chenzhongtech.com/fw/photo/3xbzg49t6i9kerw?photoId=123'),
+    '3xbzg49t6i9kerw',
+  );
+  assert.equal(
+    extractKuaishouPhotoId('https://www.kuaishou.com/short-video/3xbzg49t6i9kerw'),
+    '3xbzg49t6i9kerw',
+  );
 });
 
 test('extractFirstHttpUrl rejects content without a URL', () => {

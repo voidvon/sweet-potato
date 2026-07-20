@@ -1,18 +1,22 @@
 import { DouyinVideoSourceProvider } from './providers/douyin-video-source.provider.js';
+import { KuaishouVideoSourceProvider } from './providers/kuaishou-video-source.provider.js';
 import {
   VideoSourceError,
   type ResolvedVideoSource,
   type VideoSourceProvider,
 } from './video-source.types.js';
 
-const providers: VideoSourceProvider[] = [new DouyinVideoSourceProvider()];
+const providers: VideoSourceProvider[] = [
+  new DouyinVideoSourceProvider(),
+  new KuaishouVideoSourceProvider(),
+];
 
 export const videoSourceService = {
   async resolve(input: string): Promise<ResolvedVideoSource> {
     const sourceUrl = extractFirstHttpUrl(input);
     const provider = providers.find((candidate) => candidate.supports(sourceUrl));
     if (!provider) {
-      throw new VideoSourceError('当前仅支持抖音视频链接，小红书和快手将在后续接入');
+      throw new VideoSourceError('当前仅支持抖音和快手视频链接，小红书将在后续接入');
     }
     return provider.resolve(sourceUrl);
   },

@@ -10,7 +10,7 @@
 POST /api/video-source/resolve
   → VideoSourceService（提取 URL、选择平台）
     → VideoSourceProvider（平台解析协议）
-      → DouyinVideoSourceProvider（抖音实现）
+      → DouyinVideoSourceProvider / KuaishouVideoSourceProvider
 
 GET /api/video-source/preview?token=...
   → 校验短期 HMAC 令牌
@@ -32,7 +32,9 @@ POST /api/video-source/dance-remakes
 - `supports(url)`：识别平台域名。
 - `resolve(url)`：返回统一的 `ResolvedVideoSource`，包括真实下载地址、平台视频 ID、标题、作者与封面。
 
-新增小红书或快手时，只需增加 provider 并注册到 `video-source.service.ts` 的 provider 列表；路由、统一返回结构和 SSRF 防护保持不变。
+新增其他平台时，只需增加 provider 并注册到 `video-source.service.ts` 的 provider 列表；路由、统一返回结构和 SSRF 防护保持不变。
+
+快手解析使用移动端分享页：短链逐跳解析到快手分享域名，再从页面 `window.INIT_STATE` 的视频记录中读取真实播放地址、封面、标题、作者、时长和互动数据。请求需保留通用的 `Accept: */*`；仅声明 HTML 类型时，快手会返回不含视频记录的精简状态。
 
 ## 安全与资源控制
 
