@@ -5,10 +5,11 @@
 ## 2026-07-17 公共视频链接解析
 
 - `POST /api/video-source/resolve` 根据分享文案或视频链接解析公共视频信息，要求当前用户具备 `web.module.content.create_video` 权限；服务端不下载或保存视频文件。
-- 请求体为 `{ "input": string }`；服务端会从分享文案中提取首个 HTTP(S) URL。当前支持抖音和快手，小红书返回明确的暂不支持提示。
+- 请求体为 `{ "input": string }`；服务端会从分享文案中提取首个 HTTP(S) URL。当前支持抖音、快手和小红书视频链接。
 - 成功响应为 `{ source }`。`source` 包含平台、视频 ID、标题、封面、真实无水印地址、带水印地址、时长、宽高、发布时间、发布者资料、音乐资料、互动统计和签名后的 `previewUrl`。
 - 抖音解析全程使用移动端 User-Agent：短链逐跳解析为长链，提取视频 ID，优先请求 `iteminfo`，并以分享页 SSR 数据作为兼容兜底；真实地址通过将播放地址中的 `/playwm/` 替换为 `/play/` 获得。
 - 快手解析使用移动端 User-Agent：短链逐跳解析到分享页，从 `window.INIT_STATE` 中提取真实播放地址、视频 ID、标题、封面、作者、时长和互动数据。
+- 小红书解析使用移动端 User-Agent：短链逐跳解析到公开笔记页，从 `window.__SETUP_SERVER_STATE__` 中提取笔记信息和 H.264/H.265 视频流，优先返回兼容性更好的 H.264 MP4 地址。
 - 所有解析重定向均校验协议、平台域名和目标 IP，拒绝本地及内网地址。接口只返回平台信息，不请求真实视频文件地址。
 - `GET /api/video-source/preview?token=...` 是视频预览流代理，支持浏览器 `Range` 请求并转发 `Content-Range`、`Content-Length`、`Accept-Ranges`、`ETag` 等必要响应头，不把视频写入磁盘。
 - `preview` 使用 `/resolve` 签发的 HMAC 令牌访问，不接受客户端直接传入目标 URL。令牌自身承担预览授权，因此该路径不要求额外 Bearer Header，默认有效期为 1 小时。

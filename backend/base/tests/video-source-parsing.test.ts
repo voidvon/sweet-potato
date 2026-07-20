@@ -6,6 +6,11 @@ import {
   extractKuaishouPhotoId,
   KuaishouVideoSourceProvider,
 } from '../src/modules/video-source/providers/kuaishou-video-source.provider.js';
+import {
+  extractXiaohongshuNote,
+  extractXiaohongshuNoteId,
+  XiaohongshuVideoSourceProvider,
+} from '../src/modules/video-source/providers/xiaohongshu-video-source.provider.js';
 import { createVideoPreviewToken, verifyVideoPreviewToken } from '../src/modules/video-source/video-source.preview.js';
 import { extractFirstHttpUrl } from '../src/modules/video-source/video-source.service.js';
 import type { ResolvedVideoSource } from '../src/modules/video-source/video-source.types.js';
@@ -111,6 +116,47 @@ test('extractKuaishouPhotoId supports redirected and standard video paths', () =
   assert.equal(
     extractKuaishouPhotoId('https://www.kuaishou.com/short-video/3xbzg49t6i9kerw'),
     '3xbzg49t6i9kerw',
+  );
+});
+
+test('Xiaohongshu provider accepts share and note hosts', () => {
+  const provider = new XiaohongshuVideoSourceProvider();
+  assert.equal(provider.supports(new URL('http://xhslink.com/o/1Is9ucTEEKs')), true);
+  assert.equal(provider.supports(new URL('https://www.xiaohongshu.com/discovery/item/6a2695c60000000036002a54')), true);
+  assert.equal(provider.supports(new URL('https://xiaohongshu.com.example.org/explore/example')), false);
+});
+
+test('extractXiaohongshuNote reads video metadata from setup server state', () => {
+  const html = `<html><script>window.__SETUP_SERVER_STATE__=${JSON.stringify({
+    LAUNCHER_SSR_STORE_PAGE_DATA: {
+      noteData: {
+        interactInfo: { collectedCount: '1,365', likedCount: '3,556' },
+        noteId: '6a2695c60000000036002a54',
+        title: '慢摇才是感受',
+        type: 'video',
+        video: {
+          media: {
+            stream: {
+              h264: [{ masterUrl: 'http://video.example.com/video.mp4', videoDuration: 16200 }],
+            },
+          },
+        },
+      },
+    },
+  })}</script></html>`;
+  const note = extractXiaohongshuNote(html);
+  assert.equal(note?.noteId, '6a2695c60000000036002a54');
+  assert.equal(note?.title, '慢摇才是感受');
+});
+
+test('extractXiaohongshuNoteId supports discovery and explore paths', () => {
+  assert.equal(
+    extractXiaohongshuNoteId('https://www.xiaohongshu.com/discovery/item/6a2695c60000000036002a54?xsec_token=test'),
+    '6a2695c60000000036002a54',
+  );
+  assert.equal(
+    extractXiaohongshuNoteId('https://www.xiaohongshu.com/explore/6a2695c60000000036002a54'),
+    '6a2695c60000000036002a54',
   );
 });
 
