@@ -122,6 +122,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [showToolMenu, setShowToolMenu] = useState(false);
   const [materialMode, setMaterialMode] = useState<MaterialMode>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterials>({});
+  const [modelPickerMaterial, setModelPickerMaterial] = useState<MaterialKind | null>(null);
   const [activeUpload, setActiveUpload] = useState<MaterialKind | null>(null);
   const [uploadAnchor, setUploadAnchor] = useState<UploadAnchor | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -487,7 +488,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setFilterOpen(false);
   };
 
-  const openModelPicker = () => {
+  const openModelPicker = (kind?: MaterialKind) => {
+    setModelPickerMaterial(kind ?? null);
     setShowModelPicker(true);
     setMaterialMode(null);
     setActiveUpload(null);
@@ -745,11 +747,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   };
 
   const chooseModelAsset = (asset: ContentAsset) => {
-    const imageMaterial = tool.materials.find((item) => item.key === 'image');
+    const imageMaterial = modelPickerMaterial ?? tool.materials.find((item) => item.key === 'image');
     if (!imageMaterial) return;
 
     chooseLibraryAsset(imageMaterial, asset);
     setSelectedModelAvatar(asset.id);
+    setModelPickerMaterial(null);
     setShowModelPicker(false);
   };
 

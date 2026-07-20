@@ -72,6 +72,7 @@ export type MaterialKind = {
 export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
   | { id: string; type: 'dance-remake-form' }
+  | { id: string; type: 'subject-replace-form' }
   | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
   | { id: string; type: 'marketing-video-form' }

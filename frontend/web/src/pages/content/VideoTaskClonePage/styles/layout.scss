@@ -466,6 +466,21 @@
   transform: none;
 }
 
+.video-task-upload-tile:disabled {
+  background: #f4f5f7;
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.video-task-upload-tile:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.video-task-upload-tile:disabled:hover svg {
+  transform: none;
+}
+
 .video-task-upload-tile:hover svg {
   transform: rotate(90deg);
 }

@@ -46,10 +46,16 @@ export const toolOptions: ToolOption[] = [
     label: '模特 / 商品替换',
     description: '解析短视频链接并结合主体图生成同款。',
     materialHint: '上传替换主体素材',
-    materials: defaultMaterials,
+    materials: [
+      { key: 'image', label: '模特图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+    ],
     submitText: '开始替换',
     workspace: {
-      blocks: [{ id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false }],
+      blocks: [
+        { id: 'subject-replace-form', type: 'subject-replace-form' },
+        { id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false },
+      ],
       generate: { handler: 'pending' },
     },
   },

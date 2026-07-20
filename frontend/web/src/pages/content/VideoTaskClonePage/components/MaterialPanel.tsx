@@ -1,5 +1,6 @@
 import { ChevronLeft, Image, Music2, Package, Pause, Play, Plus, Trash2, UserRound, ZoomIn } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { MaterialSlot } from './MaterialSlot';
 import { MaterialUploadPopover } from './MaterialUploadPopover';
 import { WorkspaceSection } from './WorkspaceSection';
@@ -12,6 +13,7 @@ type MaterialPanelProps = {
   activeUpload: MaterialKind | null;
   isLoadingLibraryAssets: boolean;
   materialMode: MaterialMode;
+  materialSlots?: ReactNode;
   onClosePopovers: () => void;
   onLibraryAssetChoose: (kind: MaterialKind, asset: ContentAsset) => void;
   onMaterialClear: (kind: MaterialKind) => void;
@@ -20,7 +22,7 @@ type MaterialPanelProps = {
   onMaterialFill: (kind: MaterialKind, value: string) => void;
   onMaterialLocalFiles: (kind: MaterialKind, files: FileList | File[]) => void;
   onMaterialReplaceFiles: (kind: MaterialKind, files: LocalMaterialFile[]) => void;
-  onModelPickerOpen: () => void;
+  onModelPickerOpen: (kind?: MaterialKind) => void;
   onTabChange: (mode: MaterialMode) => void;
   onUploadClose: () => void;
   onUploadOpen: (kind: MaterialKind, anchor: UploadAnchor) => void;
@@ -29,10 +31,12 @@ type MaterialPanelProps = {
   selectedMaterials: SelectedMaterials;
   showVoiceToggle: boolean;
   tool: ToolOption;
+  topSlot?: ReactNode;
   uploadAnchor: UploadAnchor | null;
   voiceEnabled: boolean;
   voiceAssets: ContentAsset[];
   voiceGroupNameById: Record<string, string>;
+  visibleMaterialKeys?: MaterialKind['key'][];
   worksAssets: ContentAsset[];
   worksTab: WorksTab;
 };
@@ -144,6 +148,7 @@ export function MaterialPanel({
   activeUpload,
   isLoadingLibraryAssets,
   materialMode,
+  materialSlots,
   onClosePopovers,
   onLibraryAssetChoose,
   onMaterialClear,
@@ -161,10 +166,12 @@ export function MaterialPanel({
   selectedMaterials,
   showVoiceToggle,
   tool,
+  topSlot,
   uploadAnchor,
   voiceEnabled,
   voiceAssets,
   voiceGroupNameById,
+  visibleMaterialKeys,
   worksAssets,
   worksTab,
 }: MaterialPanelProps) {
@@ -179,9 +186,13 @@ export function MaterialPanel({
     'subtitle-removal',
     'video-translation',
   ].includes(tool.key);
-  const audioMaterial = tool.materials.find((item) => item.key === 'audio');
-  const imageMaterial = tool.materials.find((item) => item.key === 'image');
-  const videoMaterial = tool.materials.find((item) => item.key === 'video');
+  const isMaterialVisible = (item: MaterialKind) => !visibleMaterialKeys || visibleMaterialKeys.includes(item.key);
+  const audioMaterial = tool.materials.find((item) => item.key === 'audio' && isMaterialVisible(item));
+  const imageMaterial = tool.materials.find((item) => item.key === 'image' && isMaterialVisible(item));
+  const videoMaterial = tool.materials.find((item) => item.key === 'video' && isMaterialVisible(item));
+  const hasVisibleSelectedMaterials = tool.materials.some((item) => (
+    isMaterialVisible(item) && Boolean(selectedMaterials[item.key])
+  ));
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
   const [playingAssetId, setPlayingAssetId] = useState<string | null>(null);
   const [activeAudioAssetId, setActiveAudioAssetId] = useState<string | null>(null);
@@ -330,7 +341,7 @@ export function MaterialPanel({
       description={tool.materialHint}
       headerExtra={(
         <div className="video-task-tabs" aria-label="素材类型">
-          {Object.keys(selectedMaterials).length > 0 && (
+          {hasVisibleSelectedMaterials && (
             <button className="is-danger" onClick={onMaterialsClearAll} title="清空全部素材" type="button">
               <Trash2 size={12} />
               清空
@@ -359,7 +370,7 @@ export function MaterialPanel({
           {showAuxiliaryMaterialOptions && (
             <button
               aria-expanded={false}
-              onClick={onModelPickerOpen}
+              onClick={() => onModelPickerOpen(imageMaterial)}
               type="button"
             >
               {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
@@ -386,10 +397,12 @@ export function MaterialPanel({
       headerLayout="stacked"
       ref={panelRef}
       title="素材"
+      topSlot={topSlot}
     >
 
       <div className="video-task-material-grid">
-        {tool.materials.filter((item) => {
+        {materialSlots ?? tool.materials.filter((item) => {
+          if (!isMaterialVisible(item)) return false;
           if (isVideoTranslation) return item.key === 'video';
           if (tool.key === 'dance-remake') return item.key === 'image';
           return true;

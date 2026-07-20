@@ -11,6 +11,7 @@ import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
 import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
+import { SubjectReplacePanel } from './SubjectReplacePanel';
 import { toolIcons } from './ToolSwitcher';
 import { VideoTranslationPanel } from './VideoTranslationPanel';
 
@@ -74,6 +75,9 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       tool={state.tool}
       voiceEnabled={state.voiceEnabled}
     />
+  ) : null,
+  'subject-replace-form': (block, state) => block.type === 'subject-replace-form' ? (
+    <SubjectReplacePanel state={state} />
   ) : null,
   parameters: (block, state) => block.type === 'parameters'
     && !(state.tool.key === 'dance-remake' && state.danceRemakeMode === 'standard') ? (

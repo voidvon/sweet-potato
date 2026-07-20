@@ -8,6 +8,7 @@ import { VideoMaterialSlot } from './VideoMaterialSlot';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue, UploadAnchor } from '../types';
 
 type MaterialSlotProps = {
+  disabled?: boolean;
   item: MaterialKind;
   onClear: (kind: MaterialKind) => void;
   onLocalFiles?: (kind: MaterialKind, files: FileList | File[]) => void;
@@ -32,6 +33,7 @@ const imageThumbs = [
 ];
 
 export function MaterialSlot({
+  disabled = false,
   item,
   onClear,
   onLocalFiles,
@@ -47,6 +49,7 @@ export function MaterialSlot({
   const slotClassName = `video-task-material-slot${selected ? ' is-selected' : ''} is-${item.key}`;
   const dynamicStyle = getSlotStyle(item, selectedCount, selected);
   const handleOpen = (target: HTMLElement) => {
+    if (disabled) return;
     if (openMode === 'local') {
       if (onLocalFiles) {
         fileInputRef.current?.click();
@@ -115,6 +118,7 @@ export function MaterialSlot({
           <button
             aria-label={`添加${item.label}`}
             className="video-task-upload-tile"
+            disabled={disabled}
             onClick={(event) => handleOpen(event.currentTarget)}
             title={`添加${item.label}`}
             type="button"
