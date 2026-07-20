@@ -3,7 +3,13 @@ import { mkdir, open, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vodUploadLimitBytes } from '../../config/env.js';
-import { contentRepository } from '../content/content.repository.js';
+import {
+  getBillingSettings,
+  releaseReservedFixedBillableUsage,
+  reserveFixedBillableUsage,
+} from '../billing/billing.service.js';
+import type { BillingSettings } from '../billing/billing.types.js';
+import { contentRepository, emptyVideoParseResult } from '../content/content.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from '../content/content.service.js';
 import {
   contentFilePathForRelativePath,
@@ -20,6 +26,8 @@ const danceRemakeModelIds = new Set([
   'doubao-seedance-2-0-fast-260128',
   'doubao-seedance-2-0-mini-260615',
 ]);
+const standardDanceRemakeModelId = 'doubao-seedance-2-0-mini-260615';
+const standardDanceRemakeQuality = '普清 (480p)';
 
 type DanceRemakeInput = {
   characterImageAssetId: string;
@@ -39,38 +47,206 @@ type DanceRemakeInput = {
 
 export const danceRemakeService = {
   async create(input: DanceRemakeInput) {
-    if (!danceRemakeModelIds.has(input.videoModelId)) {
+    const generationOptions = resolveDanceRemakeGenerationOptions(input);
+    if (!danceRemakeModelIds.has(generationOptions.videoModelId)) {
       throw new VideoSourceError('当前模型不支持跳舞复刻');
     }
     const imageAsset = ownAsset(input.characterImageAssetId, input.userId, 'image');
-    const videoAsset = input.referenceVideoAssetId
+    const localVideoAsset = input.referenceVideoAssetId
       ? ownAsset(input.referenceVideoAssetId, input.userId, 'video')
+      : null;
+    if (!localVideoAsset && !input.remoteVideo) throw new VideoSourceError('请选择参考视频');
+    const task = contentRepository.createParsedVideoTask({
+      userId: input.userId,
+      sourceUrl: localVideoAsset?.fileUrl || input.remoteVideo?.input || '',
+      title: '跳舞复刻',
+      prompt: danceRemakePrompt(input),
+      parseResult: { ...emptyVideoParseResult },
+      aspectRatio: input.ratio,
+      expertContext: {
+        mode: 'dance_remake',
+        currentStep: 'dance_remake_preparing',
+        danceRemakePreparationStatus: 'preparing',
+        quality: generationOptions.quality,
+        ratio: input.ratio,
+        videoModelProviderId: 'volcengine-seedance',
+        videoModelId: generationOptions.videoModelId,
+        referenceImageIds: [imageAsset.id],
+        referenceVideoIds: localVideoAsset ? [localVideoAsset.id] : [],
+        characterReferenceImageIds: [imageAsset.id],
+        generateAudio: input.preserveAudio,
+        createdAt: new Date().toISOString(),
+      },
+    });
+    if (!task) throw new VideoSourceError('跳舞复刻准备任务创建失败', 500);
+    const generatingTask = contentRepository.markVideoTaskGenerating(task.id);
+    if (!generatingTask) throw new VideoSourceError('跳舞复刻准备任务启动失败', 500);
+    void prepareDanceRemake(task.id, input, generationOptions, imageAsset.id, localVideoAsset?.id);
+    return generatingTask;
+  },
+};
+
+async function prepareDanceRemake(
+  taskId: string,
+  input: DanceRemakeInput,
+  generationOptions: ReturnType<typeof resolveDanceRemakeGenerationOptions>,
+  imageAssetId: string,
+  localVideoAssetId?: string,
+) {
+  let reservationId = '';
+  try {
+    const videoAsset = localVideoAssetId
+      ? ownAsset(localVideoAssetId, input.userId, 'video')
       : input.remoteVideo
         ? await materializeRemoteVideo({ ...input.remoteVideo, userId: input.userId })
         : null;
     if (!videoAsset) throw new VideoSourceError('请选择参考视频');
     const duration = await probeDuration(videoAsset.filePath);
     const durationSeconds = Math.max(4, Math.min(15, Math.round(duration)));
-    const prompt = input.mode === 'enhanced'
-      ? '以人物参考图作为唯一主体，严格复刻参考视频中的完整舞蹈动作、身体姿态、镜头运动和节奏卡点，保持人物身份、服装和外观稳定，动作自然连贯。'
-      : '以人物参考图作为唯一主体，复刻参考视频中的舞蹈动作和节奏，保持人物外观稳定，画面自然连贯。';
-
-    return contentService.createVideoProduction({
+    const settings = getBillingSettings();
+    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
+    const price = resolveDanceRemakePrice({
+      durationSeconds,
+      quality: generationOptions.quality,
+      settings,
+      videoModelId: generationOptions.videoModelId,
+    });
+    const billingSourceId = `dance-remake:${randomUUID()}`;
+    const reservation = reserveFixedBillableUsage({
+      userId: input.userId,
+      category: 'video_generation',
+      sourceType: 'dance_remake_generation',
+      sourceId: billingSourceId,
+      sessionId: billingSourceId,
+      credits: price.credits,
+      step: 'dance_remake_generation',
+      stepLabel: '跳舞复刻',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: durationSeconds,
+        resolution: price.resolution,
+        configuredCreditsPerSecond: price.creditsPerSecond,
+        priceSource: 'system-billing-settings',
+      },
+      requestSnapshot: {
+        mode: input.mode,
+        quality: generationOptions.quality,
+        duration: `${durationSeconds}s`,
+        videoModelId: generationOptions.videoModelId,
+      },
+    });
+    reservationId = reservation.id;
+    const preparingTask = contentRepository.findVideoTask(taskId);
+    if (!preparingTask || preparingTask.status !== 'generating') {
+      throw new VideoSourceError('跳舞复刻准备任务已停止', 409);
+    }
+    contentRepository.updateVideoTaskContext(taskId, {
+      selectedSkillIds: preparingTask.selectedSkillIds,
+      expertContext: {
+        ...preparingTask.expertContext,
+        danceRemakePreparationStatus: 'billing_reserved',
+        videoBillingReservationId: reservation.id,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    await contentService.createVideoProduction({
       userId: input.userId,
       taskMode: 'dance_remake',
-      prompt: input.preserveAudio ? `${prompt} 保留并参考原视频中的音乐和节奏。` : `${prompt} 不生成声音。`,
-      quality: input.quality,
+      precreatedTaskId: taskId,
+      prompt: danceRemakePrompt(input),
+      quality: generationOptions.quality,
       ratio: input.ratio,
       duration: `${durationSeconds}s`,
       videoModelProviderId: 'volcengine-seedance',
-      videoModelId: input.videoModelId,
-      referenceImageIds: [imageAsset.id],
+      videoModelId: generationOptions.videoModelId,
+      referenceImageIds: [imageAssetId],
       referenceVideoIds: [videoAsset.id],
-      characterReferenceImageIds: [imageAsset.id],
+      characterReferenceImageIds: [imageAssetId],
       generateAudio: input.preserveAudio,
+      skipVideoBilling: false,
+      videoBillingReservationId: reservation.id,
     });
-  },
-};
+  } catch (error) {
+    if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+    failDanceRemakePreparation(taskId, error);
+  }
+}
+
+function danceRemakePrompt(input: Pick<DanceRemakeInput, 'mode' | 'preserveAudio'>) {
+  const prompt = input.mode === 'enhanced'
+    ? '以人物参考图作为唯一主体，严格复刻参考视频中的完整舞蹈动作、身体姿态、镜头运动和节奏卡点，保持人物身份、服装和外观稳定，动作自然连贯。'
+    : '以人物参考图作为唯一主体，复刻参考视频中的舞蹈动作和节奏，保持人物外观稳定，画面自然连贯。';
+  return input.preserveAudio ? `${prompt} 保留并参考原视频中的音乐和节奏。` : `${prompt} 不生成声音。`;
+}
+
+function failDanceRemakePreparation(taskId: string, error: unknown) {
+  const current = contentRepository.findVideoTask(taskId);
+  if (!current || current.status === 'success' || current.status === 'failed') return;
+  const failureReason = error instanceof Error ? error.message : String(error || '跳舞复刻素材准备失败');
+  contentRepository.updateVideoTaskContext(taskId, {
+    selectedSkillIds: current.selectedSkillIds,
+    expertContext: {
+      ...current.expertContext,
+      currentStep: 'dance_remake_preparation_failed',
+      danceRemakePreparationStatus: 'failed',
+      requiredUserAction: 'resubmit',
+      updatedAt: new Date().toISOString(),
+    },
+  });
+  contentRepository.markVideoTaskFailed(taskId, failureReason);
+}
+
+export function resolveDanceRemakeGenerationOptions(input: Pick<DanceRemakeInput, 'mode' | 'quality' | 'videoModelId'>) {
+  if (input.mode === 'standard') {
+    return {
+      quality: standardDanceRemakeQuality,
+      videoModelId: standardDanceRemakeModelId,
+    };
+  }
+  return {
+    quality: input.quality,
+    videoModelId: input.videoModelId,
+  };
+}
+
+export function resolveDanceRemakePrice(input: {
+  durationSeconds: number;
+  quality: string;
+  settings: Pick<BillingSettings,
+    | 'seedance2CreditsPerSecond480p'
+    | 'seedance2CreditsPerSecond720p'
+    | 'seedance2FastCreditsPerSecond480p'
+    | 'seedance2FastCreditsPerSecond720p'
+    | 'seedance2MiniCreditsPerSecond480p'
+    | 'seedance2MiniCreditsPerSecond720p'>;
+  videoModelId: string;
+}) {
+  const resolution = /480p/i.test(input.quality) ? '480p' : '720p';
+  const modelPrices = {
+    'doubao-seedance-2-0-260128': {
+      '480p': input.settings.seedance2CreditsPerSecond480p,
+      '720p': input.settings.seedance2CreditsPerSecond720p,
+    },
+    'doubao-seedance-2-0-fast-260128': {
+      '480p': input.settings.seedance2FastCreditsPerSecond480p,
+      '720p': input.settings.seedance2FastCreditsPerSecond720p,
+    },
+    'doubao-seedance-2-0-mini-260615': {
+      '480p': input.settings.seedance2MiniCreditsPerSecond480p,
+      '720p': input.settings.seedance2MiniCreditsPerSecond720p,
+    },
+  }[input.videoModelId];
+  if (!modelPrices) throw new VideoSourceError('当前视频模型尚未配置按秒价格', 400);
+  const creditsPerSecond = Number(modelPrices[resolution]);
+  if (!Number.isFinite(creditsPerSecond) || creditsPerSecond < 0) {
+    throw new VideoSourceError('当前视频模型计费配置无效', 500);
+  }
+  return {
+    credits: Number((input.durationSeconds * creditsPerSecond).toFixed(6)),
+    creditsPerSecond,
+    resolution,
+  };
+}
 
 function ownAsset(id: string, userId: string, kind: 'image' | 'video') {
   const asset = contentRepository.findAsset(String(id || '').trim());

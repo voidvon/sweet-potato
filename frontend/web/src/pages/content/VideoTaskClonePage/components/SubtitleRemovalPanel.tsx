@@ -5,6 +5,7 @@ import type {
   SubtitleRemovalConfig,
   SubtitleRemovalMode,
 } from '../types';
+import { SelectionCardGroup } from './SelectionCardGroup';
 import { SubtitleRemovalEditor } from './SubtitleRemovalEditor';
 import { WorkspaceSection } from './WorkspaceSection';
 import './SubtitleRemovalPanel.scss';
@@ -55,21 +56,15 @@ export function SubtitleRemovalPanel({ config, onChange, selectedMaterials }: Su
 
   return (
     <WorkspaceSection className="subtitle-removal-card" title="擦除方式" variant="plain">
-      <div className="subtitle-removal-modes" role="radiogroup" aria-label="字幕擦除方式">
-        {modeOptions.map((option) => (
-          <button
-            aria-checked={config.mode === option.key}
-            className={config.mode === option.key ? 'is-active' : ''}
-            key={option.key}
-            onClick={() => chooseMode(option.key)}
-            role="radio"
-            type="button"
-          >
-            <strong>{option.title}</strong>
-            <span>{option.description}</span>
-          </button>
-        ))}
-      </div>
+      <SelectionCardGroup
+        ariaLabel="字幕擦除方式"
+        columns={3}
+        options={modeOptions.map((option) => ({
+          ...option,
+          onSelect: () => chooseMode(option.key),
+          selected: config.mode === option.key,
+        }))}
+      />
 
       {config.mode !== 'auto' && (
         <button className="subtitle-removal-editor-entry" onClick={() => setEditorOpen(true)} type="button">

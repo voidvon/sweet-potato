@@ -1,8 +1,8 @@
 import { Select } from 'antd';
-import { ArrowRight, Check, ScanText, SlidersHorizontal, Speech, Subtitles, UserRoundCheck } from 'lucide-react';
+import { ArrowRight, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import type { SelectedMaterials, VideoTranslationConfig, VideoTranslationMode } from '../types';
+import { SelectionCardGroup } from './SelectionCardGroup';
 import { SubtitleRemovalEditor } from './SubtitleRemovalEditor';
 import './VideoTranslationPanel.scss';
 
@@ -98,51 +98,61 @@ export function VideoTranslationPanel({ config, onChange, selectedMaterials }: V
 
       <fieldset className="video-translation-fieldset">
         <legend>翻译方式</legend>
-        <div className="video-translation-choice-grid is-three">
-          <ChoiceCard
-            description="提取字幕并翻译为目标语言。"
-            icon={<Subtitles size={17} />}
-            locked
-            onClick={() => undefined}
-            selected={config.modes.subtitle}
-            title="字幕翻译"
-          />
-          <ChoiceCard
-            description="使用原说话人音色进行字幕播报。"
-            icon={<Speech size={17} />}
-            onClick={() => toggleMode('voice')}
-            selected={config.modes.voice}
-            title="语音翻译"
-          />
-          <ChoiceCard
-            badge="beta"
-            description="让说话人面部与翻译后语音对口型同步。"
-            icon={<UserRoundCheck size={17} />}
-            onClick={() => toggleMode('face')}
-            selected={config.modes.face}
-            title="面容翻译"
-          />
-        </div>
+        <SelectionCardGroup
+          ariaLabel="翻译方式"
+          columns={3}
+          options={[
+            {
+              description: '提取字幕并翻译为目标语言。',
+              key: 'subtitle',
+              onSelect: () => undefined,
+              readOnly: true,
+              selected: config.modes.subtitle,
+              title: '字幕翻译',
+              tooltip: '字幕翻译为必选项',
+            },
+            {
+              description: '使用原说话人音色进行字幕播报。',
+              key: 'voice',
+              onSelect: () => toggleMode('voice'),
+              selected: config.modes.voice,
+              title: '语音翻译',
+            },
+            {
+              badge: 'beta',
+              description: '让说话人面部与翻译后语音对口型同步。',
+              key: 'face',
+              onSelect: () => toggleMode('face'),
+              selected: config.modes.face,
+              title: '面容翻译',
+            },
+          ]}
+          selectionMode="multiple"
+        />
       </fieldset>
 
       <fieldset className="video-translation-fieldset">
         <legend>字幕来源</legend>
-        <div className="video-translation-choice-grid is-two">
-          <ChoiceCard
-            description="识别源视频画面中的字幕文字。"
-            icon={<ScanText size={17} />}
-            onClick={() => onChange({ ...config, subtitleSource: 'ocr' })}
-            selected={config.subtitleSource === 'ocr'}
-            title="识别画面文字 (OCR)"
-          />
-          <ChoiceCard
-            description="识别源视频语音并转写为字幕。"
-            icon={<Speech size={17} />}
-            onClick={() => onChange({ ...config, subtitleSource: 'asr' })}
-            selected={config.subtitleSource === 'asr'}
-            title="自动语音识别 (ASR)"
-          />
-        </div>
+        <SelectionCardGroup
+          ariaLabel="字幕来源"
+          columns={2}
+          options={[
+            {
+              description: '识别源视频画面中的字幕文字。',
+              key: 'ocr',
+              onSelect: () => onChange({ ...config, subtitleSource: 'ocr' }),
+              selected: config.subtitleSource === 'ocr',
+              title: '识别画面文字 (OCR)',
+            },
+            {
+              description: '识别源视频语音并转写为字幕。',
+              key: 'asr',
+              onSelect: () => onChange({ ...config, subtitleSource: 'asr' }),
+              selected: config.subtitleSource === 'asr',
+              title: '自动语音识别 (ASR)',
+            },
+          ]}
+        />
       </fieldset>
 
       <fieldset className="video-translation-fieldset">
@@ -242,36 +252,6 @@ function LanguageSelect({ label, onChange, options, value }: LanguageSelectProps
         value={value}
       />
     </div>
-  );
-}
-
-type ChoiceCardProps = {
-  badge?: string;
-  description: string;
-  icon: ReactNode;
-  locked?: boolean;
-  onClick: () => void;
-  selected: boolean;
-  title: string;
-};
-
-function ChoiceCard({ badge, description, icon, locked = false, onClick, selected, title }: ChoiceCardProps) {
-  return (
-    <button
-      aria-pressed={selected}
-      className={`video-translation-choice${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}`}
-      onClick={onClick}
-      title={locked ? '字幕翻译为必选项' : undefined}
-      type="button"
-    >
-      <span className="video-translation-choice-heading">
-        {icon}
-        <strong>{title}</strong>
-        {badge && <em>{badge}</em>}
-      </span>
-      <small>{description}</small>
-      {selected && <Check aria-hidden="true" className="video-translation-choice-check" size={12} />}
-    </button>
   );
 }
 

@@ -2425,6 +2425,24 @@ export const contentService = {
   },
 
   resumeRunningVideoGenerations() {
+    contentRepository.listGeneratingVideoTasks()
+      .filter((task) => task.expertContext?.mode === 'dance_remake'
+        && task.expertContext?.currentStep === 'dance_remake_preparing')
+      .forEach((task) => {
+        const reservationId = String(task.expertContext?.videoBillingReservationId || '').trim();
+        if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+        contentRepository.updateVideoTaskContext(task.id, {
+          selectedSkillIds: task.selectedSkillIds,
+          expertContext: {
+            ...task.expertContext,
+            currentStep: 'dance_remake_preparation_failed',
+            danceRemakePreparationStatus: 'failed',
+            requiredUserAction: 'resubmit',
+            updatedAt: new Date().toISOString(),
+          },
+        });
+        contentRepository.markVideoTaskFailed(task.id, '服务重启前参考视频尚未准备完成，请重新提交');
+      });
     this.resumePersistedRunningVideoGenerations();
     resumeVideoEnhancementTasks();
     resumeSubtitleRemovalTasks();
@@ -2779,6 +2797,7 @@ export const contentService = {
   async createVideoProduction(payload: CreateVideoProductionPayload) {
     assertUserId(payload.userId);
     const traceId = createTraceId('video-production');
+    const precreatedTaskId = String(payload.precreatedTaskId || '').trim();
     const retryTaskId = String(payload.retryTaskId || '').trim();
     const userPrompt = String(payload.prompt || '').trim();
     const resolvedConfig = resolveDefaultVideoModel(payload.videoModelProviderId);
@@ -2873,12 +2892,30 @@ export const contentService = {
         videoBillingReservationId: String(payload.videoBillingReservationId || ''),
         userPrompt,
       };
+      const precreatedTask = precreatedTaskId ? this.getVideoTask(precreatedTaskId, payload.userId) : null;
+      if (precreatedTask && (
+        payload.taskMode !== 'dance_remake'
+        || precreatedTask.expertContext?.mode !== 'dance_remake'
+        || precreatedTask.expertContext?.currentStep !== 'dance_remake_preparing'
+      )) {
+        throw new Error('跳舞复刻准备任务状态无效');
+      }
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
       const shouldReuseRetryTask = retryTask?.status === 'failed';
       const nextExpertContext = shouldReuseRetryTask
         ? appendVideoProductionFailureHistory(expertContext, retryTask)
         : expertContext;
-      const task = shouldReuseRetryTask
+      const task = precreatedTask
+        ? contentRepository.resetVideoTaskFromPrompt(precreatedTask.id, {
+          userId: payload.userId,
+          prompt,
+          selectedSkillIds: precreatedTask.selectedSkillIds,
+          title,
+          parseResult,
+          expertContext: nextExpertContext,
+          aspectRatio: ratio,
+        })
+        : shouldReuseRetryTask
         ? contentRepository.resetVideoTaskFromPrompt(retryTask.id, {
           userId: payload.userId,
           prompt,

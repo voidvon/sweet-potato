@@ -380,6 +380,21 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (tool.key === 'marketing-video') {
       return formatCreditAmount(billing.marketingVideoCreditsPerRequest);
     }
+    if (tool.workspace.generate.handler === 'dance-remake') {
+      if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
+        return '';
+      }
+      const durationSeconds = Math.max(4, Math.min(15, Math.round(selectedVideoDuration)));
+      const isStandard = danceRemakeMode === 'standard';
+      const effectiveModel = isStandard ? 'Seedance 2.0 Mini' : model;
+      const is480p = isStandard || quality === '480P';
+      const creditsPerSecond = effectiveModel === 'Seedance 2.0 Fast'
+        ? (is480p ? billing.seedance2FastCreditsPerSecond480p : billing.seedance2FastCreditsPerSecond720p)
+        : effectiveModel === 'Seedance 2.0 Mini'
+          ? (is480p ? billing.seedance2MiniCreditsPerSecond480p : billing.seedance2MiniCreditsPerSecond720p)
+          : (is480p ? billing.seedance2CreditsPerSecond480p : billing.seedance2CreditsPerSecond720p);
+      return formatCreditAmount(durationSeconds * creditsPerSecond);
+    }
     if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
       return '';
     }
@@ -401,7 +416,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return formatCreditAmount(billedVideoSeconds * creditsPerSecond);
     }
     return '';
-  }, [selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
+  }, [danceRemakeMode, model, quality, selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
 
   const marketingVideoGenerationPriceLabel = useMemo(() => {
     const billing = siteConfig?.billing;
@@ -749,6 +764,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   };
 
   const chooseParam = (kind: ParamKind, value: string) => {
+    if (tool.key === 'dance-remake' && danceRemakeMode === 'standard' && kind === 'model') return;
     if (kind === 'model') setModel(value);
     if (kind === 'duration') setDuration(value);
     setActiveParam(null);
@@ -759,7 +775,17 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   };
 
   const chooseCanvasQuality = (value: string) => {
+    if (tool.key === 'dance-remake' && danceRemakeMode === 'standard') return;
     setQuality(value);
+  };
+
+  const chooseDanceRemakeMode = (mode: DanceRemakeMode) => {
+    setDanceRemakeMode(mode);
+    if (mode === 'standard') {
+      setModel('Seedance 2.0 Mini');
+      setQuality('480P');
+      setActiveParam(null);
+    }
   };
 
   const fillExamplePrompt = () => {
@@ -1359,7 +1385,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
     },
     setFilters,
-    setDanceRemakeMode,
+    setDanceRemakeMode: chooseDanceRemakeMode,
     setMarketingVideoConfig,
     setPrompt,
     setPromptPanel: (panel: PromptPanel | null) => {

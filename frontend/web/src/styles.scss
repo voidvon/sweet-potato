@@ -27,6 +27,10 @@ body {
   color: var(--color-button-text);
 }
 
+.ant-checkbox-wrapper {
+  font-size: 12px;
+}
+
 // Keep context-based, static, and locally customized Ant Design modals consistent.
 .ant-modal .ant-modal-container,
 .ant-modal .ant-modal-content {

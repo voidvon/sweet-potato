@@ -69,7 +69,7 @@ export function VideoSourcePanel({
                   onChange={(event) => setVideoUrl(event.target.value)}
                   disabled={isSubmitting}
                   onPressEnter={() => void confirmVideoUrl()}
-                  placeholder="粘贴公开视频链接"
+                  placeholder="也可以粘贴抖音 / 小红书 / 快手视频链接"
                   prefix={<Link2 aria-hidden="true" size={16} />}
                   size="large"
                   value={videoUrl}

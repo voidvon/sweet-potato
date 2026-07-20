@@ -4,7 +4,11 @@ import { DouyinVideoSourceProvider, extractDouyinVideoId } from '../src/modules/
 import { createVideoPreviewToken, verifyVideoPreviewToken } from '../src/modules/video-source/video-source.preview.js';
 import { extractFirstHttpUrl } from '../src/modules/video-source/video-source.service.js';
 import type { ResolvedVideoSource } from '../src/modules/video-source/video-source.types.js';
-import { normalizeDanceTrimRange } from '../src/modules/video-source/dance-remake.service.js';
+import {
+  normalizeDanceTrimRange,
+  resolveDanceRemakeGenerationOptions,
+  resolveDanceRemakePrice,
+} from '../src/modules/video-source/dance-remake.service.js';
 import { shouldUseImplicitUploadGroup } from '../src/modules/content/content.service.js';
 import { seedanceReferenceVideoMetadataSourceUrl } from '../src/modules/content/internals/content-video-generation.js';
 
@@ -95,6 +99,56 @@ test('dance remake requires an explicit range for videos over 15 seconds', () =>
 test('dance remake uses the full duration for short videos', () => {
   assert.deepEqual(normalizeDanceTrimRange(12), { duration: 12, end: 12, start: 0 });
   assert.throws(() => normalizeDanceTrimRange(3), /4-15 秒/u);
+});
+
+test('standard dance remake always uses Seedance 2.0 Mini at 480p', () => {
+  assert.deepEqual(resolveDanceRemakeGenerationOptions({
+    mode: 'standard',
+    quality: '标清 (720p)',
+    videoModelId: 'doubao-seedance-2-0-260128',
+  }), {
+    quality: '普清 (480p)',
+    videoModelId: 'doubao-seedance-2-0-mini-260615',
+  });
+  assert.deepEqual(resolveDanceRemakeGenerationOptions({
+    mode: 'enhanced',
+    quality: '标清 (720p)',
+    videoModelId: 'doubao-seedance-2-0-fast-260128',
+  }), {
+    quality: '标清 (720p)',
+    videoModelId: 'doubao-seedance-2-0-fast-260128',
+  });
+});
+
+test('dance remake price uses the effective model, resolution, and duration', () => {
+  const settings = {
+    seedance2CreditsPerSecond480p: 12,
+    seedance2CreditsPerSecond720p: 20,
+    seedance2FastCreditsPerSecond480p: 11,
+    seedance2FastCreditsPerSecond720p: 18,
+    seedance2MiniCreditsPerSecond480p: 7,
+    seedance2MiniCreditsPerSecond720p: 15,
+  };
+  assert.deepEqual(resolveDanceRemakePrice({
+    durationSeconds: 8,
+    quality: '普清 (480p)',
+    settings,
+    videoModelId: 'doubao-seedance-2-0-mini-260615',
+  }), {
+    credits: 56,
+    creditsPerSecond: 7,
+    resolution: '480p',
+  });
+  assert.deepEqual(resolveDanceRemakePrice({
+    durationSeconds: 8,
+    quality: '标清 (720p)',
+    settings,
+    videoModelId: 'doubao-seedance-2-0-fast-260128',
+  }), {
+    credits: 144,
+    creditsPerSecond: 18,
+    resolution: '720p',
+  });
 });
 
 test('remote temporary reference videos use the implicit upload group', () => {

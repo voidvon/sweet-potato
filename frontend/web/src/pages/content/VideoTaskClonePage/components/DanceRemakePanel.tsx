@@ -1,5 +1,6 @@
-import { Checkbox } from 'antd';
+import { Checkbox, Flex } from 'antd';
 import type { DanceRemakeMode, LocalMaterialFile, MaterialKind, SelectedMaterials, ToolOption } from '../types';
+import { SelectionCardGroup } from './SelectionCardGroup';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import './DanceRemakePanel.scss';
@@ -51,34 +52,34 @@ export function DanceRemakePanel({
         description="选择适合当前素材的视频复刻模式。"
         title="模型选择"
       >
-        <div aria-label="视频复刻模式" className="dance-remake-mode-grid" role="group">
-          <button
-            aria-pressed={mode === 'standard'}
-            className={`dance-remake-mode-option${mode === 'standard' ? ' is-active' : ''}`}
-            onClick={() => onModeChange('standard')}
-            type="button"
-          >
-            <strong>标准模式</strong>
-            <span>轻量视频复刻。</span>
-          </button>
-          <button
-            aria-pressed={mode === 'enhanced'}
-            className={`dance-remake-mode-option${mode === 'enhanced' ? ' is-active' : ''}`}
-            onClick={() => onModeChange('enhanced')}
-            type="button"
-          >
-            <strong>增强模式</strong>
-            <span>动作、镜头和节奏复刻更强。</span>
-          </button>
-        </div>
+        <Flex gap={12} vertical>
+          <SelectionCardGroup
+            ariaLabel="视频复刻模式"
+            columns={2}
+            options={[
+              {
+                description: '轻量视频复刻。',
+                key: 'standard',
+                onSelect: () => onModeChange('standard'),
+                selected: mode === 'standard',
+                title: '标准模式',
+              },
+              {
+                description: '动作、镜头和节奏复刻更强。',
+                key: 'enhanced',
+                onSelect: () => onModeChange('enhanced'),
+                selected: mode === 'enhanced',
+                title: '增强模式',
+              },
+            ]}
+          />
 
-        <Checkbox
-          checked={voiceEnabled}
-          className="dance-remake-audio-option"
-          onChange={(event) => onVoiceChange(event.target.checked)}
-        >
-          保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。
-        </Checkbox>
+          {mode === 'enhanced' && (
+            <Checkbox checked={voiceEnabled} onChange={(event) => onVoiceChange(event.target.checked)}>
+              保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。
+            </Checkbox>
+          )}
+        </Flex>
       </WorkspaceSection>
     </>
   );
