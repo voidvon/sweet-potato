@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Avatar, Drawer, Dropdown, Menu, Modal } from 'antd';
+import { Avatar, Dropdown, Menu, Modal } from 'antd';
 import type { MenuProps } from 'antd';
-import { CloseOutlined, LogoutOutlined, MenuOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
 import { useLocation, useMatches, useNavigate, useOutlet, type UIMatch } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
 import './WorkspaceShellLayout.scss';
@@ -26,6 +26,13 @@ export type WorkspaceMenuItem = {
   selectedIcon?: unknown;
 };
 
+export type WorkspaceBottomNavItem = {
+  icon: ReactNode;
+  key: string;
+  label: string;
+  selectedIcon?: ReactNode;
+};
+
 type ShellUser = {
   avatarUrl?: string;
   displayName?: string;
@@ -44,6 +51,7 @@ type WorkspaceShellLayoutProps<User extends ShellUser> = {
   loginPath: string;
   onLogout: () => void;
   sidebarMenuItems: WorkspaceMenuItem[];
+  mobileBottomNavItems?: WorkspaceBottomNavItem[];
   compactSidebar?: boolean;
 };
 
@@ -88,6 +96,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   loginPath,
   onLogout,
   sidebarMenuItems,
+  mobileBottomNavItems = [],
   compactSidebar = false,
 }: WorkspaceShellLayoutProps<User>) {
   const navigate = useNavigate();
@@ -100,8 +109,6 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   );
   const [openKeys, setOpenKeys] = useState<string[]>(routeState.defaultOpenKeys);
   const [headerExtra, setHeaderExtra] = useState<ReactNode>(null);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const syncedPathnameRef = useRef(location.pathname);
   const workspaceHeaderContextValue = useMemo(
     () => ({ setHeaderExtra }),
@@ -129,21 +136,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   useEffect(() => {
     setHeaderExtra(null);
-    setIsMobileSidebarOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (!compactSidebar) {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia('(max-width: 767px)');
-    const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
-    syncViewport();
-    mediaQuery.addEventListener('change', syncViewport);
-
-    return () => mediaQuery.removeEventListener('change', syncViewport);
-  }, [compactSidebar]);
 
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
@@ -173,23 +166,20 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     navigate(defaultPath);
   };
 
-  const renderSidebarBody = (mobile: boolean) => (
+  const renderSidebarBody = () => (
     <>
       <nav className="module-nav">
         <Menu
           items={resolvedSidebarMenuItems as MenuProps['items']}
-          mode={mobile || !compactSidebar ? 'inline' : 'vertical'}
+          mode={!compactSidebar ? 'inline' : 'vertical'}
           onClick={({ key }) => {
             if (key.startsWith('/')) {
               navigate(key);
-              if (mobile) {
-                setIsMobileSidebarOpen(false);
-              }
             }
           }}
           onOpenChange={setOpenKeys}
           selectedKeys={routeState.selectedMenuKey ? [routeState.selectedMenuKey] : []}
-          {...(mobile || !compactSidebar ? { openKeys } : {})}
+          {...(!compactSidebar ? { openKeys } : {})}
         />
       </nav>
 
@@ -201,18 +191,22 @@ export function WorkspaceShellLayout<User extends ShellUser>({
         trigger={['click']}
       >
         <button className="settings-trigger" type="button">
-          <Avatar
-            className="settings-avatar"
-            icon={<UserOutlined />}
-            size={34}
-            src={currentUser.avatarUrl}
-          />
+          <span className="settings-avatar-hit">
+            <Avatar
+              className="settings-avatar"
+              icon={<UserOutlined />}
+              size={34}
+              src={currentUser.avatarUrl}
+            />
+          </span>
           <div>
             <strong>{currentUser.displayName || currentUser.username}</strong>
             <span>{accountLabel}</span>
           </div>
-          <span className="settings-icon">
-            <SettingOutlined />
+          <span className="settings-icon-hit">
+            <span className="sidebar-settings-icon">
+              <SettingOutlined />
+            </span>
           </span>
           <span className="settings-mobile-label">设置与支持</span>
         </button>
@@ -222,17 +216,6 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   return (
     <main className={`app-shell${compactSidebar ? ' app-shell-compact-sidebar' : ''}`}>
-      {compactSidebar ? (
-        <button
-          aria-label="打开导航菜单"
-          className="mobile-sidebar-trigger"
-          onClick={() => setIsMobileSidebarOpen(true)}
-          type="button"
-        >
-          <MenuOutlined />
-        </button>
-      ) : null}
-
       <aside aria-label="主导航" className="sidebar desktop-sidebar">
         <div className="brand">
           <img className="brand-logo" src={brandLogoSrc} alt={appName} />
@@ -241,33 +224,26 @@ export function WorkspaceShellLayout<User extends ShellUser>({
             {appSubtitle ? <span>{appSubtitle}</span> : null}
           </div>
         </div>
-        {renderSidebarBody(false)}
+        {renderSidebarBody()}
       </aside>
 
-      {compactSidebar && isMobileViewport ? (
-        <Drawer
-          closeIcon={<CloseOutlined />}
-          closable={{ placement: 'end' }}
-          destroyOnHidden
-          onClose={() => setIsMobileSidebarOpen(false)}
-          open={isMobileSidebarOpen}
-          placement="left"
-          rootClassName="workspace-mobile-drawer"
-          title={(
-            <div className="mobile-drawer-brand">
-              <img className="brand-logo" src={brandLogoSrc} alt={appName} />
-              <div className="brand-copy">
-                <strong>{appName}</strong>
-                {appSubtitle ? <span>{appSubtitle}</span> : null}
-              </div>
-            </div>
-          )}
-          width={392}
-        >
-          <aside aria-label="主导航" className="mobile-sidebar-content">
-            {renderSidebarBody(true)}
-          </aside>
-        </Drawer>
+      {compactSidebar && mobileBottomNavItems.length > 0 ? (
+        <nav aria-label="移动端底部导航" className="mobile-bottom-nav">
+          {mobileBottomNavItems.map((item) => {
+            const selected = location.pathname === item.key;
+            return (
+              <button
+                className={`mobile-bottom-nav-item${selected ? ' is-selected' : ''}`}
+                key={item.key}
+                onClick={() => navigate(item.key)}
+                type="button"
+              >
+                <span className="mobile-bottom-nav-icon">{selected && item.selectedIcon ? item.selectedIcon : item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       ) : null}
 
       <section className={`workspace${routeState.isChatPage ? ' chat-workspace' : ''}${routeState.isContentStudioPage ? ' workspace-studio' : ''}${routeState.isContentStudioVideoCreatePage ? ' workspace-studio-video-create' : ''}`}>

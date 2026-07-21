@@ -566,25 +566,16 @@ export function ContentResourceLibraryPage({
     [activeGroupAssets, assets, singleDefaultGroup],
   );
   const worksFunctionOptions = useMemo(() => {
-    const optionMap = new Map<string, WorksFunctionOption>();
-    for (const option of imageWorksFunctionOptions) {
-      optionMap.set(option.key, option);
-    }
-    for (const option of videoWorksFunctionOptions) {
-      optionMap.set(option.key, option);
-    }
-    for (const asset of assets) {
-      const option = worksFunctionOptionOf(asset);
-      if (!option || optionMap.has(option.key)) {
-        continue;
-      }
-      optionMap.set(option.key, option);
-    }
+    const options = worksAssetTab === 'image'
+      ? imageWorksFunctionOptions
+      : worksAssetTab === 'video'
+        ? videoWorksFunctionOptions
+        : [...imageWorksFunctionOptions, ...videoWorksFunctionOptions];
     return [
       allWorksFunctionOption,
-      ...Array.from(optionMap.values()),
+      ...options,
     ];
-  }, [assets]);
+  }, [worksAssetTab]);
 
   useEffect(() => {
     if (!singleDefaultGroup) {
@@ -868,6 +859,11 @@ export function ContentResourceLibraryPage({
     setWorksFunctionKey(allWorksFunctionOption.key);
   }
 
+  function handleWorksAssetTabChange(tab: WorksAssetTab) {
+    setWorksAssetTab(tab);
+    setWorksFunctionKey(allWorksFunctionOption.key);
+  }
+
   const worksFunctionMenuItems: MenuProps['items'] = worksFunctionOptions.map((option) => ({
     key: option.key,
     label: option.label,
@@ -899,7 +895,7 @@ export function ContentResourceLibraryPage({
                 <AppSegmentedTabs
                   ariaLabel="作品类型"
                   itemMinWidth={60}
-                  onChange={setWorksAssetTab}
+                  onChange={handleWorksAssetTabChange}
                   options={[
                     { value: 'all', label: '全部' },
                     { value: 'image', label: '图片' },
