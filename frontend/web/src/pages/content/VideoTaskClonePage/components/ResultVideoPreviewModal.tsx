@@ -45,7 +45,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
   const [playingAudioAssetId, setPlayingAudioAssetId] = useState<string | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const task = resolvedTask || video.task;
-  const completedAt = taskCompletionTime(task) || video.completedAt;
+  const completedAt = taskCompletionTime(task ?? null) || video.completedAt;
   const elapsedTime = useMemo(() => formatElapsedTime(
     task?.createdAt || video.createdAt,
     completedAt,

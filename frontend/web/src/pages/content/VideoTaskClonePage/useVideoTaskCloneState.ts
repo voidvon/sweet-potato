@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { formatCreditAmount } from '@shared/utils/credits';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, getVideoTask, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import {
@@ -22,9 +22,11 @@ import {
   examplePrompt,
   modelOptionIds,
   toolOptions,
+
 } from './constants';
 import type {
   DanceRemakeMode,
+  SubjectReplaceType,
   FilterValues,
   MarketingVideoConfig,
   MaterialKey,
