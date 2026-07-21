@@ -310,7 +310,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p>管理头像、用户名、登录密码，以及查看个人积分账单和余额变化。</p>
+          <p>管理头像、昵称、登录密码，以及查看个人积分账单和余额变化。</p>
         </section>
 
         <Card>
@@ -329,7 +329,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             </div>
             <Space>
               <Button icon={<EditOutlined />} onClick={openProfileModal}>
-                修改用户名
+                修改昵称
               </Button>
               <Button icon={<LockOutlined />} onClick={openPasswordModal}>
                 修改密码
@@ -378,7 +378,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
         onCancel={() => setProfileModalOpen(false)}
         onOk={() => profileForm.submit()}
         open={profileModalOpen}
-        title="修改用户名"
+        title="修改昵称"
       >
         <Form
           form={profileForm}
@@ -390,13 +390,13 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             <Input disabled value={currentProfile.username} size="large" />
           </Form.Item>
           <Form.Item
-            label="用户名"
+            label="昵称"
             name="displayName"
             rules={[
-              { required: true, min: 2, message: '请输入至少 2 位用户名' },
+              { required: true, min: 2, message: '请输入至少 2 位昵称' },
             ]}
           >
-            <Input placeholder="请输入用户名" size="large" />
+            <Input placeholder="请输入昵称" size="large" />
           </Form.Item>
         </Form>
       </Modal>

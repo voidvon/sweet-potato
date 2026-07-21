@@ -59,6 +59,12 @@ type ResourceCopy = {
 
 type WorksAssetTab = 'all' | 'image' | 'video';
 
+type WorksAssetDateGroup = {
+  key: string;
+  label: string;
+  assets: ContentAsset[];
+};
+
 type WorksFunctionOption = {
   key: string;
   label: string;
@@ -266,6 +272,33 @@ function fileUrl(asset: ContentAsset) {
 
 function formatDate(value: string) {
   return value ? value.slice(0, 10) : '';
+}
+
+function startOfLocalDate(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function worksAssetDateGroup(asset: ContentAsset, now = new Date()) {
+  const date = new Date(asset.createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return { key: 'unknown', label: '日期未知' };
+  }
+
+  const dateStart = startOfLocalDate(date);
+  const todayStart = startOfLocalDate(now);
+  const dayDiff = Math.round((todayStart.getTime() - dateStart.getTime()) / (24 * 60 * 60 * 1000));
+  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`;
+
+  if (dayDiff === 0) {
+    return { key: dateStart.toISOString(), label: `今天・${dateText}` };
+  }
+  if (dayDiff === 1) {
+    return { key: dateStart.toISOString(), label: `昨天・${dateText}` };
+  }
+  if (date.getFullYear() === now.getFullYear()) {
+    return { key: dateStart.toISOString(), label: dateText };
+  }
+  return { key: dateStart.toISOString(), label: `${date.getFullYear()}年${dateText}` };
 }
 
 function previewFor(asset: ContentAsset, fallbackIcon: string) {
@@ -533,10 +566,30 @@ export function ContentResourceLibraryPage({
     }
     return nextAssets.filter((asset) => asset.name.toLowerCase().includes(keyword));
   }, [assets, resourceType, searchKeyword, worksAssetTab, worksFunctionKey]);
-  const visibleWorksAssets = useMemo(
-    () => filteredAssets.slice(0, visibleWorksCount),
+  const visibleWorksAssets = useMemo(() => [...filteredAssets]
+    .sort((left, right) => {
+      const leftTime = new Date(left.createdAt).getTime();
+      const rightTime = new Date(right.createdAt).getTime();
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+    })
+    .slice(0, visibleWorksCount),
     [filteredAssets, visibleWorksCount],
   );
+  const visibleWorksAssetGroups = useMemo<WorksAssetDateGroup[]>(() => {
+    const groupsByDate = new Map<string, WorksAssetDateGroup>();
+
+    visibleWorksAssets.forEach((asset) => {
+      const dateGroup = worksAssetDateGroup(asset);
+      const existingGroup = groupsByDate.get(dateGroup.key);
+      if (existingGroup) {
+        existingGroup.assets.push(asset);
+        return;
+      }
+      groupsByDate.set(dateGroup.key, { ...dateGroup, assets: [asset] });
+    });
+
+    return Array.from(groupsByDate.values());
+  }, [visibleWorksAssets]);
   const hasMoreWorksAssets = visibleWorksAssets.length < filteredAssets.length;
 
   const loadMoreWorksAssets = useCallback(() => {
@@ -934,22 +987,36 @@ export function ContentResourceLibraryPage({
               hasMore={hasMoreWorksAssets}
               onLoadMore={loadMoreWorksAssets}
             >
-              <div className="material-grid voice-board-grid">
-                {isLoadingLibrary ? <WorksAssetSkeletonCard /> : visibleWorksAssets.map((asset) => (
-                  <WorksAssetCard
-                    key={asset.id}
-                    asset={asset}
-                    onDelete={() => void handleDeleteFinishedAsset(asset)}
-                    onOpen={finishedVideoStatus(asset) === 'completed' && fileUrl(asset) ? () => openAssetPreview(asset) : undefined}
-                  />
-                ))}
-                {!isLoadingLibrary && !filteredAssets.length && (
+              {isLoadingLibrary ? (
+                <div className="material-grid voice-board-grid">
+                  <WorksAssetSkeletonCard />
+                </div>
+              ) : visibleWorksAssetGroups.map((group) => (
+                <section className="works-assets-date-group" key={group.key}>
+                  <div className="works-assets-date-heading">
+                    <h2>{group.label}</h2>
+                    <span>{group.assets.length} 个作品</span>
+                  </div>
+                  <div className="material-grid voice-board-grid">
+                    {group.assets.map((asset) => (
+                      <WorksAssetCard
+                        key={asset.id}
+                        asset={asset}
+                        onDelete={() => void handleDeleteFinishedAsset(asset)}
+                        onOpen={finishedVideoStatus(asset) === 'completed' && fileUrl(asset) ? () => openAssetPreview(asset) : undefined}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {!isLoadingLibrary && !filteredAssets.length && (
+                <div className="material-grid voice-board-grid">
                   <WorksAssetEmptyCard
                     title={hasKeyword ? '暂无匹配作品' : worksEmptyTitle}
                     description={hasKeyword ? '调整搜索条件，或先生成一个作品。' : worksEmptyDescription}
                   />
-                )}
-              </div>
+                </div>
+              )}
             </InfiniteScroll>
           </div>
         </section>

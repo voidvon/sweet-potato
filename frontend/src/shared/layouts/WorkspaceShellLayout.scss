@@ -162,6 +162,61 @@
   min-width: 184px;
 }
 
+.settings-dropdown-panel {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px 0 #00000014, 0 3px 6px -4px #0000001f, 0 9px 28px 8px #0000000d;
+  min-width: 184px;
+  padding: 6px;
+}
+
+.settings-dropdown-panel .ant-dropdown-menu {
+  box-shadow: none;
+  min-width: 0;
+  padding: 0;
+}
+
+.settings-dropdown-user {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.settings-dropdown-user-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-dropdown-user-copy strong,
+.settings-dropdown-user-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-dropdown-user-copy strong {
+  color: #1a1a1a;
+  font-size: 14px;
+}
+
+.settings-dropdown-user-copy span {
+  color: #999999;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.settings-dropdown-avatar {
+  flex: 0 0 auto;
+}
+
+.settings-dropdown-divider {
+  border-top: 1px solid #f0f0f0;
+  margin: 2px 6px 6px;
+}
+
 .workspace {
   display: flex;
   flex-direction: column;

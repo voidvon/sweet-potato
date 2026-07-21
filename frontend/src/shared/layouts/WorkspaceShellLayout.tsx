@@ -300,6 +300,23 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       <Dropdown
         classNames={{ root: 'settings-dropdown-overlay' }}
         menu={{ items: settingsItems, onClick: handleSettingsClick }}
+        popupRender={(menu) => (
+          <div className="settings-dropdown-panel">
+            <div className="settings-dropdown-user">
+              {renderAccountAvatar('settings-dropdown-avatar', 36)}
+              <div className="settings-dropdown-user-copy">
+                <strong title={currentUser.displayName || currentUser.username}>
+                  {currentUser.displayName || currentUser.username}
+                </strong>
+                {currentUser.displayName ? (
+                  <span title={currentUser.username}>{currentUser.username}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="settings-dropdown-divider" />
+            {menu}
+          </div>
+        )}
         styles={{ root: { minWidth: 184 } }}
         placement="top"
         trigger={['click']}

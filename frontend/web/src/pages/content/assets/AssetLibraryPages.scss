@@ -1145,6 +1145,32 @@
   padding: 24px;
 }
 
+.works-assets-date-group + .works-assets-date-group {
+  margin-top: 32px;
+}
+
+.works-assets-date-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.works-assets-date-heading h2 {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.works-assets-date-heading span {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .voice-board-content {
   flex: 1;
   min-height: 0;
@@ -1172,14 +1198,8 @@
 .works-asset-card {
   background: #f8fafc;
   border: 0;
-  border-radius: 8px;
-  box-shadow:
-    rgba(0, 0, 0, 0) 0 0 0 0,
-    rgba(0, 0, 0, 0) 0 0 0 0,
-    rgba(0, 0, 0, 0) 0 0 0 0,
-    oklab(0 0 0 / 0.04) 0 0 0 1px,
-    rgba(0, 0, 0, 0.1) 0 1px 3px 0,
-    rgba(0, 0, 0, 0.1) 0 1px 2px -1px;
+  border-radius: 14px;
+  box-shadow:rgba(0, 0, 0, 0.04) 0 2px 6px 2px;
   display: block;
   height: 165px;
   overflow: hidden;
@@ -1211,7 +1231,7 @@
 }
 
 .works-asset-card::after {
-  background: linear-gradient(to top, oklab(0.129 -0.0038832 -0.0418201 / 0.46) 0%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0) 100%);
+  background: linear-gradient(to top, #02061875 0%, #00000000 30%, #00000000 100%);
   content: "";
   inset: 0;
   opacity: 0;
@@ -1272,7 +1292,7 @@
   bottom: 6px;
   display: flex;
   gap: 8px;
-  justify-content: space-between;
+  justify-content: flex-end;
   left: 8px;
   opacity: 0;
   pointer-events: none;
@@ -1280,18 +1300,6 @@
   right: 6px;
   transition: opacity 0.3s ease;
   z-index: 1;
-}
-
-.works-asset-card__time {
-  color: #ffffff;
-  flex: 1 1 auto;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 28px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .works-asset-card__delete {
@@ -1305,7 +1313,9 @@
 }
 
 .works-asset-card:hover .works-asset-card__duration,
-.works-asset-card:focus-visible .works-asset-card__duration {
+.works-asset-card:focus-visible .works-asset-card__duration,
+.works-asset-card:hover .video-asset-cover__type,
+.works-asset-card:focus-visible .video-asset-cover__type {
   opacity: 0;
 }
 
