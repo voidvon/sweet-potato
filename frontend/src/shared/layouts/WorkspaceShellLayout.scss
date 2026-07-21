@@ -299,8 +299,8 @@
 }
 
 .workspace-recharge-label {
-  background: #f1f6df;
-  color: #526022;
+  background: var(--color-brand-soft, #eaf4ff);
+  color: var(--color-brand-hover, #0958d9);
   font-size: 12px;
   font-weight: 700;
   gap: 6px;
@@ -316,7 +316,7 @@
 }
 
 .workspace-recharge-label:hover {
-  background: #e8f0cd;
+  background: var(--color-brand-soft-strong, #dceeff);
 }
 
 .workspace-account-trigger {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Descriptions, Dropdown, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
 import type { TableProps, TabsProps } from 'antd';
 import { DownOutlined, ReloadOutlined } from '@ant-design/icons';
+import { formatIntegerCreditAmount } from '@shared/utils/credits';
 import type {
   AdminBillableUsageRecord,
   AdminCreditLedgerEntry,
@@ -351,7 +352,7 @@ export function UserManagementPage() {
       title: '积分余额',
       dataIndex: 'creditBalance',
       width: 160,
-      render: (value: number) => <strong>{formatCredits(value)}</strong>,
+      render: (value: number) => <strong>{formatIntegerCreditAmount(value)} Credit</strong>,
     },
     {
       title: '注册时间',
@@ -754,7 +755,7 @@ export function UserManagementPage() {
           <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Descriptions bordered column={3} size="small">
               <Descriptions.Item label="当前积分余额">
-                {formatCredits(detailState.user.creditBalance)}
+                {formatIntegerCreditAmount(detailState.user.creditBalance)} Credit
               </Descriptions.Item>
               <Descriptions.Item label="累计充值积分">
                 {formatCredits(totalRechargeCredits)}

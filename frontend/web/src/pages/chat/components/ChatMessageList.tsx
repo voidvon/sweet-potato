@@ -3,6 +3,7 @@ import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, Ed
 import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
 import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
+import { formatCreditAmount } from '@shared/utils/credits';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
@@ -496,13 +497,6 @@ export function ChatMessageList({
         onDeleteMessage(messageItem);
       },
     });
-  }
-
-  function formatCreditAmount(value: number) {
-    if (Number.isInteger(value)) {
-      return String(value);
-    }
-    return value.toFixed(6).replace(/\.?0+$/, '');
   }
 
   function numericValue(value: unknown, fallback = 0) {

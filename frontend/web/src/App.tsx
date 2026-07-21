@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Spin } from 'antd';
 import { getCurrentUser } from '@shared/api/user';
 import { getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
@@ -64,6 +64,17 @@ function App() {
     setCurrentUser(user);
   }
 
+  const handleCreditBalanceUpdated = useCallback((creditBalance: number) => {
+    setCurrentUser((user) => {
+      if (!user || user.creditBalance === creditBalance) {
+        return user;
+      }
+      const nextUser = { ...user, creditBalance };
+      storeUser(nextUser);
+      return nextUser;
+    });
+  }, []);
+
   if (!sessionHydrated) {
     return (
       <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -73,7 +84,10 @@ function App() {
   }
 
   return (
-    <AppRealtimeEventsProvider currentUser={currentUser}>
+    <AppRealtimeEventsProvider
+      currentUser={currentUser}
+      onCreditBalanceUpdated={handleCreditBalanceUpdated}
+    >
       <AppRoutes
         currentUser={currentUser}
         onAuthed={handleAuthed}

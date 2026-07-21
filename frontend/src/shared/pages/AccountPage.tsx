@@ -15,6 +15,7 @@ import {
   message,
 } from 'antd';
 import type { TableProps, TabsProps, UploadProps } from 'antd';
+import { formatIntegerCreditAmount } from '../utils/credits';
 import {
   EditOutlined,
   LockOutlined,
@@ -345,7 +346,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           </div>
           <Descriptions bordered column={3} size="small">
             <Descriptions.Item label="当前积分余额">
-              {formatCredits(currentProfile.creditBalance || 0)}
+              {formatIntegerCreditAmount(currentProfile.creditBalance || 0)} Credit
             </Descriptions.Item>
             <Descriptions.Item label="累计充值积分">
               {formatCredits(totalRechargeCredits)}

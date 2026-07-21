@@ -12,6 +12,7 @@ import {
 import { useLocation, useMatches, useNavigate, useOutlet, type UIMatch } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
 import { CreditIcon } from '../components/CreditIcon';
+import { formatIntegerCreditAmount } from '../utils/credits';
 import './WorkspaceShellLayout.scss';
 
 export type WorkspaceRouteState = {
@@ -247,7 +248,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
         >
           <CreditIcon />
           <span className="workspace-credit-label">总积分</span>
-          <strong>{Math.floor(currentUser.creditBalance || 0)}</strong>
+          <strong>{formatIntegerCreditAmount(currentUser.creditBalance || 0)}</strong>
         </button>
         <button
           className="workspace-credit-action workspace-recharge-label"

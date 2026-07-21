@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
+import { formatCreditAmount } from '@shared/utils/credits';
 import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, getVideoTask, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
@@ -1779,13 +1780,6 @@ function getLimit(kind: MaterialKind) {
   if (kind.key === 'image') return 9;
   if (kind.key === 'audio') return 3;
   return 1;
-}
-
-function formatCreditAmount(value: number) {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(6).replace(/\.?0+$/, '');
 }
 
 function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {

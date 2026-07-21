@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { formatIntegerCreditAmount } from '@shared/utils/credits';
 import {
   Avatar,
   Button,
@@ -348,7 +349,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           </div>
           <Descriptions bordered column={3} size="small">
             <Descriptions.Item label="当前积分余额">
-              {formatCredits(currentProfile.creditBalance || 0)}
+              {formatIntegerCreditAmount(currentProfile.creditBalance || 0)} Credit
             </Descriptions.Item>
             <Descriptions.Item label="累计充值积分">
               {formatCredits(totalRechargeCredits)}
