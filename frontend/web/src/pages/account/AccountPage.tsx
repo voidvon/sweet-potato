@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Avatar,
   Button,
@@ -79,6 +80,8 @@ function ledgerTypeLabel(entry: MyCreditLedgerEntry) {
 }
 
 export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeCreditTab = searchParams.get('tab') === 'ledger' ? 'ledger' : 'recharge';
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -360,7 +363,11 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
         </section>
 
         <section className="settings-section">
-          <Tabs items={tabItems} />
+          <Tabs
+            activeKey={activeCreditTab}
+            items={tabItems}
+            onChange={(tab) => setSearchParams({ tab }, { replace: true })}
+          />
         </section>
 
       <Modal

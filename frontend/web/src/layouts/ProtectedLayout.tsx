@@ -49,6 +49,7 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
       loginPath={routePaths.login}
       mobileBottomNavItems={mobileBottomNavItems}
       onLogout={onLogout}
+      showGlobalActions
       sidebarMenuItems={buildSidebarMenuItems(currentUser, routeResourceInfoMap)}
     />
   );

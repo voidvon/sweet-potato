@@ -1,9 +1,17 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Avatar, Dropdown, Menu, Modal } from 'antd';
+import { Avatar, Dropdown, Menu, message, Modal } from 'antd';
 import type { MenuProps } from 'antd';
-import { LogoutOutlined, SettingOutlined, UserOutlined } from '@ant-design/icons';
+import {
+  LogoutOutlined,
+  PlusCircleOutlined,
+  QuestionCircleOutlined,
+  SettingOutlined,
+  UserAddOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { useLocation, useMatches, useNavigate, useOutlet, type UIMatch } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
+import { CreditIcon } from '../components/CreditIcon';
 import './WorkspaceShellLayout.scss';
 
 export type WorkspaceRouteState = {
@@ -35,6 +43,7 @@ export type WorkspaceBottomNavItem = {
 
 type ShellUser = {
   avatarUrl?: string;
+  creditBalance?: number;
   displayName?: string;
   username: string;
 };
@@ -53,6 +62,7 @@ type WorkspaceShellLayoutProps<User extends ShellUser> = {
   sidebarMenuItems: WorkspaceMenuItem[];
   mobileBottomNavItems?: WorkspaceBottomNavItem[];
   compactSidebar?: boolean;
+  showGlobalActions?: boolean;
 };
 
 type WorkspaceHeaderContextValue = {
@@ -74,6 +84,29 @@ function resolveSelectedMenuIcons(items: WorkspaceMenuItem[], selectedKey: strin
       icon: selectedIcon && containsSelectedMenuItem(item, selectedKey) ? selectedIcon : item.icon,
     };
   });
+}
+
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Fall through for browsers that expose the Clipboard API but deny access.
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) {
+    throw new Error('Copy failed');
+  }
 }
 
 export function useWorkspaceHeader() {
@@ -98,6 +131,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   sidebarMenuItems,
   mobileBottomNavItems = [],
   compactSidebar = false,
+  showGlobalActions = false,
 }: WorkspaceShellLayoutProps<User>) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -138,6 +172,14 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     setHeaderExtra(null);
   }, [location.pathname]);
 
+  useEffect(() => {
+    document.title = routeState.currentMenuTitle;
+
+    return () => {
+      document.title = appName;
+    };
+  }, [appName, routeState.currentMenuTitle]);
+
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
     { key: 'logout', danger: true, icon: <LogoutOutlined />, label: '退出登录' },
@@ -166,6 +208,77 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     navigate(defaultPath);
   };
 
+  const renderAccountAvatar = (className: string, size: number) => (
+    <Avatar
+      className={className}
+      icon={<UserOutlined />}
+      size={size}
+      src={currentUser.avatarUrl}
+    />
+  );
+
+  const handleInvite = async () => {
+    try {
+      await copyText(window.location.origin);
+      message.success('邀请链接已复制，快分享给好友吧');
+    } catch {
+      message.error('复制失败，请手动复制当前网址');
+    }
+  };
+
+  const renderGlobalActions = (floating = false) => (
+    <div
+      aria-label="全局操作"
+      className={`workspace-global-actions${floating ? ' workspace-global-actions-floating' : ''}`}
+    >
+      <button
+        className="workspace-global-action workspace-global-action-secondary"
+        onClick={() => message.info('教程内容正在完善，敬请期待')}
+        type="button"
+      >
+        <QuestionCircleOutlined />
+        <span>教程</span>
+      </button>
+      <div className="workspace-credit-actions">
+        <button
+          className="workspace-credit-action workspace-credit-balance"
+          onClick={() => navigate(`${accountPath}?tab=ledger`)}
+          type="button"
+        >
+          <CreditIcon />
+          <span className="workspace-credit-label">总积分</span>
+          <strong>{Math.floor(currentUser.creditBalance || 0)}</strong>
+        </button>
+        <button
+          className="workspace-credit-action workspace-recharge-label"
+          onClick={() => message.info('如需充值，请联系管理员')}
+          type="button"
+        >
+          <PlusCircleOutlined />
+          <span>充值</span>
+        </button>
+      </div>
+      <button
+        className="workspace-global-action workspace-global-action-secondary workspace-invite-action"
+        onClick={() => void handleInvite()}
+        type="button"
+      >
+        <UserAddOutlined />
+        <span>邀请好友</span>
+      </button>
+      <Dropdown
+        classNames={{ root: 'settings-dropdown-overlay' }}
+        menu={{ items: settingsItems, onClick: handleSettingsClick }}
+        placement="bottomRight"
+        trigger={['click']}
+      >
+        <button aria-label="打开账户菜单" className="workspace-account-trigger" type="button">
+          {renderAccountAvatar('workspace-account-avatar', 36)}
+        </button>
+      </Dropdown>
+    </div>
+  );
+
   const renderSidebarBody = () => (
     <>
       <nav className="module-nav">
@@ -192,12 +305,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       >
         <button className="settings-trigger" type="button">
           <span className="settings-avatar-hit">
-            <Avatar
-              className="settings-avatar"
-              icon={<UserOutlined />}
-              size={34}
-              src={currentUser.avatarUrl}
-            />
+            {renderAccountAvatar('settings-avatar', 34)}
           </span>
           <div>
             <strong>{currentUser.displayName || currentUser.username}</strong>
@@ -248,15 +356,17 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
       <section className={`workspace${routeState.isChatPage ? ' chat-workspace' : ''}${routeState.isContentStudioPage ? ' workspace-studio' : ''}${routeState.isContentStudioVideoCreatePage ? ' workspace-studio-video-create' : ''}`}>
         {!routeState.hideWorkspaceHeader ? (
-          <header className="workspace-header">
+          <header className={`workspace-header${showGlobalActions ? ' workspace-header-global' : ''}`}>
             <h1>{routeState.currentMenuTitle}</h1>
             {headerExtra ? (
               <div className="workspace-header-extra">
                 {headerExtra}
               </div>
             ) : null}
+            {showGlobalActions ? renderGlobalActions() : null}
           </header>
         ) : null}
+        {routeState.hideWorkspaceHeader && showGlobalActions ? renderGlobalActions(true) : null}
         <div className={`workspace-content${routeState.isImmersivePage ? ' workspace-content-immersive' : ''}${routeState.isContentStudioPage ? ' workspace-content-studio' : ''}`}>
           <div className={`workspace-surface${routeState.isImmersivePage ? ' workspace-surface-immersive' : ''}${routeState.isContentStudioPage ? ' workspace-surface-studio' : ''}`}>
             <WorkspaceHeaderContext.Provider value={workspaceHeaderContextValue}>

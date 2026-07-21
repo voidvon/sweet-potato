@@ -975,7 +975,10 @@ export function getWorkspaceLayoutState(currentUser: User, pathname: string, mat
     .find((handle) => handle);
   const selectedGroup = groups.find((group) => group.children.some((item) => item.path === pathname))?.key;
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
-  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined) || resolveRouteTitle(matchedHandle?.title, pathname) || '工作台';
+  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined)
+    || matchedHandle?.sidebar?.label
+    || resolveRouteTitle(matchedHandle?.title, pathname)
+    || '工作台';
   const selectedMenuKey = pathname === routePaths.defaultModule
     ? chatMenuKey
     : topLevelRoutes.find((item) => item.key === pathname)?.key

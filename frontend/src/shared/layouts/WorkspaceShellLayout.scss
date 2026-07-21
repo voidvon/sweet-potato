@@ -176,7 +176,7 @@
   border-bottom: 1px solid #f0f0f0;
   display: flex;
   flex: 0 0 auto;
-  min-height: 64px;
+  min-height: 52px;
   padding: 0 28px;
 }
 
@@ -188,11 +188,148 @@
   margin: 0;
 }
 
+.workspace-header-global {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
 .workspace-header-extra {
   align-items: center;
   display: flex;
   margin-left: auto;
   min-width: 0;
+}
+
+.workspace-global-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.workspace-global-actions-floating {
+  position: fixed;
+  right: 28px;
+  top: 8px;
+  z-index: 100;
+}
+
+.workspace-header-extra + .workspace-global-actions {
+  margin-left: 16px;
+}
+
+.workspace-global-action,
+.workspace-credit-action,
+.workspace-account-trigger {
+  align-items: center;
+  border: 1px solid #e7e7e7;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  justify-content: center;
+}
+
+.workspace-global-action,
+.workspace-credit-actions,
+.workspace-account-trigger {
+  box-shadow: 0px 4px 14px 0px rgba(15, 20, 25, 0.08);
+}
+
+.workspace-global-action {
+  background: #ffffff;
+  border-radius: 999px;
+  color: #242424;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 7px;
+  height: 36px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.workspace-global-action .anticon {
+  font-size: 12px;
+}
+
+.workspace-global-action:hover,
+.workspace-account-trigger:hover {
+  background: #f7f7f7;
+  border-color: #d9d9d9;
+}
+
+.workspace-credit-actions {
+  background: #ffffff;
+  border: 1px solid #e7e7e7;
+  border-radius: 999px;
+  display: inline-flex;
+  height: 36px;
+  overflow: hidden;
+}
+
+.workspace-credit-action {
+  background: transparent;
+  border: 0;
+  height: 100%;
+  padding-block: 0;
+}
+
+.workspace-credit-balance {
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.workspace-credit-balance > .credit-icon {
+  color: #ff9900;
+}
+
+.workspace-credit-label {
+  color: #808080;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workspace-credit-balance strong {
+  color: #202020;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.workspace-recharge-label {
+  background: #f1f6df;
+  color: #526022;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  padding: 0 13px;
+}
+
+.workspace-recharge-label .anticon {
+  font-size: 12px;
+}
+
+.workspace-credit-balance:hover {
+  background: #f7f7f7;
+}
+
+.workspace-recharge-label:hover {
+  background: #e8f0cd;
+}
+
+.workspace-account-trigger {
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  height: 36px;
+  padding: 0;
+  width: 36px;
+}
+
+.workspace-account-avatar {
+  box-shadow: none;
 }
 
 .workspace-content {
@@ -269,6 +406,14 @@
   .workspace-header-extra {
     flex: 1 1 auto;
     justify-content: flex-end;
+  }
+
+  .workspace-global-action {
+    padding: 0 12px;
+  }
+
+  .workspace-credit-label {
+    display: none;
   }
 }
 
@@ -458,6 +603,32 @@
 
   .app-shell-compact-sidebar .desktop-sidebar {
     display: none;
+  }
+
+  .workspace-header {
+    min-height: 56px;
+    padding: 0 12px;
+  }
+
+  .workspace-header h1,
+  .workspace-global-action-secondary {
+    display: none;
+  }
+
+  .workspace-global-actions {
+    margin-left: auto;
+  }
+
+  .workspace-global-actions-floating {
+    right: 12px;
+  }
+
+  .workspace-credit-balance {
+    padding: 0 9px;
+  }
+
+  .workspace-recharge-label {
+    padding: 0 10px;
   }
 
 }

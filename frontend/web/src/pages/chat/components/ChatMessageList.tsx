@@ -1,7 +1,8 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, ImageOff, RefreshCw, Zap } from 'lucide-react';
+import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
 import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
@@ -550,7 +551,7 @@ export function ChatMessageList({
     return (
       <span className="chat-image-generation-cost" aria-label={`消耗 ${formatCreditAmount(creditCost)} Credit`}>
         消耗
-        <Zap size={12} fill="currentColor" />
+        <CreditIcon />
         {formatCreditAmount(creditCost)}
       </span>
     );

@@ -1,7 +1,8 @@
 import { CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw, Zap } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw } from 'lucide-react';
 import { Button, Dropdown, Modal, message } from 'antd';
 import { useState } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import { resolveAssetUrl } from '../../../../api/request';
 import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
@@ -339,7 +340,7 @@ function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
   const billedCreditCost = Math.ceil(creditCost);
   return (
     <span className="video-task-result-credit-cost" title={`消耗 ${billedCreditCost} 积分`}>
-      <Zap aria-hidden="true" fill="currentColor" size={12} />
+      <CreditIcon />
       {billedCreditCost}
     </span>
   );

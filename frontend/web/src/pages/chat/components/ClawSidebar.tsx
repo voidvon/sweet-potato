@@ -71,6 +71,7 @@ export function ClawSidebar({
                   <Dropdown
                     menu={{
                       items: buildConversationMenuItems(conversation, onClear, onDelete, openRenameModal),
+                      onClick: ({ domEvent }) => domEvent.stopPropagation(),
                     }}
                     placement="bottomRight"
                     trigger={['click']}

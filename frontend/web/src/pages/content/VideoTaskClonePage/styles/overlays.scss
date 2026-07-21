@@ -3165,8 +3165,10 @@
   gap: 8px;
   height: 36px;
   padding: 0 14px;
-  position: static;
-  z-index: 1;
+  position: fixed;
+  right: 24px;
+  top: 58px;
+  z-index: 99;
 }
 
 .video-task-filter.has-filters {

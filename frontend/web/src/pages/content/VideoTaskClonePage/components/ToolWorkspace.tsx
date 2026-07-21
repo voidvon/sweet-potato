@@ -1,6 +1,7 @@
-import { Clock3, Zap } from 'lucide-react';
+import { Clock3 } from 'lucide-react';
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
 import type { VideoGenerationTask } from '../../../../types';
@@ -45,7 +46,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           {state.tool.submitText}
           {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
             <span className="video-task-generate-price">
-              <Zap aria-hidden="true" fill="currentColor" size={12} />
+              <CreditIcon />
               {state.videoPriceLabel}
             </span>
           ) : null}
