@@ -1,7 +1,8 @@
 import { ClearOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   listTemporaryAssetCleanupCandidates,
   listTemporaryAssetCleanupLogs,
@@ -66,14 +67,75 @@ function AssetIdentity({ id, name }: { id: string; name: string }) {
   );
 }
 
+function useTableBodyHeight() {
+  const viewportElementRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [bodyHeight, setBodyHeight] = useState(1);
+
+  const measure = useCallback(() => {
+    const viewport = viewportElementRef.current;
+    if (!viewport || viewport.clientHeight <= 0) return;
+
+    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
+    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
+    let paginationHeight = 0;
+    if (pagination) {
+      const style = window.getComputedStyle(pagination);
+      paginationHeight = pagination.offsetHeight
+        + Number.parseFloat(style.marginTop || '0')
+        + Number.parseFloat(style.marginBottom || '0');
+    }
+
+    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
+    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+  }, []);
+
+  const scheduleMeasure = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      measure();
+    });
+  }, [measure]);
+
+  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    viewportElementRef.current = viewport;
+
+    if (!viewport) return;
+    observerRef.current = new ResizeObserver(scheduleMeasure);
+    observerRef.current.observe(viewport);
+    scheduleMeasure();
+  }, [scheduleMeasure]);
+
+  useLayoutEffect(() => {
+    scheduleMeasure();
+  });
+
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    };
+  }, []);
+
+  return { bodyHeight, viewportRef };
+}
+
 export function TemporaryAssetCleanupPage() {
   const [candidates, setCandidates] = useState<TemporaryAssetCleanupCandidate[]>([]);
   const [logs, setLogs] = useState<TemporaryAssetCleanupLog[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [cleaning, setCleaning] = useState(false);
+  const pendingTable = useTableBodyHeight();
+  const logTable = useTableBodyHeight();
 
   async function loadData(nextPage = page, nextPageSize = pageSize) {
     setLoading(true);
@@ -242,37 +304,59 @@ export function TemporaryAssetCleanupPage() {
             key: 'pending',
             label: `待清理 (${total})`,
             children: (
-              <Table
-                className="temporary-cleanup-table"
-                columns={candidateColumns}
-                dataSource={candidates}
-                loading={loading}
-                pagination={{
-                  current: page,
-                  pageSize,
-                  total,
-                  showSizeChanger: true,
-                  showTotal: (value) => `共 ${value} 条`,
-                  onChange: (nextPage, nextPageSize) => void loadData(nextPage, nextPageSize),
-                }}
-                rowKey="id"
-                scroll={{ x: 1180 }}
-              />
+              <div
+                className="temporary-cleanup-table-viewport"
+                ref={pendingTable.viewportRef}
+                style={{ '--temporary-table-body-height': `${pendingTable.bodyHeight}px` } as CSSProperties}
+              >
+                <Table
+                  className="temporary-cleanup-table"
+                  columns={candidateColumns}
+                  dataSource={candidates}
+                  loading={loading}
+                  pagination={{
+                    current: page,
+                    pageSize,
+                    total,
+                    showSizeChanger: true,
+                    showTotal: (value) => `共 ${value} 条`,
+                    onChange: (nextPage, nextPageSize) => void loadData(nextPage, nextPageSize),
+                  }}
+                  rowKey="id"
+                  scroll={{ x: 1180, y: pendingTable.bodyHeight }}
+                />
+              </div>
             ),
           },
           {
             key: 'logs',
             label: `清理日志 (${logs.length}/100)`,
             children: (
-              <Table
-                className="temporary-cleanup-table"
-                columns={logColumns}
-                dataSource={logs}
-                loading={loading}
-                pagination={false}
-                rowKey="id"
-                scroll={{ x: 1160, y: 560 }}
-              />
+              <div
+                className="temporary-cleanup-table-viewport"
+                ref={logTable.viewportRef}
+                style={{ '--temporary-table-body-height': `${logTable.bodyHeight}px` } as CSSProperties}
+              >
+                <Table
+                  className="temporary-cleanup-table"
+                  columns={logColumns}
+                  dataSource={logs}
+                  loading={loading}
+                  pagination={{
+                    current: logPage,
+                    pageSize: logPageSize,
+                    total: logs.length,
+                    showSizeChanger: true,
+                    showTotal: (value) => `共 ${value} 条`,
+                    onChange: (nextPage, nextPageSize) => {
+                      setLogPage(nextPage);
+                      setLogPageSize(nextPageSize);
+                    },
+                  }}
+                  rowKey="id"
+                  scroll={{ x: 1160, y: logTable.bodyHeight }}
+                />
+              </div>
             ),
           },
         ]} />

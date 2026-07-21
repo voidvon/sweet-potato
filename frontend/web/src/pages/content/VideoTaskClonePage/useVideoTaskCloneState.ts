@@ -118,7 +118,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>('enhanced');
+  const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>(
+    initialTool.key === 'dance-remake' ? 'standard' : 'enhanced',
+  );
   const [subjectReplaceType, setSubjectReplaceType] = useState<SubjectReplaceType>('model');
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(initialTool);
@@ -478,7 +480,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
-    setDanceRemakeMode('enhanced');
+    setDanceRemakeMode(option.key === 'dance-remake' ? 'standard' : 'enhanced');
     setSubjectReplaceType('model');
     setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
     setQuality(option.key === 'dance-remake' ? '480P' : '720P');
@@ -796,7 +798,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setModel('Seedance 2.0 Mini');
       setQuality('480P');
       setActiveParam(null);
+      return;
     }
+    setModel('Seedance 2.0');
+    setQuality('720P');
   };
 
   const fillExamplePrompt = () => {

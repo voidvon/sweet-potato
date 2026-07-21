@@ -138,6 +138,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   const location = useLocation();
   const matches = useMatches();
   const outlet = useOutlet();
+  const defaultDocumentTitleRef = useRef(document.title);
   const routeState = useMemo(
     () => getWorkspaceLayoutState(currentUser, location.pathname, matches),
     [currentUser, getWorkspaceLayoutState, location.pathname, matches],
@@ -174,12 +175,13 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   }, [location.pathname]);
 
   useEffect(() => {
-    document.title = routeState.currentMenuTitle;
+    const defaultDocumentTitle = defaultDocumentTitleRef.current;
+    document.title = `${routeState.currentMenuTitle} | ${defaultDocumentTitle}`;
 
     return () => {
-      document.title = appName;
+      document.title = defaultDocumentTitle;
     };
-  }, [appName, routeState.currentMenuTitle]);
+  }, [routeState.currentMenuTitle]);
 
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
