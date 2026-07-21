@@ -27,8 +27,13 @@ import {
   type ImageGenerationProviderResult,
   type ImageGenerationReferenceAsset,
 } from './image-generation.provider-adapter.js';
+import {
+  chromaKeyGeneratedImage,
+  type ChromaKeyOutputBackground,
+} from './image-chroma-key.js';
 
 type ImageGenerationPreparedInput = {
+  chromaKeyOutputBackground?: ChromaKeyOutputBackground;
   generationOptions?: ImageGenerationModeOptions;
   modelConfig: AiModelConfig;
   modeKey: string;
@@ -823,6 +828,13 @@ function buildImageGenerationPrompt(
         ? '输出底色：白底，主体外区域使用纯白背景，适合电商主图、目录图和快审稿。'
         : '输出底色：黑底，主体外区域使用纯黑背景，适合暗场氛围、光效测试和封面图。'
     : '';
+  const chromaKeySummary = modeSchema.key === 'cutout' || modeSchema.key === 'print-extract'
+    ? [
+        '绿幕处理要求：模型只需输出不透明图片，不要尝试生成透明通道。',
+        '主体或印花之外的所有区域必须使用均匀纯色 #00FF00 填充。',
+        '绿色背景不得包含纹理、渐变、阴影、反射、光斑或其他物体，主体边缘清晰且不要染绿。',
+      ].join('')
+    : '';
   const referenceDecisionSummary = options?.referenceDecision
     ? '连续对话约束：基于上一张生成图进行修改，尽量保持原图主体、构图、身份特征和整体风格，只改变用户本轮明确要求调整的部分。'
     : '';
@@ -831,6 +843,7 @@ function buildImageGenerationPrompt(
     generationPrompt ? `业务要求：${generationPrompt}` : '',
     referenceDecisionSummary,
     outputBackgroundSummary,
+    chromaKeySummary,
     outputFormatSummary ? `业务输出：${outputFormatSummary}` : '',
     aspectRatioSummary,
     userPrompt ? `用户补充：${userPrompt}` : '',
@@ -840,22 +853,8 @@ function buildImageGenerationPrompt(
   return parts.join('\n');
 }
 
-function generationOptionsOf(
-  modeSchema: ImageGenerationModeSchema,
-  context: ChatCapabilityExecutionInput['capabilityContext'],
-) {
-  const outputBackground = context?.imageGeneration?.outputBackground;
-  if (modeSchema.key !== 'cutout') {
-    return modeSchema.generationOptions;
-  }
-  if (outputBackground === 'transparent') {
-    return {
-      ...modeSchema.generationOptions,
-      background: 'transparent' as const,
-      outputFormat: 'png' as const,
-    };
-  }
-  if (outputBackground === 'white' || outputBackground === 'black') {
+function generationOptionsOf(modeSchema: ImageGenerationModeSchema) {
+  if (modeSchema.key === 'cutout' || modeSchema.key === 'print-extract') {
     return {
       ...modeSchema.generationOptions,
       background: 'opaque' as const,
@@ -863,6 +862,22 @@ function generationOptionsOf(
     };
   }
   return modeSchema.generationOptions;
+}
+
+function chromaKeyOutputBackgroundOf(
+  modeSchema: ImageGenerationModeSchema,
+  context: ChatCapabilityExecutionInput['capabilityContext'],
+): ChromaKeyOutputBackground | undefined {
+  if (modeSchema.key === 'print-extract') {
+    return 'transparent';
+  }
+  if (modeSchema.key !== 'cutout') {
+    return undefined;
+  }
+  const requestedBackground = context?.imageGeneration?.outputBackground;
+  return requestedBackground === 'white' || requestedBackground === 'black'
+    ? requestedBackground
+    : 'transparent';
 }
 
 function imageGenerationOutputConfigOf(modeSchema: ImageGenerationModeSchema) {
@@ -1135,7 +1150,8 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
   }
   const sourceIdPrefix = input.conversation?.id || `chat-image-${Date.now()}`;
   return {
-    generationOptions: generationOptionsOf(modeSchema, input.capabilityContext),
+    chromaKeyOutputBackground: chromaKeyOutputBackgroundOf(modeSchema, input.capabilityContext),
+    generationOptions: generationOptionsOf(modeSchema),
     modelConfig,
     modeKey: modeSchema.key,
     modeTitle: cleanText(input.capabilityContext?.imageGeneration?.modeTitle) || modeSchema.title,
@@ -1258,18 +1274,24 @@ async function persistGeneratedImageAttachment(input: {
 }) {
   const { conversationId, generated, index, outputCount, prepared, userId } = input;
   const slotIndex = input.slotIndex ?? index;
-  const extension = extensionForMimeType(generated.mimeType);
+  const processedGenerated = prepared.chromaKeyOutputBackground
+    ? {
+        ...generated,
+        ...(await chromaKeyGeneratedImage(generated.buffer, prepared.chromaKeyOutputBackground)),
+      }
+    : generated;
+  const extension = extensionForMimeType(processedGenerated.mimeType);
   const storedFileName = `${randomBytes(8).toString('hex')}.${extension}`;
   const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
   const filePath = contentFilePathForRelativePath(storedRelativePath);
-  const dimensions = imageDimensions(generated.buffer, generated.mimeType);
+  const dimensions = imageDimensions(processedGenerated.buffer, processedGenerated.mimeType);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, generated.buffer);
+  await writeFile(filePath, processedGenerated.buffer);
   const fileUrl = fileUrlFor(storedRelativePath);
   const workAsset = await createGeneratedImageWorkAsset({
     userId,
-    buffer: generated.buffer,
-    mimeType: generated.mimeType,
+    buffer: processedGenerated.buffer,
+    mimeType: processedGenerated.mimeType,
     storedFileName: storedRelativePath,
     filePath,
     fileUrl,
@@ -1295,8 +1317,8 @@ async function persistGeneratedImageAttachment(input: {
     id: randomBytes(8).toString('hex'),
     kind: 'image' as const,
     name: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
-    type: generated.mimeType,
-    size: generated.buffer.byteLength,
+    type: processedGenerated.mimeType,
+    size: processedGenerated.buffer.byteLength,
     url: fileUrl,
     ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
