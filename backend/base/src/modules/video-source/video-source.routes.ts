@@ -5,6 +5,7 @@ import { videoSourceService } from './video-source.service.js';
 import { VideoSourceError } from './video-source.types.js';
 import { proxyVideoPreview, videoPreviewUrl } from './video-source.preview.js';
 import { danceRemakeService } from './dance-remake.service.js';
+import { subjectReplaceService } from './subject-replace.service.js';
 
 export function createVideoSourceRouter() {
   const router = Router();
@@ -56,6 +57,33 @@ export function createVideoSourceRouter() {
         res,
         error instanceof VideoSourceError ? error.statusCode : 400,
         getErrorMessage(error, '跳舞复刻任务创建失败'),
+      ));
+  });
+
+  router.post('/subject-replaces', requirePermission('web.module.content.create_video'), (req, res) => {
+    void subjectReplaceService.create({
+      imageAssetIds: Array.isArray(req.body?.imageAssetIds)
+        ? req.body.imageAssetIds.map(String)
+        : [],
+      preserveAudio: req.body?.preserveAudio !== false,
+      quality: req.body?.quality === '普清 (480p)' ? '普清 (480p)' : '标清 (720p)',
+      referenceVideoAssetId: req.body?.referenceVideoAssetId
+        ? String(req.body.referenceVideoAssetId)
+        : undefined,
+      remoteVideo: req.body?.remoteVideo?.input ? {
+        input: String(req.body.remoteVideo.input),
+        trimEnd: req.body.remoteVideo.trimEnd,
+        trimStart: req.body.remoteVideo.trimStart,
+      } : undefined,
+      subjectType: req.body?.subjectType,
+      userId: req.auth?.userId || '',
+      videoModelId: String(req.body?.videoModelId || ''),
+    })
+      .then((task) => res.status(201).json(task))
+      .catch((error) => sendError(
+        res,
+        error instanceof VideoSourceError ? error.statusCode : 400,
+        getErrorMessage(error, '主体替换任务创建失败'),
       ));
   });
 

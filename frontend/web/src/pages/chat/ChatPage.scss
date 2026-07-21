@@ -131,7 +131,7 @@
 .workspace:has(.chat-page) .workspace-header {
   border-bottom-color: color-mix(in srgb, var(--color-border) 92%, transparent);
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: 292px minmax(0, 1fr) auto;
   padding: 0 16px;
 }
 
@@ -144,6 +144,13 @@
 .workspace:has(.chat-page) .workspace-header h1,
 .workspace:has(.chat-page) .workspace-header-extra {
   min-width: 0;
+}
+
+.workspace:has(.chat-page) .workspace-global-actions {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  margin-left: 16px;
 }
 
 .workspace:has(.chat-page) .workspace-content,
@@ -160,6 +167,10 @@
 
   .workspace:has(.chat-page) .workspace-header h1 {
     display: none;
+  }
+
+  .workspace:has(.chat-page) .workspace-global-actions {
+    margin-left: auto;
   }
 }
 

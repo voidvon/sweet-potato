@@ -1,6 +1,7 @@
-import { Clock3, Zap } from 'lucide-react';
+import { Clock3 } from 'lucide-react';
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { WorkspaceBlock, WorkspaceBlockType } from '../types';
 import type { VideoGenerationTask } from '../../../../types';
@@ -12,6 +13,7 @@ import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
 import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
 import { TalkingVideoPanel } from './TalkingVideoPanel';
+import { SubjectReplacePanel } from './SubjectReplacePanel';
 import { toolIcons } from './ToolSwitcher';
 import { VideoTranslationPanel } from './VideoTranslationPanel';
 
@@ -44,7 +46,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           {state.isGenerating ? '生成中…' : state.tool.submitText}
           {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
             <span className="video-task-generate-price">
-              <Zap aria-hidden="true" fill="currentColor" size={12} />
+              <CreditIcon />
               {state.videoPriceLabel}
             </span>
           ) : null}
@@ -88,6 +90,9 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       tool={state.tool}
       voiceEnabled={state.voiceEnabled}
     />
+  ) : null,
+  'subject-replace-form': (block, state) => block.type === 'subject-replace-form' ? (
+    <SubjectReplacePanel state={state} />
   ) : null,
   parameters: (block, state) => block.type === 'parameters'
     && !(state.tool.key === 'dance-remake' && state.danceRemakeMode === 'standard') ? (

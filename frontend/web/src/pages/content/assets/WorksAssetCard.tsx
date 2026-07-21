@@ -4,7 +4,6 @@ import type { KeyboardEvent, SyntheticEvent } from 'react';
 import { Clapperboard, LoaderCircle, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../../../api/request';
 import type { ContentAsset } from '../../../types';
-import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import { VideoAssetCover } from '../shared/VideoAssetCover';
 import { getVideoWorkSource } from './worksAssetSource';
 
@@ -87,7 +86,6 @@ function formatDurationLabel(seconds: number) {
 
 export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps) {
   const status = worksAssetStatus(asset);
-  const timeText = formatRelativeCalendarDateTime(asset.updatedAt);
   const url = fileUrl(asset);
   const isCompleted = status === 'completed' && Boolean(url);
   const isVideo = asset.mimeType.startsWith('video/');
@@ -163,7 +161,6 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
       )}
       {durationLabel && <span className="works-asset-card__duration">{durationLabel}</span>}
       <div className="works-asset-card__overlay">
-        <span className="works-asset-card__time">{timeText}</span>
         <span className="works-asset-card__delete" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
           <Popconfirm
             cancelText="取消"

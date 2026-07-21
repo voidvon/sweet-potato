@@ -961,18 +961,7 @@ export function migrateDatabase() {
       @id, @parentId, @name, @resourceKey, @resourceType, @platform, @path, @permissionCode,
       @status, @sortOrder, @isSystem, @createdAt, @updatedAt
     )
-    ON CONFLICT(id) DO UPDATE SET
-      parent_id = excluded.parent_id,
-      name = excluded.name,
-      resource_key = excluded.resource_key,
-      resource_type = excluded.resource_type,
-      platform = excluded.platform,
-      path = excluded.path,
-      permission_code = excluded.permission_code,
-      status = excluded.status,
-      is_system = excluded.is_system,
-      updated_at = excluded.updated_at
-    WHERE route_resources.is_system = 1
+    ON CONFLICT(id) DO NOTHING
   `);
   seededRouteResources.forEach((resource) => {
     upsertRouteResource.run({
@@ -992,28 +981,84 @@ export function migrateDatabase() {
     });
   });
 
-  const sidebarSortMigrationId = '20260714-sidebar-material-before-image';
-  const sidebarSortMigrationApplied = db.prepare(`
+  const restoreSystemCreateVideoRouteMigrationId = '20260720-restore-system-create-video-route';
+  const restoreSystemCreateVideoRouteMigrationApplied = db.prepare(`
     SELECT 1
     FROM app_migrations
     WHERE id = ?
-  `).get(sidebarSortMigrationId);
-  if (!sidebarSortMigrationApplied) {
+  `).get(restoreSystemCreateVideoRouteMigrationId);
+  if (!restoreSystemCreateVideoRouteMigrationApplied) {
     db.transaction(() => {
       db.prepare(`
-        UPDATE route_resources
-        SET sort_order = CASE resource_key
-          WHEN 'web.root.content' THEN 10
-          WHEN 'web.module.chat' THEN 20
-          ELSE sort_order
-        END,
-        updated_at = @updatedAt
-        WHERE resource_key IN ('web.root.content', 'web.module.chat')
-      `).run({ updatedAt: now });
+        INSERT INTO route_resources (
+          id, parent_id, name, resource_key, resource_type, platform, path, permission_code,
+          status, sort_order, is_system, created_at, updated_at
+        )
+        VALUES (
+          @id, NULL, @name, @resourceKey, @resourceType, @platform, @path, @permissionCode,
+          @status, @sortOrder, 1, @createdAt, @updatedAt
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          parent_id = NULL,
+          name = excluded.name,
+          resource_key = excluded.resource_key,
+          resource_type = excluded.resource_type,
+          platform = excluded.platform,
+          path = excluded.path,
+          permission_code = excluded.permission_code,
+          status = excluded.status,
+          sort_order = excluded.sort_order,
+          is_system = 1,
+          updated_at = excluded.updated_at
+      `).run({
+        id: 'rr-web.module.content.create_video',
+        name: '视频创作',
+        resourceKey: 'web.module.content.create_video',
+        resourceType: 'menu',
+        platform: 'web',
+        path: '/app/content/create_video',
+        permissionCode: 'web.module.content.create_video',
+        status: 1,
+        sortOrder: 20,
+        createdAt: now,
+        updatedAt: now,
+      });
+      db.prepare(`
+        INSERT OR IGNORE INTO role_resource_permissions (role_id, resource_id, created_at)
+        VALUES (?, ?, ?)
+      `).run(defaultRoleId, 'rr-web.module.content.create_video', now);
       db.prepare(`
         INSERT INTO app_migrations (id, applied_at)
         VALUES (?, ?)
-      `).run(sidebarSortMigrationId, now);
+      `).run(restoreSystemCreateVideoRouteMigrationId, now);
+    })();
+  }
+
+  const removeVideoRootMigrationId = '20260720-remove-video-root-route';
+  const removeVideoRootMigrationApplied = db.prepare(`
+    SELECT 1
+    FROM app_migrations
+    WHERE id = ?
+  `).get(removeVideoRootMigrationId);
+  if (!removeVideoRootMigrationApplied) {
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE route_resources
+        SET parent_id = NULL, updated_at = ?
+        WHERE parent_id = 'rr-web-root-video'
+      `).run(now);
+      db.prepare(`
+        DELETE FROM role_resource_permissions
+        WHERE resource_id = 'rr-web-root-video'
+      `).run();
+      db.prepare(`
+        DELETE FROM route_resources
+        WHERE id = 'rr-web-root-video'
+      `).run();
+      db.prepare(`
+        INSERT INTO app_migrations (id, applied_at)
+        VALUES (?, ?)
+      `).run(removeVideoRootMigrationId, now);
     })();
   }
 

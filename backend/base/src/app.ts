@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { dataDir } from './db/database.js';
 import { migrateDatabase } from './db/schema.js';
+import { createAppEventsRouter } from './modules/app-events/app-events.routes.js';
 import { createAuthRouter } from './modules/auth/auth.routes.js';
 import { createBillingRouter } from './modules/billing/billing.routes.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
@@ -40,6 +41,7 @@ export function createApp() {
   app.use(requireAuth);
 
   app.use('/api/auth', createAuthRouter());
+  app.use('/api/app', createAppEventsRouter());
   app.use('/api/users', createUserRouter());
   app.use('/api/roles', createRoleRouter());
   app.use('/api/route-resources', createRouteResourceRouter());

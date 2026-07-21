@@ -67,3 +67,22 @@ export function createDanceRemake(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export function createSubjectReplace(payload: {
+  imageAssetIds: string[];
+  preserveAudio: boolean;
+  quality: string;
+  referenceVideoAssetId?: string;
+  remoteVideo?: {
+    input: string;
+    trimEnd?: number;
+    trimStart?: number;
+  };
+  subjectType: 'model' | 'clothing' | 'face' | 'background' | 'product';
+  videoModelId: string;
+}) {
+  return request<{ id: string }>('/api/video-source/subject-replaces', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

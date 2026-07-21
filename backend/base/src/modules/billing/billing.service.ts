@@ -4,6 +4,7 @@ import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { findLlmModelPricing } from '../model-configs/llm-model-pricing.service.js';
 import { userRepository } from '../users/user.repository.js';
+import { publishCreditBalanceUpdated } from './billing.events.js';
 import { billingRepository } from './billing.repository.js';
 import type {
   BillableUsageCategory,
@@ -22,6 +23,24 @@ import type {
 } from './billing.types.js';
 
 type OpenAiUsagePayload = Record<string, unknown> | undefined;
+
+function runCreditTransaction<Result>(userId: string, transaction: () => Result) {
+  const previousBalance = userRepository.findById(userId)?.creditBalance;
+  const result = transaction();
+  const creditBalance = userRepository.findById(userId)?.creditBalance;
+  if (
+    typeof previousBalance === 'number'
+    && typeof creditBalance === 'number'
+    && previousBalance !== creditBalance
+  ) {
+    publishCreditBalanceUpdated({
+      userId,
+      creditBalance,
+      creditDelta: roundCredits(creditBalance - previousBalance),
+    });
+  }
+  return result;
+}
 
 type NonStreamCompletionResponse = {
   choices?: Array<{
@@ -451,7 +470,7 @@ function persistBillableUsageCharge(input: {
     return record;
   });
 
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 function charsTo1kUnits(charCount: number) {
@@ -547,7 +566,7 @@ export function reserveVideoUpscaleCredits(input: {
       nextCreditBalance,
     };
   });
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 export function settleVideoUpscaleCredits(input: {
@@ -657,7 +676,7 @@ export function releaseVideoUpscaleCredits(input: {
     billingRepository.updateReservationStatus(reservation.id, 'released', now);
     return true;
   });
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 export function assertSufficientStepCredits(input: {
@@ -793,7 +812,7 @@ function reserveCredits(input: {
     };
   });
 
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 function releaseReservation(input: {
@@ -824,7 +843,7 @@ function releaseReservation(input: {
       createdAt: now,
     });
   });
-  transaction();
+  runCreditTransaction(input.reservation.userId, transaction);
 }
 
 function settleReservation(input: {
@@ -914,7 +933,7 @@ function settleReservation(input: {
     };
   });
 
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 function recordFailedUsage(input: {
@@ -1298,7 +1317,7 @@ export function reserveFixedBillableUsage(input: {
     return reservation;
   });
 
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 export function settleFixedBillableUsage(input: {
@@ -1704,7 +1723,7 @@ export function recordVodUnderstandingUsage(input: {
     billingRepository.createBillableUsageRecord(record);
     return record;
   });
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 export function adjustUserCredits(input: {
@@ -1740,7 +1759,7 @@ export function adjustUserCredits(input: {
     });
     return userRepository.findById(user.id);
   });
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }
 
 export async function callBilledLlm(input: BilledLlmCallInput) {
@@ -2026,5 +2045,5 @@ function recordLlmUsageCharge(input: {
     };
   });
 
-  return transaction();
+  return runCreditTransaction(input.userId, transaction);
 }

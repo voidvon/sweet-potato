@@ -1,7 +1,9 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, ImageOff, RefreshCw, Zap } from 'lucide-react';
+import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
 import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
+import { formatCreditAmount } from '@shared/utils/credits';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
@@ -497,13 +499,6 @@ export function ChatMessageList({
     });
   }
 
-  function formatCreditAmount(value: number) {
-    if (Number.isInteger(value)) {
-      return String(value);
-    }
-    return value.toFixed(6).replace(/\.?0+$/, '');
-  }
-
   function numericValue(value: unknown, fallback = 0) {
     const numeric = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
@@ -550,7 +545,7 @@ export function ChatMessageList({
     return (
       <span className="chat-image-generation-cost" aria-label={`消耗 ${formatCreditAmount(creditCost)} Credit`}>
         消耗
-        <Zap size={12} fill="currentColor" />
+        <CreditIcon />
         {formatCreditAmount(creditCost)}
       </span>
     );

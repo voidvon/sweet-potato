@@ -2,6 +2,16 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-20 主体替换视频生成
+
+- `POST /api/video-source/subject-replaces` 提交模特、服饰、人脸、背景或商品替换任务，要求 `web.module.content.create_video` 权限。
+- 请求体包含 `subjectType`、`imageAssetIds`、本地 `referenceVideoAssetId` 或短视频 `remoteVideo`、`preserveAudio`、`quality` 和 `videoModelId`。
+- 非服饰类型必须提供一张图片；服饰类型第一张为正面图、可选第二张为反面图，最多两张。所有素材必须属于当前登录用户。
+- 接口立即返回 `VideoGenerationTask`。短视频链接的下载、裁剪和时长探测在后台执行，任务准备状态为 `expertContext.mode = "subject_replace"`。
+- 生成与计费时长取参考视频实际时长并向上取整后限制为 `4-15` 秒，例如 `9.01` 秒按 `10` 秒；画面比例固定为 `9:16`，结果继续通过 `GET /api/content/video-productions` 查询。
+- 主体替换调用现有 Seedance 视频生成链路，参考视频时长确定后按后台配置的模型、清晰度和实际生成秒数预留 `video_generation` 积分；成功时按预留金额结算，失败时释放，供应商 token usage 不覆盖该按秒价格。
+- 主体替换任务上下文持久化图片资产 ID、已上传视频资产 ID 以及远程视频原始链接和裁剪区间。远程视频下载并裁剪到服务器后立即写入本地资产 ID；后续探测、计费或模型提交失败时复用该服务器资产，仅在尚未成功落盘时重新解析分享链接。
+
 ## 2026-07-17 公共视频链接解析
 
 - `POST /api/video-source/resolve` 根据分享文案或视频链接解析公共视频信息，要求当前用户具备 `web.module.content.create_video` 权限；服务端不下载或保存视频文件。
@@ -34,7 +44,11 @@
 
 - 后台新增 `/system/temporary-assets`，仅管理员可访问。
 - `GET /api/content/temporary-assets/cleanup-candidates` 分页返回带过期时间的临时素材，按计划清理时间升序排列。
+- `GET /api/content/temporary-assets/disk-space` 返回临时素材存储目录所在磁盘的可用空间，格式为 `{ "availableBytes": number }`。
 - `GET /api/content/temporary-assets/cleanup-logs` 返回最近 100 条成功清理记录。
+- `GET /api/content/temporary-assets/orphan-files` 递归扫描 `data/files/`，对比内容素材、技能文件、视频任务、视频复刻会话、聊天附件及生成任务等数据库直接路径和 JSON 文件引用，返回疑似孤立文件数量、体积及最多 500 条明细；该接口只读，不删除文件，并忽略缩略图缓存、日志和符号链接。
+- `POST /api/content/temporary-assets/orphan-files/delete` 接收 `{ "relativePaths": string[] }`，删除最多 500 个疑似孤立文件；删除前会再次校验路径位于 `data/files/`、不在忽略范围内且当前未被数据库文件记录引用。
+- `POST /api/content/temporary-assets/cleanup-selected` 接收 `{ "assetIds": string[] }`，立即删除最多 100 条仍处于临时状态且未被引用的指定素材，返回 `{ "deleted": number }`。
 - `POST /api/content/temporary-assets/cleanup` 立即清理当前已过期且无引用的临时素材，返回 `{ "deleted": number }`。
 - `temporary_asset_cleanup_logs` 在每次写入后物理删除第 100 条以前的历史记录，数据库最多保留 100 条日志。
 
@@ -56,7 +70,8 @@
 ## 2026-07-15 视频制作记录分页
 
 - `GET /api/content/video-productions` 传入 `page` 与 `pageSize` 时返回 `{ items, page, pageSize, total }`；`pageSize` 最大为 `100`。
-- 未传 `page` 时继续返回 `VideoGenerationTask[]`，兼容已有调用方。
+- `GET /api/content/video-productions` 返回视频制作列表专用 DTO，不返回 `userId`、`prompt`、源地址、原始解析结果、素材引用、生成配置、技能/数字人选择或供应商原始字段；`expertContext` 仅包含列表展示需要的白名单参数。编辑、重试和参考素材预览按任务 ID 请求详情。
+- 未传 `page` 时返回同一列表 DTO 的数组，兼容已有响应外层结构。
 - 时间筛选使用 `createdAtFrom`（包含）和 `createdAtTo`（不包含）两个 ISO 时间边界，并按任务创建时间过滤。
 - 比例筛选使用 `ratio`，直接匹配任务的 `aspectRatio` 字段；新任务会在生成开始时写入该值。
 - 普通视频生成使用用户选择的比例；高清放大、字幕擦除和视频翻译根据源视频宽高归一为支持的比例。

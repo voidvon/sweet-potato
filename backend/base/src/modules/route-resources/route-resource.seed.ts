@@ -9,6 +9,7 @@ type SeedRouteResource = RouteResourceInput & {
 const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['key']>([
   'web.module.chat',
   'web.module.content.video_remake',
+  'web.module.content.create_video',
   'web.module.content.virtual_portrait_assets',
   'web.module.content.ai_voice',
   'web.module.content.scene_library',
@@ -26,6 +27,9 @@ const webRouteMetaByPermission = {
   },
   'web.module.content.video_remake': {
     path: '/app/content/video_remake',
+  },
+  'web.module.content.create_video': {
+    path: '/app/content/create_video',
   },
   'web.module.content.virtual_portrait_assets': {
     path: '/app/content/virtual_portrait_assets',
@@ -65,26 +69,14 @@ export const defaultRoleResourceIds = permissionCatalog
 export const seededRouteResources: SeedRouteResource[] = [
   {
     id: 'rr-web-root-content',
-    name: '素材库',
+    name: '素材',
     resourceKey: 'web.root.content',
     resourceType: 'directory',
     platform: 'web',
     path: '/app/content',
     permissionCode: 'web.directory.content',
     status: true,
-    sortOrder: 10,
-    isSystem: true,
-  },
-  {
-    id: 'rr-web-root-video',
-    name: '视频生成',
-    resourceKey: 'web.root.video',
-    resourceType: 'directory',
-    platform: 'web',
-    path: '/app/content',
-    permissionCode: 'web.directory.video',
-    status: true,
-    sortOrder: 30,
+    sortOrder: 40,
     isSystem: true,
   },
   {
@@ -96,7 +88,7 @@ export const seededRouteResources: SeedRouteResource[] = [
     path: '/app/creator-ops',
     permissionCode: 'web.directory.creator_ops',
     status: true,
-    sortOrder: 40,
+    sortOrder: 60,
     isSystem: true,
   },
   ...permissionCatalog.filter((entry) => routeResourcePermissionKeys.has(entry.key)).map((entry, index) => {
@@ -108,22 +100,24 @@ export const seededRouteResources: SeedRouteResource[] = [
       if (entry.group === 'creator_ops') {
         return 'rr-web-root-creator-ops';
       }
-      if (entry.key === 'web.module.content.finished_assets') {
+      if (
+        entry.key === 'web.module.content.finished_assets'
+        || entry.key === 'web.module.content.video_remake'
+        || entry.key === 'web.module.content.create_video'
+      ) {
         return undefined;
-      }
-      if (entry.key === 'web.module.content.video_remake') {
-        return 'rr-web-root-video';
       }
       return 'rr-web-root-content';
     })();
     const sortOrderByKey: Partial<Record<(typeof permissionCatalog)[number]['key'], number>> = {
-      'web.module.chat': 20,
+      'web.module.chat': 10,
       'web.module.content.virtual_portrait_assets': 10,
       'web.module.content.ai_voice': 20,
       'web.module.content.scene_library': 30,
       'web.module.content.product_assets': 40,
       'web.module.content.finished_assets': 50,
-      'web.module.content.video_remake': 10,
+      'web.module.content.video_remake': 30,
+      'web.module.content.create_video': 20,
       'web.module.creator_ops.xingtu': 10,
       'web.module.creator_ops.buyin': 20,
       'web.module.creator_ops.douyin': 30,

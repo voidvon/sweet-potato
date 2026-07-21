@@ -22,6 +22,8 @@ import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
 import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../../components/MentionRichTextarea';
+import { CreditIcon } from '@shared/components/CreditIcon';
+import { formatCreditAmount } from '@shared/utils/credits';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
@@ -468,13 +470,6 @@ function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
     ? settings.billing as Record<string, unknown>
     : {};
   return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
-}
-
-function formatCreditAmount(value: number) {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(6).replace(/\.?0+$/, '');
 }
 
 export function ClawDialogComposer({
@@ -992,7 +987,7 @@ export function ClawDialogComposer({
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}
             <span className="claw-credit">
-              <Zap size={12} fill="currentColor" />
+              <CreditIcon />
               {formatCreditAmount(totalImageCredits)}
             </span>
             <Button

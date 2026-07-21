@@ -1,7 +1,8 @@
 import { CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
-import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw, Zap } from 'lucide-react';
+import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw } from 'lucide-react';
 import { Button, Dropdown, Modal, message } from 'antd';
 import { useState } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import { resolveAssetUrl } from '../../../../api/request';
 import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
@@ -339,7 +340,7 @@ function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
   const billedCreditCost = Math.ceil(creditCost);
   return (
     <span className="video-task-result-credit-cost" title={`消耗 ${billedCreditCost} 积分`}>
-      <Zap aria-hidden="true" fill="currentColor" size={12} />
+      <CreditIcon />
       {billedCreditCost}
     </span>
   );
@@ -364,6 +365,9 @@ function viewState(task: VideoGenerationTask) {
   const isVideoTranslation = task.expertContext?.mode === 'video_translation';
   const isDanceRemakePreparing = task.expertContext?.mode === 'dance_remake'
     && task.expertContext?.currentStep === 'dance_remake_preparing';
+  const isSubjectReplacePreparing = task.expertContext?.mode === 'subject_replace'
+    && task.expertContext?.currentStep === 'subject_replace_preparing';
+  const isPreparing = isDanceRemakePreparing || isSubjectReplacePreparing;
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
   const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
   const isOrphanPending = task.status !== 'generating'
@@ -382,7 +386,9 @@ function viewState(task: VideoGenerationTask) {
       coverUrl,
       previewVideo: {
         duration: parseDurationSeconds(result?.duration),
-        name: task.title,
+        name: task.expertContext?.mode === 'subject_replace'
+          ? formatMetric(result, task)
+          : task.title,
         task,
         taskId: task.id,
         videoUrl,
@@ -415,9 +421,9 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: isDanceRemakePreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
-    posterText: isDanceRemakePreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
-    note: isDanceRemakePreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
+    label: isPreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
+    posterText: isPreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
+    note: isPreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,
@@ -439,6 +445,23 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
   if (task?.expertContext?.mode === 'talking_video') {
     const metric = [result?.ratio, result?.duration].filter(Boolean).join(' · ');
     return metric ? `口播视频生成 · ${metric}` : '口播视频生成 · 等待参数';
+  }
+  if (task?.expertContext?.mode === 'subject_replace') {
+    const type = String(
+      task.expertContext.subjectReplaceType
+      || task.expertContext.subjectType
+      || 'model',
+    );
+    const typeLabel = {
+      model: '模特',
+      clothing: '服饰',
+      face: '人脸',
+      background: '背景',
+      product: '商品',
+    }[type] || '模特';
+    const quality = String(task.expertContext.quality || '标清 (720p)');
+    const qualityLabel = /480p/i.test(quality) ? '480P' : '720P';
+    return `模特 / 商品替换 · ${typeLabel} · ${qualityLabel}`;
   }
   if (task?.expertContext?.mode === 'video_upscale') {
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();

@@ -8,6 +8,7 @@ type WorkspaceSectionProps = Omit<HTMLAttributes<HTMLElement>, 'title'> & {
   headerLayout?: 'inline' | 'stacked';
   showHeader?: boolean;
   title: ReactNode;
+  topSlot?: ReactNode;
   variant?: 'card' | 'plain';
 };
 
@@ -19,6 +20,7 @@ export const WorkspaceSection = forwardRef<HTMLElement, WorkspaceSectionProps>(f
   headerLayout = 'inline',
   showHeader = true,
   title,
+  topSlot,
   variant = 'card',
   ...sectionProps
 }, ref) {
@@ -31,6 +33,7 @@ export const WorkspaceSection = forwardRef<HTMLElement, WorkspaceSectionProps>(f
 
   return (
     <section className={sectionClassName} ref={ref} {...sectionProps}>
+      {topSlot ? <div className="video-task-workspace-section-top-slot">{topSlot}</div> : null}
       {showHeader ? (
         <header className={`video-task-workspace-section-header is-${headerLayout}`}>
           <div className="video-task-workspace-section-copy">

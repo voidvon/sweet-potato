@@ -1,16 +1,26 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import {
-  Bot,
-  Clapperboard,
-  Folder,
-  FolderOpen,
-  ImagePlus,
-  Mic,
-  Package,
-  Sparkles,
-  Star,
-  Video,
-} from 'lucide-react';
+  AudioFilled,
+  AudioOutlined,
+  FolderFilled,
+  FolderOpenFilled,
+  FolderOpenOutlined,
+  FolderOutlined,
+  PictureFilled,
+  PictureOutlined,
+  PlaySquareFilled,
+  PlaySquareOutlined,
+  ProductFilled,
+  ProductOutlined,
+  RobotFilled,
+  RobotOutlined,
+  StarFilled,
+  StarOutlined,
+  ThunderboltFilled,
+  ThunderboltOutlined,
+  VideoCameraFilled,
+  VideoCameraOutlined,
+} from '@ant-design/icons';
 import {
   Navigate,
   type RouteObject,
@@ -60,6 +70,7 @@ type SidebarMenuMeta = {
   groupKey?: SidebarGroupKey;
   icon: ReactNode;
   label?: string;
+  selectedIcon?: ReactNode;
   tag?: 'HOT' | 'NEW';
 };
 
@@ -111,9 +122,9 @@ export type ContentNavigationRoute = {
 };
 
 export type WorkspaceRouteState = {
-  activeOpenKeys: SidebarGroupKey[];
+  activeOpenKeys: string[];
   currentMenuTitle: string;
-  defaultOpenKeys: SidebarGroupKey[];
+  defaultOpenKeys: string[];
   hideWorkspaceHeader?: boolean;
   isChatPage: boolean;
   isContentStudioPage: boolean;
@@ -123,6 +134,27 @@ export type WorkspaceRouteState = {
 };
 
 type SortableWorkspaceMenuItem = WorkspaceMenuItem & {
+  orderIndex: number;
+  sortOrder: number;
+};
+
+type SidebarNavigationChild = {
+  icon: ReactNode;
+  label: string;
+  orderIndex: number;
+  path: string;
+  selectedIcon?: ReactNode;
+  sortOrder: number;
+  tag?: SidebarMenuMeta['tag'];
+};
+
+type SidebarNavigationGroup = {
+  children: SidebarNavigationChild[];
+  icon: ReactNode;
+  key: string;
+  label: string;
+  orderIndex: number;
+  selectedIcon?: ReactNode;
   sortOrder: number;
 };
 
@@ -139,23 +171,21 @@ type UserGrantState = {
   resourceKeys: Set<string>;
 };
 
-const menuIconProps = {
-  size: 16,
-  strokeWidth: 1.8,
-} as const;
-
-const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string }> = {
+const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string; selectedIcon: ReactNode }> = {
   material: {
-    icon: <FolderOpen {...menuIconProps} />,
+    icon: <FolderOpenOutlined />,
     label: '素材库',
+    selectedIcon: <FolderOpenFilled />,
   },
   video: {
-    icon: <Video {...menuIconProps} />,
+    icon: <VideoCameraOutlined />,
     label: '视频生成',
+    selectedIcon: <VideoCameraFilled />,
   },
   creatorOps: {
-    icon: <Star {...menuIconProps} />,
+    icon: <StarOutlined />,
     label: '达人运营',
+    selectedIcon: <StarFilled />,
   },
 };
 
@@ -225,7 +255,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
-        icon: <Bot {...menuIconProps} />,
+        icon: <RobotOutlined />,
+        selectedIcon: <RobotFilled />,
       },
       contentNavigation: {
         code: 'virtual_portrait_assets',
@@ -248,7 +279,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
-        icon: <Mic {...menuIconProps} />,
+        icon: <AudioOutlined />,
+        selectedIcon: <AudioFilled />,
       },
       contentNavigation: {
         code: 'ai_voice',
@@ -271,7 +303,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
-        icon: <Clapperboard {...menuIconProps} />,
+        icon: <PlaySquareOutlined />,
+        selectedIcon: <PlaySquareFilled />,
       },
       contentNavigation: {
         code: 'scene_library',
@@ -294,7 +327,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
-        icon: <Package {...menuIconProps} />,
+        icon: <ProductOutlined />,
+        selectedIcon: <ProductFilled />,
       },
       contentNavigation: {
         code: 'product_assets',
@@ -327,7 +361,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '作品',
       surface: 'studio',
       sidebar: {
-        icon: <Folder {...menuIconProps} />,
+        icon: <FolderOutlined />,
+        selectedIcon: <FolderFilled />,
       },
       contentNavigation: {
         code: 'finished_assets',
@@ -350,8 +385,9 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
-        icon: <Sparkles {...menuIconProps} />,
+        icon: <ThunderboltOutlined />,
         label: '爆款复刻',
+        selectedIcon: <ThunderboltFilled />,
         tag: 'HOT',
       },
       contentNavigation: {
@@ -366,7 +402,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: (currentUser) => withImmersiveSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="create_video" />),
     routeResource: {
       permissionCode: 'web.module.content.create_video',
-      protected: false,
+      protected: true,
       resourceKey: 'web.module.content.create_video',
       resourceType: 'menu',
     },
@@ -376,8 +412,9 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
-        icon: <Video {...menuIconProps} />,
+        icon: <VideoCameraOutlined />,
         label: '视频创作',
+        selectedIcon: <VideoCameraFilled />,
       },
       contentNavigation: {
         code: 'create_video',
@@ -399,7 +436,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '星图达人',
       sidebar: {
         groupKey: 'creatorOps',
-        icon: <Star {...menuIconProps} />,
+        icon: <StarOutlined />,
+        selectedIcon: <StarFilled />,
       },
     },
     visible: () => isElectronEgg,
@@ -419,7 +457,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '精选联盟',
       sidebar: {
         groupKey: 'creatorOps',
-        icon: <Star {...menuIconProps} />,
+        icon: <StarOutlined />,
+        selectedIcon: <StarFilled />,
       },
     },
     visible: () => isElectronEgg,
@@ -439,7 +478,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '抖音达人',
       sidebar: {
         groupKey: 'creatorOps',
-        icon: <Star {...menuIconProps} />,
+        icon: <StarOutlined />,
+        selectedIcon: <StarFilled />,
       },
     },
     visible: () => isElectronEgg,
@@ -457,7 +497,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '达人收藏',
       sidebar: {
         groupKey: 'creatorOps',
-        icon: <Star {...menuIconProps} />,
+        icon: <StarOutlined />,
+        selectedIcon: <StarFilled />,
       },
     },
     visible: () => isElectronEgg,
@@ -477,7 +518,8 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       title: '微信',
       sidebar: {
         groupKey: 'creatorOps',
-        icon: <Star {...menuIconProps} />,
+        icon: <StarOutlined />,
+        selectedIcon: <StarFilled />,
       },
     },
     visible: () => isElectronEgg,
@@ -589,16 +631,68 @@ function resolveResourceName(route: WorkspacePageDefinition, resourceInfoMap?: M
   return resolveResourceInfo(route, resourceInfoMap)?.name;
 }
 
+function findResourceInfoById(resourceInfoMap: Map<string, RouteResourceDisplayInfo>, id: string) {
+  return Array.from(resourceInfoMap.values()).find((resource) => resource.id === id);
+}
+
+function resolveRouteSidebarGroup(
+  route: WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta } },
+  resourceInfoMap?: Map<string, RouteResourceDisplayInfo>,
+) {
+  const routeInfo = resolveResourceInfo(route, resourceInfoMap);
+  if (routeInfo) {
+    if (!routeInfo.parentId || !resourceInfoMap) {
+      return null;
+    }
+
+    const parentInfo = findResourceInfoById(resourceInfoMap, routeInfo.parentId);
+    if (!parentInfo) {
+      return null;
+    }
+
+    const staticGroupKey = (Object.entries(sidebarGroupResourceKeys) as Array<[SidebarGroupKey, string]>)
+      .find(([, resourceKey]) => resourceKey === parentInfo.resourceKey)?.[0];
+
+    return {
+      key: parentInfo.resourceKey,
+      icon: staticGroupKey ? sidebarGroupMeta[staticGroupKey].icon : <FolderOpenOutlined />,
+      label: parentInfo.name,
+      orderIndex: parentInfo.orderIndex,
+      selectedIcon: staticGroupKey ? sidebarGroupMeta[staticGroupKey].selectedIcon : <FolderOpenFilled />,
+      sortOrder: parentInfo.sortOrder,
+    };
+  }
+
+  const staticGroupKey = route.handle.sidebar.groupKey;
+  if (!staticGroupKey) {
+    return null;
+  }
+
+  return {
+    key: staticGroupKey,
+    icon: sidebarGroupMeta[staticGroupKey].icon,
+    label: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.name || sidebarGroupMeta[staticGroupKey].label,
+    orderIndex: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.orderIndex ?? Number.MAX_SAFE_INTEGER,
+    selectedIcon: sidebarGroupMeta[staticGroupKey].selectedIcon,
+    sortOrder: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.sortOrder,
+  };
+}
+
+function getRouteOrderIndex(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return resolveResourceInfo(route, resourceInfoMap)?.orderIndex ?? Number.MAX_SAFE_INTEGER;
+}
+
 function getRouteSortOrder(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
-  if (route.handle?.sidebar?.groupKey === 'creatorOps') {
-    return workspacePageDefinitions.indexOf(route);
+  const resourceSortOrder = resolveResourceInfo(route, resourceInfoMap)?.sortOrder;
+  if (resourceSortOrder !== undefined) {
+    return resourceSortOrder;
   }
 
   if (route.handle?.sidebar && !route.handle.sidebar.groupKey) {
-    return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 1000 + workspacePageDefinitions.indexOf(route);
+    return 1000 + workspacePageDefinitions.indexOf(route);
   }
 
-  return resolveResourceInfo(route, resourceInfoMap)?.sortOrder ?? 0;
+  return 0;
 }
 
 function compareByResourceSort(left: WorkspacePageDefinition, right: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
@@ -609,15 +703,13 @@ function compareByResourceSort(left: WorkspacePageDefinition, right: WorkspacePa
     return leftSortOrder - rightSortOrder;
   }
 
-  return workspacePageDefinitions.indexOf(left) - workspacePageDefinitions.indexOf(right);
-}
-
-function getGroupSortOrder(groupKey: SidebarGroupKey, children: Array<{ sortOrder: number }>, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
-  const resourceSortOrder = resourceInfoMap?.get(sidebarGroupResourceKeys[groupKey])?.sortOrder;
-  if (resourceSortOrder !== undefined) {
-    return resourceSortOrder;
+  const leftOrderIndex = getRouteOrderIndex(left, resourceInfoMap);
+  const rightOrderIndex = getRouteOrderIndex(right, resourceInfoMap);
+  if (leftOrderIndex !== rightOrderIndex) {
+    return leftOrderIndex - rightOrderIndex;
   }
-  return children.length > 0 ? Math.min(...children.map((item) => item.sortOrder)) : 0;
+
+  return workspacePageDefinitions.indexOf(left) - workspacePageDefinitions.indexOf(right);
 }
 
 function getFirstPermittedBusinessRoute(currentUser: User) {
@@ -781,45 +873,51 @@ export function getContentNavigationRoutes(currentUser: User): ContentNavigation
 
 function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   const sidebarRoutes = getVisibleWorkspacePages(currentUser)
-    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar?.groupKey));
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
+  const groups = new Map<string, SidebarNavigationGroup>();
 
-  return Object.entries(sidebarGroupMeta)
-    .map(([groupKey, group]) => {
-      const typedGroupKey = groupKey as SidebarGroupKey;
-      const children = sidebarRoutes
-        .filter((route) => route.handle.sidebar.groupKey === typedGroupKey)
-        .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
-        .map((route) => ({
-          key: route.fullPath,
-          icon: route.handle.sidebar.icon,
-          label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
-          path: route.fullPath,
-          sortOrder: getRouteSortOrder(route, resourceInfoMap),
-          tag: route.handle.sidebar.tag,
-        }));
+  sidebarRoutes.forEach((route) => {
+    const group = resolveRouteSidebarGroup(route, resourceInfoMap);
+    if (!group) {
+      return;
+    }
+    const existingGroup: SidebarNavigationGroup = groups.get(group.key) || {
+      ...group,
+      children: [],
+      orderIndex: group.orderIndex,
+      sortOrder: group.sortOrder ?? Number.MAX_SAFE_INTEGER,
+    };
+    existingGroup.children.push({
+      icon: route.handle.sidebar.icon,
+      label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      orderIndex: getRouteOrderIndex(route, resourceInfoMap),
+      path: route.fullPath,
+      selectedIcon: route.handle.sidebar.selectedIcon,
+      sortOrder: getRouteSortOrder(route, resourceInfoMap),
+      tag: route.handle.sidebar.tag,
+    });
+    groups.set(group.key, existingGroup);
+  });
 
-      return {
-        key: typedGroupKey,
-        icon: group.icon,
-        label: resourceInfoMap?.get(sidebarGroupResourceKeys[typedGroupKey])?.name || group.label,
-        sortOrder: getGroupSortOrder(typedGroupKey, children, resourceInfoMap),
-        children,
-      };
-    })
-    .filter((group) => group.children.length > 0)
-    .sort((left, right) => left.sortOrder - right.sortOrder);
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      children: group.children.sort((left, right) => left.sortOrder - right.sortOrder || left.orderIndex - right.orderIndex),
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.orderIndex - right.orderIndex);
 }
 
 function buildTopLevelSidebarRoutes(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   return getVisibleWorkspacePages(currentUser)
-    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => (
-      Boolean(route.handle?.sidebar) && !route.handle?.sidebar?.groupKey
-    ))
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar))
+    .filter((route) => resolveRouteSidebarGroup(route, resourceInfoMap) === null)
     .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
     .map((route) => ({
       key: route.fullPath,
       icon: route.handle.sidebar.icon,
       label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      orderIndex: getRouteOrderIndex(route, resourceInfoMap),
+      selectedIcon: route.handle.sidebar.selectedIcon,
       sortOrder: getRouteSortOrder(route, resourceInfoMap),
     }));
 }
@@ -831,8 +929,10 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
   if (hasRouteGrant(currentUser, chatRouteGrant)) {
     sidebarItems.push({
       key: routePaths.defaultModule,
-      icon: <ImagePlus {...menuIconProps} />,
+      icon: <PictureOutlined />,
       label: resourceInfoMap?.get('web.module.chat')?.name || '图片创作',
+      orderIndex: resourceInfoMap?.get('web.module.chat')?.orderIndex ?? Number.MAX_SAFE_INTEGER,
+      selectedIcon: <PictureFilled />,
       sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
     });
   }
@@ -843,6 +943,7 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
       key: group.key,
       icon: group.icon,
       label: group.label,
+      selectedIcon: group.selectedIcon,
       children: group.children.map((item) => ({
         key: item.path,
         icon: item.icon,
@@ -852,13 +953,15 @@ export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<s
             <span className={`route-tag route-tag-${item.tag.toLowerCase()}`}>{item.tag}</span>
           </span>
         ) : item.label,
+        selectedIcon: item.selectedIcon,
       })),
+      orderIndex: group.orderIndex,
       sortOrder: group.sortOrder,
     })));
 
   return sidebarItems
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .map(({ sortOrder: _sortOrder, ...item }) => item);
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.orderIndex - right.orderIndex)
+    .map(({ orderIndex: _orderIndex, sortOrder: _sortOrder, ...item }) => item);
 }
 
 export function getWorkspaceLayoutState(currentUser: User, pathname: string, matches: UIMatch[], resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceRouteState {
@@ -872,7 +975,10 @@ export function getWorkspaceLayoutState(currentUser: User, pathname: string, mat
     .find((handle) => handle);
   const selectedGroup = groups.find((group) => group.children.some((item) => item.path === pathname))?.key;
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
-  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined) || resolveRouteTitle(matchedHandle?.title, pathname) || '工作台';
+  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined)
+    || matchedHandle?.sidebar?.label
+    || resolveRouteTitle(matchedHandle?.title, pathname)
+    || '工作台';
   const selectedMenuKey = pathname === routePaths.defaultModule
     ? chatMenuKey
     : topLevelRoutes.find((item) => item.key === pathname)?.key

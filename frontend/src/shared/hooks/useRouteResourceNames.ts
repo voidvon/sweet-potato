@@ -3,7 +3,9 @@ import { getPublicRouteResourceTree } from '../api/route-resource';
 import type { ManagedRouteResource, RouteResourcePlatform } from '../types';
 
 export type RouteResourceDisplayInfo = {
+  id: string;
   name: string;
+  orderIndex: number;
   parentId: string | null;
   resourceKey: string;
   sortOrder: number;
@@ -56,8 +58,10 @@ export function useRouteResourceInfoMap(platform: RouteResourcePlatform) {
     return new Map(
       flattenResources(resources)
         .filter((resource) => resource.resourceKey && resource.name)
-        .map((resource) => [resource.resourceKey, {
+        .map((resource, orderIndex) => [resource.resourceKey, {
+          id: resource.id,
           name: resource.name,
+          orderIndex,
           parentId: resource.parentId || null,
           resourceKey: resource.resourceKey,
           sortOrder: Number(resource.sortOrder || 0),

@@ -62,6 +62,7 @@ export type TalkingVideoPromptTask = {
   referenceImages: LocalMaterialFile[];
   createdAt: string;
 };
+export type SubjectReplaceType = 'model' | 'clothing' | 'face' | 'background' | 'product';
 
 export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
 
@@ -124,6 +125,7 @@ export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
   | { id: string; type: 'talking-video-form' }
   | { id: string; type: 'dance-remake-form' }
+  | { id: string; type: 'subject-replace-form' }
   | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
   | { id: string; type: 'marketing-video-form' }
@@ -142,7 +144,7 @@ export type ToolOption = {
   workspace: {
     blocks: WorkspaceBlock[];
     generate: {
-      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'dance-remake' | 'pending';
+      handler: 'video-generation' | 'video-upscale' | 'subtitle-removal' | 'video-translation' | 'dance-remake' | 'subject-replace' | 'pending';
     };
   };
 };

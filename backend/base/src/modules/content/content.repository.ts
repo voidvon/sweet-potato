@@ -231,7 +231,7 @@ function videoTaskCreditCost(row: VideoTaskRow, expertContext: Record<string, un
   }
   const mode = String(expertContext.mode || '').trim();
   const isCompletedProduction = row.status === 'success'
-    && (!mode || ['video_create', 'talking_video', 'video_generation', 'video_upscale', 'subtitle_removal', 'video_translation'].includes(mode));
+    && (!mode || ['video_create', 'talking_video', 'video_generation', 'subject_replace', 'video_upscale', 'subtitle_removal', 'video_translation'].includes(mode));
   if (!isCompletedProduction) {
     return null;
   }
@@ -670,6 +670,24 @@ export const contentRepository = {
     return remove();
   },
 
+  deleteTemporaryAsset(id: string) {
+    const remove = db.transaction(() => {
+      const row = db.prepare(`
+        SELECT * FROM content_assets
+        WHERE id = @id
+          AND lifecycle_status = 'temporary'
+          AND expires_at IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM content_asset_references r WHERE r.asset_id = content_assets.id
+          )
+      `).get({ id }) as AssetRow | undefined;
+      if (!row) return null;
+      db.prepare('DELETE FROM content_assets WHERE id = ?').run(id);
+      return serializeAsset(row);
+    });
+    return remove();
+  },
+
   retainAssetsForReference(input: {
     assetIds: string[];
     userId: string;
@@ -791,6 +809,44 @@ export const contentRepository = {
       createdAt: row.created_at,
     }));
     return { items, page, pageSize, total: totalRow.total };
+  },
+
+  listDatabaseManagedFilePaths() {
+    const rows = db.prepare(`
+      SELECT file_path FROM content_assets WHERE file_path <> ''
+      UNION
+      SELECT file_path FROM skill_files WHERE file_path <> ''
+      UNION
+      SELECT file_path FROM video_remake_final_segments WHERE file_path IS NOT NULL AND file_path <> ''
+    `).all() as Array<{ file_path: string }>;
+    return rows.map((row) => row.file_path);
+  },
+
+  listDatabaseFileReferenceValues() {
+    const rows = db.prepare(`
+      SELECT metadata AS value FROM content_assets
+      UNION ALL SELECT file_url FROM content_assets
+      UNION ALL SELECT file_url FROM skill_files
+      UNION ALL SELECT source_url FROM video_generation_tasks
+      UNION ALL SELECT raw_parse_result FROM video_generation_tasks
+      UNION ALL SELECT editable_parse_result FROM video_generation_tasks
+      UNION ALL SELECT expert_context FROM video_generation_tasks
+      UNION ALL SELECT generated_video_url FROM video_generation_tasks
+      UNION ALL SELECT invalid_artifacts FROM video_remake_sessions
+      UNION ALL SELECT artifacts FROM video_remake_sessions
+      UNION ALL SELECT workflow_state FROM video_remake_sessions
+      UNION ALL SELECT data FROM video_remake_cards
+      UNION ALL SELECT video_url FROM video_remake_final_segments
+      UNION ALL SELECT data FROM video_remake_final_segments
+      UNION ALL SELECT attachments FROM chat_messages
+      UNION ALL SELECT actions FROM chat_messages
+      UNION ALL SELECT capability_context FROM chat_messages
+      UNION ALL SELECT payload FROM generation_jobs
+      UNION ALL SELECT result FROM generation_jobs
+      UNION ALL SELECT input FROM generation_job_items
+      UNION ALL SELECT image_url FROM marketing_video_storyboards
+    `).all() as Array<{ value: string | null }>;
+    return rows.map((row) => row.value).filter((value): value is string => typeof value === 'string' && Boolean(value));
   },
 
   recordTemporaryAssetCleanup(asset: ContentAsset, triggerType: 'scheduled' | 'manual') {

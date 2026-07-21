@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TosClient } from '@volcengine/tos-sdk';
 import dayjs from 'dayjs';
@@ -63,6 +63,7 @@ import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRe
 import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
 import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
+import { toVideoProductionView } from './internals/content-video-production-view.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
 
 dayjs.extend(customParseFormat);
@@ -99,6 +100,86 @@ function localAssetFilePaths(asset: ContentAsset) {
     }
   }
   return [...paths];
+}
+
+async function listContentDirectoryFiles(directoryPath: string): Promise<Array<{
+  filePath: string;
+  modifiedAt: string;
+  size: number;
+}>> {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  const files: Array<{ filePath: string; modifiedAt: string; size: number }> = [];
+  for (const entry of entries) {
+    const filePath = path.join(directoryPath, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      if (path.resolve(filePath) === path.resolve(contentFilesDir, 'thumbnails')) continue;
+      files.push(...await listContentDirectoryFiles(filePath).catch(() => []));
+      continue;
+    }
+    if (!entry.isFile() || entry.name === '.DS_Store' || entry.name.endsWith('.log')) continue;
+    const fileStat = await stat(filePath).catch(() => null);
+    if (fileStat) {
+      files.push({ filePath, modifiedAt: fileStat.mtime.toISOString(), size: fileStat.size });
+    }
+  }
+  return files;
+}
+
+function databaseManagedContentFilePaths() {
+  const databaseFilePaths = new Set(
+    contentRepository.listDatabaseManagedFilePaths().map((filePath) => path.resolve(filePath)),
+  );
+  for (const asset of contentRepository.listAssets({})) {
+    for (const filePath of localAssetFilePaths(asset)) {
+      databaseFilePaths.add(path.resolve(filePath));
+    }
+  }
+  const collectFileReferences = (value: unknown) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      const localPath = resolveLocalContentFilePathFromUrl(trimmed);
+      if (localPath) {
+        databaseFilePaths.add(path.resolve(localPath));
+        return;
+      }
+      if (path.isAbsolute(trimmed) && path.resolve(trimmed).startsWith(`${path.resolve(contentFilesDir)}${path.sep}`)) {
+        databaseFilePaths.add(path.resolve(trimmed));
+        return;
+      }
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          collectFileReferences(JSON.parse(trimmed));
+        } catch {
+          // Ignore malformed historical JSON values during the safety scan.
+        }
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(collectFileReferences);
+      return;
+    }
+    if (isRecord(value)) {
+      Object.values(value).forEach(collectFileReferences);
+    }
+  };
+  contentRepository.listDatabaseFileReferenceValues().forEach(collectFileReferences);
+  return databaseFilePaths;
+}
+
+function contentFilePathFromRelativePath(relativePath: string) {
+  const normalizedRelativePath = relativePath.trim().split('/').filter(Boolean).join(path.sep);
+  const filePath = path.resolve(contentFilesDir, normalizedRelativePath);
+  const contentRoot = `${path.resolve(contentFilesDir)}${path.sep}`;
+  if (!normalizedRelativePath || !filePath.startsWith(contentRoot)) {
+    throw new Error('孤立文件路径无效');
+  }
+  const relativeParts = path.relative(contentFilesDir, filePath).split(path.sep);
+  if (relativeParts[0] === 'thumbnails' || path.basename(filePath) === '.DS_Store' || filePath.endsWith('.log')) {
+    throw new Error('当前文件不在孤立文件检查范围内');
+  }
+  return filePath;
 }
 
 function finishedAssetInputIds(asset: ContentAsset) {
@@ -1856,7 +1937,7 @@ export const contentService = {
     assertUserId(userId);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'talking_video', 'dance_remake', 'video_upscale', 'subtitle_removal', 'video_translation'],
+        modes: ['video_create', 'talking_video', 'dance_remake', 'subject_replace', 'video_upscale', 'subtitle_removal', 'video_translation'],
         createdAtFrom: normalizeVideoProductionBoundary(filters.createdAtFrom),
         createdAtTo: normalizeVideoProductionBoundary(filters.createdAtTo),
         aspectRatio: String(filters.ratio || '').trim() === '全部比例'
@@ -1873,7 +1954,7 @@ export const contentService = {
             ? await refreshSubtitleRemovalTask(task)
             : task.expertContext?.mode === 'video_translation'
               ? await refreshVideoTranslationTask(task)
-            : await refreshVideoTaskGenerationStatus(task);
+              : await refreshVideoTaskGenerationStatus(task);
         if (nextTask && nextTask.status !== 'generating' && nextTask.expertContext?.temporaryCharacterReferenceGroupId) {
           await cleanupTemporaryCharacterReferenceGroup({
             groupId: String(nextTask.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -1896,9 +1977,10 @@ export const contentService = {
       refreshed.filter((task): task is NonNullable<typeof task> => Boolean(task)),
       { status: filters.status },
     );
+    const views = filtered.map(toVideoProductionView);
     const requestedPage = Number(filters.page);
     if (!Number.isFinite(requestedPage) || requestedPage < 1) {
-      return filtered;
+      return views;
     }
     const page = Math.max(1, Math.floor(requestedPage));
     const requestedPageSize = Number(filters.pageSize);
@@ -1907,10 +1989,10 @@ export const contentService = {
       : 20;
     const offset = (page - 1) * pageSize;
     return {
-      items: filtered.slice(offset, offset + pageSize),
+      items: views.slice(offset, offset + pageSize),
       page,
       pageSize,
-      total: filtered.length,
+      total: views.length,
     };
   },
 
@@ -2406,7 +2488,7 @@ export const contentService = {
           ? await refreshSubtitleRemovalTask(task)
           : task.expertContext?.mode === 'video_translation'
             ? await refreshVideoTranslationTask(task)
-          : await refreshVideoTaskGenerationStatus(task);
+            : await refreshVideoTaskGenerationStatus(task);
       if (refreshed && refreshed.status !== 'generating' && refreshed.expertContext?.temporaryCharacterReferenceGroupId && userId) {
         await cleanupTemporaryCharacterReferenceGroup({
           groupId: String(refreshed.expertContext.temporaryCharacterReferenceGroupId || '').trim(),
@@ -2426,17 +2508,25 @@ export const contentService = {
 
   resumeRunningVideoGenerations() {
     contentRepository.listGeneratingVideoTasks()
-      .filter((task) => task.expertContext?.mode === 'dance_remake'
-        && task.expertContext?.currentStep === 'dance_remake_preparing')
+      .filter((task) => (
+        task.expertContext?.mode === 'dance_remake'
+        && task.expertContext?.currentStep === 'dance_remake_preparing'
+      ) || (
+          task.expertContext?.mode === 'subject_replace'
+          && task.expertContext?.currentStep === 'subject_replace_preparing'
+        ))
       .forEach((task) => {
         const reservationId = String(task.expertContext?.videoBillingReservationId || '').trim();
         if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+        const isSubjectReplace = task.expertContext?.mode === 'subject_replace';
         contentRepository.updateVideoTaskContext(task.id, {
           selectedSkillIds: task.selectedSkillIds,
           expertContext: {
             ...task.expertContext,
-            currentStep: 'dance_remake_preparation_failed',
-            danceRemakePreparationStatus: 'failed',
+            currentStep: isSubjectReplace
+              ? 'subject_replace_preparation_failed'
+              : 'dance_remake_preparation_failed',
+            ...(isSubjectReplace ? {} : { danceRemakePreparationStatus: 'failed' }),
             requiredUserAction: 'resubmit',
             updatedAt: new Date().toISOString(),
           },
@@ -2617,6 +2707,67 @@ export const contentService = {
 
   listTemporaryAssetCleanupLogs() {
     return contentRepository.listTemporaryAssetCleanupLogs();
+  },
+
+  async deleteTemporaryAssets(assetIds: string[]) {
+    const normalizedAssetIds = Array.from(new Set(assetIds.map((id) => id.trim()).filter(Boolean)));
+    if (!normalizedAssetIds.length) {
+      throw new Error('请选择要删除的临时素材');
+    }
+    if (normalizedAssetIds.length > 100) {
+      throw new Error('单次最多删除 100 条临时素材');
+    }
+    let deleted = 0;
+    for (const assetId of normalizedAssetIds) {
+      const asset = contentRepository.deleteTemporaryAsset(assetId);
+      if (!asset) continue;
+      await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
+      contentRepository.recordTemporaryAssetCleanup(asset, 'manual');
+      deleted += 1;
+    }
+    return { deleted };
+  },
+
+  async inspectOrphanContentFiles() {
+    const databaseFilePaths = databaseManagedContentFilePaths();
+    const scannedFiles = await listContentDirectoryFiles(contentFilesDir);
+    const orphanFiles = scannedFiles
+      .filter((file) => !databaseFilePaths.has(path.resolve(file.filePath)))
+      .map((file) => ({
+        relativePath: path.relative(contentFilesDir, file.filePath).split(path.sep).join('/'),
+        size: file.size,
+        modifiedAt: file.modifiedAt,
+      }))
+      .sort((left, right) => right.size - left.size);
+    const resultLimit = 500;
+    return {
+      scannedFiles: scannedFiles.length,
+      orphanFiles: orphanFiles.length,
+      orphanBytes: orphanFiles.reduce((total, file) => total + file.size, 0),
+      items: orphanFiles.slice(0, resultLimit),
+      truncated: orphanFiles.length > resultLimit,
+    };
+  },
+
+  async deleteOrphanContentFiles(relativePaths: string[]) {
+    const normalizedRelativePaths = Array.from(new Set(relativePaths.map((item) => item.trim()).filter(Boolean)));
+    if (!normalizedRelativePaths.length) {
+      throw new Error('请选择要删除的孤立文件');
+    }
+    if (normalizedRelativePaths.length > 500) {
+      throw new Error('单次最多删除 500 个孤立文件');
+    }
+    const databaseFilePaths = databaseManagedContentFilePaths();
+    let deleted = 0;
+    for (const relativePath of normalizedRelativePaths) {
+      const filePath = contentFilePathFromRelativePath(relativePath);
+      if (databaseFilePaths.has(filePath)) continue;
+      const fileStat = await lstat(filePath).catch(() => null);
+      if (!fileStat || !fileStat.isFile() || fileStat.isSymbolicLink()) continue;
+      await rm(filePath, { force: true });
+      deleted += 1;
+    }
+    return { deleted };
   },
 
   async cleanupExpiredTemporaryAssets(triggerType: 'scheduled' | 'manual' = 'scheduled') {
@@ -2874,7 +3025,9 @@ export const contentService = {
         ? `跳舞复刻 ${duration}`
         : taskMode === 'talking_video'
           ? `口播视频生成 ${ratio} ${duration}`
-          : `视频制作 ${ratio} ${duration}`;
+          : taskMode === 'subject_replace'
+            ? `主体替换 ${duration}`
+            : `视频制作 ${ratio} ${duration}`;
       const expertContext = {
         mode: taskMode,
         traceId,
@@ -2891,18 +3044,24 @@ export const contentService = {
         referenceVideoIds: payload.referenceVideoIds || [],
         referenceAudioIds: payload.referenceAudioIds || [],
         characterReferenceImageIds,
+        subjectReplaceType: String(payload.subjectReplaceType || ''),
+        subjectReplaceRemoteVideo: payload.subjectReplaceRemoteVideo || null,
         generateAudio: payload.generateAudio !== false,
         skipVideoBilling: payload.skipVideoBilling === true,
         videoBillingReservationId: String(payload.videoBillingReservationId || ''),
         userPrompt,
       };
       const precreatedTask = precreatedTaskId ? this.getVideoTask(precreatedTaskId, payload.userId) : null;
-      if (precreatedTask && (
-        payload.taskMode !== 'dance_remake'
-        || precreatedTask.expertContext?.mode !== 'dance_remake'
-        || precreatedTask.expertContext?.currentStep !== 'dance_remake_preparing'
-      )) {
-        throw new Error('跳舞复刻准备任务状态无效');
+      const hasValidPrecreatedTask = !precreatedTask || (
+        payload.taskMode === 'dance_remake'
+          ? precreatedTask.expertContext?.mode === 'dance_remake'
+          && precreatedTask.expertContext?.currentStep === 'dance_remake_preparing'
+          : payload.taskMode === 'subject_replace'
+          && precreatedTask.expertContext?.mode === 'subject_replace'
+          && precreatedTask.expertContext?.currentStep === 'subject_replace_preparing'
+      );
+      if (!hasValidPrecreatedTask) {
+        throw new Error('视频准备任务状态无效');
       }
       const retryTask = retryTaskId ? this.getVideoTask(retryTaskId, payload.userId) : null;
       const shouldReuseRetryTask = retryTask?.status === 'failed';
@@ -2920,24 +3079,24 @@ export const contentService = {
           aspectRatio: ratio,
         })
         : shouldReuseRetryTask
-        ? contentRepository.resetVideoTaskFromPrompt(retryTask.id, {
-          userId: payload.userId,
-          prompt,
-          selectedSkillIds: retryTask.selectedSkillIds,
-          title,
-          parseResult,
-          expertContext: nextExpertContext,
-          aspectRatio: ratio,
-        })
-        : contentRepository.createVideoTaskFromPrompt({
-          userId: payload.userId,
-          prompt,
-          selectedSkillIds: [],
-          title,
-          parseResult,
-          expertContext: nextExpertContext,
-          aspectRatio: ratio,
-        });
+          ? contentRepository.resetVideoTaskFromPrompt(retryTask.id, {
+            userId: payload.userId,
+            prompt,
+            selectedSkillIds: retryTask.selectedSkillIds,
+            title,
+            parseResult,
+            expertContext: nextExpertContext,
+            aspectRatio: ratio,
+          })
+          : contentRepository.createVideoTaskFromPrompt({
+            userId: payload.userId,
+            prompt,
+            selectedSkillIds: [],
+            title,
+            parseResult,
+            expertContext: nextExpertContext,
+            aspectRatio: ratio,
+          });
       if (!task) {
         throw new Error('视频制作任务创建失败');
       }

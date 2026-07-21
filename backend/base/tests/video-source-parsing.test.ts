@@ -15,10 +15,12 @@ import { createVideoPreviewToken, verifyVideoPreviewToken } from '../src/modules
 import { extractFirstHttpUrl } from '../src/modules/video-source/video-source.service.js';
 import type { ResolvedVideoSource } from '../src/modules/video-source/video-source.types.js';
 import {
+  billedReferenceVideoDurationSeconds,
   normalizeDanceTrimRange,
   resolveDanceRemakeGenerationOptions,
   resolveDanceRemakePrice,
 } from '../src/modules/video-source/dance-remake.service.js';
+import { subjectReplacePrompt } from '../src/modules/video-source/subject-replace.service.js';
 import { shouldUseImplicitUploadGroup } from '../src/modules/content/content.service.js';
 import { seedanceReferenceVideoMetadataSourceUrl } from '../src/modules/content/internals/content-video-generation.js';
 
@@ -237,6 +239,31 @@ test('dance remake price uses the effective model, resolution, and duration', ()
     creditsPerSecond: 18,
     resolution: '720p',
   });
+});
+
+test('reference video billing duration always rounds partial seconds up', () => {
+  assert.equal(billedReferenceVideoDurationSeconds(9), 9);
+  assert.equal(billedReferenceVideoDurationSeconds(9.01), 10);
+  assert.equal(billedReferenceVideoDurationSeconds(9.99), 10);
+  assert.equal(billedReferenceVideoDurationSeconds(3.2), 4);
+  assert.equal(billedReferenceVideoDurationSeconds(15), 15);
+});
+
+test('subject replacement prompts bind the selected image roles and source video', () => {
+  const modelPrompt = subjectReplacePrompt('model', 1, true);
+  assert.match(modelPrompt, /图片1中的人物是唯一的人物身份和外观来源/);
+  assert.match(modelPrompt, /人脸、五官、发型、发色、服装、配饰、体型/);
+  assert.match(modelPrompt, /不得保留或混合视频1原模特/);
+  assert.match(modelPrompt, /视频1只用于参考动作、身体姿态、表情变化、镜头运动、构图和节奏/);
+  assert.match(modelPrompt, /保留并参考原视频中的音乐和节奏/);
+  assert.match(subjectReplacePrompt('clothing', 2, false), /图片1的服饰正面和图片2的服饰反面/);
+  assert.match(subjectReplacePrompt('clothing', 2, false), /不生成声音/);
+  const backgroundPrompt = subjectReplacePrompt('background', 1, true);
+  assert.match(backgroundPrompt, /图片1仅用于提供背景环境/);
+  assert.match(backgroundPrompt, /完全忽略图片1中出现的任何人物、人脸、人体、服饰和动作/);
+  assert.match(backgroundPrompt, /视频1中的前景人物是唯一的人物身份来源/);
+  assert.match(backgroundPrompt, /严禁换人、换脸/);
+  assert.match(subjectReplacePrompt('product', 1, true), /商品替换视频1中的商品主体/);
 });
 
 test('remote temporary reference videos use the implicit upload group', () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
+import { formatCreditAmount } from '@shared/utils/credits';
 import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
@@ -13,7 +14,7 @@ import {
   streamTalkingVideoPrompt,
   type TalkingVideoPromptEvent,
 } from '../../../api/talking-video';
-import { createDanceRemake, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
+import { createDanceRemake, createSubjectReplace, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
 import { voiceSampleAssetsFromGroups } from '../assets/voiceAssetFilters';
 import {
@@ -158,13 +159,17 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const [talkingVideoGenerateModalOpen, setTalkingVideoGenerateModalOpen] = useState(false);
   const [isTalkingVideoSubmitting, setIsTalkingVideoSubmitting] = useState(false);
   const [retryingTalkingVideoTaskId, setRetryingTalkingVideoTaskId] = useState('');
-  const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>('enhanced');
+  const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>(
+    initialTool.key === 'dance-remake' ? 'standard' : 'enhanced',
+  );
+  const [subjectReplaceType, setSubjectReplaceType] = useState<SubjectReplaceType>('model');
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(initialTool);
   const [showToolMenu, setShowToolMenu] = useState(false);
   const [materialMode, setMaterialMode] = useState<MaterialMode>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterials>({});
   const [talkingVideoGenerationMaterials, setTalkingVideoGenerationMaterials] = useState<SelectedMaterials>({});
+  const [modelPickerMaterial, setModelPickerMaterial] = useState<MaterialKind | null>(null);
   const [activeUpload, setActiveUpload] = useState<MaterialKind | null>(null);
   const [uploadAnchor, setUploadAnchor] = useState<UploadAnchor | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -447,6 +452,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const canGenerate = useMemo(
     () => (
       tool.materials.every((material) => getSelectedMaterialCount(material, selectedMaterials[material.key]) >= (material.minCount ?? 0))
+      && (tool.key !== 'subject-replace'
+        || (getLocalFiles(selectedMaterials.image).length > 0
+          && getLocalFiles(selectedMaterials.video).length > 0))
       && (prompt.trim().length > 0 || Object.keys(selectedMaterials).length > 0)
       && !hasVideoRequiringTrim(selectedMaterials)
       && (tool.key !== 'marketing-video'
@@ -466,7 +474,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     [marketingVideoConfig, prompt, selectedMaterials, subtitleRemovalConfig, tool.key, tool.materials, tool.workspace.generate.handler, videoTranslationConfig],
   );
   const hasSelectedAudio = Boolean(selectedMaterials.audio);
-  const selectedVideoDuration = getLocalFiles(selectedMaterials.video)[0]?.trimDuration;
+  const selectedVideoFile = getLocalFiles(selectedMaterials.video)[0];
+  const selectedVideoDuration = selectedVideoFile?.trimDuration ?? selectedVideoFile?.mediaDuration;
 
   const videoPriceLabel = useMemo(() => {
     const billing = siteConfig?.billing;
@@ -479,12 +488,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (tool.key === 'marketing-video') {
       return formatCreditAmount(billing.marketingVideoCreditsPerRequest);
     }
-    if (tool.workspace.generate.handler === 'dance-remake') {
+    if (tool.workspace.generate.handler === 'dance-remake' || tool.workspace.generate.handler === 'subject-replace') {
       if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
         return '';
       }
-      const durationSeconds = Math.max(4, Math.min(15, Math.round(selectedVideoDuration)));
-      const isStandard = danceRemakeMode === 'standard';
+      const durationSeconds = Math.max(4, Math.min(15, Math.ceil(selectedVideoDuration)));
+      const isStandard = tool.workspace.generate.handler === 'dance-remake' && danceRemakeMode === 'standard';
       const effectiveModel = isStandard ? 'Seedance 2.0 Mini' : model;
       const is480p = isStandard || quality === '480P';
       const creditsPerSecond = effectiveModel === 'Seedance 2.0 Fast'
@@ -578,7 +587,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       revokeTalkingVideoGenerationOwnedMaterials(current);
       return {};
     });
-    setDanceRemakeMode('enhanced');
+    setDanceRemakeMode(option.key === 'dance-remake' ? 'standard' : 'enhanced');
+    setSubjectReplaceType('model');
     setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
     setQuality(option.key === 'dance-remake' ? '480P' : '720P');
   }, []);
@@ -595,7 +605,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setFilterOpen(false);
   };
 
-  const openModelPicker = () => {
+  const openModelPicker = (kind?: MaterialKind) => {
+    setModelPickerMaterial(kind ?? null);
     setShowModelPicker(true);
     setMaterialMode(null);
     setActiveUpload(null);
@@ -1044,11 +1055,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   };
 
   const chooseModelAsset = (asset: ContentAsset) => {
-    const imageMaterial = tool.materials.find((item) => item.key === 'image');
+    const imageMaterial = modelPickerMaterial ?? tool.materials.find((item) => item.key === 'image');
     if (!imageMaterial) return;
 
     chooseLibraryAsset(imageMaterial, asset);
     setSelectedModelAvatar(asset.id);
+    setModelPickerMaterial(null);
     setShowModelPicker(false);
   };
 
@@ -1084,7 +1096,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setModel('Seedance 2.0 Mini');
       setQuality('480P');
       setActiveParam(null);
+      return;
     }
+    setModel('Seedance 2.0');
+    setQuality('720P');
   };
 
   const fillExamplePrompt = () => {
@@ -1113,7 +1128,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, []);
 
   const editVideoProduction = useCallback(async (task: VideoGenerationTask) => {
-    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    let detailTask: VideoGenerationTask;
+    try {
+      detailTask = await getVideoTask(task.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     const mode = stringFromRecord(context, 'mode');
     if (mode && mode !== 'video_create' && mode !== 'video_generation') {
       message.warning('暂时只支持编辑“视频”类型的生成记录');
@@ -1164,7 +1186,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         };
       });
       setTool(toolOptions[0]);
-      setPrompt(stringFromRecord(context, 'userPrompt', task.prompt || ''));
+      setPrompt(stringFromRecord(context, 'userPrompt', detailTask.prompt || ''));
       setModel(modelLabelFromId(stringFromRecord(context, 'videoModelId')));
       setRatio(stringFromRecord(context, 'ratio', '9:16'));
       setQuality(qualityLabelFromContext(stringFromRecord(context, 'quality')));
@@ -1229,6 +1251,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return {};
     });
     setDanceRemakeMode('enhanced');
+    setSubjectReplaceType('model');
   }, []);
 
   const updateTalkingVideoTask = useCallback((taskId: string, mutate: (task: TalkingVideoPromptTask) => TalkingVideoPromptTask) => {
@@ -1652,6 +1675,45 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         message.success('跳舞复刻任务已提交');
         return;
       }
+      if (tool.workspace.generate.handler === 'subject-replace') {
+        const imageAssetIds = await ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: getLocalFiles(selectedMaterials.image),
+          uploadGroupIdsRef,
+        });
+        const referenceVideo = getLocalFiles(selectedMaterials.video)[0];
+        if (!imageAssetIds.length) throw new Error('请上传主体图片');
+        if (!referenceVideo) throw new Error('请上传或粘贴参考视频');
+
+        let referenceVideoAssetId = referenceVideo.assetId;
+        if (!referenceVideo.remoteSourceUrl && !referenceVideoAssetId) {
+          [referenceVideoAssetId] = await ensureMaterialAssetIds({
+            currentUser,
+            resourceType: 'other',
+            files: [referenceVideo],
+            uploadGroupIdsRef,
+          });
+        }
+        await createSubjectReplace({
+          imageAssetIds,
+          preserveAudio: voiceEnabled,
+          quality: mapQualityLabel(quality),
+          referenceVideoAssetId,
+          remoteVideo: referenceVideo.remoteSourceUrl ? {
+            input: referenceVideo.remoteSourceUrl,
+            trimEnd: referenceVideo.trimEnd,
+            trimStart: referenceVideo.trimStart,
+          } : undefined,
+          subjectType: subjectReplaceType,
+          videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+        });
+        await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
+        chooseTool(tool);
+        setVoiceEnabled(true);
+        message.success('主体替换任务已提交');
+        return;
+      }
       const prepared = await prepareGenerationMaterials({
         currentUser,
         prompt,
@@ -1772,6 +1834,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     resetCreationForm,
     selectedMaterials,
     subtitleRemovalConfig,
+    subjectReplaceType,
     tool.label,
     tool.key,
     tool.workspace.generate.handler,
@@ -1840,7 +1903,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (retrySubmittingRef.current) {
       return;
     }
-    const context = isRecord(task.expertContext) ? task.expertContext : {};
+    let detailTask: VideoGenerationTask;
+    try {
+      detailTask = await getVideoTask(task.id);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      return;
+    }
+    const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     if (context.mode === 'video_upscale') {
       const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
       if (!sourceAssetId) {
@@ -1920,7 +1990,44 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       }
       return;
     }
-    const payload = buildRetryVideoProductionPayload(task, currentUser.id);
+    if (context.mode === 'subject_replace') {
+      const imageAssetIds = stringArrayFromRecord(context, 'originalReferenceImageIds').length
+        ? stringArrayFromRecord(context, 'originalReferenceImageIds')
+        : stringArrayFromRecord(context, 'referenceImageIds');
+      const [referenceVideoAssetId] = stringArrayFromRecord(context, 'referenceVideoIds');
+      const storedRemoteVideo = subjectReplaceRemoteVideoFromRecord(context);
+      const remoteVideo = storedRemoteVideo || (!referenceVideoAssetId && /^https?:\/\//i.test(detailTask.sourceUrl)
+        ? { input: detailTask.sourceUrl }
+        : undefined);
+      const storedSubjectType = stringFromRecord(context, 'subjectReplaceType', stringFromRecord(context, 'subjectType', 'model'));
+      const retrySubjectType = isSubjectReplaceType(storedSubjectType) ? storedSubjectType : 'model';
+      if (!imageAssetIds.length || (!referenceVideoAssetId && !remoteVideo)) {
+        message.warning('当前记录缺少主体图片或视频来源，无法重试');
+        return;
+      }
+      try {
+        retrySubmittingRef.current = true;
+        setRetryingTaskId(task.id);
+        await createSubjectReplace({
+          imageAssetIds,
+          preserveAudio: context.generateAudio !== false,
+          quality: stringFromRecord(context, 'quality', '标清 (720p)'),
+          referenceVideoAssetId,
+          remoteVideo,
+          subjectType: retrySubjectType,
+          videoModelId: stringFromRecord(context, 'videoModelId', modelOptionIds['Seedance 2.0']),
+        });
+        await loadVideoProductions(true);
+        message.success('已重新提交主体替换任务');
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '主体替换重试失败');
+      } finally {
+        retrySubmittingRef.current = false;
+        setRetryingTaskId('');
+      }
+      return;
+    }
+    const payload = buildRetryVideoProductionPayload(detailTask, currentUser.id);
     if (!payload.prompt?.trim()) {
       message.warning('当前记录缺少可重试的提示词，请重新配置后再生成');
       return;
@@ -2094,7 +2201,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setVoiceEnabled(enabled);
     },
     setSubtitleRemovalConfig,
+    setSubjectReplaceType,
     subtitleRemovalConfig,
+    subjectReplaceType,
     setVideoTranslationConfig,
     videoTranslationConfig,
     deleteVideoProduction,
@@ -2292,6 +2401,24 @@ function videoTranslationSubtitleConfigFromRecord(record: Record<string, unknown
   return subtitleConfig;
 }
 
+function isSubjectReplaceType(value: string): value is SubjectReplaceType {
+  return ['model', 'clothing', 'face', 'background', 'product'].includes(value);
+}
+
+function subjectReplaceRemoteVideoFromRecord(record: Record<string, unknown>) {
+  const value = record.subjectReplaceRemoteVideo;
+  if (!isRecord(value)) return undefined;
+  const input = stringFromRecord(value, 'input');
+  if (!input) return undefined;
+  const trimStart = Number(value.trimStart);
+  const trimEnd = Number(value.trimEnd);
+  return {
+    input,
+    trimStart: Number.isFinite(trimStart) ? trimStart : undefined,
+    trimEnd: Number.isFinite(trimEnd) ? trimEnd : undefined,
+  };
+}
+
 function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: string) {
   const context = isRecord(task.expertContext) ? task.expertContext : {};
   const prompt = stringFromRecord(context, 'userPrompt', task.prompt || '');
@@ -2301,7 +2428,9 @@ function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: str
       ? 'dance_remake' as const
       : context.mode === 'talking_video'
         ? 'talking_video' as const
-        : 'video_create' as const,
+        : context.mode === 'subject_replace'
+          ? 'subject_replace' as const
+          : 'video_create' as const,
     retryTaskId: task.id,
     prompt,
     quality: stringFromRecord(context, 'quality', '标清 (720p)'),
@@ -2355,13 +2484,6 @@ function getLimit(kind: MaterialKind) {
   if (kind.key === 'image') return 9;
   if (kind.key === 'audio') return 3;
   return 1;
-}
-
-function formatCreditAmount(value: number) {
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return value.toFixed(6).replace(/\.?0+$/, '');
 }
 
 function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {

@@ -1,6 +1,6 @@
 {
   "name": "ai-marketing-admin",
-  "version": "0.1.11",
+  "version": "0.1.18",
   "private": true,
   "scripts": {
     "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm install'); process.exit(1); }\"",
