@@ -1,7 +1,7 @@
 import { Router, type Request } from 'express';
 import multer from 'multer';
 import { mkdirSync } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, statfs } from 'node:fs/promises';
 import path from 'node:path';
 import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
@@ -273,12 +273,44 @@ export function createContentRouter() {
     }
   });
 
+  router.get('/temporary-assets/disk-space', requireAdmin, (_req, res) => {
+    void statfs(contentFilesDir, { bigint: true })
+      .then((fileSystem) => {
+        res.json({ availableBytes: Number(fileSystem.bavail * fileSystem.bsize) });
+      })
+      .catch((error) => sendError(res, 500, getErrorMessage(error, '磁盘剩余空间获取失败')));
+  });
+
   router.get('/temporary-assets/cleanup-logs', requireAdmin, (_req, res) => {
     try {
       res.json(contentService.listTemporaryAssetCleanupLogs());
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '素材清理日志获取失败'));
     }
+  });
+
+  router.get('/temporary-assets/orphan-files', requireAdmin, (_req, res) => {
+    void contentService.inspectOrphanContentFiles()
+      .then((result) => res.json(result))
+      .catch((error) => sendError(res, 500, getErrorMessage(error, '孤立文件检查失败')));
+  });
+
+  router.post('/temporary-assets/orphan-files/delete', requireAdmin, (req, res) => {
+    const relativePaths = Array.isArray(req.body?.relativePaths)
+      ? req.body.relativePaths.filter((relativePath: unknown): relativePath is string => typeof relativePath === 'string')
+      : [];
+    void contentService.deleteOrphanContentFiles(relativePaths)
+      .then((result) => res.json(result))
+      .catch((error) => sendError(res, 400, getErrorMessage(error, '孤立文件删除失败')));
+  });
+
+  router.post('/temporary-assets/cleanup-selected', requireAdmin, (req, res) => {
+    const assetIds = Array.isArray(req.body?.assetIds)
+      ? req.body.assetIds.filter((assetId: unknown): assetId is string => typeof assetId === 'string')
+      : [];
+    void contentService.deleteTemporaryAssets(assetIds)
+      .then((result) => res.json(result))
+      .catch((error) => sendError(res, 400, getErrorMessage(error, '临时素材删除失败')));
   });
 
   router.post('/temporary-assets/cleanup', requireAdmin, (_req, res) => {

@@ -44,7 +44,11 @@
 
 - 后台新增 `/system/temporary-assets`，仅管理员可访问。
 - `GET /api/content/temporary-assets/cleanup-candidates` 分页返回带过期时间的临时素材，按计划清理时间升序排列。
+- `GET /api/content/temporary-assets/disk-space` 返回临时素材存储目录所在磁盘的可用空间，格式为 `{ "availableBytes": number }`。
 - `GET /api/content/temporary-assets/cleanup-logs` 返回最近 100 条成功清理记录。
+- `GET /api/content/temporary-assets/orphan-files` 递归扫描 `data/files/`，对比内容素材、技能文件、视频任务、视频复刻会话、聊天附件及生成任务等数据库直接路径和 JSON 文件引用，返回疑似孤立文件数量、体积及最多 500 条明细；该接口只读，不删除文件，并忽略缩略图缓存、日志和符号链接。
+- `POST /api/content/temporary-assets/orphan-files/delete` 接收 `{ "relativePaths": string[] }`，删除最多 500 个疑似孤立文件；删除前会再次校验路径位于 `data/files/`、不在忽略范围内且当前未被数据库文件记录引用。
+- `POST /api/content/temporary-assets/cleanup-selected` 接收 `{ "assetIds": string[] }`，立即删除最多 100 条仍处于临时状态且未被引用的指定素材，返回 `{ "deleted": number }`。
 - `POST /api/content/temporary-assets/cleanup` 立即清理当前已过期且无引用的临时素材，返回 `{ "deleted": number }`。
 - `temporary_asset_cleanup_logs` 在每次写入后物理删除第 100 条以前的历史记录，数据库最多保留 100 条日志。
 

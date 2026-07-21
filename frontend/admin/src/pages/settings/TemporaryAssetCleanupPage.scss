@@ -42,6 +42,12 @@
   color: #d92d20;
 }
 
+.temporary-cleanup-actions {
+  flex: 0 0 auto;
+  padding-bottom: 12px;
+  text-align: left;
+}
+
 .temporary-cleanup-page > .ant-tabs,
 .temporary-cleanup-page .ant-tabs-content-holder,
 .temporary-cleanup-page .ant-tabs-content,
@@ -94,6 +100,18 @@
 .cleanup-asset-identity .ant-typography-secondary {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
+}
+
+.orphan-file-actions {
+  margin-bottom: 12px;
+}
+
+.orphan-file-inspection-modal .ant-table-cell .ant-typography {
+  margin: 0;
+}
+
+.orphan-file-truncated {
+  margin: 12px 0 0;
 }
 
 @media (max-width: 760px) {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { TosClient } from '@volcengine/tos-sdk';
 import dayjs from 'dayjs';
@@ -100,6 +100,86 @@ function localAssetFilePaths(asset: ContentAsset) {
     }
   }
   return [...paths];
+}
+
+async function listContentDirectoryFiles(directoryPath: string): Promise<Array<{
+  filePath: string;
+  modifiedAt: string;
+  size: number;
+}>> {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  const files: Array<{ filePath: string; modifiedAt: string; size: number }> = [];
+  for (const entry of entries) {
+    const filePath = path.join(directoryPath, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      if (path.resolve(filePath) === path.resolve(contentFilesDir, 'thumbnails')) continue;
+      files.push(...await listContentDirectoryFiles(filePath).catch(() => []));
+      continue;
+    }
+    if (!entry.isFile() || entry.name === '.DS_Store' || entry.name.endsWith('.log')) continue;
+    const fileStat = await stat(filePath).catch(() => null);
+    if (fileStat) {
+      files.push({ filePath, modifiedAt: fileStat.mtime.toISOString(), size: fileStat.size });
+    }
+  }
+  return files;
+}
+
+function databaseManagedContentFilePaths() {
+  const databaseFilePaths = new Set(
+    contentRepository.listDatabaseManagedFilePaths().map((filePath) => path.resolve(filePath)),
+  );
+  for (const asset of contentRepository.listAssets({})) {
+    for (const filePath of localAssetFilePaths(asset)) {
+      databaseFilePaths.add(path.resolve(filePath));
+    }
+  }
+  const collectFileReferences = (value: unknown) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      const localPath = resolveLocalContentFilePathFromUrl(trimmed);
+      if (localPath) {
+        databaseFilePaths.add(path.resolve(localPath));
+        return;
+      }
+      if (path.isAbsolute(trimmed) && path.resolve(trimmed).startsWith(`${path.resolve(contentFilesDir)}${path.sep}`)) {
+        databaseFilePaths.add(path.resolve(trimmed));
+        return;
+      }
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          collectFileReferences(JSON.parse(trimmed));
+        } catch {
+          // Ignore malformed historical JSON values during the safety scan.
+        }
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(collectFileReferences);
+      return;
+    }
+    if (isRecord(value)) {
+      Object.values(value).forEach(collectFileReferences);
+    }
+  };
+  contentRepository.listDatabaseFileReferenceValues().forEach(collectFileReferences);
+  return databaseFilePaths;
+}
+
+function contentFilePathFromRelativePath(relativePath: string) {
+  const normalizedRelativePath = relativePath.trim().split('/').filter(Boolean).join(path.sep);
+  const filePath = path.resolve(contentFilesDir, normalizedRelativePath);
+  const contentRoot = `${path.resolve(contentFilesDir)}${path.sep}`;
+  if (!normalizedRelativePath || !filePath.startsWith(contentRoot)) {
+    throw new Error('孤立文件路径无效');
+  }
+  const relativeParts = path.relative(contentFilesDir, filePath).split(path.sep);
+  if (relativeParts[0] === 'thumbnails' || path.basename(filePath) === '.DS_Store' || filePath.endsWith('.log')) {
+    throw new Error('当前文件不在孤立文件检查范围内');
+  }
+  return filePath;
 }
 
 function finishedAssetInputIds(asset: ContentAsset) {
@@ -2627,6 +2707,67 @@ export const contentService = {
 
   listTemporaryAssetCleanupLogs() {
     return contentRepository.listTemporaryAssetCleanupLogs();
+  },
+
+  async deleteTemporaryAssets(assetIds: string[]) {
+    const normalizedAssetIds = Array.from(new Set(assetIds.map((id) => id.trim()).filter(Boolean)));
+    if (!normalizedAssetIds.length) {
+      throw new Error('请选择要删除的临时素材');
+    }
+    if (normalizedAssetIds.length > 100) {
+      throw new Error('单次最多删除 100 条临时素材');
+    }
+    let deleted = 0;
+    for (const assetId of normalizedAssetIds) {
+      const asset = contentRepository.deleteTemporaryAsset(assetId);
+      if (!asset) continue;
+      await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
+      contentRepository.recordTemporaryAssetCleanup(asset, 'manual');
+      deleted += 1;
+    }
+    return { deleted };
+  },
+
+  async inspectOrphanContentFiles() {
+    const databaseFilePaths = databaseManagedContentFilePaths();
+    const scannedFiles = await listContentDirectoryFiles(contentFilesDir);
+    const orphanFiles = scannedFiles
+      .filter((file) => !databaseFilePaths.has(path.resolve(file.filePath)))
+      .map((file) => ({
+        relativePath: path.relative(contentFilesDir, file.filePath).split(path.sep).join('/'),
+        size: file.size,
+        modifiedAt: file.modifiedAt,
+      }))
+      .sort((left, right) => right.size - left.size);
+    const resultLimit = 500;
+    return {
+      scannedFiles: scannedFiles.length,
+      orphanFiles: orphanFiles.length,
+      orphanBytes: orphanFiles.reduce((total, file) => total + file.size, 0),
+      items: orphanFiles.slice(0, resultLimit),
+      truncated: orphanFiles.length > resultLimit,
+    };
+  },
+
+  async deleteOrphanContentFiles(relativePaths: string[]) {
+    const normalizedRelativePaths = Array.from(new Set(relativePaths.map((item) => item.trim()).filter(Boolean)));
+    if (!normalizedRelativePaths.length) {
+      throw new Error('请选择要删除的孤立文件');
+    }
+    if (normalizedRelativePaths.length > 500) {
+      throw new Error('单次最多删除 500 个孤立文件');
+    }
+    const databaseFilePaths = databaseManagedContentFilePaths();
+    let deleted = 0;
+    for (const relativePath of normalizedRelativePaths) {
+      const filePath = contentFilePathFromRelativePath(relativePath);
+      if (databaseFilePaths.has(filePath)) continue;
+      const fileStat = await lstat(filePath).catch(() => null);
+      if (!fileStat || !fileStat.isFile() || fileStat.isSymbolicLink()) continue;
+      await rm(filePath, { force: true });
+      deleted += 1;
+    }
+    return { deleted };
   },
 
   async cleanupExpiredTemporaryAssets(triggerType: 'scheduled' | 'manual' = 'scheduled') {

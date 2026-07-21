@@ -35,6 +35,22 @@ export type PaginatedTemporaryAssets = {
   total: number;
 };
 
+export type TemporaryAssetDiskSpace = {
+  availableBytes: number;
+};
+
+export type OrphanContentFileInspection = {
+  scannedFiles: number;
+  orphanFiles: number;
+  orphanBytes: number;
+  items: Array<{
+    relativePath: string;
+    size: number;
+    modifiedAt: string;
+  }>;
+  truncated: boolean;
+};
+
 const apiBase = '/api/content/temporary-assets';
 
 export function listTemporaryAssetCleanupCandidates(page = 1, pageSize = 20) {
@@ -44,6 +60,28 @@ export function listTemporaryAssetCleanupCandidates(page = 1, pageSize = 20) {
 
 export function listTemporaryAssetCleanupLogs() {
   return request<TemporaryAssetCleanupLog[]>(`${apiBase}/cleanup-logs`);
+}
+
+export function getTemporaryAssetDiskSpace() {
+  return request<TemporaryAssetDiskSpace>(`${apiBase}/disk-space`);
+}
+
+export function deleteTemporaryAssets(assetIds: string[]) {
+  return request<{ deleted: number }>(`${apiBase}/cleanup-selected`, {
+    method: 'POST',
+    body: JSON.stringify({ assetIds }),
+  });
+}
+
+export function inspectOrphanContentFiles() {
+  return request<OrphanContentFileInspection>(`${apiBase}/orphan-files`);
+}
+
+export function deleteOrphanContentFiles(relativePaths: string[]) {
+  return request<{ deleted: number }>(`${apiBase}/orphan-files/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ relativePaths }),
+  });
 }
 
 export function runTemporaryAssetCleanup() {
