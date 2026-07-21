@@ -334,6 +334,9 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   if (source === 'video_creation') {
     return videoWorksFunctionOptions[1];
   }
+  if (source === 'talking_video') {
+    return videoWorksFunctionOptions[1];
+  }
   if (source === 'video_remake') {
     return videoWorksFunctionOptions[2];
   }

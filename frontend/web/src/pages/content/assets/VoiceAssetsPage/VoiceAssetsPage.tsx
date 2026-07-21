@@ -9,6 +9,7 @@ import { validateVoiceAudioFiles, voiceAudioMaxFileCount, voiceAudioMaxTotalDura
 import { DetailAudioUpload, PendingAudioUpload } from '../AssetAudioUpload';
 import { useCardGridPageSize } from '../useCardGridPageSize';
 import { useAssetLibrary } from '../useAssetLibrary';
+import { isVoiceSampleAsset } from '../voiceAssetFilters';
 import '../AssetLibraryPages.scss';
 
 type VoiceAssetsPageProps = {
@@ -21,10 +22,6 @@ function formatDate(value: string) {
 
 function assetUrl(asset?: ContentAsset) {
   return asset ? `${API_BASE_URL}${asset.fileUrl}` : '';
-}
-
-function isVoiceSampleAsset(asset: ContentAsset) {
-  return asset.mimeType.startsWith('audio/') && asset.metadata?.kind !== 'voice_clone_preview';
 }
 
 function sourceLabel(group: ContentAssetGroup) {

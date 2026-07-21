@@ -1856,7 +1856,7 @@ export const contentService = {
     assertUserId(userId);
     const tasks = contentRepository
       .listVideoTasks(userId, {
-        modes: ['video_create', 'dance_remake', 'video_upscale', 'subtitle_removal', 'video_translation'],
+        modes: ['video_create', 'talking_video', 'dance_remake', 'video_upscale', 'subtitle_removal', 'video_translation'],
         createdAtFrom: normalizeVideoProductionBoundary(filters.createdAtFrom),
         createdAtTo: normalizeVideoProductionBoundary(filters.createdAtTo),
         aspectRatio: String(filters.ratio || '').trim() === '全部比例'
@@ -2870,7 +2870,11 @@ export const contentService = {
         generationResult: pendingResult,
       });
       const taskMode = payload.taskMode || 'video_create';
-      const title = taskMode === 'dance_remake' ? `跳舞复刻 ${duration}` : `视频制作 ${ratio} ${duration}`;
+      const title = taskMode === 'dance_remake'
+        ? `跳舞复刻 ${duration}`
+        : taskMode === 'talking_video'
+          ? `口播视频生成 ${ratio} ${duration}`
+          : `视频制作 ${ratio} ${duration}`;
       const expertContext = {
         mode: taskMode,
         traceId,

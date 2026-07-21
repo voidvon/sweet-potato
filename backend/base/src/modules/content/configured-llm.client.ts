@@ -140,6 +140,7 @@ export async function callConfiguredLlm(input: {
   sourceId?: string;
   timeoutMs?: number;
   onContentDelta?: (delta: string, content: string) => void | Promise<void>;
+  onReasoningDelta?: (delta: string) => void | Promise<void>;
   billingMode?: ConfiguredLlmBillingMode;
 }) {
   const config = resolveDefaultLlmModel();
@@ -161,7 +162,7 @@ export async function callConfiguredLlm(input: {
     }
     return content.trim();
   }
-  if (input.onContentDelta) {
+  if (input.onContentDelta || input.onReasoningDelta) {
     let content = '';
     for await (const chunk of streamBilledLlm({
       userId: input.userId,
@@ -172,11 +173,15 @@ export async function callConfiguredLlm(input: {
       temperature: input.temperature ?? config.temperature ?? 0.7,
       timeoutMs: input.timeoutMs,
     })) {
+      if (chunk.type === 'reasoning') {
+        await input.onReasoningDelta?.(chunk.delta);
+        continue;
+      }
       if (chunk.type !== 'answer') {
         continue;
       }
       content += chunk.delta;
-      await input.onContentDelta(chunk.delta, content);
+      await input.onContentDelta?.(chunk.delta, content);
     }
     if (!content.trim()) {
       throw new Error('模型服务未返回有效内容');
@@ -233,6 +238,7 @@ export async function callConfiguredStructuredLlm<T extends ZodTypeAny>(input: {
   formatInstructionsPrefix?: string;
   formatInstructionsTarget?: 'system' | 'user';
   onContentDelta?: (delta: string, content: string) => void | Promise<void>;
+  onReasoningDelta?: (delta: string) => void | Promise<void>;
   billingMode?: ConfiguredLlmBillingMode;
 }) {
   const parser = createStructuredOutputParser(input.schema);
@@ -256,6 +262,7 @@ export async function callConfiguredStructuredLlm<T extends ZodTypeAny>(input: {
     sourceId: input.sourceId,
     timeoutMs: input.timeoutMs,
     onContentDelta: input.onContentDelta,
+    onReasoningDelta: input.onReasoningDelta,
     billingMode: input.billingMode,
   });
   try {

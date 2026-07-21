@@ -1,11 +1,14 @@
 import type { ContentAsset } from '../../../types';
 
-export type VideoWorkSource = 'video_creation' | 'video_remake' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
+export type VideoWorkSource = 'video_creation' | 'talking_video' | 'video_remake' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
 
 export function getVideoWorkSourceFromMode(value: unknown): VideoWorkSource {
   const mode = typeof value === 'string' ? value.trim().replaceAll('-', '_') : '';
   if (mode === 'video_translation') {
     return 'video_translation';
+  }
+  if (mode === 'talking_video') {
+    return 'talking_video';
   }
   if (mode.startsWith('viral_replication_') || mode.startsWith('video_remake_')) {
     return 'video_remake';
@@ -57,6 +60,9 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
 export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   if (source === 'video_creation') {
     return '视频创作';
+  }
+  if (source === 'talking_video') {
+    return '口播视频生成';
   }
   if (source === 'video_remake') {
     return '爆款复刻';

@@ -2,11 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
+import {
+  importTalkingVideoPromptHistory,
+  listTalkingVideoPromptHistory,
+  resumeTalkingVideoPrompt,
+  stopTalkingVideoPrompt as requestTalkingVideoPromptStop,
+  streamTalkingVideoPrompt,
+  type TalkingVideoPromptEvent,
+} from '../../../api/talking-video';
 import { createDanceRemake, resolveVideoSource as requestVideoSourceResolve } from '../../../api/video-source';
 import type { ContentAsset, ContentAssetResourceType, MarketingVideoStoryboard, SiteConfig, User, VideoGenerationResult, VideoGenerationTask } from '../../../types';
+import { voiceSampleAssetsFromGroups } from '../assets/voiceAssetFilters';
 import {
   defaultFilters,
   examplePrompt,
@@ -26,6 +35,8 @@ import type {
   SelectedMaterials,
   SelectedMaterialValue,
   SubtitleRemovalConfig,
+  TalkingVideoImageRole,
+  TalkingVideoPromptTask,
   ToolOption,
   UploadAnchor,
   VideoTranslationConfig,
@@ -33,6 +44,22 @@ import type {
 } from './types';
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, readVideoDuration, readVideoUrlDuration, shouldTrimReferenceVideo } from './videoMetadata';
 import { planningApplyPayloadToFormState } from './planningHelpers';
+import {
+  loadTalkingVideoPromptTasks,
+  normalizeTalkingVideoPromptTasks,
+  saveTalkingVideoPromptTasks,
+  TALKING_VIDEO_HISTORY_LIMIT,
+} from './talkingVideoHistoryStorage';
+import {
+  applyTalkingVideoResumeFailure,
+  appendTalkingVideoDeltaBuffer,
+  applyTalkingVideoClientPhase,
+  applyTalkingVideoClientReasoning,
+  emptyTalkingVideoMetrics,
+  flushTalkingVideoDeltaBufferIntoTask,
+  normalizeTalkingVideoTaskRuntimeFields,
+  type TalkingVideoDeltaBuffer,
+} from './talkingVideoStreamState';
 
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
   mode: 'auto',
@@ -72,6 +99,7 @@ const defaultMarketingVideoConfig: MarketingVideoConfig = {
 const marketingVideoDuration = '15s';
 
 const videoProductionsPageSize = 20;
+const talkingVideoDeltaFlushMs = 80;
 
 function createdAtRangeFromTimeFilter(filter: string) {
   const value = String(filter || '').trim();
@@ -115,13 +143,28 @@ function createdAtRangeFromTimeFilter(filter: string) {
 export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOption = toolOptions[0]) {
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const retrySubmittingRef = useRef(false);
+  const talkingVideoPromptAbortRef = useRef<AbortController | null>(null);
+  const talkingVideoDeltaBuffersRef = useRef<Record<string, TalkingVideoDeltaBuffer & { timerId: number | null }>>({});
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [talkingVideoDeepThink, setTalkingVideoDeepThink] = useState(true);
+  const [talkingVideoPromptTasks, setTalkingVideoPromptTasks] = useState<TalkingVideoPromptTask[]>(
+    () => loadTalkingVideoPromptTasks(currentUser.id).map(normalizeTalkingVideoTaskRuntimeFields),
+  );
+  const [talkingVideoPromptTask, setTalkingVideoPromptTask] = useState<TalkingVideoPromptTask | null>(
+    () => loadTalkingVideoPromptTasks(currentUser.id).map(normalizeTalkingVideoTaskRuntimeFields)[0] || null,
+  );
+  const [talkingVideoHistoryOwnerId, setTalkingVideoHistoryOwnerId] = useState(currentUser.id);
+  const [talkingVideoInputExpanded, setTalkingVideoInputExpanded] = useState(initialTool.key === 'talking-video');
+  const [talkingVideoGenerateModalOpen, setTalkingVideoGenerateModalOpen] = useState(false);
+  const [isTalkingVideoSubmitting, setIsTalkingVideoSubmitting] = useState(false);
+  const [retryingTalkingVideoTaskId, setRetryingTalkingVideoTaskId] = useState('');
   const [danceRemakeMode, setDanceRemakeMode] = useState<DanceRemakeMode>('enhanced');
   const [prompt, setPrompt] = useState('');
   const [tool, setTool] = useState<ToolOption>(initialTool);
   const [showToolMenu, setShowToolMenu] = useState(false);
   const [materialMode, setMaterialMode] = useState<MaterialMode>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<SelectedMaterials>({});
+  const [talkingVideoGenerationMaterials, setTalkingVideoGenerationMaterials] = useState<SelectedMaterials>({});
   const [activeUpload, setActiveUpload] = useState<MaterialKind | null>(null);
   const [uploadAnchor, setUploadAnchor] = useState<UploadAnchor | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -161,6 +204,55 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const loadedProductionPageRef = useRef(0);
   const isLoadingMoreProductionsRef = useRef(false);
   const productionRequestVersionRef = useRef(0);
+
+  useEffect(() => () => {
+    talkingVideoPromptAbortRef.current?.abort();
+    Object.values(talkingVideoDeltaBuffersRef.current).forEach((buffer) => {
+      if (buffer.timerId !== null) window.clearTimeout(buffer.timerId);
+    });
+    talkingVideoDeltaBuffersRef.current = {};
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const localTasks = loadTalkingVideoPromptTasks(currentUser.id);
+    const localNormalized = localTasks.map(normalizeTalkingVideoTaskRuntimeFields);
+    setTalkingVideoPromptTasks(localNormalized);
+    setTalkingVideoPromptTask(localNormalized[0] || null);
+    setTalkingVideoHistoryOwnerId(currentUser.id);
+    void (localTasks.length
+      ? importTalkingVideoPromptHistory(localTasks)
+      : listTalkingVideoPromptHistory()
+    ).then((serverTasks) => {
+      if (cancelled) return;
+      const normalized = normalizeTalkingVideoPromptTasks(serverTasks)
+        .map(normalizeTalkingVideoTaskRuntimeFields);
+      setTalkingVideoPromptTasks(normalized);
+      setTalkingVideoPromptTask(normalized[0] || null);
+    }).catch(() => {
+      // Keep the browser cache as a compatibility fallback when the server is unavailable.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (!talkingVideoPromptTask) return;
+    if (talkingVideoHistoryOwnerId !== currentUser.id) return;
+    setTalkingVideoPromptTasks((current) => {
+      const existingIndex = current.findIndex((task) => task.id === talkingVideoPromptTask.id);
+      if (existingIndex < 0) {
+        return [talkingVideoPromptTask, ...current].slice(0, TALKING_VIDEO_HISTORY_LIMIT);
+      }
+      return current.map((task, index) => index === existingIndex ? talkingVideoPromptTask : task);
+    });
+  }, [currentUser.id, talkingVideoHistoryOwnerId, talkingVideoPromptTask]);
+
+  useEffect(() => {
+    if (talkingVideoHistoryOwnerId !== currentUser.id) return;
+    saveTalkingVideoPromptTasks(currentUser.id, talkingVideoPromptTasks);
+  }, [currentUser.id, talkingVideoHistoryOwnerId, talkingVideoPromptTasks]);
 
   useEffect(() => {
     let ignore = false;
@@ -223,13 +315,18 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const loadLibraryAssets = useCallback(async () => {
     setIsLoadingLibraryAssets(true);
     try {
-      const [voiceGroups, voiceList, finishedVideoList] = await Promise.all([
-        listContentAssetGroups(currentUser.id, 'voice'),
-        listContentAssets({ userId: currentUser.id, resourceType: 'voice' }),
+      const [voiceGroupPage, finishedVideoList] = await Promise.all([
+        listContentAssetGroupsPage({
+          userId: currentUser.id,
+          resourceType: 'voice',
+          page: 1,
+          pageSize: 50,
+        }),
         listContentAssets({ userId: currentUser.id, resourceType: 'finished_video' }),
       ]);
+      const voiceGroups = voiceGroupPage.items;
       setVoiceGroupNameById(Object.fromEntries(voiceGroups.map((group) => [group.id, group.name])));
-      setVoiceAssets(voiceList.filter(isAllowedAudioAsset));
+      setVoiceAssets(voiceSampleAssetsFromGroups(voiceGroups));
       setWorksAssets(finishedVideoList.filter((asset) => (
         asset.mimeType.startsWith('image/')
         || (asset.mimeType.startsWith('video/') && isCompletedFinishedVideo(asset))
@@ -356,6 +453,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         || (marketingVideoConfig.productName.trim().length > 0
           && marketingVideoConfig.productCategory.trim().length > 0
           && marketingVideoConfig.sellingPoints.trim().length > 0))
+      && (tool.key !== 'talking-video'
+        || getLocalFiles(selectedMaterials.image).some((file) => file.talkingVideoRole === 'model'))
       && (tool.workspace.generate.handler !== 'subtitle-removal'
         || subtitleRemovalConfig.mode === 'auto'
         || subtitleRemovalConfig.locations.length > 0)
@@ -455,6 +554,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   );
 
   const chooseTool = useCallback((option: ToolOption) => {
+    talkingVideoPromptAbortRef.current?.abort();
+    talkingVideoPromptAbortRef.current = null;
     setTool(option);
     setShowToolMenu(false);
     setMaterialMode(null);
@@ -470,6 +571,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
+    setTalkingVideoDeepThink(true);
+    setTalkingVideoInputExpanded(option.key === 'talking-video');
+    setTalkingVideoGenerateModalOpen(false);
+    setTalkingVideoGenerationMaterials((current) => {
+      revokeTalkingVideoGenerationOwnedMaterials(current);
+      return {};
+    });
     setDanceRemakeMode('enhanced');
     setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
     setQuality(option.key === 'dance-remake' ? '480P' : '720P');
@@ -545,7 +653,16 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       type: kind.key,
       url: URL.createObjectURL(file),
     }))) satisfies LocalMaterialFile[];
-    const localFiles = inspectedFiles;
+    const localFiles = kind.key === 'audio'
+      ? inspectedFiles.filter((file) => (
+        Number.isFinite(file.audioDuration) && Number(file.audioDuration) > 0 && Number(file.audioDuration) <= 15
+      ))
+      : inspectedFiles;
+    if (kind.key === 'audio' && localFiles.length < inspectedFiles.length) {
+      revokeLocalMaterials(inspectedFiles.filter((file) => !localFiles.includes(file)));
+      message.warning('口播声音必须是不超过 15 秒的 MP3 或 WAV 音频');
+    }
+    if (!localFiles.length) return;
 
     setSelectedMaterials((current) => {
       const currentFiles = getLocalFiles(current[kind.key]);
@@ -582,6 +699,137 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return;
     }
     void fillMaterialFiles(material, files);
+  };
+
+  const fillTalkingVideoImageFiles = (role: TalkingVideoImageRole, files: FileList | File[]) => {
+    const incomingFiles = Array.from(files);
+    const imageFiles = incomingFiles.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length < incomingFiles.length) {
+      message.warning('口播图片素材仅支持图片文件');
+    }
+    if (!imageFiles.length) return;
+
+    const incomingMaterials = imageFiles.map((file) => ({
+      file,
+      id: `talking-${role}-${crypto.randomUUID()}`,
+      name: file.name,
+      talkingVideoRole: role,
+      type: 'image' as const,
+      url: URL.createObjectURL(file),
+    })) satisfies LocalMaterialFile[];
+    const isSingleRole = role === 'model' || role === 'background';
+
+    setSelectedMaterials((current) => {
+      const currentImages = getLocalFiles(current.image);
+      const replacedImages = isSingleRole
+        ? currentImages.filter((file) => file.talkingVideoRole === role)
+        : [];
+      const retainedImages = isSingleRole
+        ? currentImages.filter((file) => file.talkingVideoRole !== role)
+        : currentImages;
+      const roleCount = retainedImages.filter((file) => file.talkingVideoRole === role).length;
+      const roleCapacity = isSingleRole ? 1 : Math.max(0, 9 - roleCount);
+      const totalCapacity = Math.max(0, 9 - retainedImages.length);
+      const accepted = incomingMaterials.slice(0, Math.min(roleCapacity, totalCapacity));
+      const rejected = incomingMaterials.filter((file) => !accepted.includes(file));
+      revokeLocalMaterials([...replacedImages, ...rejected]);
+      if (!accepted.length) {
+        message.warning('口播图片素材总数不能超过 9 张');
+        return current;
+      }
+      return {
+        ...current,
+        image: sortTalkingVideoImages([...retainedImages, ...accepted]),
+      };
+    });
+  };
+
+  const fillTalkingVideoGenerationImageFiles = (role: TalkingVideoImageRole, files: FileList | File[]) => {
+    const incomingFiles = Array.from(files);
+    const imageFiles = incomingFiles.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length < incomingFiles.length) {
+      message.warning('口播图片素材仅支持图片文件');
+    }
+    if (!imageFiles.length) return;
+
+    const incomingMaterials = imageFiles.map((file) => ({
+      file,
+      id: `talking-generation-${role}-${crypto.randomUUID()}`,
+      name: file.name,
+      talkingVideoRole: role,
+      type: 'image' as const,
+      url: URL.createObjectURL(file),
+    })) satisfies LocalMaterialFile[];
+    const isSingleRole = role === 'model' || role === 'background';
+
+    setTalkingVideoGenerationMaterials((current) => {
+      const currentImages = getLocalFiles(current.image);
+      const replacedImages = isSingleRole
+        ? currentImages.filter((file) => file.talkingVideoRole === role)
+        : [];
+      const retainedImages = isSingleRole
+        ? currentImages.filter((file) => file.talkingVideoRole !== role)
+        : currentImages;
+      const roleCount = retainedImages.filter((file) => file.talkingVideoRole === role).length;
+      const roleCapacity = isSingleRole ? 1 : Math.max(0, 9 - roleCount);
+      const totalCapacity = Math.max(0, 9 - retainedImages.length);
+      const accepted = incomingMaterials.slice(0, Math.min(roleCapacity, totalCapacity));
+      const rejected = incomingMaterials.filter((file) => !accepted.includes(file));
+      revokeLocalMaterials([...replacedImages.filter(isTalkingVideoGenerationOwnedMaterial), ...rejected]);
+      if (!accepted.length) {
+        message.warning('口播图片素材总数不能超过 9 张');
+        return current;
+      }
+      return {
+        ...current,
+        image: sortTalkingVideoImages([...retainedImages, ...accepted]),
+      };
+    });
+  };
+
+  const fillTalkingVideoGenerationAudioFiles = async (files: FileList | File[]) => {
+    const incomingFiles = Array.from(files);
+    const allowedFiles = incomingFiles.filter(isAllowedAudioFile).slice(0, 1);
+    if (allowedFiles.length < incomingFiles.length) {
+      message.warning('口播声音仅支持 MP3 或 WAV 格式');
+    }
+    const file = allowedFiles[0];
+    if (!file) return;
+    const audioDuration = await readAudioDuration(file);
+    if (!audioDuration || audioDuration > 15) {
+      message.warning(audioDuration ? '口播声音不能超过 15 秒' : '无法读取该音频的时长');
+      return;
+    }
+    const localMaterial = {
+      audioDuration,
+      file,
+      id: `talking-generation-audio-${crypto.randomUUID()}`,
+      name: file.name,
+      type: 'audio' as const,
+      url: URL.createObjectURL(file),
+    } satisfies LocalMaterialFile;
+    setTalkingVideoGenerationMaterials((current) => {
+      revokeLocalMaterials(getLocalFiles(current.audio).filter(isTalkingVideoGenerationOwnedMaterial));
+      return {
+        ...current,
+        audio: [localMaterial],
+      };
+    });
+  };
+
+  const removeTalkingVideoImage = (materialId: string) => {
+    setSelectedMaterials((current) => {
+      const currentImages = getLocalFiles(current.image);
+      const removed = currentImages.filter((file) => file.id === materialId);
+      const nextImages = currentImages.filter((file) => file.id !== materialId);
+      revokeLocalMaterials(removed);
+      if (!nextImages.length) {
+        const next = { ...current };
+        delete next.image;
+        return next;
+      }
+      return { ...current, image: nextImages };
+    });
   };
 
   const clearMaterial = (kind: MaterialKind) => {
@@ -670,12 +918,24 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMaterialMode(null);
   };
 
-  const chooseLibraryAsset = async (kind: MaterialKind, asset: ContentAsset) => {
+  const chooseLibraryAssetInto = async (
+    kind: MaterialKind,
+    asset: ContentAsset,
+    setMaterials: typeof setSelectedMaterials,
+    closePopover: boolean,
+  ) => {
     if (kind.key === 'audio' && !isAllowedAudioAsset(asset)) {
       message.warning('参考音频仅支持 MP3 或 WAV 格式');
       return;
     }
     const url = resolveAssetUrl(asset.fileUrl);
+    const audioDuration = kind.key === 'audio'
+      ? getAssetDurationSeconds(asset) || await readAudioUrlDuration(url)
+      : undefined;
+    if (kind.key === 'audio' && (!audioDuration || audioDuration > 15)) {
+      message.warning(audioDuration ? '口播声音不能超过 15 秒' : '无法读取该声音素材的时长');
+      return;
+    }
     const videoDuration = kind.key === 'video'
       ? getAssetDurationSeconds(asset) ?? await readVideoUrlDuration(url)
       : undefined;
@@ -690,7 +950,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     const localMaterial = {
       assetId: asset.id,
-      audioDuration: kind.key === 'audio' ? getAssetDurationSeconds(asset) : undefined,
+      audioDuration,
       file: trimFile,
       id: `${kind.key}-${asset.id}-${crypto.randomUUID()}`,
       name: asset.name || asset.originalFileName || asset.storedFileName || kind.label,
@@ -699,19 +959,58 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       url,
     } satisfies LocalMaterialFile;
 
-    setSelectedMaterials((current) => {
+    setMaterials((current) => {
       const currentFiles = getLocalFiles(current[kind.key]);
       if (kind.key === 'audio' && getAudioDurationTotal([...currentFiles, localMaterial]) > 15) {
         message.warning('参考音频总时长不能超过 15 秒');
         return current;
       }
-      const nextFiles = kind.key === 'video'
+      const nextFiles = kind.key === 'video' || (kind.key === 'audio' && getLimit(kind) === 1)
         ? [localMaterial]
         : [...currentFiles, localMaterial].slice(0, getLimit(kind));
+      if (kind.key === 'audio' && getLimit(kind) === 1) {
+        revokeLocalMaterials(currentFiles);
+      }
       if (nextFiles.length === 0) return current;
       return { ...current, [kind.key]: nextFiles };
     });
-    setMaterialMode(null);
+    if (closePopover) setMaterialMode(null);
+  };
+
+  const chooseLibraryAsset = (kind: MaterialKind, asset: ContentAsset) => (
+    chooseLibraryAssetInto(kind, asset, setSelectedMaterials, true)
+  );
+
+  const chooseTalkingVideoGenerationLibraryAsset = (kind: MaterialKind, asset: ContentAsset) => (
+    chooseLibraryAssetInto(kind, asset, setTalkingVideoGenerationMaterials, false)
+  );
+
+  const removeTalkingVideoGenerationMaterial = (kind: MaterialKey, materialId?: string) => {
+    setTalkingVideoGenerationMaterials((current) => {
+      const currentFiles = getLocalFiles(current[kind]);
+      revokeLocalMaterials(currentFiles.filter((file) => (
+        file.id === materialId && isTalkingVideoGenerationOwnedMaterial(file)
+      )));
+      const nextFiles = currentFiles.filter((file) => file.id !== materialId);
+      if (!nextFiles.length) {
+        const next = { ...current };
+        delete next[kind];
+        return next;
+      }
+      return { ...current, [kind]: nextFiles };
+    });
+  };
+
+  const fillTalkingVideoGenerationMentionFiles = (kind: MaterialKey, files: File[]) => {
+    if (kind === 'image') {
+      fillTalkingVideoGenerationImageFiles('detail', files);
+      return;
+    }
+    if (kind === 'audio') {
+      void fillTalkingVideoGenerationAudioFiles(files);
+      return;
+    }
+    message.warning('口播生成弹窗仅支持补充图片或音频素材');
   };
 
   const resolveVideoSource = async (input: string) => {
@@ -896,6 +1195,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   }, []);
 
   const resetCreationForm = useCallback(() => {
+    talkingVideoPromptAbortRef.current?.abort();
+    talkingVideoPromptAbortRef.current = null;
     setPrompt('');
     setTool(toolOptions[0]);
     setSelectedMaterials((current) => {
@@ -920,11 +1221,381 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMarketingVideoConfig(defaultMarketingVideoConfig);
     setSubtitleRemovalConfig(defaultSubtitleRemovalConfig);
     setVideoTranslationConfig(defaultVideoTranslationConfig);
+    setTalkingVideoDeepThink(true);
+    setTalkingVideoInputExpanded(false);
+    setTalkingVideoGenerateModalOpen(false);
+    setTalkingVideoGenerationMaterials((current) => {
+      revokeTalkingVideoGenerationOwnedMaterials(current);
+      return {};
+    });
     setDanceRemakeMode('enhanced');
   }, []);
 
+  const updateTalkingVideoTask = useCallback((taskId: string, mutate: (task: TalkingVideoPromptTask) => TalkingVideoPromptTask) => {
+    setTalkingVideoPromptTask((current) => current?.id === taskId ? mutate(current) : current);
+    setTalkingVideoPromptTasks((current) => current.map((task) => task.id === taskId ? mutate(task) : task));
+  }, []);
+
+  const flushTalkingVideoPromptDeltas = useCallback((taskId: string) => {
+    const buffer = talkingVideoDeltaBuffersRef.current[taskId];
+    if (!buffer) return;
+    if (buffer.timerId !== null) {
+      window.clearTimeout(buffer.timerId);
+    }
+    const reasoningDelta = buffer.reasoning;
+    const promptDelta = buffer.prompt;
+    delete talkingVideoDeltaBuffersRef.current[taskId];
+    if (!reasoningDelta && !promptDelta) return;
+    updateTalkingVideoTask(taskId, (current) => flushTalkingVideoDeltaBufferIntoTask(current, {
+      reasoning: reasoningDelta,
+      prompt: promptDelta,
+    }));
+  }, [updateTalkingVideoTask]);
+
+  const queueTalkingVideoPromptDelta = useCallback((taskId: string, kind: 'reasoning' | 'prompt', delta: string) => {
+    const current = talkingVideoDeltaBuffersRef.current[taskId] || {
+      prompt: '',
+      reasoning: '',
+      timerId: null,
+    };
+    const next: TalkingVideoDeltaBuffer & { timerId: number | null } = {
+      ...appendTalkingVideoDeltaBuffer(current, kind, delta),
+      timerId: current.timerId,
+    };
+    if (kind === 'reasoning') {
+      updateTalkingVideoTask(taskId, (task) => applyTalkingVideoClientReasoning(task, performance.now()));
+    }
+    if (current.timerId === null) {
+      next.timerId = window.setTimeout(() => {
+        flushTalkingVideoPromptDeltas(taskId);
+      }, talkingVideoDeltaFlushMs);
+    }
+    talkingVideoDeltaBuffersRef.current[taskId] = next;
+  }, [flushTalkingVideoPromptDeltas, updateTalkingVideoTask]);
+
+  const applyTalkingVideoPromptEvent = useCallback((taskId: string, event: TalkingVideoPromptEvent) => {
+    const applyEvent = (current: TalkingVideoPromptTask) => {
+      if (event.type === 'snapshot') {
+        return {
+          ...current,
+          phase: event.phase,
+          status: event.status,
+          reasoning: event.reasoning,
+          prompt: event.prompt,
+          errorMessage: event.errorMessage,
+          metrics: event.metrics,
+          serverTimings: event.timings,
+        };
+      }
+      if (event.type === 'phase') {
+        return {
+          ...applyTalkingVideoClientPhase(current, event.phase, performance.now()),
+          metrics: event.metrics,
+          serverTimings: event.timings,
+        };
+      }
+      if (event.type === 'reasoning_delta') {
+        return current;
+      }
+      if (event.type === 'delta') {
+        return current;
+      }
+      if (event.type === 'result') {
+        return {
+          ...current,
+          prompt: event.prompt,
+          metrics: event.metrics,
+          serverTimings: event.timings,
+        };
+      }
+      if (event.type === 'status') {
+        return {
+          ...current,
+          phase: event.phase,
+          status: event.status,
+          errorMessage: event.errorMessage || '',
+          metrics: event.metrics,
+          serverTimings: event.timings,
+        };
+      }
+      return current;
+    };
+    if (event.type === 'reasoning_delta') {
+      queueTalkingVideoPromptDelta(taskId, 'reasoning', event.delta);
+      return;
+    }
+    if (event.type === 'delta') {
+      queueTalkingVideoPromptDelta(taskId, 'prompt', event.delta);
+      return;
+    }
+    flushTalkingVideoPromptDeltas(taskId);
+    updateTalkingVideoTask(taskId, applyEvent);
+    if (event.type === 'status' && event.status !== 'thinking') {
+      delete talkingVideoDeltaBuffersRef.current[taskId];
+    }
+  }, [flushTalkingVideoPromptDeltas, queueTalkingVideoPromptDelta, updateTalkingVideoTask]);
+
+  useEffect(() => {
+    if (talkingVideoHistoryOwnerId !== currentUser.id) return undefined;
+    const runningTask = talkingVideoPromptTasks.find((task) => (
+      task.status === 'preparing' || task.status === 'thinking'
+    ));
+    if (!runningTask || talkingVideoPromptAbortRef.current) return undefined;
+
+    const controller = new AbortController();
+    talkingVideoPromptAbortRef.current = controller;
+    const resumedTask = normalizeTalkingVideoTaskRuntimeFields({
+      ...runningTask,
+      clientTimings: {
+        ...runningTask.clientTimings,
+        streamStartedAtMs: performance.now(),
+      },
+    });
+    updateTalkingVideoTask(runningTask.id, () => resumedTask);
+    setIsGenerating(true);
+    void resumeTalkingVideoPrompt(
+      runningTask.id,
+      (event) => applyTalkingVideoPromptEvent(runningTask.id, event),
+      { signal: controller.signal },
+    ).catch((error) => {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      updateTalkingVideoTask(runningTask.id, (current) => applyTalkingVideoResumeFailure(
+        current,
+        error instanceof Error ? error.message : '口播任务恢复失败，请重新生成',
+      ));
+    }).finally(() => {
+      if (talkingVideoPromptAbortRef.current === controller) {
+        talkingVideoPromptAbortRef.current = null;
+        setIsGenerating(false);
+      }
+    });
+    return () => controller.abort();
+  }, [applyTalkingVideoPromptEvent, currentUser.id, talkingVideoHistoryOwnerId, updateTalkingVideoTask]);
+
+  const generateTalkingVideoPrompt = useCallback(async (
+    materialsOverride?: SelectedMaterials,
+    options: { clearForm?: boolean; onStreamStart?: () => void; taskId?: string } = {},
+  ) => {
+    const promptMaterials = materialsOverride || selectedMaterials;
+    const sourceVideo = getLocalFiles(promptMaterials.video)[0];
+    const imageFiles = sortTalkingVideoImages(getLocalFiles(promptMaterials.image));
+    if (!sourceVideo) throw new Error('请先上传口播参考视频');
+    if (!imageFiles.some((file) => file.talkingVideoRole === 'model')) {
+      throw new Error('请先上传模特图片');
+    }
+
+    talkingVideoPromptAbortRef.current?.abort();
+    const controller = new AbortController();
+    talkingVideoPromptAbortRef.current = controller;
+    const taskId = options.taskId || crypto.randomUUID();
+    if (options.clearForm !== false) setTalkingVideoInputExpanded(false);
+    setTalkingVideoGenerateModalOpen(false);
+    setTalkingVideoPromptTask({
+      id: taskId,
+      phase: 'uploading_assets',
+      status: 'preparing',
+      reasoning: '正在上传并整理参考素材…',
+      prompt: '',
+      errorMessage: '',
+      metrics: emptyTalkingVideoMetrics(),
+      serverTimings: {},
+      clientTimings: {},
+      sourceVideo: { ...sourceVideo },
+      referenceImages: imageFiles.map((file) => ({ ...file })),
+      createdAt: new Date().toISOString(),
+    });
+    if (options.clearForm !== false) {
+      setSelectedMaterials({});
+      setActiveUpload(null);
+      setUploadAnchor(null);
+      setMaterialMode(null);
+    }
+
+    try {
+      const [videoAssetIds, imageAssetIds] = await Promise.all([
+        ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: [sourceVideo],
+          uploadGroupIdsRef,
+        }),
+        ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: imageFiles,
+          uploadGroupIdsRef,
+        }),
+      ]);
+      const videoAssetId = videoAssetIds[0];
+      if (!videoAssetId) throw new Error('口播参考视频上传失败');
+      updateTalkingVideoTask(taskId, (current) => ({
+        ...current,
+        phase: 'uploading_assets',
+        status: 'thinking',
+        reasoning: '',
+        sourceVideo: { ...sourceVideo },
+        referenceImages: imageFiles.map((file) => ({ ...file })),
+        clientTimings: {
+          ...current.clientTimings,
+          streamStartedAtMs: performance.now(),
+        },
+      }));
+      options.onStreamStart?.();
+
+      await streamTalkingVideoPrompt(taskId, {
+        videoAssetId,
+        images: imageAssetIds.map((assetId, index) => ({
+          assetId,
+          role: imageFiles[index].talkingVideoRole || 'detail',
+        })),
+        deepThink: talkingVideoDeepThink,
+      }, (event) => applyTalkingVideoPromptEvent(taskId, event), { signal: controller.signal });
+    } catch (error) {
+      const disconnected = error instanceof Error && error.name === 'AbortError';
+      if (disconnected) return;
+      updateTalkingVideoTask(taskId, (current) => ({
+        ...current,
+        phase: 'failed',
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : '口播提示词生成失败',
+      }));
+      throw error;
+    } finally {
+      if (talkingVideoPromptAbortRef.current === controller) {
+        talkingVideoPromptAbortRef.current = null;
+      }
+    }
+  }, [applyTalkingVideoPromptEvent, currentUser, selectedMaterials, talkingVideoDeepThink, updateTalkingVideoTask]);
+
+  const stopTalkingVideoPrompt = useCallback(async (requestedTaskId?: string) => {
+    const taskId = requestedTaskId || talkingVideoPromptTask?.id;
+    if (!taskId) return;
+    try {
+      await requestTalkingVideoPromptStop(taskId);
+      const stoppedTask = (current: TalkingVideoPromptTask) => current.id === taskId ? {
+        ...current,
+        phase: 'stopped' as const,
+        status: 'stopped' as const,
+        errorMessage: '已手动停止生成',
+      } : current;
+      setTalkingVideoPromptTask((current) => current ? stoppedTask(current) : current);
+      setTalkingVideoPromptTasks((current) => current.map(stoppedTask));
+      flushTalkingVideoPromptDeltas(taskId);
+      delete talkingVideoDeltaBuffersRef.current[taskId];
+      talkingVideoPromptAbortRef.current?.abort();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '停止口播任务失败');
+    }
+  }, [flushTalkingVideoPromptDeltas, talkingVideoPromptTask?.id]);
+
+  const openTalkingVideoGeneration = useCallback((taskId: string) => {
+    const task = talkingVideoPromptTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    setTalkingVideoPromptTask(task);
+    setTalkingVideoGenerationMaterials((current) => {
+      revokeTalkingVideoGenerationOwnedMaterials(current);
+      return {
+        image: task.referenceImages.map((file) => ({ ...file })),
+      };
+    });
+    setTalkingVideoGenerateModalOpen(true);
+  }, [talkingVideoPromptTasks]);
+
+  const retryTalkingVideoPromptTask = useCallback(async (taskId: string) => {
+    const task = talkingVideoPromptTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const restoredMaterials: SelectedMaterials = {
+      video: [{ ...task.sourceVideo }],
+      image: task.referenceImages.map((file) => ({ ...file })),
+    };
+    const restartingTask: TalkingVideoPromptTask = {
+      ...task,
+      phase: 'uploading_assets',
+      status: 'preparing',
+      reasoning: '',
+      prompt: '',
+      errorMessage: '',
+      metrics: emptyTalkingVideoMetrics(),
+      serverTimings: {},
+      clientTimings: {},
+    };
+    setRetryingTalkingVideoTaskId(taskId);
+    setTalkingVideoPromptTask(restartingTask);
+    setTalkingVideoPromptTasks((current) => current.map((item) => item.id === taskId ? restartingTask : item));
+    try {
+      setIsGenerating(true);
+      await generateTalkingVideoPrompt(restoredMaterials, {
+        clearForm: false,
+        onStreamStart: () => setRetryingTalkingVideoTaskId(''),
+        taskId,
+      });
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '口播提示词生成失败');
+    } finally {
+      setRetryingTalkingVideoTaskId('');
+      setIsGenerating(false);
+    }
+  }, [generateTalkingVideoPrompt, talkingVideoPromptTasks]);
+
+  const generateTalkingVideoFromPrompt = useCallback(async (finalPrompt: string) => {
+    const normalizedPrompt = finalPrompt.trim();
+    if (!normalizedPrompt || isTalkingVideoSubmitting) return false;
+    try {
+      setIsTalkingVideoSubmitting(true);
+      const imageFiles = sortTalkingVideoImages(getLocalFiles(talkingVideoGenerationMaterials.image));
+      const audioFiles = getLocalFiles(talkingVideoGenerationMaterials.audio);
+      if (!imageFiles.some((file) => file.talkingVideoRole === 'model')) {
+        throw new Error('请先上传模特图片');
+      }
+      const [referenceImageIds, referenceAudioIds] = await Promise.all([
+        ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'other',
+          files: imageFiles,
+          uploadGroupIdsRef,
+        }),
+        ensureMaterialAssetIds({
+          currentUser,
+          resourceType: 'voice',
+          files: audioFiles,
+          uploadGroupIdsRef,
+        }),
+      ]);
+      const sourceSeconds = talkingVideoPromptTask?.sourceVideo.trimDuration
+        || talkingVideoPromptTask?.sourceVideo.mediaDuration
+        || Number.parseFloat(duration);
+      const resolvedDuration = `${Math.min(15, Math.max(4, Math.round(sourceSeconds || 5)))}s`;
+      await createVideoProduction({
+        userId: currentUser.id,
+        taskMode: 'talking_video',
+        prompt: normalizedPrompt,
+        quality: mapQualityLabel(quality),
+        ratio,
+        duration: resolvedDuration,
+        videoModelProviderId: 'volcengine-seedance',
+        videoModelId: modelOptionIds[model] || modelOptionIds['Seedance 2.0'],
+        referenceImageIds,
+        referenceVideoIds: [],
+        referenceAudioIds,
+        characterReferenceImageIds: mentionedCharacterReferenceIndexes(normalizedPrompt)
+          .map((index) => referenceImageIds[index])
+          .filter(Boolean),
+        generateAudio: true,
+      });
+      setTalkingVideoGenerateModalOpen(false);
+      await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
+      message.success('口播视频生成任务已提交，可在右侧视频结果中查看');
+      return true;
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '口播视频生成任务提交失败');
+      return false;
+    } finally {
+      setIsTalkingVideoSubmitting(false);
+    }
+  }, [currentUser, duration, isTalkingVideoSubmitting, loadLibraryAssets, loadVideoProductions, model, quality, ratio, talkingVideoGenerationMaterials, talkingVideoPromptTask]);
+
   const handleGenerate = useCallback(async () => {
-    if (tool.workspace.generate.handler === 'pending' && tool.key !== 'marketing-video') {
+    if (tool.workspace.generate.handler === 'pending' && tool.key !== 'marketing-video' && tool.key !== 'talking-video') {
       message.warning(`${tool.label}功能正在接入生成能力`);
       return;
     }
@@ -937,6 +1608,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     try {
       setIsGenerating(true);
+      if (tool.key === 'talking-video') {
+        await generateTalkingVideoPrompt();
+        return;
+      }
       if (tool.workspace.generate.handler === 'dance-remake') {
         const [characterImageAssetId] = await ensureMaterialAssetIds({
           currentUser,
@@ -1086,6 +1761,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     currentUser,
     danceRemakeMode,
     duration,
+    generateTalkingVideoPrompt,
     loadLibraryAssets,
     loadVideoProductions,
     marketingVideoConfig,
@@ -1290,6 +1966,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     danceRemakeMode,
     chooseAudio,
     chooseLibraryAsset,
+    chooseTalkingVideoGenerationLibraryAsset,
     chooseMaterialTab,
     chooseModelAsset,
     chooseModelAvatar,
@@ -1305,11 +1982,20 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     fillExamplePrompt,
     fillMaterial,
     fillMaterialFiles,
+    fillTalkingVideoGenerationAudioFiles,
+    fillTalkingVideoGenerationImageFiles,
+    fillTalkingVideoGenerationMentionFiles,
+    fillTalkingVideoImageFiles,
     fillMentionPlaceholderFiles,
     handleGenerate,
+    generateTalkingVideoFromPrompt,
+    openTalkingVideoGeneration,
     hasCreationFormContent,
     clearMaterial,
     removeOneMaterial,
+    removeTalkingVideoGenerationMaterial,
+    removeTalkingVideoImage,
+    retryTalkingVideoPromptTask,
     replaceMaterialFiles,
     clearAllMaterials,
     filterOpen,
@@ -1319,12 +2005,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     isLoadingMoreProductions,
     isLoadingProductions,
     isGenerating,
+    isTalkingVideoSubmitting,
     materialMode,
     marketingStoryboards,
     marketingVideoConfig,
     marketingVideoGenerationPriceLabel,
     isLoadingMarketingStoryboards,
     retryingMarketingStoryboardId,
+    retryingTalkingVideoTaskId,
     retryMarketingStoryboard,
     generateMarketingVideo,
     generatingMarketingVideoId,
@@ -1386,6 +2074,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     },
     setFilters,
     setDanceRemakeMode: chooseDanceRemakeMode,
+    setTalkingVideoDeepThink,
+    setTalkingVideoGenerateModalOpen,
+    setTalkingVideoInputExpanded,
     setMarketingVideoConfig,
     setPrompt,
     setPromptPanel: (panel: PromptPanel | null) => {
@@ -1415,6 +2106,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     showModelPicker,
     showToolMenu,
     tool,
+    talkingVideoDeepThink,
+    talkingVideoGenerationMaterials,
+    talkingVideoGenerateModalOpen,
+    talkingVideoInputExpanded,
+    talkingVideoPromptTask,
+    talkingVideoPromptTasks,
+    stopTalkingVideoPrompt,
     uploadAnchor,
     videoProductions,
     videoPriceLabel,
@@ -1599,7 +2297,11 @@ function buildRetryVideoProductionPayload(task: VideoGenerationTask, userId: str
   const prompt = stringFromRecord(context, 'userPrompt', task.prompt || '');
   return {
     userId,
-    taskMode: context.mode === 'dance_remake' ? 'dance_remake' as const : 'video_create' as const,
+    taskMode: context.mode === 'dance_remake'
+      ? 'dance_remake' as const
+      : context.mode === 'talking_video'
+        ? 'talking_video' as const
+        : 'video_create' as const,
     retryTaskId: task.id,
     prompt,
     quality: stringFromRecord(context, 'quality', '标清 (720p)'),
@@ -1664,6 +2366,18 @@ function formatCreditAmount(value: number) {
 
 function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {
   return Array.isArray(value) ? value : [];
+}
+
+function sortTalkingVideoImages(files: LocalMaterialFile[]) {
+  const order: Record<TalkingVideoImageRole, number> = {
+    model: 0,
+    product: 1,
+    background: 2,
+    detail: 3,
+  };
+  return [...files].sort((left, right) => (
+    order[left.talkingVideoRole || 'detail'] - order[right.talkingVideoRole || 'detail']
+  ));
 }
 
 function hasVideoRequiringTrim(selectedMaterials: SelectedMaterials) {
@@ -1803,11 +2517,42 @@ function readAudioDuration(file: File) {
   });
 }
 
+function readAudioUrlDuration(url: string) {
+  return new Promise<number | undefined>((resolve) => {
+    const audio = document.createElement('audio');
+    const cleanup = () => {
+      audio.removeAttribute('src');
+      audio.load();
+    };
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      const duration = Number.isFinite(audio.duration) ? audio.duration : undefined;
+      cleanup();
+      resolve(duration);
+    };
+    audio.onerror = () => {
+      cleanup();
+      resolve(undefined);
+    };
+    audio.src = url;
+  });
+}
+
 function revokeLocalMaterials(files: LocalMaterialFile[]) {
   files.forEach((file) => {
     if (file.url.startsWith('blob:')) {
       URL.revokeObjectURL(file.url);
     }
+  });
+}
+
+function isTalkingVideoGenerationOwnedMaterial(file: LocalMaterialFile) {
+  return file.id.startsWith('talking-generation-');
+}
+
+function revokeTalkingVideoGenerationOwnedMaterials(materials: SelectedMaterials) {
+  Object.values(materials).forEach((value) => {
+    revokeLocalMaterials(getLocalFiles(value).filter(isTalkingVideoGenerationOwnedMaterial));
   });
 }
 

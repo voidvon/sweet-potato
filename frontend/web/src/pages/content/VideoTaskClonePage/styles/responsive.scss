@@ -1,5 +1,7 @@
 @media (max-width: 1100px) {
-  .video-task-clone-page {
+  .video-task-clone-page,
+  .video-task-clone-page.has-talking-video-prompt,
+  .video-task-clone-page.has-talking-video-prompt.has-talking-video-input-expanded {
     grid-template-columns: 1fr;
     height: 100%;
     overflow-x: hidden;
@@ -31,6 +33,10 @@
   .video-task-result {
     min-height: 420px;
     overflow: visible;
+  }
+
+  .talking-video-history {
+    min-height: 600px;
   }
 
   .video-task-result-flow {

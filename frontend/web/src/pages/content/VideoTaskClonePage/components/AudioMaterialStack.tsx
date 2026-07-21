@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { MediaSlotStack, type MediaSlotItem } from './MediaSlotStack';
 
 type AudioMaterialStackProps = {
+  disablePopover?: boolean;
   items: MediaSlotItem[];
   onRemove: (item: MediaSlotItem) => void;
   renderAudioTitle?: (item: MediaSlotItem, index: number) => string;
 };
 
-export function AudioMaterialStack({ items, onRemove, renderAudioTitle }: AudioMaterialStackProps) {
+export function AudioMaterialStack({ disablePopover, items, onRemove, renderAudioTitle }: AudioMaterialStackProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -52,6 +53,7 @@ export function AudioMaterialStack({ items, onRemove, renderAudioTitle }: AudioM
   return (
     <MediaSlotStack
       activeItemId={playingId}
+      disablePopover={disablePopover}
       items={items}
       keepPopoverOnPreview
       onPreview={togglePlayback}

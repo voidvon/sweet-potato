@@ -27,6 +27,43 @@
     minmax(0, 1fr);
 }
 
+.video-task-clone-page.has-talking-video-prompt {
+  grid-template-columns: 190px minmax(520px, 1fr) minmax(360px, 0.85fr);
+}
+
+.video-task-clone-page.has-talking-video-prompt.has-talking-video-input-expanded {
+  grid-template-columns: clamp(360px, 31vw, 460px) minmax(520px, 1fr) minmax(360px, 0.85fr);
+}
+
+.video-task-clone-page.has-talking-video-prompt .video-task-left {
+  min-width: 0;
+  padding: 16px 10px 0;
+}
+
+.video-task-clone-page.has-talking-video-prompt:not(.has-talking-video-input-expanded) .video-task-current-card {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 142px;
+  padding: 12px 8px;
+  text-align: center;
+  width: 100%;
+}
+
+.video-task-clone-page.has-talking-video-prompt:not(.has-talking-video-input-expanded) .video-task-current-copy {
+  align-items: center;
+}
+
+.video-task-clone-page.has-talking-video-prompt:not(.has-talking-video-input-expanded) .video-task-current-copy > span,
+.video-task-clone-page.has-talking-video-prompt:not(.has-talking-video-input-expanded) .video-task-current-copy > p {
+  display: none;
+}
+
+.video-task-clone-page.has-talking-video-prompt:not(.has-talking-video-input-expanded) .video-task-current-copy strong {
+  font-size: 13px;
+  margin: 0;
+}
+
 .video-task-left {
   background: rgba(255, 255, 255, 0.96);
   border-right: 1px solid var(--video-task-border);

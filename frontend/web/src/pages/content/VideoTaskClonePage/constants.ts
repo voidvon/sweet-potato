@@ -37,9 +37,12 @@ export const toolOptions: ToolOption[] = [
     label: '口播视频生成',
     description: '解析视频分镜与口播脚本，并继续生成口播视频。',
     materialHint: '上传口播参考素材',
-    materials: defaultMaterials,
-    submitText: '生成口播视频',
-    workspace: { blocks: [], generate: { handler: 'pending' } },
+    materials: [
+      { key: 'video', label: '口播参考视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'image', label: '图片素材', hint: '总计最多 9 张', maxCount: 9, meta: '必选', minCount: 1 },
+    ],
+    submitText: '生成提示词',
+    workspace: { blocks: [{ id: 'talking-video-form', type: 'talking-video-form' }], generate: { handler: 'pending' } },
   },
   {
     key: 'subject-replace',

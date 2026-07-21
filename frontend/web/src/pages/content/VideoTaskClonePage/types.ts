@@ -12,6 +12,57 @@ export type ToolKey =
 
 export type DanceRemakeMode = 'standard' | 'enhanced';
 
+export type TalkingVideoImageRole = 'model' | 'product' | 'background' | 'detail';
+
+export type TalkingVideoPromptPhase =
+  | 'uploading_assets'
+  | 'understanding_video'
+  | 'validating_analysis'
+  | 'generating_prompt'
+  | 'validating_prompt'
+  | 'repairing_prompt'
+  | 'completed'
+  | 'failed'
+  | 'stopped';
+
+export type TalkingVideoPromptMetrics = {
+  arkUploadCount: number;
+  arkUploadPollMs: number;
+  understandingModelCalls: number;
+  understandingReplayCalls: number;
+  formatRepairCalls: number;
+  promptRepairCalls: number;
+  reuseCacheHitCount: number;
+};
+
+export type TalkingVideoPromptServerTimings = {
+  t_analysis_done_ms?: number;
+  t_first_phase_ms?: number;
+  t_first_reasoning_ms?: number;
+  t_result_ms?: number;
+};
+
+export type TalkingVideoPromptClientTimings = {
+  firstReasoningMs?: number;
+  firstVisiblePhaseMs?: number;
+  streamStartedAtMs?: number;
+};
+
+export type TalkingVideoPromptTask = {
+  id: string;
+  phase: TalkingVideoPromptPhase;
+  status: 'preparing' | 'thinking' | 'completed' | 'failed' | 'stopped';
+  reasoning: string;
+  prompt: string;
+  errorMessage: string;
+  metrics: TalkingVideoPromptMetrics;
+  serverTimings: TalkingVideoPromptServerTimings;
+  clientTimings: TalkingVideoPromptClientTimings;
+  sourceVideo: LocalMaterialFile;
+  referenceImages: LocalMaterialFile[];
+  createdAt: string;
+};
+
 export type SubtitleRemovalMode = 'auto' | 'auto_region' | 'manual';
 
 export type SubtitleRemovalContentType = 'subtitle' | 'text';
@@ -71,6 +122,7 @@ export type MaterialKind = {
 
 export type WorkspaceBlock =
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
+  | { id: string; type: 'talking-video-form' }
   | { id: string; type: 'dance-remake-form' }
   | { id: string; type: 'parameters'; showDuration?: boolean; showHeader?: boolean; showRatio?: boolean }
   | { id: string; type: 'prompt'; title?: string }
@@ -126,6 +178,7 @@ export type LocalMaterialFile = {
   remoteSourceUrl?: string;
   serverFileUrl?: string;
   storedFileName?: string;
+  talkingVideoRole?: TalkingVideoImageRole;
   trimDuration?: number;
   trimEnd?: number;
   trimStart?: number;

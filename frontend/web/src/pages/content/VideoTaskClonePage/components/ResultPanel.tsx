@@ -436,6 +436,10 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
   if (task?.expertContext?.mode === 'dance_remake') {
     return '跳舞复刻';
   }
+  if (task?.expertContext?.mode === 'talking_video') {
+    const metric = [result?.ratio, result?.duration].filter(Boolean).join(' · ');
+    return metric ? `口播视频生成 · ${metric}` : '口播视频生成 · 等待参数';
+  }
   if (task?.expertContext?.mode === 'video_upscale') {
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();
     return `高清放大 · ${resolution}`;

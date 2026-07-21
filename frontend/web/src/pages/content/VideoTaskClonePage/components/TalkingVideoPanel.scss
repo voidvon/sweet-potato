@@ -1,0 +1,183 @@
+.talking-video-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.video-source-local-upload-label {
+  color: #172033;
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  padding-left: 4px;
+}
+
+.talking-video-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.talking-video-deep-think {
+  align-items: center;
+  background: #f7f8fb;
+  border: 1px solid #e1e5ec;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+}
+
+.talking-video-deep-think > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.talking-video-deep-think strong {
+  color: #172033;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.talking-video-deep-think small {
+  color: #7b8495;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.talking-video-images {
+  border: 1px solid #e5e8ee;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.talking-video-images > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+
+.talking-video-images > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.talking-video-images > header strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.talking-video-images > header span,
+.talking-video-images > header em,
+.talking-video-images > header p {
+  color: #8a93a4;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.talking-video-images > header em {
+  white-space: nowrap;
+}
+
+.talking-video-images > header p {
+  line-height: 1.5;
+  margin: 0;
+  text-align: right;
+}
+
+.talking-video-image-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.talking-video-image-slot {
+  min-width: 0;
+  text-align: center;
+}
+
+.talking-video-image-slot-main {
+  align-items: center;
+  background: #f4f6f9;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 92px;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.talking-video-image-slot-main:hover {
+  background: #f7f9fc;
+  border-color: #cbd8ec;
+}
+
+.talking-video-image-slot-main .video-task-stack-wrapper {
+  flex: 0 0 auto;
+  max-width: 100%;
+  width: 80px !important;
+}
+
+.talking-video-image-add {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #90a0b8;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-height: 58px;
+  min-width: 48px;
+  padding: 4px;
+}
+
+.talking-video-image-add:hover {
+  color: #397ee8;
+}
+
+.talking-video-image-add:focus-visible {
+  outline: 2px solid rgba(57, 126, 232, 0.28);
+  outline-offset: 2px;
+}
+
+.talking-video-image-add span {
+  color: #657187;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.talking-video-image-slot-meta {
+  align-items: center;
+  color: #98a2b4;
+  display: inline-flex;
+  font-size: 11px;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.talking-video-image-slot-meta b {
+  background: #eaf2ff;
+  border-radius: 999px;
+  color: #397ee8;
+  font-size: 10px;
+  font-weight: 650;
+  padding: 1px 5px;
+}
+
+.talking-video-image-slot-meta.is-filled {
+  color: #059669;
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .talking-video-image-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

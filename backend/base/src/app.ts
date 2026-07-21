@@ -13,6 +13,7 @@ import { createModelConfigRouter } from './modules/model-configs/model-config.ro
 import { createRouteResourceRouter } from './modules/route-resources/route-resource.routes.js';
 import { createRoleRouter } from './modules/roles/role.routes.js';
 import { createSiteConfigRouter } from './modules/site-config/site-config.routes.js';
+import { createTalkingVideoRouter } from './modules/talking-video/talking-video.routes.js';
 import { createUserRouter } from './modules/users/user.routes.js';
 import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
 import { createVideoSourceRouter } from './modules/video-source/video-source.routes.js';
@@ -52,6 +53,7 @@ export function createApp() {
   app.use('/api/xingtu/search-drafts', createXingtuSearchDraftRouter());
   app.use('/api/billing', createBillingRouter());
   app.use('/api/site-config', createSiteConfigRouter());
+  app.use('/api/talking-video', createTalkingVideoRouter());
   app.use('/api', createModelConfigRouter());
 
   return app;

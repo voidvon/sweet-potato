@@ -5,6 +5,8 @@ import { ModelPicker } from './components/ModelPicker';
 import { PromptModal } from './components/PromptModal';
 import { ToolSwitcher } from './components/ToolSwitcher';
 import { StoryboardHistoryPanel } from './components/StoryboardHistoryPanel';
+import { TalkingVideoGenerationModal } from './components/TalkingVideoGenerationModal';
+import { TalkingVideoInputRail, TalkingVideoPromptWorkspace } from './components/TalkingVideoPromptWorkspace';
 import { ToolResultWorkspace, ToolWorkspace } from './components/ToolWorkspace';
 import { toolOptions } from './constants';
 import { useVideoTaskCloneState } from './useVideoTaskCloneState';
@@ -60,10 +62,18 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
     });
   };
 
+  const pageClassName = [
+    'video-task-clone-page',
+    state.tool.key === 'marketing-video' ? 'has-storyboard-history' : '',
+    state.tool.key === 'talking-video' && state.talkingVideoPromptTask ? 'has-talking-video-prompt' : '',
+    state.tool.key === 'talking-video' && state.talkingVideoPromptTask && state.talkingVideoInputExpanded
+      ? 'has-talking-video-input-expanded'
+      : '',
+  ].filter(Boolean).join(' ');
+  const showTalkingVideoHistory = state.tool.key === 'talking-video' && Boolean(state.talkingVideoPromptTask);
+
   return (
-    <div className={state.tool.key === 'marketing-video'
-      ? 'video-task-clone-page has-storyboard-history'
-      : 'video-task-clone-page'}>
+    <div className={pageClassName}>
       <section className="video-task-left" aria-label="视频生成功能">
         <ToolSwitcher
           currentTool={state.tool}
@@ -72,10 +82,11 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
           onSelect={handleToolSelect}
         />
 
-        <ToolWorkspace state={state} />
+        {showTalkingVideoHistory ? <TalkingVideoInputRail state={state} /> : <ToolWorkspace state={state} />}
       </section>
 
       {state.tool.key === 'marketing-video' ? <StoryboardHistoryPanel state={state} /> : null}
+      {showTalkingVideoHistory ? <TalkingVideoPromptWorkspace state={state} /> : null}
 
       <ToolResultWorkspace onEdit={handleEditProduction} state={state} />
 
@@ -104,6 +115,10 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
           title={state.tool.key === 'marketing-video' ? '提示词 / 要求' : undefined}
         />
       )}
+
+      {state.talkingVideoGenerateModalOpen && state.talkingVideoPromptTask ? (
+        <TalkingVideoGenerationModal state={state} />
+      ) : null}
     </div>
   );
 }

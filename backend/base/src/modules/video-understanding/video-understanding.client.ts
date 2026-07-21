@@ -33,6 +33,11 @@ type PreparedRequest = {
   signal?: AbortSignal;
 };
 
+export type UploadedVideoUnderstandingFile = {
+  fileId: string;
+  pollMs: number;
+};
+
 function client() {
   if (!arkVideoUnderstandingConfig.apiKey) {
     throw new Error('缺少 OPENAI_API_KEY，请在 base 环境中配置火山方舟 API Key');
@@ -238,6 +243,7 @@ async function uploadMedia(
       } : {}),
     });
     let remoteFile = uploaded;
+    const pollStartedAt = Date.now();
     const deadline = Date.now() + arkVideoUnderstandingConfig.filePollTimeoutMs;
     while (remoteFile.status === 'processing' && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, arkVideoUnderstandingConfig.filePollIntervalMs));
@@ -246,10 +252,34 @@ async function uploadMedia(
     if (remoteFile.status !== 'active') {
       throw new Error(remoteFile.error?.message || `Files API 文件处理失败：${remoteFile.status}`);
     }
-    return remoteFile.id;
+    return {
+      fileId: remoteFile.id,
+      pollMs: Date.now() - pollStartedAt,
+    };
   } finally {
     await materialized.cleanup();
   }
+}
+
+export async function uploadVideoUnderstandingFile(input: {
+  source: VideoUnderstandingSource;
+  kind: 'video' | 'image' | 'audio';
+  fps?: number;
+  signal?: AbortSignal;
+}): Promise<UploadedVideoUnderstandingFile> {
+  const request: PreparedRequest = {
+    requestId: `video-understanding-upload-${randomBytes(8).toString('hex')}`,
+    model: arkVideoUnderstandingConfig.model,
+    messages: [],
+    useFilesApi: true,
+    fps: fpsValue(input.fps, defaultFps),
+    ...(input.signal ? { signal: input.signal } : {}),
+  };
+  return uploadMedia(client(), input.source, input.kind, request);
+}
+
+export async function retrieveVideoUnderstandingFile(fileId: string, options: { signal?: AbortSignal } = {}) {
+  return client().retrieveFile(fileId, options.signal ? { signal: options.signal } : {});
 }
 
 async function directMediaSource(source: VideoUnderstandingSource, kind: 'video' | 'image' | 'audio') {
@@ -301,7 +331,10 @@ async function prepareResponseInput(ark: ArkRuntimeClient, request: PreparedRequ
       const key = `${field}:${sourceValue(source)}`;
       let fileId = source.fileId;
       if (request.useFilesApi && !fileId) {
-        fileId = uploaded.get(key) || await uploadMedia(ark, source, field === 'video_url' ? 'video' : field === 'image_url' ? 'image' : 'audio', request);
+        const uploadedResult = uploaded.get(key)
+          ? { fileId: uploaded.get(key)! }
+          : await uploadMedia(ark, source, field === 'video_url' ? 'video' : field === 'image_url' ? 'image' : 'audio', request);
+        fileId = uploadedResult.fileId;
         uploaded.set(key, fileId);
       }
       const direct = fileId ? source : await directMediaSource(source, field === 'video_url' ? 'video' : field === 'image_url' ? 'image' : 'audio');

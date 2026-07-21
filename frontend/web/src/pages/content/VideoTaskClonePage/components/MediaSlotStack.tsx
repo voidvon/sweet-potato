@@ -1,7 +1,7 @@
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pause, Play, X } from 'lucide-react';
+import { Pause, Play, Plus, X } from 'lucide-react';
 import './MediaSlotStack.scss';
 
 export type MediaSlotItem = {
@@ -14,10 +14,17 @@ export type MediaSlotItem = {
   type: 'image' | 'audio';
 };
 
+export type MediaSlotLeadingAdd = {
+  ariaLabel: string;
+  onClick: () => void;
+};
+
 type MediaSlotStackProps = {
   activeItemId?: string | null;
+  disablePopover?: boolean;
   items: MediaSlotItem[];
   keepPopoverOnPreview?: boolean;
+  leadingAdd?: MediaSlotLeadingAdd;
   onPreview: (item: MediaSlotItem) => void;
   onRemove: (item: MediaSlotItem) => void;
   popoverPortal?: boolean;
@@ -26,8 +33,10 @@ type MediaSlotStackProps = {
 
 export function MediaSlotStack({
   activeItemId,
+  disablePopover = false,
   items,
   keepPopoverOnPreview = false,
+  leadingAdd,
   onPreview,
   onRemove,
   popoverPortal = false,
@@ -41,6 +50,7 @@ export function MediaSlotStack({
   const enterFrameRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const type = items[0]?.type ?? 'image';
+  const leadingOffset = leadingAdd ? 1 : 0;
   const style = {
     '--media-stack-width': `${80 + Math.max(items.length - 1, 0) * 7}px`,
   } as CSSProperties;
@@ -102,7 +112,7 @@ export function MediaSlotStack({
     }
     onPreview(item);
   };
-  const shouldRenderPortal = popoverPortal && isPopoverOpen && !isPopoverSuppressed;
+  const shouldRenderPortal = !disablePopover && popoverPortal && isPopoverOpen && !isPopoverSuppressed;
   const renderPopover = (className = 'media-slot-popover is-fanned', popoverStyleValue?: CSSProperties) => (
     (() => {
       const isPortalPopover = className.includes('is-portal');
@@ -115,7 +125,24 @@ export function MediaSlotStack({
           onMouseLeave={popoverPortal ? closePopover : undefined}
           style={popoverStyleValue}
         >
-          {items.length > 1 && <div className="media-slot-popover__hit-area" />}
+          {items.length + leadingOffset > 1 && <div className="media-slot-popover__hit-area" />}
+          {leadingAdd && (
+            <button
+              aria-label={leadingAdd.ariaLabel}
+              className="media-slot-popover__item is-leading-add"
+              onClick={(event) => {
+                event.stopPropagation();
+                leadingAdd.onClick();
+              }}
+              style={{
+                transform: getFannedTransform(0, isCollapsed),
+                zIndex: 100,
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={26} strokeWidth={1.6} />
+            </button>
+          )}
           {items.map((item, index) => (
             <div
               aria-label={`预览${item.title}`}
@@ -126,8 +153,8 @@ export function MediaSlotStack({
               role="button"
               style={{
                 background: item.background,
-                transform: getFannedTransform(index, isCollapsed),
-                zIndex: 100 + index,
+                transform: getFannedTransform(index + leadingOffset, isCollapsed),
+                zIndex: 100 + index + leadingOffset,
               }}
               tabIndex={0}
             >
@@ -176,14 +203,14 @@ export function MediaSlotStack({
 
   return (
     <div
-      className={`video-task-stack-wrapper is-${type}-stack${isPopoverSuppressed ? ' is-popover-suppressed' : ''}`}
-      onBlur={(event) => {
+      className={`video-task-stack-wrapper is-${type}-stack${isPopoverSuppressed ? ' is-popover-suppressed' : ''}${shouldRenderPortal ? ' is-popover-open' : ''}`}
+      onBlur={disablePopover ? undefined : (event) => {
         if (event.currentTarget.contains(event.relatedTarget)) return;
         closePopover();
       }}
-      onFocus={openPopover}
-      onMouseEnter={openPopover}
-      onMouseLeave={() => {
+      onFocus={disablePopover ? undefined : openPopover}
+      onMouseEnter={disablePopover ? undefined : openPopover}
+      onMouseLeave={disablePopover ? undefined : () => {
         setIsPopoverSuppressed(false);
         closePopover();
       }}
@@ -226,7 +253,7 @@ export function MediaSlotStack({
         </div>
       ))}
 
-      {!popoverPortal && renderPopover()}
+      {!disablePopover && !popoverPortal && renderPopover()}
 
       {shouldRenderPortal && createPortal(
         renderPopover(`media-slot-popover is-fanned is-portal${isPortalEntered ? ' is-entered' : ''}`, popoverStyle),

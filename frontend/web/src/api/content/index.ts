@@ -412,7 +412,7 @@ export function listVideoProductionsPage(userId: string, filters: {
 
 export function createVideoProduction(payload: {
   userId: string;
-  taskMode?: 'video_create' | 'dance_remake';
+  taskMode?: 'video_create' | 'talking_video' | 'dance_remake';
   retryTaskId?: string;
   prompt?: string;
   quality: string;

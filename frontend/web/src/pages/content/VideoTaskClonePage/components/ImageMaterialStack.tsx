@@ -1,13 +1,18 @@
 import { Image } from 'antd';
 import { useState } from 'react';
-import { MediaSlotStack, type MediaSlotItem } from './MediaSlotStack';
+import {
+  MediaSlotStack,
+  type MediaSlotItem,
+  type MediaSlotLeadingAdd,
+} from './MediaSlotStack';
 
 type ImageMaterialStackProps = {
   items: MediaSlotItem[];
+  leadingAdd?: MediaSlotLeadingAdd;
   onRemove: (item: MediaSlotItem) => void;
 };
 
-export function ImageMaterialStack({ items, onRemove }: ImageMaterialStackProps) {
+export function ImageMaterialStack({ items, leadingAdd, onRemove }: ImageMaterialStackProps) {
   const [previewItem, setPreviewItem] = useState<MediaSlotItem | null>(null);
   const previewSrc = previewItem ? getPreviewSrc(previewItem) : '';
 
@@ -15,6 +20,7 @@ export function ImageMaterialStack({ items, onRemove }: ImageMaterialStackProps)
     <>
       <MediaSlotStack
         items={items}
+        leadingAdd={leadingAdd}
         onPreview={setPreviewItem}
         onRemove={onRemove}
         popoverPortal

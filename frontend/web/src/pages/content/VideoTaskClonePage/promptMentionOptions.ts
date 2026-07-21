@@ -1,5 +1,6 @@
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import type { SelectedMaterials, SelectedMaterialValue } from './types';
+import { resolveLocalMaterialUrl } from './materialUrl';
 
 export function promptMentionOptions(selectedMaterials: SelectedMaterials, prompt = ''): MentionRichTextareaOption[] {
   return [
@@ -27,7 +28,7 @@ function getImageMentionOptions(value: SelectedMaterialValue, referencedCount: n
         label: `图片${index + 1}`,
         mimeType: 'image/png',
         name: item.name || `图片${index + 1}`,
-        previewUrl: item.url,
+        previewUrl: resolveLocalMaterialUrl(item),
         subtitle: '已选参考图',
         token: `@图片${index + 1}`,
       } : emptyMentionOption('图片', 'image/png', index, '点击上传对应的参考图');

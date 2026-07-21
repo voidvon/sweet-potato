@@ -187,20 +187,41 @@ function withStrictJsonRetryInstruction(content: VideoUnderstandingContent[]) {
     : [{ type: 'input_text' as const, text: instruction }, ...retried];
 }
 
-async function collectUnderstanding(content: VideoUnderstandingContent[]) {
+type UnderstandingCollectionOptions = {
+  maxTokens?: number;
+  onAnswerDelta?: (delta: string) => void;
+  onReasoningDelta?: (delta: string) => void;
+  signal?: AbortSignal;
+  suppressNativeReasoning?: boolean;
+  systemPrompt?: string;
+  thinking?: boolean;
+};
+
+async function collectUnderstanding(
+  content: VideoUnderstandingContent[],
+  options: UnderstandingCollectionOptions = {},
+) {
   let output = '';
   for await (const event of streamVideoUnderstanding({
     messages: [{ role: 'user', content }],
+    ...(options.systemPrompt ? { systemPrompt: options.systemPrompt } : {}),
     useFilesApi: true,
     fps: 2,
-    maxTokens: 5000,
-    thinking: { type: 'disabled' },
+    maxTokens: options.maxTokens ?? 5000,
+    thinking: { type: options.thinking ? 'enabled' : 'disabled' },
+    signal: options.signal,
   })) {
     if (event.type === 'delta') {
       output += event.delta;
+      options.onAnswerDelta?.(event.delta);
     }
     if (event.type === 'error') {
       throw new Error(event.message);
+    }
+    if (event.type === 'reasoning_delta') {
+      if (!options.suppressNativeReasoning) {
+        options.onReasoningDelta?.(event.delta);
+      }
     }
   }
   if (!output.trim()) {
@@ -230,12 +251,13 @@ function jsonFormattingContent<T>(raw: string, schema: z.ZodType<T>, validationE
   }];
 }
 
-async function collectParsedUnderstanding<T>(
+export async function collectParsedContentPlanningUnderstanding<T>(
   content: VideoUnderstandingContent[],
   schema: z.ZodType<T>,
-  analysisKind: 'product_materials' | 'reference_video',
+  analysisKind: 'product_materials' | 'reference_video' | 'talking_video',
+  options: UnderstandingCollectionOptions = {},
 ) {
-  const raw = await collectUnderstanding(content);
+  const raw = await collectUnderstanding(content, options);
   return parseContentPlanningAnalysisWithRetry(
     raw,
     schema,
@@ -244,7 +266,8 @@ async function collectParsedUnderstanding<T>(
         analysisKind,
         initialResponseChars: raw.length,
       });
-      const retriedRaw = await collectUnderstanding(withStrictJsonRetryInstruction(content));
+      options.onReasoningDelta?.('\n正在重新核对视频并生成新的结构化拆解…\n');
+      const retriedRaw = await collectUnderstanding(withStrictJsonRetryInstruction(content), options);
       logger.info('content planning analysis full understanding retry response received', {
         analysisKind,
         responseChars: retriedRaw.length,
@@ -257,7 +280,8 @@ async function collectParsedUnderstanding<T>(
         responseChars: retriedRaw.length,
         validationError: validationError instanceof Error ? validationError.message : String(validationError),
       });
-      const formattedRaw = await collectUnderstanding(jsonFormattingContent(retriedRaw, schema, validationError));
+      options.onReasoningDelta?.('\n视频内容已确认，正在修正结构化输出格式…\n');
+      const formattedRaw = await collectUnderstanding(jsonFormattingContent(retriedRaw, schema, validationError), options);
       logger.info('content planning analysis JSON formatting fallback response received', {
         analysisKind,
         responseChars: formattedRaw.length,
@@ -292,7 +316,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
         image_url: { ...mediaSource(image), detail: 'high' as const },
       })),
     ];
-    const parsed = await collectParsedUnderstanding(content, productAnalysisSchema, 'product_materials');
+    const parsed = await collectParsedContentPlanningUnderstanding(content, productAnalysisSchema, 'product_materials');
     const captionsByAssetId = new Map(parsed.materialCaptions.map((caption) => [caption.assetId, caption]));
     const materialCaptions: ContentPlanningMaterialCaption[] = input.images.map((image, index) => {
       const caption = captionsByAssetId.get(image.assetId) || parsed.materialCaptions[index];
@@ -332,7 +356,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
       },
       ...(input.video ? [{ type: 'video_url' as const, video_url: { ...mediaSource(input.video), fps: 2 } }] : []),
     ];
-    const parsed = await collectParsedUnderstanding(content, viralBreakdownSchema, 'reference_video');
+    const parsed = await collectParsedContentPlanningUnderstanding(content, viralBreakdownSchema, 'reference_video');
     return {
       ...parsed,
       segments: parsed.segments.map((segment) => ({

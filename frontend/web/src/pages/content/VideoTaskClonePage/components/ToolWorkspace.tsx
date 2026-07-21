@@ -11,6 +11,7 @@ import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
 import { SubtitleRemovalPanel } from './SubtitleRemovalPanel';
+import { TalkingVideoPanel } from './TalkingVideoPanel';
 import { toolIcons } from './ToolSwitcher';
 import { VideoTranslationPanel } from './VideoTranslationPanel';
 
@@ -21,7 +22,6 @@ type ToolWorkspaceProps = {
 export function ToolWorkspace({ state }: ToolWorkspaceProps) {
   const { workspace } = state.tool;
   const hasWorkspaceContent = workspace.blocks.length > 0;
-
   return (
     <>
       {hasWorkspaceContent ? (
@@ -41,7 +41,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           onClick={() => void state.handleGenerate()}
           type="button"
         >
-          {state.tool.submitText}
+          {state.isGenerating ? '生成中…' : state.tool.submitText}
           {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
             <span className="video-task-generate-price">
               <Zap aria-hidden="true" fill="currentColor" size={12} />
@@ -59,6 +59,20 @@ type WorkspaceBlockRenderer = (block: WorkspaceBlock, state: VideoTaskCloneState
 const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer> = {
   material: (block, state) => block.type === 'material' ? (
     <ToolMaterialPanel showVoiceToggle={block.showVoiceToggle === true} state={state} />
+  ) : null,
+  'talking-video-form': (block, state) => block.type === 'talking-video-form' ? (
+    <TalkingVideoPanel
+      deepThink={state.talkingVideoDeepThink}
+      onDeepThinkChange={state.setTalkingVideoDeepThink}
+      onImageFiles={state.fillTalkingVideoImageFiles}
+      onImageRemove={state.removeTalkingVideoImage}
+      onMaterialClear={state.clearMaterial}
+      onMaterialLocalFiles={state.fillMaterialFiles}
+      onMaterialRemoveOne={state.removeOneMaterial}
+      onMaterialReplaceFiles={state.replaceMaterialFiles}
+      selectedMaterials={state.selectedMaterials}
+      tool={state.tool}
+    />
   ) : null,
   'dance-remake-form': (block, state) => block.type === 'dance-remake-form' ? (
     <DanceRemakePanel

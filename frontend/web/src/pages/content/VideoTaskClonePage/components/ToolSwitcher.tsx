@@ -104,7 +104,7 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
       onOpenChange={onOpenChange}
       open={isOpen}
       placement="bottomLeft"
-      styles={dropdownWidth ? { root: { width: dropdownWidth } } : undefined}
+      styles={dropdownWidth ? { root: { width: Math.max(dropdownWidth, 360) } } : undefined}
       trigger={['click']}
     >
       <div className="video-task-current-card" ref={triggerRef}>
