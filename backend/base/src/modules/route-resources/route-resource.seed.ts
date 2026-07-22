@@ -19,6 +19,7 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
   'web.module.creator_ops.buyin',
   'web.module.creator_ops.douyin',
   'web.module.creator_ops.wechat',
+  'web.system.settings',
 ]);
 
 const webRouteMetaByPermission = {
@@ -57,6 +58,9 @@ const webRouteMetaByPermission = {
   },
   'web.module.creator_ops.wechat': {
     path: '/app/creator-ops/wechat',
+  },
+  'web.system.settings': {
+    path: '/app/system-settings',
   },
 } as const satisfies Partial<Record<(typeof permissionCatalog)[number]['key'], {
   path: string;
@@ -100,6 +104,9 @@ export const seededRouteResources: SeedRouteResource[] = [
       if (entry.group === 'creator_ops') {
         return 'rr-web-root-creator-ops';
       }
+      if (entry.group === 'system') {
+        return undefined;
+      }
       if (
         entry.key === 'web.module.content.finished_assets'
         || entry.key === 'web.module.content.video_remake'
@@ -122,6 +129,7 @@ export const seededRouteResources: SeedRouteResource[] = [
       'web.module.creator_ops.buyin': 20,
       'web.module.creator_ops.douyin': 30,
       'web.module.creator_ops.wechat': 40,
+      'web.system.settings': 70,
     };
     return {
       id: `rr-${entry.key}`,
@@ -222,6 +230,30 @@ export const seededRouteResources: SeedRouteResource[] = [
     permissionCode: 'admin.route.system.temporary_assets.view',
     status: true,
     sortOrder: 70,
+    isSystem: true,
+  },
+  {
+    id: 'rr-admin-system-settings',
+    name: '系统设置',
+    resourceKey: 'admin.system.settings',
+    resourceType: 'menu',
+    platform: 'admin',
+    path: '/system/settings',
+    permissionCode: 'admin.route.system.settings.view',
+    status: true,
+    sortOrder: 80,
+    isSystem: true,
+  },
+  {
+    id: 'rr-admin-system-access-logs',
+    name: '站点访问日志',
+    resourceKey: 'admin.system.access_logs',
+    resourceType: 'menu',
+    platform: 'admin',
+    path: '/system/access-logs',
+    permissionCode: 'admin.route.system.access_logs.view',
+    status: true,
+    sortOrder: 90,
     isSystem: true,
   },
 ];

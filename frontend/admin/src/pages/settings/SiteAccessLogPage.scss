@@ -1,0 +1,30 @@
+.workspace-header:has(.site-access-log-header-settings) .workspace-header-extra {
+  margin-left: 8px;
+}
+
+.site-access-log-page {
+  gap: 14px;
+}
+
+.site-access-log-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.site-access-log-request {
+  display: grid;
+  gap: 3px;
+}
+
+.site-access-log-request .ant-typography {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .site-access-log-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

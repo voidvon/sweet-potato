@@ -13,5 +13,6 @@ export const routePaths = {
   creatorFavorites: '/app/creator-ops/favorites',
   wechatOps: '/app/creator-ops/wechat',
   account: '/app/account',
+  systemSettings: '/app/system-settings',
   noPermission: '/app/no-permission',
 };
