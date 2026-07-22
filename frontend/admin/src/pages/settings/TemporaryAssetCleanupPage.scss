@@ -1,3 +1,7 @@
+.workspace-header:has(.temporary-cleanup-header-settings) .workspace-header-extra {
+  margin-left: 8px;
+}
+
 .temporary-cleanup-page {
   gap: 14px;
   grid-template-rows: auto minmax(0, 1fr);

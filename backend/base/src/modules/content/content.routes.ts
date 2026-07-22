@@ -273,6 +273,18 @@ export function createContentRouter() {
     }
   });
 
+  router.get('/temporary-assets/settings', requireAdmin, (_req, res) => {
+    res.json(contentService.getTemporaryAssetCleanupSettings());
+  });
+
+  router.put('/temporary-assets/settings', requireAdmin, (req, res) => {
+    try {
+      res.json(contentService.updateTemporaryAssetCleanupSettings(req.body || {}));
+    } catch (error) {
+      sendError(res, 400, getErrorMessage(error, '临时素材清理设置保存失败'));
+    }
+  });
+
   router.get('/temporary-assets/disk-space', requireAdmin, (_req, res) => {
     void statfs(contentFilesDir, { bigint: true })
       .then((fileSystem) => {
