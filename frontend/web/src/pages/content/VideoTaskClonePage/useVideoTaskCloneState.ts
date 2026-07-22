@@ -511,6 +511,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (tool.key === 'marketing-video') {
       return formatCreditAmount(billing.marketingVideoCreditsPerRequest);
     }
+    if (tool.key === 'talking-video') {
+      return formatCreditAmount(billing.talkingVideoPromptCreditsPerRequest);
+    }
     if (tool.workspace.generate.handler === 'dance-remake' || tool.workspace.generate.handler === 'subject-replace') {
       if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
         return '';

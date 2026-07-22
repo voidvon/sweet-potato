@@ -1,5 +1,5 @@
 import { Dropdown, Modal, Popover, message } from 'antd';
-import { ChevronDown, Copy, Layers3, Library, Music2, ScanLine, Smartphone, Upload, Zap } from 'lucide-react';
+import { ChevronDown, Copy, Layers3, Library, Music2, ScanLine, Upload, Zap } from 'lucide-react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -77,7 +77,14 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 }}
                 trigger={['click']}
               >
-                <button type="button"><Smartphone size={15} />{state.ratio}<ChevronDown size={14} /></button>
+                <button type="button">
+                  <span
+                    aria-hidden="true"
+                    className={`video-task-ratio-icon video-task-ratio-icon--panel talking-video-modal-ratio-icon ratio-${state.ratio.replace(':', '-')}`}
+                  />
+                  {state.ratio}
+                  <ChevronDown size={14} />
+                </button>
               </Dropdown>
               <span>模型</span>
               <Dropdown

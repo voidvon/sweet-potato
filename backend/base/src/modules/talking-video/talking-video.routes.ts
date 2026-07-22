@@ -4,6 +4,13 @@ import { requirePermission } from '../../shared/auth.middleware.js';
 import { contentRepository } from '../content/content.repository.js';
 import { assertCreateVideoSourceDuration } from '../content/internals/content-video-duration.js';
 import type { ContentAsset } from '../content/content.types.js';
+import {
+  getBillingSettings,
+  releaseFixedBillableUsage,
+  reserveFixedBillableUsage,
+  settleFixedBillableUsage,
+} from '../billing/billing.service.js';
+import type { CreditReservation } from '../billing/billing.types.js';
 import type { TalkingVideoPromptImage } from './talking-video.prompt.js';
 import {
   talkingVideoHistoryRepository,
@@ -221,6 +228,8 @@ export function createTalkingVideoRouter() {
   });
 
   router.post('/prompt/tasks/:taskId/stream', async (req, res) => {
+    let billingReservation: CreditReservation | null = null;
+    let taskStarted = false;
     try {
       const userId = currentUserId(req);
       const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
@@ -243,6 +252,25 @@ export function createTalkingVideoRouter() {
 
       const taskId = String(req.params.taskId || randomUUID());
       const deepThink = body.deepThink !== false;
+      const configuredCredits = Math.max(0, getBillingSettings()?.talkingVideoPromptCreditsPerRequest ?? 3);
+      if (configuredCredits > 0) {
+        billingReservation = reserveFixedBillableUsage({
+          userId,
+          category: 'talking_video_prompt',
+          sourceType: 'talking_video_prompt',
+          sourceId: `${taskId}:prompt:${randomUUID()}`,
+          sessionId: taskId,
+          credits: configuredCredits,
+          step: 'talking_video_prompt',
+          stepLabel: '口播视频提示词生成',
+          requestSnapshot: {
+            deepThink,
+            durationSeconds,
+            imageCount: images.length,
+          },
+        });
+      }
+      let billingFinalized = false;
       const initialHistory = historyRecord({
         taskId,
         video,
@@ -256,18 +284,38 @@ export function createTalkingVideoRouter() {
         video: { ...promptMedia(video), durationSeconds },
         images,
         deepThink,
-        persistSnapshot: (event) => talkingVideoHistoryRepository.updateState(userId, taskId, {
-          status: event.status,
-          phase: event.phase,
-          reasoning: event.reasoning,
-          prompt: event.prompt,
-          errorMessage: event.errorMessage,
-          metrics: event.metrics,
-          serverTimings: event.timings,
-        }),
+        persistSnapshot: (event) => {
+          talkingVideoHistoryRepository.updateState(userId, taskId, {
+            status: event.status,
+            phase: event.phase,
+            reasoning: event.reasoning,
+            prompt: event.prompt,
+            errorMessage: event.errorMessage,
+            metrics: event.metrics,
+            serverTimings: event.timings,
+          });
+          if (!billingReservation || billingFinalized || event.status === 'thinking') return;
+          billingFinalized = true;
+          if (event.status === 'completed') {
+            settleFixedBillableUsage({
+              reservation: billingReservation,
+              category: 'talking_video_prompt',
+              provider: 'configured-llm',
+              taskId,
+              sessionId: taskId,
+              responseSnapshot: { status: 'completed' },
+            });
+            return;
+          }
+          releaseFixedBillableUsage(billingReservation);
+        },
       });
+      taskStarted = true;
       openTaskStream(req, res, taskId);
     } catch (error) {
+      if (billingReservation && !taskStarted) {
+        releaseFixedBillableUsage(billingReservation);
+      }
       res.status(400).json({ message: error instanceof Error ? error.message : '口播提示词生成失败，请重新尝试' });
     }
   });

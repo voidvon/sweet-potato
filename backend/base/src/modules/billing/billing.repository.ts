@@ -32,6 +32,7 @@ type BillingSettingsRow = {
   usd_to_credit_rate?: number;
   content_planning_analysis_credits_per_request: number;
   content_planning_generation_credits_per_request: number;
+  talking_video_prompt_credits_per_request: number;
   marketing_video_credits_per_request: number;
   marketing_video_storyboard_model_config_id: string;
   video_upscale_credits_per_request: number;
@@ -138,6 +139,7 @@ function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
     videoUnderstandingCreditsPer1MTokens: understandingCreditsPer1MTokens,
     contentPlanningAnalysisCreditsPerRequest: Number(row.content_planning_analysis_credits_per_request ?? 2),
     contentPlanningGenerationCreditsPerRequest: Number(row.content_planning_generation_credits_per_request ?? 3),
+    talkingVideoPromptCreditsPerRequest: Number(row.talking_video_prompt_credits_per_request ?? 3),
     marketingVideoCreditsPerRequest: Number(row.marketing_video_credits_per_request ?? 15),
     marketingVideoStoryboardModelConfigId: String(row.marketing_video_storyboard_model_config_id || ''),
     videoUpscaleCreditsPerRequest: Number(row.video_upscale_credits_per_request ?? 20),
@@ -255,6 +257,7 @@ export const billingRepository = {
         seedance_2_mini_credits_per_second_720p, seedance_2_mini_credits_per_second_480p,
         video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens,
         content_planning_analysis_credits_per_request, content_planning_generation_credits_per_request,
+        talking_video_prompt_credits_per_request,
         marketing_video_credits_per_request, marketing_video_storyboard_model_config_id,
         video_upscale_credits_per_request, subtitle_removal_credits_per_second,
         video_translation_subtitle_credits_per_second, video_translation_voice_credits_per_second,
@@ -267,6 +270,7 @@ export const billingRepository = {
         @seedance2MiniCreditsPerSecond720p, @seedance2MiniCreditsPerSecond480p,
         @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens,
         @contentPlanningAnalysisCreditsPerRequest, @contentPlanningGenerationCreditsPerRequest,
+        @talkingVideoPromptCreditsPerRequest,
         @marketingVideoCreditsPerRequest, @marketingVideoStoryboardModelConfigId,
         @videoUpscaleCreditsPerRequest, @subtitleRemovalCreditsPerSecond,
         @videoTranslationSubtitleCreditsPerSecond, @videoTranslationVoiceCreditsPerSecond,
@@ -284,6 +288,7 @@ export const billingRepository = {
         video_understanding_credits_per_1m_tokens = excluded.video_understanding_credits_per_1m_tokens,
         content_planning_analysis_credits_per_request = excluded.content_planning_analysis_credits_per_request,
         content_planning_generation_credits_per_request = excluded.content_planning_generation_credits_per_request,
+        talking_video_prompt_credits_per_request = excluded.talking_video_prompt_credits_per_request,
         marketing_video_credits_per_request = excluded.marketing_video_credits_per_request,
         marketing_video_storyboard_model_config_id = excluded.marketing_video_storyboard_model_config_id,
         video_upscale_credits_per_request = excluded.video_upscale_credits_per_request,
@@ -305,6 +310,7 @@ export const billingRepository = {
       videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
       contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
       contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
+      talkingVideoPromptCreditsPerRequest: settings.talkingVideoPromptCreditsPerRequest,
       marketingVideoCreditsPerRequest: settings.marketingVideoCreditsPerRequest,
       marketingVideoStoryboardModelConfigId: settings.marketingVideoStoryboardModelConfigId,
       videoUpscaleCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,

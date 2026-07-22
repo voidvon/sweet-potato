@@ -1041,6 +1041,10 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
       input.contentPlanningGenerationCreditsPerRequest,
       normalizeNumber(fallbackRecord.contentPlanningGenerationCreditsPerRequest, 3),
     ),
+    talkingVideoPromptCreditsPerRequest: normalizeNumber(
+      input.talkingVideoPromptCreditsPerRequest,
+      normalizeNumber(fallbackRecord.talkingVideoPromptCreditsPerRequest, 3),
+    ),
     marketingVideoCreditsPerRequest: normalizeNumber(
       input.marketingVideoCreditsPerRequest,
       normalizeNumber(fallbackRecord.marketingVideoCreditsPerRequest, 15),
@@ -1212,6 +1216,7 @@ export function saveBillingSettings(settings: BillingSettings) {
     settings.videoUnderstandingCreditsPer1MTokens,
     settings.contentPlanningAnalysisCreditsPerRequest,
     settings.contentPlanningGenerationCreditsPerRequest,
+    settings.talkingVideoPromptCreditsPerRequest,
     settings.marketingVideoCreditsPerRequest,
     settings.videoUpscaleCreditsPerRequest,
     settings.subtitleRemovalCreditsPerSecond,

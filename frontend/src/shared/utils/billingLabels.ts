@@ -4,6 +4,7 @@ const sourceTypeMap: Record<string, string> = {
   confirmed_audio_preview: '确认音频预览',
   content_planning_analysis: '爆款策划 · 素材识别',
   content_planning_generation: '爆款策划 · 脚本生成',
+  talking_video_prompt: '口播视频 · 提示词生成',
   content_planning_planner: '爆款策划 · 需求规划',
   content_planning_repair: '爆款策划 · 脚本修复',
   content_planning_strategy: '爆款策划 · 创意策略',

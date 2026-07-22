@@ -124,6 +124,7 @@ export type BillingSettings = {
   videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;
   contentPlanningGenerationCreditsPerRequest: number;
+  talkingVideoPromptCreditsPerRequest: number;
   marketingVideoCreditsPerRequest: number;
   marketingVideoStoryboardModelConfigId: string;
   videoUpscaleCreditsPerRequest: number;

@@ -37,6 +37,7 @@ export function updateBillingSettings(payload: Pick<
   | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'
   | 'contentPlanningGenerationCreditsPerRequest'
+  | 'talkingVideoPromptCreditsPerRequest'
   | 'marketingVideoCreditsPerRequest'
   | 'marketingVideoStoryboardModelConfigId'
   | 'videoUpscaleCreditsPerRequest'
