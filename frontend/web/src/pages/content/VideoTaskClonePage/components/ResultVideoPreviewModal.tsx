@@ -210,14 +210,13 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
       >
         <div className="result-video-preview-layout">
           <main className="result-video-preview-stage">
-            <button
+            <Button
               aria-label="关闭视频预览"
               className="result-video-preview-stage__close"
+              icon={<X size={20} />}
               onClick={closeModal}
-              type="button"
-            >
-              <X size={20} />
-            </button>
+              shape="circle"
+            />
             <VideoPreviewPlayer
               duration={video.duration}
               name={video.name}

@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Clock3, LoaderCircle, RefreshCw, Square, Video } from 'lucide-react';
-import { Tooltip } from 'antd';
+import { Button, Tooltip } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -11,14 +11,13 @@ import './TalkingVideoPromptWorkspace.scss';
 export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState }) {
   if (!state.talkingVideoInputExpanded) {
     return (
-      <button
+      <Button
         className="talking-video-input-collapsed"
         onClick={() => state.setTalkingVideoInputExpanded(true)}
-        type="button"
       >
         <span>口播输入已收起</span>
         <strong>展开输入区</strong>
-      </button>
+      </Button>
     );
   }
 
@@ -39,11 +38,12 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
           tool={state.tool}
         />
       </div>
-      <button
+      <Button
         className="video-task-generate talking-video-input-generate"
         disabled={!state.canGenerate || state.isGenerating}
+        loading={state.isGenerating}
         onClick={() => void state.handleGenerate()}
-        type="button"
+        type="primary"
       >
         {state.isGenerating ? '生成中…' : state.tool.submitText}
         {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
@@ -52,7 +52,7 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
             {state.videoPriceLabel}
           </span>
         ) : null}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -134,26 +134,32 @@ function TalkingVideoTaskCard({
         {retrying ? (
           <Tooltip title="已手动停止生成，点击重新思考">
             <span className="talking-video-task-action">
-              <button className="is-continue" disabled type="button">
-                <LoaderCircle className="is-spinning" size={12} />继续
-              </button>
+              <Button className="is-continue" danger disabled loading size="small">继续</Button>
             </span>
           </Tooltip>
         ) : running ? (
-          <button className="is-stop" onClick={() => void state.stopTalkingVideoPrompt(task.id)} type="button">
-            <Square fill="currentColor" size={12} />停止
-          </button>
+          <Button
+            className="is-stop"
+            danger
+            icon={<Square fill="currentColor" size={12} />}
+            onClick={() => void state.stopTalkingVideoPrompt(task.id)}
+            size="small"
+          >
+            停止
+          </Button>
         ) : task.status === 'stopped' ? (
           <Tooltip title="已手动停止生成，点击重新思考">
             <span className="talking-video-task-action">
-              <button
+              <Button
                 className="is-continue"
+                danger
                 disabled={state.isGenerating || !task.referenceImages.length}
+                icon={<RefreshCw size={12} />}
                 onClick={() => void state.retryTalkingVideoPromptTask(task.id)}
-                type="button"
+                size="small"
               >
-                <RefreshCw size={12} />继续
-              </button>
+                继续
+              </Button>
             </span>
           </Tooltip>
         ) : null}
@@ -200,24 +206,25 @@ function TalkingVideoTaskCard({
       {task.status === 'failed' ? (
         <div className="talking-video-task-error">
           <span>{task.errorMessage}</span>
-          <button
+          <Button
             disabled={state.isGenerating || !task.referenceImages.length}
+            icon={<RefreshCw size={14} />}
             onClick={() => void state.retryTalkingVideoPromptTask(task.id)}
-            type="button"
+            size="small"
           >
-            <RefreshCw size={14} />重新生成
-          </button>
+            重新生成
+          </Button>
         </div>
       ) : null}
 
       {completed ? (
-        <button
+        <Button
           className="talking-video-open-generate"
           onClick={() => state.openTalkingVideoGeneration(task.id)}
-          type="button"
+          type="primary"
         >
           生成视频
-        </button>
+        </Button>
       ) : null}
     </article>
   );

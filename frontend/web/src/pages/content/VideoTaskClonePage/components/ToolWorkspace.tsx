@@ -1,4 +1,5 @@
 import { Clock3 } from 'lucide-react';
+import { Button } from 'antd';
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
@@ -37,11 +38,12 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
       )}
 
       <div className="video-task-generate-bar">
-        <button
+        <Button
           className="video-task-generate"
           disabled={!state.canGenerate || state.isGenerating}
+          loading={state.isGenerating}
           onClick={() => void state.handleGenerate()}
-          type="button"
+          type="primary"
         >
           {state.isGenerating ? '生成中…' : state.tool.submitText}
           {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
@@ -50,7 +52,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
               {state.videoPriceLabel}
             </span>
           ) : null}
-        </button>
+        </Button>
       </div>
     </>
   );

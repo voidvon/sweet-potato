@@ -1,4 +1,5 @@
 import { Maximize } from 'lucide-react';
+import { Button } from 'antd';
 import { promptPlaceholder } from '../constants';
 import type { MaterialKey, PromptPanel as PromptPanelKind, SelectedMaterials } from '../types';
 import type { User } from '../../../../types';
@@ -52,9 +53,15 @@ export function PromptPanel({
           selectedMaterials={selectedMaterials}
           suggestionContainer="body"
         />
-        <button aria-label="展开提示词编辑器" title='展开提示词编辑器' className="video-task-expand" onClick={onExpand} type="button">
-          <Maximize size={18} />
-        </button>
+        <Button
+          aria-label="展开提示词编辑器"
+          className="video-task-expand"
+          icon={<Maximize size={18} />}
+          onClick={onExpand}
+          shape="circle"
+          title="展开提示词编辑器"
+          type="text"
+        />
         {showPlanning ? (
           <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
             <span className="video-task-one-click-spark">✨</span>

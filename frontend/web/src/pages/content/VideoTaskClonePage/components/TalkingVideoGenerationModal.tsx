@@ -1,5 +1,5 @@
-import { Dropdown, Modal, Popover, message } from 'antd';
-import { ChevronDown, Copy, Layers3, Library, Maximize, Music2, ScanLine, Upload, Zap } from 'lucide-react';
+import { Button, Dropdown, Modal, Popover, message } from 'antd';
+import { ChevronDown, Copy, Layers3, Library, Maximize, Music2, ScanLine, Upload } from 'lucide-react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -59,7 +59,14 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                     : '您当前未修改系统生成的提示词，如确认使用当前提示词，请点击确认后继续生成。'}
                 </span>
               </div>
-              <button onClick={() => setConfirmed(true)} type="button">确认使用当前提示词</button>
+              <Button
+                color="orange"
+                onClick={() => setConfirmed(true)}
+                size="small"
+                variant="solid"
+              >
+                确认使用当前提示词
+              </Button>
             </div>
           )}
 
@@ -80,14 +87,14 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 }}
                 trigger={['click']}
               >
-                <button type="button">
+                <Button>
                   <span
                     aria-hidden="true"
                     className={`video-task-ratio-icon video-task-ratio-icon--panel talking-video-modal-ratio-icon ratio-${state.ratio.replace(':', '-')}`}
                   />
                   {state.ratio}
                   <ChevronDown size={14} />
-                </button>
+                </Button>
               </Dropdown>
               <span>模型</span>
               <Dropdown
@@ -98,7 +105,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 }}
                 trigger={['click']}
               >
-                <button type="button"><Layers3 size={15} />{state.model}<ChevronDown size={14} /></button>
+                <Button icon={<Layers3 size={15} />}>{state.model}<ChevronDown size={14} /></Button>
               </Dropdown>
               <span>清晰度</span>
               <Dropdown
@@ -109,18 +116,18 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 }}
                 trigger={['click']}
               >
-                <button type="button"><ScanLine size={15} />{state.quality}<ChevronDown size={14} /></button>
+                <Button icon={<ScanLine size={15} />}>{state.quality}<ChevronDown size={14} /></Button>
               </Dropdown>
             </div>
-            <button
+            <Button
               className="talking-video-modal-submit"
               disabled={!confirmed || !draft.trim() || !hasModelImage || state.isTalkingVideoSubmitting}
+              loading={state.isTalkingVideoSubmitting}
               onClick={() => void state.generateTalkingVideoFromPrompt(draft)}
-              type="button"
+              type="primary"
             >
               {state.isTalkingVideoSubmitting ? '提交中…' : '提交生成'}
-              {/* {!state.isTalkingVideoSubmitting ? <Zap fill="currentColor" size={14} /> : null} */}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -152,7 +159,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         <section className="talking-video-modal-prompt">
           <header>
             <span />
-            <button onClick={() => void copyPrompt()} type="button"><Copy size={14} />复制</button>
+            <Button icon={<Copy size={14} />} onClick={() => void copyPrompt()} size="small">复制</Button>
           </header>
           <PromptMentionEditor
             minRows={1}
@@ -166,15 +173,15 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
             selectedMaterials={editorMaterials}
             suggestionContainer="body"
           />
-          <button
+          <Button
             aria-label="全屏编辑提示词"
             className="video-task-expand talking-video-modal-prompt-expand"
+            icon={<Maximize size={18} />}
             onClick={() => setPromptExpanded(true)}
+            shape="circle"
             title="全屏编辑提示词"
-            type="button"
-          >
-            <Maximize size={18} />
-          </button>
+            type="text"
+          />
         </section>
       </div>
       </Modal>
@@ -248,7 +255,7 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
           placement="bottomRight"
           trigger="click"
         >
-          <button type="button"><Library size={14} />素材库</button>
+          <Button icon={<Library size={14} />} shape="round" size="small">素材库</Button>
         </Popover>
       </header>
       <input

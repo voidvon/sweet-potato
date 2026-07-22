@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { Button } from 'antd';
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { MaterialKey, SelectedMaterials } from '../types';
@@ -44,7 +45,7 @@ export function PromptModal({
             <strong>{title}</strong>
             <p>{description}</p>
           </div>
-          <button onClick={onClose} type="button"><X size={18} /></button>
+          <Button aria-label="关闭全屏提示词编辑器" icon={<X size={18} />} onClick={onClose} shape="circle" type="text" />
         </div>
         <PromptMentionEditor
           minRows={10}

@@ -99,7 +99,7 @@ export function ResultPanel({
     <aside className="video-task-filter-panel">
       <div className="video-task-popover-head">
         <strong>筛选生成记录</strong>
-        <button onClick={handleClearFilters} type="button">清空</button>
+        <Button onClick={handleClearFilters} size="small" type="link">清空</Button>
       </div>
       {filterGroups.map((group) => (
         <div className="video-task-filter-group" key={group.label}>
@@ -138,14 +138,14 @@ export function ResultPanel({
           popupRender={() => filterDropdownContent}
           trigger={['click']}
         >
-          <button
+          <Button
             className={activeFilterCount > 0 ? 'video-task-filter has-filters' : 'video-task-filter'}
-            type="button"
+            icon={<Filter size={18} />}
+            type="primary"
           >
-            <Filter size={18} />
             筛选
             {activeFilterCount > 0 ? <span className="video-task-filter-count">{activeFilterCount}</span> : null}
-          </button>
+          </Button>
         </Dropdown>
       </header>
 

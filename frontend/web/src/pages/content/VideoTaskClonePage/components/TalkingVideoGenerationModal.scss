@@ -135,10 +135,7 @@
 
 .talking-video-modal-audio > header button {
   align-items: center;
-  background: #fff;
-  border: 1px solid #dfe4eb;
   border-radius: 999px;
-  color: #354052;
   display: inline-flex;
   font-size: 10px;
   gap: 5px;
@@ -250,10 +247,7 @@
 
 .talking-video-modal-prompt > header button {
   align-items: center;
-  background: #fff;
-  border: 1px solid #e0e4ea;
   border-radius: 7px;
-  color: #637087;
   display: inline-flex;
   font-size: 10px;
   gap: 4px;
@@ -294,17 +288,17 @@
   padding: 9px 11px;
 }
 
-.talking-video-modal-confirmation strong,
-.talking-video-modal-confirmation span {
+.talking-video-modal-confirmation > div > strong,
+.talking-video-modal-confirmation > div > span {
   display: block;
 }
 
-.talking-video-modal-confirmation strong {
+.talking-video-modal-confirmation > div > strong {
   color: #8a4b08;
   font-size: 11px;
 }
 
-.talking-video-modal-confirmation span {
+.talking-video-modal-confirmation > div > span {
   color: #a36a26;
   font-size: 10px;
   margin-top: 2px;
@@ -312,20 +306,14 @@
 
 .talking-video-modal-confirmation button {
   align-items: center;
-  background: #f59e0b;
-  border: 0;
   border-radius: 8px;
-  color: #fff;
+  color: #fff !important;
   display: inline-flex;
   font-size: 10px;
   font-weight: 650;
   gap: 4px;
   height: 30px;
   padding: 0 10px;
-}
-
-.talking-video-modal-confirmation button.is-confirmed {
-  background: #16803b;
 }
 
 .talking-video-modal-audio-note {
@@ -357,10 +345,7 @@
 .talking-video-modal-parameters > button,
 .talking-video-modal-parameters .ant-dropdown-trigger {
   align-items: center;
-  background: #fff;
-  border: 1px solid #e0e4ea;
   border-radius: 8px;
-  color: #354052;
   display: inline-flex;
   font-size: 12px;
   gap: 6px;
@@ -393,10 +378,7 @@
 
 .talking-video-modal-submit {
   align-items: center;
-  background: #1677ff;
-  border: 1px solid #0969da;
   border-radius: 9px;
-  color: #fff;
   display: inline-flex;
   font-size: 11px;
   font-weight: 650;
@@ -404,12 +386,6 @@
   height: 38px;
   justify-self: end;
   padding: 0 16px;
-}
-
-.talking-video-modal-submit:disabled {
-  background: #d5dbe5;
-  border-color: #d5dbe5;
-  cursor: not-allowed;
 }
 
 .talking-video-voice-library-popover .ant-popover-inner {

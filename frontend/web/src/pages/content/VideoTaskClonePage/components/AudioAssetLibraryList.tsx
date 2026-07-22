@@ -1,4 +1,5 @@
 import { Check, ChevronLeft, Music2, Pause, Play, Plus } from 'lucide-react';
+import { Button } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
@@ -25,9 +26,14 @@ export function AudioAssetLibraryPanel({ onClose, ...listProps }: AudioAssetLibr
           <strong>素材库 · 音频</strong>
         </span>
         {onClose ? (
-          <button aria-label="收起音频素材库" className="video-task-popover-collapse" onClick={onClose} type="button">
-            <ChevronLeft size={20} />
-          </button>
+          <Button
+            aria-label="收起音频素材库"
+            className="video-task-popover-collapse"
+            icon={<ChevronLeft size={20} />}
+            onClick={onClose}
+            shape="circle"
+            type="text"
+          />
         ) : null}
       </header>
       <p>点击「填入」选择一段口播声音</p>
