@@ -114,9 +114,9 @@ function TalkingVideoTaskCard({
         <div>
           <strong>{task.sourceVideo.name}</strong>
           <time>{formatTaskTime(task.createdAt)}</time>
-          {task.phase !== 'completed' ? (
+          {/* {task.phase !== 'completed' ? (
             <small>{phaseLabel(task.phase)}{timingSummary(task)}</small>
-          ) : null}
+          ) : null} */}
         </div>
         {retrying ? (
           <Tooltip title="已手动停止生成，点击重新思考">
