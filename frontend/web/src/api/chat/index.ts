@@ -11,6 +11,8 @@ import { withAuthToken } from '../../utils/session';
 
 enum Api {
   attachmentUpload = '/api/chat/attachments/upload',
+  attachmentDirectUploadPrepare = '/api/chat/attachments/direct-upload/prepare',
+  attachmentDirectUploadComplete = '/api/chat/attachments/direct-upload/complete',
   conversations = '/api/chat/conversations',
   conversationDetail = '/api/chat/conversations/:conversationId',
   conversationMessage = '/api/chat/conversations/:conversationId/messages/:messageId',
@@ -73,12 +75,54 @@ export function deleteChatMessage(conversationId: string, messageId: string) {
   );
 }
 
-export function uploadChatAttachment(file: File) {
+type PrepareDirectUploadResult = {
+  directUpload: false;
+} | {
+  directUpload: true;
+  intentId: string;
+  uploadUrl: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+};
+
+function uploadChatAttachmentThroughServer(file: File) {
   const formData = new FormData();
   formData.set('file', file);
   return request<ChatAttachment>(Api.attachmentUpload, {
     method: 'POST',
     body: formData,
+  });
+}
+
+export async function uploadChatAttachment(file: File) {
+  const prepared = await request<PrepareDirectUploadResult>(Api.attachmentDirectUploadPrepare, {
+    method: 'POST',
+    body: JSON.stringify({
+      originalFileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      fileSize: file.size,
+    }),
+  });
+  if (!prepared.directUpload) {
+    return uploadChatAttachmentThroughServer(file);
+  }
+  const uploadResponse = await fetch(prepared.uploadUrl, {
+    method: 'PUT',
+    headers: prepared.headers,
+    body: file,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error(`文件上传到对象存储失败（${uploadResponse.status}）`);
+  }
+  return request<ChatAttachment>(Api.attachmentDirectUploadComplete, {
+    method: 'POST',
+    body: JSON.stringify({ intentId: prepared.intentId }),
+  });
+}
+
+export function deleteChatAttachment(assetId: string) {
+  return request<{ ok: boolean; deleted: boolean }>(`/api/chat/attachments/${encodeURIComponent(assetId)}`, {
+    method: 'DELETE',
   });
 }
 

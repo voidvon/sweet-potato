@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   clearChatConversationMessages,
   createChatMessage,
+  deleteChatAttachment,
   deleteChatConversation,
   deleteChatMessage,
   getChatConversation,
@@ -92,6 +93,7 @@ export function useChatSession() {
   const conversationOverlayLoadingShownAtRef = useRef<number | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
   const attachmentObjectUrlsRef = useRef(new Map<string, string>());
+  const removedPendingAttachmentIdsRef = useRef(new Set<string>());
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.id === activeConversationId),
@@ -418,6 +420,12 @@ export function useChatSession() {
           clientGroupKey: pendingAttachment.clientGroupKey,
           ...(pendingAttachment.kind === 'image' && objectUrl ? { previewUrl: objectUrl } : {}),
         };
+        if (removedPendingAttachmentIdsRef.current.delete(pendingAttachment.id)) {
+          if (uploadedAttachment.assetId) {
+            await deleteChatAttachment(uploadedAttachment.assetId);
+          }
+          return uploadedAttachment;
+        }
         if (objectUrl && uploadedAttachment.previewUrl) {
           attachmentObjectUrlsRef.current.delete(pendingAttachment.id);
           attachmentObjectUrlsRef.current.set(uploadedAttachment.id, objectUrl);
@@ -463,13 +471,21 @@ export function useChatSession() {
   }, [attachments.length]);
 
   const removeAttachment = useCallback((attachmentId: string) => {
+    const attachment = attachments.find((item) => item.id === attachmentId);
+    if (attachment?.uploadStatus === 'uploading') {
+      removedPendingAttachmentIdsRef.current.add(attachmentId);
+    } else if (attachment?.assetId) {
+      void deleteChatAttachment(attachment.assetId).catch((error) => {
+        message.error(error instanceof Error ? error.message : '远端参考图删除失败');
+      });
+    }
     const objectUrl = attachmentObjectUrlsRef.current.get(attachmentId);
     if (objectUrl) {
       window.URL.revokeObjectURL(objectUrl);
       attachmentObjectUrlsRef.current.delete(attachmentId);
     }
     setAttachments((items) => items.filter((item) => item.id !== attachmentId));
-  }, []);
+  }, [attachments]);
 
   const updateConversationTitle = useCallback(async (conversationId: string, title: string) => {
     const updated = await renameChatConversation(conversationId, title);

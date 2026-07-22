@@ -398,6 +398,37 @@ async function chatAttachmentToReferenceAsset(attachment: ChatAttachment) {
     };
   }
 
+  if (/^https?:\/\//i.test(attachment.url)) {
+    const asset = attachment.assetId ? contentRepository.findAsset(attachment.assetId) : null;
+    if (!asset || asset.fileUrl !== attachment.url) {
+      throw new Error('远程参考图素材记录不存在，请重新上传');
+    }
+    if (asset.filePath) {
+      try {
+        await access(asset.filePath);
+        return {
+          filePath: asset.filePath,
+          mimeType: asset.mimeType || attachment.type || 'image/png',
+          originalFileName,
+        };
+      } catch {}
+    }
+    const response = await fetch(attachment.url);
+    if (!response.ok) throw new Error(`远程参考图下载失败：${response.status}`);
+    const mimeType = response.headers.get('content-type')?.split(';')[0]?.trim()
+      || asset.mimeType
+      || attachment.type
+      || 'image/png';
+    if (!mimeType.startsWith('image/')) throw new Error('远程参考素材不是图片');
+    const extension = extensionForMimeType(mimeType);
+    const storedRelativePath = inputMediaRelativePath('image', `chat-reference-${asset.id}.${extension}`);
+    const filePath = contentFilePathForRelativePath(storedRelativePath);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from(await response.arrayBuffer()));
+    contentRepository.updateAssetFileInfo(asset.id, { filePath });
+    return { filePath, mimeType, originalFileName };
+  }
+
   const parsed = dataUrlToBuffer(attachment.url);
   const extension = extensionForMimeType(parsed.mimeType);
   const storedFileName = `chat-image-reference-${randomBytes(8).toString('hex')}.${extension}`;
