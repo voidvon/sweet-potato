@@ -50,6 +50,7 @@ export function normalizeTalkingVideoPromptTasks(value: unknown): TalkingVideoPr
       ? item.referenceImages.map(persistedMaterial).filter((material): material is LocalMaterialFile => material?.type === 'image')
       : [];
     return [{
+      deepThink: item.deepThink !== false,
       id: String(item.id || crypto.randomUUID()),
       phase: typeof item.phase === 'string'
         && ['uploading_assets', 'understanding_video', 'validating_analysis', 'generating_prompt', 'validating_prompt', 'repairing_prompt', 'completed', 'failed', 'stopped'].includes(item.phase)

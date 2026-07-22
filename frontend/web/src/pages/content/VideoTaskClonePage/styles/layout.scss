@@ -31,8 +31,12 @@
   grid-template-columns: 190px minmax(520px, 1fr) minmax(360px, 0.85fr);
 }
 
+.video-task-clone-page.is-talking-video:not(.has-talking-video-prompt) {
+  grid-template-columns: minmax(480px, 520px) minmax(0, 1fr);
+}
+
 .video-task-clone-page.has-talking-video-prompt.has-talking-video-input-expanded {
-  grid-template-columns: clamp(360px, 31vw, 460px) minmax(520px, 1fr) minmax(360px, 0.85fr);
+  grid-template-columns: clamp(360px, 34vw, 520px) minmax(0, 1fr) minmax(360px, 0.85fr);
 }
 
 .video-task-clone-page.has-talking-video-prompt .video-task-left {

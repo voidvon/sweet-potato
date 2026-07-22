@@ -49,6 +49,7 @@ export type TalkingVideoPromptClientTimings = {
 };
 
 export type TalkingVideoPromptTask = {
+  deepThink: boolean;
   id: string;
   phase: TalkingVideoPromptPhase;
   status: 'preparing' | 'thinking' | 'completed' | 'failed' | 'stopped';

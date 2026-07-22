@@ -146,19 +146,21 @@ function TalkingVideoTaskCard({
         ) : null}
       </header>
 
-      <section className={`talking-video-reasoning${running ? ' is-running' : ''}`}>
-        <button onClick={() => setReasoningOpen((open) => !open)} type="button">
-          <span>{running ? <i /> : null}深度思考</span>
-          <span>{reasoningOpen ? '收起' : '展开'}<ChevronDown className={reasoningOpen ? 'is-open' : ''} size={16} /></span>
-        </button>
-        {reasoningOpen ? (
-          <div className="talking-video-reasoning-content" ref={reasoningRef}>
-            <ReasoningContent
-              content={task.reasoning || (running ? '思考中…' : '暂无思考内容')}
-            />
-          </div>
-        ) : null}
-      </section>
+      {task.deepThink ? (
+        <section className={`talking-video-reasoning${running ? ' is-running' : ''}`}>
+          <button onClick={() => setReasoningOpen((open) => !open)} type="button">
+            <span>{running ? <i /> : null}深度思考</span>
+            <span>{reasoningOpen ? '收起' : '展开'}<ChevronDown className={reasoningOpen ? 'is-open' : ''} size={16} /></span>
+          </button>
+          {reasoningOpen ? (
+            <div className="talking-video-reasoning-content" ref={reasoningRef}>
+              <ReasoningContent
+                content={task.reasoning || (running ? '思考中…' : '暂无思考内容')}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {completed ? (
         <section className="talking-video-final-result">

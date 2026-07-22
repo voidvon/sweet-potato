@@ -29,7 +29,7 @@
 
 .talking-video-history-header small {
   color: #9aa3b1;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .talking-video-history-scroll {
@@ -275,7 +275,7 @@
 
 .talking-video-reasoning > button > span:first-child,
 .talking-video-final-result strong {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -297,8 +297,7 @@
 .talking-video-final-result > div {
   border-top: 1px solid #e6eaf0;
   color: #4b5565;
-  font-size: 11px;
-  line-height: 1.75;
+  font-size: 12px;
   overflow: auto;
   padding: 10px;
   white-space: pre-wrap;
@@ -344,11 +343,11 @@
 .talking-video-open-generate {
   background: #1677ff;
   border: 1px solid #0969da;
-  border-radius: 9px;
+  border-radius: 20px;
   color: #fff;
   font-size: 12px;
   font-weight: 650;
   height: 38px;
   justify-self: start;
-  padding: 0 18px;
+  padding: 0 12px;
 }

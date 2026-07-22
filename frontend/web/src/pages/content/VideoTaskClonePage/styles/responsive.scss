@@ -66,6 +66,13 @@
 
   .video-task-current-card {
     display: flex;
+    height: auto;
+    min-height: 82px;
+  }
+
+  .video-task-params-card {
+    height: auto;
+    min-height: 201px;
   }
 
   .video-task-material-grid,

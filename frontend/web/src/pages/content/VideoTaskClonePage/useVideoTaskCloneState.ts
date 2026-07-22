@@ -148,6 +148,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const retrySubmittingRef = useRef(false);
   const talkingVideoPromptAbortRef = useRef<AbortController | null>(null);
   const talkingVideoDeltaBuffersRef = useRef<Record<string, TalkingVideoDeltaBuffer & { timerId: number | null }>>({});
+  const talkingVideoCompactLayoutRef = useRef<boolean | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [talkingVideoDeepThink, setTalkingVideoDeepThink] = useState(true);
   const [talkingVideoPromptTasks, setTalkingVideoPromptTasks] = useState<TalkingVideoPromptTask[]>(
@@ -260,6 +261,26 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (talkingVideoHistoryOwnerId !== currentUser.id) return;
     saveTalkingVideoPromptTasks(currentUser.id, talkingVideoPromptTasks);
   }, [currentUser.id, talkingVideoHistoryOwnerId, talkingVideoPromptTasks]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mediaQuery = window.matchMedia('(max-width: 1100px)');
+    const syncInputLayout = () => {
+      const isCompact = mediaQuery.matches;
+      if (tool.key !== 'talking-video' || !talkingVideoPromptTask?.id) {
+        talkingVideoCompactLayoutRef.current = talkingVideoPromptTask?.id ? isCompact : null;
+        return;
+      }
+      const enteredCompactLayout = isCompact && talkingVideoCompactLayoutRef.current !== true;
+      talkingVideoCompactLayoutRef.current = isCompact;
+      if (enteredCompactLayout) {
+        setTalkingVideoInputExpanded(true);
+      }
+    };
+    syncInputLayout();
+    mediaQuery.addEventListener('change', syncInputLayout);
+    return () => mediaQuery.removeEventListener('change', syncInputLayout);
+  }, [talkingVideoPromptTask?.id, tool.key]);
 
   useEffect(() => {
     let ignore = false;
@@ -1399,7 +1420,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
   const generateTalkingVideoPrompt = useCallback(async (
     materialsOverride?: SelectedMaterials,
-    options: { clearForm?: boolean; onStreamStart?: () => void; taskId?: string } = {},
+    options: { clearForm?: boolean; deepThink?: boolean; onStreamStart?: () => void; taskId?: string } = {},
   ) => {
     const promptMaterials = materialsOverride || selectedMaterials;
     const sourceVideo = getLocalFiles(promptMaterials.video)[0];
@@ -1413,9 +1434,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const controller = new AbortController();
     talkingVideoPromptAbortRef.current = controller;
     const taskId = options.taskId || crypto.randomUUID();
-    if (options.clearForm !== false) setTalkingVideoInputExpanded(false);
+    const deepThink = options.deepThink ?? talkingVideoDeepThink;
+    const isCompactLayout = typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches;
+    if (options.clearForm !== false && !isCompactLayout) setTalkingVideoInputExpanded(false);
     setTalkingVideoGenerateModalOpen(false);
     setTalkingVideoPromptTask({
+      deepThink,
       id: taskId,
       phase: 'uploading_assets',
       status: 'preparing',
@@ -1473,7 +1497,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           assetId,
           role: imageFiles[index].talkingVideoRole || 'detail',
         })),
-        deepThink: talkingVideoDeepThink,
+        deepThink,
       }, (event) => applyTalkingVideoPromptEvent(taskId, event), { signal: controller.signal });
     } catch (error) {
       const disconnected = error instanceof Error && error.name === 'AbortError';
@@ -1551,6 +1575,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setIsGenerating(true);
       await generateTalkingVideoPrompt(restoredMaterials, {
         clearForm: false,
+        deepThink: task.deepThink,
         onStreamStart: () => setRetryingTalkingVideoTaskId(''),
         taskId,
       });

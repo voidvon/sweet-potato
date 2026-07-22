@@ -89,12 +89,15 @@
 .talking-video-image-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, 80px);
+  justify-content: start;
 }
 
 .talking-video-image-slot {
-  min-width: 0;
+  max-width: 80px;
+  min-width: 80px;
   text-align: center;
+  width: 80px;
 }
 
 .talking-video-image-slot-main {
@@ -109,6 +112,7 @@
   overflow: hidden;
   position: relative;
   transition: border-color 160ms ease, background-color 160ms ease;
+  width: 80px;
 }
 
 .talking-video-image-slot-main:hover {
@@ -174,10 +178,4 @@
 .talking-video-image-slot-meta.is-filled {
   color: #059669;
   font-weight: 600;
-}
-
-@media (max-width: 720px) {
-  .talking-video-image-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }

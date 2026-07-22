@@ -64,6 +64,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
 
   const pageClassName = [
     'video-task-clone-page',
+    state.tool.key === 'talking-video' ? 'is-talking-video' : '',
     state.tool.key === 'marketing-video' ? 'has-storyboard-history' : '',
     state.tool.key === 'talking-video' && state.talkingVideoPromptTask ? 'has-talking-video-prompt' : '',
     state.tool.key === 'talking-video' && state.talkingVideoPromptTask && state.talkingVideoInputExpanded
