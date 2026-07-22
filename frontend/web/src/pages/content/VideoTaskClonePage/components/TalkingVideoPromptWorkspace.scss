@@ -324,6 +324,19 @@
   margin-top: 0;
 }
 
+.talking-video-reasoning-progress {
+  align-items: center;
+  background: #f1f6fd;
+  border-top: 1px solid #e2eaf5;
+  color: #55708f;
+  display: flex !important;
+  gap: 6px;
+  margin: 10px -10px -10px;
+  padding: 8px 10px;
+  position: sticky;
+  bottom: -10px;
+}
+
 .talking-video-final-result > div {
   max-height: 340px;
 }

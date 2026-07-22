@@ -157,6 +157,9 @@ function hasFullScreenPresenterDropLine(line: string) {
 
 export function validateTalkingVideoPrompt(prompt: string, analysis: TalkingVideoAnalysis) {
   const issues: string[] = [];
+  if (/(?:presentationLayout|picture_in_picture|full_screen_presenter|voice_over)/u.test(prompt)) {
+    issues.push('最终提示词不能包含结构化分析字段或英文布局枚举，必须改写为自然中文');
+  }
   if (/同镜号|同上一镜|同上|参数无变动|场景、人物状态无变化/u.test(prompt)) {
     issues.push('每个镜头必须写出完整独立描述，不能使用“同镜号/同上/参数无变动”等省略表达');
   }
@@ -258,6 +261,10 @@ export function normalizeTalkingVideoPrompt(value: string) {
     .trim()
     .replace(/^```(?:markdown|text)?\s*/iu, '')
     .replace(/\s*```$/u, '')
+    .replace(/presentationLayout/gu, '画面布局')
+    .replace(/picture_in_picture/gu, '画中画')
+    .replace(/full_screen_presenter/gu, '全屏讲解者')
+    .replace(/voice_over/gu, '旁白')
     .trim();
   if (!/^画面不要生成字幕/u.test(normalized)) {
     normalized = `画面不要生成字幕、字幕条、标题字、贴片文字、平台水印或其他可读文字。\n\n${normalized}`;

@@ -64,7 +64,11 @@ export function normalizeTalkingVideoPromptTasks(value: unknown): TalkingVideoPr
               : 'uploading_assets',
       status: status as TalkingVideoPromptTask['status'],
       reasoning: String(item.reasoning || ''),
-      prompt: String(item.prompt || ''),
+      prompt: String(item.prompt || '')
+        .replace(/presentationLayout/gu, '画面布局')
+        .replace(/picture_in_picture/gu, '画中画')
+        .replace(/full_screen_presenter/gu, '全屏讲解者')
+        .replace(/voice_over/gu, '旁白'),
       errorMessage: String(item.errorMessage || ''),
       metrics: {
         arkUploadCount: Number(isRecord(item.metrics) ? item.metrics.arkUploadCount : 0) || 0,

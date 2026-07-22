@@ -98,7 +98,7 @@ function TalkingVideoTaskCard({
   useEffect(() => {
     if (!reasoningOpen || !reasoningRef.current) return;
     reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
-  }, [reasoningOpen, task.reasoning]);
+  }, [reasoningOpen, task.phase, task.reasoning]);
 
   return (
     <article className={`talking-video-prompt-task${active ? ' is-active' : ''}`}>
@@ -158,6 +158,12 @@ function TalkingVideoTaskCard({
               <ReasoningContent
                 content={task.reasoning || (running ? '思考中…' : '暂无思考内容')}
               />
+              {running ? (
+                <span className="talking-video-reasoning-progress">
+                  <LoaderCircle className="is-spinning" size={13} />
+                  {reasoningProgressCopy(task.phase)}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -253,6 +259,20 @@ function phaseLabel(phase: TalkingVideoPromptTask['phase']) {
     completed: '任务完成',
     failed: '任务失败',
     stopped: '已停止',
+  }[phase];
+}
+
+function reasoningProgressCopy(phase: TalkingVideoPromptTask['phase']) {
+  return {
+    uploading_assets: '正在准备参考素材…',
+    understanding_video: '正在继续分析视频内容…',
+    validating_analysis: '正在校验视频分析结果…',
+    generating_prompt: '深度思考已完成，正在组织最终结果…',
+    validating_prompt: '正在校验最终结果…',
+    repairing_prompt: '正在修正最终结果…',
+    completed: '最终结果已生成',
+    failed: '生成已结束',
+    stopped: '生成已停止',
   }[phase];
 }
 
