@@ -72,6 +72,7 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
       onMaterialLocalFiles={state.fillMaterialFiles}
       onMaterialRemoveOne={state.removeOneMaterial}
       onMaterialReplaceFiles={state.replaceMaterialFiles}
+      onVideoUrlSubmit={state.resolveVideoSource}
       selectedMaterials={state.selectedMaterials}
       tool={state.tool}
     />

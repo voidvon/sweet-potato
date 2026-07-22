@@ -11,6 +11,33 @@
   padding-left: 4px;
 }
 
+.video-source-panel.is-stacked .video-source-choice {
+  background: #f8fafc;
+  border: 1px solid #e5e8ee;
+  border-radius: 16px;
+  padding: 18px 28px 20px;
+}
+
+.video-source-choice-title {
+  color: #7b879b;
+  display: block;
+  font-size: 15px;
+  line-height: 22px;
+  margin-bottom: 12px;
+}
+
+.video-source-choice-row {
+  min-height: 104px;
+}
+
+.video-source-panel.is-stacked .video-source-url-input {
+  margin-top: 16px;
+}
+
+.video-source-panel.is-stacked .video-source-url-input .ant-form-item {
+  margin-bottom: 0;
+}
+
 .talking-video-settings {
   display: grid;
   gap: 14px;

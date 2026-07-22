@@ -24,6 +24,7 @@ type TalkingVideoPanelProps = {
   onMaterialLocalFiles: (kind: MaterialKind, files: FileList | File[]) => void;
   onMaterialRemoveOne: (kind: MaterialKind, materialId?: string) => void;
   onMaterialReplaceFiles: (kind: MaterialKind, files: LocalMaterialFile[]) => void;
+  onVideoUrlSubmit: (input: string) => Promise<boolean>;
   selectedMaterials: SelectedMaterials;
   tool: ToolOption;
 };
@@ -51,6 +52,7 @@ export function TalkingVideoPanel({
   onMaterialLocalFiles,
   onMaterialRemoveOne,
   onMaterialReplaceFiles,
+  onVideoUrlSubmit,
   selectedMaterials,
   tool,
 }: TalkingVideoPanelProps) {
@@ -67,8 +69,9 @@ export function TalkingVideoPanel({
         onMaterialLocalFiles={onMaterialLocalFiles}
         onMaterialRemoveOne={onMaterialRemoveOne}
         onMaterialReplaceFiles={onMaterialReplaceFiles}
+        onUrlSubmit={onVideoUrlSubmit}
         selected={selectedMaterials.video}
-        showUrlInput={false}
+        stackUrlInput
       />
 
       <WorkspaceSection

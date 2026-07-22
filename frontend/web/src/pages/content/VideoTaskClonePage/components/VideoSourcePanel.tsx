@@ -16,6 +16,7 @@ type VideoSourcePanelProps = {
   onMaterialReplaceFiles: (kind: MaterialKind, files: LocalMaterialFile[]) => void;
   onUrlSubmit?: (input: string) => Promise<boolean>;
   selected: SelectedMaterialValue;
+  stackUrlInput?: boolean;
   showUrlInput?: boolean;
   title?: string;
 };
@@ -30,6 +31,7 @@ export function VideoSourcePanel({
   onMaterialReplaceFiles,
   onUrlSubmit,
   selected,
+  stackUrlInput = false,
   showUrlInput = true,
   title = '视频来源',
 }: VideoSourcePanelProps) {
@@ -49,56 +51,73 @@ export function VideoSourcePanel({
     }
   };
 
-  return (
-    <WorkspaceSection description={description} title={title}>
-      <Row align="middle" gutter={[12, 12]} wrap>
-        <Col flex="104px">
-          <MaterialSlot
-            item={material}
-            onClear={onMaterialClear}
-            onLocalFiles={onMaterialLocalFiles}
-            onOpen={() => undefined}
-            onRemoveOne={onMaterialRemoveOne}
-            onReplaceFiles={onMaterialReplaceFiles}
-            openMode="local"
-            selected={selected}
+  const materialSlot = (
+    <Col flex="104px">
+      <MaterialSlot
+        item={material}
+        onClear={onMaterialClear}
+        onLocalFiles={onMaterialLocalFiles}
+        onOpen={() => undefined}
+        onRemoveOne={onMaterialRemoveOne}
+        onReplaceFiles={onMaterialReplaceFiles}
+        openMode="local"
+        selected={selected}
+      />
+    </Col>
+  );
+  const urlInput = showUrlInput ? (
+    <AppForm>
+      <AppForm.Item>
+        <Space.Compact block>
+          <Input
+            allowClear
+            onChange={(event) => setVideoUrl(event.target.value)}
+            disabled={isSubmitting}
+            onPressEnter={() => void confirmVideoUrl()}
+            placeholder="也可以粘贴抖音 / 小红书 / 快手视频链接"
+            prefix={<Link2 aria-hidden="true" size={16} />}
+            size="large"
+            value={videoUrl}
           />
-        </Col>
-        {showUrlInput ? (
-          <Col flex="auto">
-            <AppForm>
-              <AppForm.Item>
-                <Space.Compact block>
-                  <Input
-                    allowClear
-                    onChange={(event) => setVideoUrl(event.target.value)}
-                    disabled={isSubmitting}
-                    onPressEnter={() => void confirmVideoUrl()}
-                    placeholder="也可以粘贴抖音 / 小红书 / 快手视频链接"
-                    prefix={<Link2 aria-hidden="true" size={16} />}
-                    size="large"
-                    value={videoUrl}
-                  />
-                  <Button
-                    disabled={!normalizedVideoUrl || isSubmitting}
-                    loading={isSubmitting}
-                    onClick={() => void confirmVideoUrl()}
-                    size="large"
-                    style={{ borderRadius: '0 16px 16px 0', height: 40 }}
-                    type="primary"
-                  >
-                    确认
-                  </Button>
-                </Space.Compact>
-              </AppForm.Item>
-            </AppForm>
-          </Col>
-        ) : localUploadLabel ? (
-          <Col flex="auto">
-            <strong className="video-source-local-upload-label">{localUploadLabel}</strong>
-          </Col>
-        ) : null}
-      </Row>
+          <Button
+            disabled={!normalizedVideoUrl || isSubmitting}
+            loading={isSubmitting}
+            onClick={() => void confirmVideoUrl()}
+            size="large"
+            style={{ borderRadius: '0 16px 16px 0', height: 40 }}
+            type="primary"
+          >
+            确认
+          </Button>
+        </Space.Compact>
+      </AppForm.Item>
+    </AppForm>
+  ) : null;
+  const localUploadLabelNode = localUploadLabel ? (
+    <strong className="video-source-local-upload-label">{localUploadLabel}</strong>
+  ) : null;
+
+  return (
+    <WorkspaceSection
+      className={stackUrlInput ? 'video-source-panel is-stacked' : 'video-source-panel'}
+      description={description}
+      title={title}
+    >
+      {stackUrlInput ? (
+        <div className="video-source-choice">
+          <strong className="video-source-choice-title">选择方式</strong>
+          <Row align="middle" className="video-source-choice-row" gutter={[12, 12]} wrap>
+            {materialSlot}
+            <Col flex="auto">{localUploadLabelNode}</Col>
+          </Row>
+          {urlInput ? <div className="video-source-url-input">{urlInput}</div> : null}
+        </div>
+      ) : (
+        <Row align="middle" gutter={[12, 12]} wrap>
+          {materialSlot}
+          {urlInput ? <Col flex="auto">{urlInput}</Col> : <Col flex="auto">{localUploadLabelNode}</Col>}
+        </Row>
+      )}
     </WorkspaceSection>
   );
 }
