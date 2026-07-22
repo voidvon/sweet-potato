@@ -3,6 +3,7 @@ import { mkdir, open, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { vodUploadLimitBytes } from '../../config/env.js';
+import { fileStorageKey, fileStorageService, storageMetadata } from '../../shared/file-storage.js';
 import {
   getBillingSettings,
   releaseReservedFixedBillableUsage,
@@ -272,6 +273,7 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
   const outputPath = contentFilePathForRelativePath(outputRelativePath);
   await mkdir(path.dirname(outputPath), { recursive: true });
   let assetCreated = false;
+  let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
   try {
     await downloadVideo(source.downloadUrl, source.resolvedShareUrl, sourcePath);
     const sourceDuration = await probeDuration(sourcePath);
@@ -286,6 +288,12 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
       '-movflags', '+faststart', outputPath,
     ], { timeout: 180000 });
     const output = await stat(outputPath);
+    persistedFile = await fileStorageService.storeLocalFile({
+      key: fileStorageKey(outputRelativePath),
+      filePath: outputPath,
+      fileUrl: fileUrlForContentRelativePath(outputRelativePath),
+      mimeType: 'video/mp4',
+    });
     const asset = contentService.createAsset({
       userId: input.userId,
       resourceType: 'other',
@@ -295,7 +303,7 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
       mimeType: 'video/mp4',
       fileSize: output.size,
       filePath: outputPath,
-      fileUrl: fileUrlForContentRelativePath(outputRelativePath),
+      fileUrl: persistedFile.fileUrl,
       assetKind: 'dance_remake_reference_video',
       lifecycleStatus: 'temporary',
       expiresAt: temporaryContentAssetExpiresAt(),
@@ -309,6 +317,8 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
         temporary: true,
         trimEnd: end,
         trimStart: start,
+        ...storageMetadata(persistedFile),
+        ...(persistedFile.fileUrl.startsWith('http') ? { publicFileUrl: persistedFile.fileUrl } : {}),
       },
     });
     if (!asset) throw new VideoSourceError('参考视频临时素材创建失败', 500);
@@ -316,7 +326,16 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
     return asset;
   } finally {
     await rm(sourcePath, { force: true });
-    if (!assetCreated) await rm(outputPath, { force: true });
+    if (!assetCreated) {
+      if (persistedFile) {
+        await fileStorageService.deleteStoredFile({
+          metadata: storageMetadata(persistedFile),
+          filePath: outputPath,
+        }).catch(() => undefined);
+      } else {
+        await rm(outputPath, { force: true });
+      }
+    }
   }
 }
 

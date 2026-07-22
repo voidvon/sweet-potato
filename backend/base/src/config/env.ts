@@ -106,7 +106,6 @@ export const volcengineTosConfig = {
   endpoint: String(process.env.VOLCENGINE_TOS_ENDPOINT || '').trim(),
   bucket: String(process.env.VOLCENGINE_TOS_BUCKET || '').trim(),
   publicBaseUrl: String(process.env.VOLCENGINE_TOS_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, ''),
-  keyPrefix: String(process.env.VOLCENGINE_TOS_KEY_PREFIX || 'video-generation-temp').trim().replace(/^\/+|\/+$/g, ''),
 };
 
 export const arkVideoUnderstandingConfig = {

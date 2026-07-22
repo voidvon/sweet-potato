@@ -29,6 +29,7 @@ import {
   parseRequestedCapabilities,
 } from './chat-stream.service.js';
 import type { ChatConversation, ChatMessage } from './chat.types.js';
+import { fileStorageKey, fileStorageService, storageMetadata } from '../../shared/file-storage.js';
 const chatFilesDir = path.join(dataDir, 'files');
 mkdirSync(chatFilesDir, { recursive: true });
 
@@ -98,6 +99,7 @@ export function createChatRouter() {
   router.post('/attachments/upload', (req, res) => {
     createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | undefined;
         if (uploadError) {
           sendError(res, 400, uploadErrorMessage(uploadError, '附件上传失败'));
           return;
@@ -111,7 +113,14 @@ export function createChatRouter() {
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
-          const fileUrl = fileUrlForContentRelativePath(relativePath);
+          const localFileUrl = fileUrlForContentRelativePath(relativePath);
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(relativePath),
+            filePath: req.file.path,
+            fileUrl: localFileUrl,
+            mimeType: req.file.mimetype || 'application/octet-stream',
+          });
+          const fileUrl = persistedFile.fileUrl;
           const isImage = (req.file.mimetype || '').startsWith('image/');
           const asset = contentService.createAsset({
             userId,
@@ -130,6 +139,8 @@ export function createChatRouter() {
               kind: 'chat_reference_upload',
               source: 'local_upload',
               temporary: true,
+              ...storageMetadata(persistedFile),
+              ...(fileUrl.startsWith('http') ? { publicFileUrl: fileUrl } : {}),
             },
           });
           if (!asset) {
@@ -145,7 +156,14 @@ export function createChatRouter() {
             url: fileUrl,
           });
         } catch (error) {
-          await rm(req.file.path, { force: true });
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: persistedFile.filePath,
+            }).catch(() => undefined);
+          } else {
+            await rm(req.file.path, { force: true });
+          }
           sendError(res, 400, error instanceof Error ? error.message : '附件上传失败');
         }
       })();

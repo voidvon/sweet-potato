@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { logger } from '../../../shared/logger.js';
+import { fileStorageKey, fileStorageService, storageMetadata, type StoredFileMetadata } from '../../../shared/file-storage.js';
 import { contentRepository } from '../content.repository.js';
 import type { ContentAsset, VideoGenerationResult } from '../content.types.js';
 import {
@@ -111,6 +112,8 @@ function markAssetMirrorStatus(input: {
   status: 'downloading' | 'completed' | 'failed';
   remoteVideoUrl: string;
   localVideoUrl?: string;
+  fileUrl?: string;
+  storage?: StoredFileMetadata;
   filePath?: string;
   storedFileName?: string;
   originalFileName?: string;
@@ -139,7 +142,7 @@ function markAssetMirrorStatus(input: {
     mimeType: asset.mimeType || 'video/mp4',
     fileSize: input.fileSize ?? asset.fileSize,
     filePath: input.filePath ?? asset.filePath,
-    fileUrl: input.localVideoUrl ?? asset.fileUrl,
+    fileUrl: input.fileUrl ?? input.localVideoUrl ?? asset.fileUrl,
     metadata: {
       ...asset.metadata,
       generationStatus: asset.metadata.generationStatus || 'completed',
@@ -151,6 +154,7 @@ function markAssetMirrorStatus(input: {
       localMirrorLastAttemptAt: input.status === 'downloading' ? now.toISOString() : asset.metadata.localMirrorLastAttemptAt,
       localMirrorNextRetryAt: nextRetryAt,
       localMirroredAt: input.status === 'completed' ? new Date().toISOString() : asset.metadata.localMirroredAt,
+      ...(input.storage || {}),
     },
     updatedAt: asset.updatedAt,
   });
@@ -207,6 +211,13 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       });
       return;
     }
+    const persistedFile = await fileStorageService.storeLocalFile({
+      key: fileStorageKey(storedRelativePath),
+      filePath,
+      fileUrl: localVideoUrl,
+      mimeType: response.headers.get('content-type') || 'video/mp4',
+    });
+    const storedVideoUrl = persistedFile.fileUrl;
     const mirroredAt = new Date().toISOString();
     markAssetMirrorStatus({
       assetId: input.assetId,
@@ -214,6 +225,8 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       status: 'completed',
       remoteVideoUrl,
       localVideoUrl,
+      fileUrl: storedVideoUrl,
+      storage: storageMetadata(persistedFile),
       filePath,
       storedFileName: storedRelativePath,
       originalFileName: originalVideoFileName(remoteVideoUrl, storedFileName),
@@ -221,7 +234,7 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
     });
     const taskBeforeLocalUrlUpdate = contentRepository.findVideoTask(input.taskId);
     const preservedTaskUpdatedAt = taskBeforeLocalUrlUpdate?.updatedAt;
-    const latestTask = contentRepository.markVideoTaskGenerated(input.taskId, localVideoUrl, {
+    const latestTask = contentRepository.markVideoTaskGenerated(input.taskId, storedVideoUrl, {
       updatedAt: preservedTaskUpdatedAt,
     });
     if (!latestTask || latestTask.userId !== input.userId) {
@@ -230,7 +243,7 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
     const currentResult = latestTask.editableParseResult.videoGenerationResult;
     const localizedResult = localizeResultUrl(currentResult, {
       remoteVideoUrl,
-      localVideoUrl,
+      localVideoUrl: storedVideoUrl,
       mirroredAt,
     }) as VideoGenerationResult;
     const taskWithParse = contentRepository.updateVideoTaskParseResult(input.taskId, {
@@ -248,23 +261,23 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       selectedSkillIds: taskWithParse.selectedSkillIds,
       expertContext: {
         ...expertContext,
-        videoResult: localizeResultUrl(expertContext.videoResult, { remoteVideoUrl, localVideoUrl, mirroredAt }),
-        videoGenerationResult: localizeResultUrl(expertContext.videoGenerationResult, { remoteVideoUrl, localVideoUrl, mirroredAt }),
+        videoResult: localizeResultUrl(expertContext.videoResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }),
+        videoGenerationResult: localizeResultUrl(expertContext.videoGenerationResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }),
         videoGenerationResults: Array.isArray(expertContext.videoGenerationResults)
-          ? expertContext.videoGenerationResults.map((item) => localizeResultUrl(item, { remoteVideoUrl, localVideoUrl, mirroredAt }))
+          ? expertContext.videoGenerationResults.map((item) => localizeResultUrl(item, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }))
           : expertContext.videoGenerationResults,
         remoteGeneratedVideoUrl: remoteVideoUrl,
-        localGeneratedVideoUrl: localVideoUrl,
+        localGeneratedVideoUrl: storedVideoUrl,
         generatedVideoMirroredAt: mirroredAt,
         updatedAt: mirroredAt,
       },
       updatedAt: taskWithParse.updatedAt,
     });
-    logger.info('generated video mirrored to local storage', {
+    logger.info('generated video mirrored to persistent storage', {
       taskId: input.taskId,
       assetId: input.assetId,
       remoteVideoUrl,
-      localVideoUrl,
+      localVideoUrl: storedVideoUrl,
       fileSize,
     });
   } catch (error) {

@@ -5595,6 +5595,8 @@ export const defaultVideoRemakeNodeAdapters: VideoRemakeNodeAdapters = {
     return {
       status: 'completed',
       videoUrl: merged.fileUrl,
+      filePath: merged.filePath,
+      ...merged.storageMetadata,
       renderMode: 'segment_regenerated_ffmpeg',
       regeneratedSegmentIndex: segmentIndex,
       generatedSegments: resolvedSegments,

@@ -29,6 +29,7 @@ import {
   type VideoRemakeChatMessage,
   type VideoRemakeSession,
   type VideoRemakeSessionSummary,
+  type VideoRemakePipUploadResult,
 } from '../../../api/video-remake';
 import { listContentAssetGroups, listContentAssets, uploadContentAsset } from '../../../api/content';
 import { API_BASE_URL } from '../../../api/request';
@@ -656,7 +657,7 @@ function MessageItem({
   onSyncSession: () => Promise<void>;
   syncing?: boolean;
   onRetryExpert: (card: VideoRemakeCardMessage) => Promise<void>;
-  onUploadPipImage: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
+  onUploadPipImage: (file: File) => Promise<VideoRemakePipUploadResult>;
   onUploadReferenceImage: (kind: 'scene' | 'product', file: File) => Promise<ContentAsset>;
   cardDrafts: Record<string, unknown>;
   onCardDraftChange: (card: VideoRemakeCardMessage, value: unknown | ((current: unknown) => unknown)) => void;

@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import multer from 'multer';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdir, rename, rm, stat, statfs } from 'node:fs/promises';
 import path from 'node:path';
@@ -12,6 +13,7 @@ import { getErrorMessage, sendError } from '../../shared/http.js';
 import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
+import { contentUploadIntentRepository } from './content-upload-intent.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
 import { marketingVideoStoryboardService } from './marketing-video-storyboard.service.js';
 import {
@@ -28,6 +30,16 @@ import {
 } from './internals/content-common.js';
 import type { ContentResourceType } from './content.types.js';
 import type { UserRole } from '../users/user.types.js';
+import {
+  createTosUploadUrl,
+  currentFileStorageProvider,
+  currentTosStorageConfig,
+  fileStorageKey,
+  fileStorageService,
+  headTosObject,
+  storageMetadata,
+  tosPublicUrl,
+} from '../../shared/file-storage.js';
 
 const contentFilesDir = path.join(dataDir, 'files');
 mkdirSync(contentFilesDir, { recursive: true });
@@ -84,6 +96,9 @@ function uploadErrorMessage(error: unknown, fallback: string) {
 function parseMetadata(value: unknown) {
   if (!value) {
     return {};
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
   }
   if (typeof value !== 'string') {
     return {};
@@ -351,6 +366,7 @@ export function createContentRouter() {
         let sourcePath = '';
         let outputPath = '';
         let derivedAssetId = '';
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
         try {
           if (!req.file) {
             throw new Error('请选择要剪辑的参考视频');
@@ -388,8 +404,14 @@ export function createContentRouter() {
           await rm(sourcePath, { force: true });
           sourcePath = '';
 
-          const fileUrl = fileUrlForContentFile(storedRelativePath);
           const outputFile = await stat(outputPath);
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(storedRelativePath),
+            filePath: outputPath,
+            fileUrl: fileUrlForContentFile(storedRelativePath),
+            mimeType: 'video/mp4',
+          });
+          const fileUrl = persistedFile.fileUrl;
           const derivedAsset = contentService.createAsset({
             userId,
             resourceType: 'other',
@@ -410,6 +432,8 @@ export function createContentRouter() {
               temporary: true,
               trimStart: start,
               trimEnd: end,
+              ...storageMetadata(persistedFile),
+              ...(fileUrl.startsWith('http') ? { publicFileUrl: fileUrl } : {}),
             },
           });
           if (!derivedAsset) {
@@ -428,6 +452,13 @@ export function createContentRouter() {
           });
         } catch (error) {
           if (derivedAssetId) contentRepository.deleteAsset(derivedAssetId);
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: outputPath,
+            }).catch(() => undefined);
+            outputPath = '';
+          }
           await Promise.all([
             req.file?.path,
             sourcePath,
@@ -835,9 +866,145 @@ export function createContentRouter() {
     }
   });
 
+  router.post('/assets/direct-upload/prepare', (req, res) => {
+    void (async () => {
+      try {
+        const resourceType = String(req.body.resourceType || 'other') as ContentResourceType;
+        if (!requireContentResourcePermission(req, res, resourceType)) return;
+        if (resourceType === 'finished_video') {
+          throw new Error('成片素材只能由视频生成任务写入');
+        }
+        if (await currentFileStorageProvider() !== 'tos') {
+          res.json({ directUpload: false });
+          return;
+        }
+
+        const userId = getCurrentUserId(req);
+        const groupId = String(req.body.groupId || '').trim();
+        const group = contentRepository.findGroup(groupId);
+        if (!group || group.userId !== userId || group.resourceType !== resourceType) {
+          throw new Error('素材分组不存在');
+        }
+        const originalFileName = String(req.body.originalFileName || '').trim();
+        const mimeType = String(req.body.mimeType || 'application/octet-stream').trim();
+        const fileSize = Number(req.body.fileSize || 0);
+        if (!originalFileName) throw new Error('缺少文件名');
+        if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error('文件大小无效');
+        if (fileSize > batchRequestSettingsService.getFileSizeLimitBytes()) {
+          throw new Error(`上传文件不能超过 ${batchRequestSettingsService.getSettings().maxFileSizeMb} MB`);
+        }
+
+        const mediaKind = inputMediaKindForMimeType(mimeType);
+        if (!mediaKind) throw new Error('暂不支持该文件类型直传');
+        const id = randomUUID();
+        const storedFileName = inputMediaRelativePath(
+          mediaKind,
+          `${Date.now()}-${id}-${sanitizeFileName(originalFileName)}`,
+        );
+        const objectKey = fileStorageKey(storedFileName);
+        const config = currentTosStorageConfig();
+        const metadata = parseMetadata(req.body.metadata);
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString();
+        const lifecycleStatus = metadata.temporary === true ? 'temporary' : 'permanent';
+        const intent = contentUploadIntentRepository.create({
+          id,
+          userId,
+          groupId,
+          provider: 'tos',
+          bucket: config.bucket,
+          objectKey,
+          publicFileUrl: tosPublicUrl(objectKey),
+          resourceType,
+          originalFileName,
+          storedFileName,
+          mimeType,
+          fileSize,
+          name: String(req.body.name || originalFileName).trim() || originalFileName,
+          description: String(req.body.description || '').trim(),
+          assetKind: typeof metadata.assetKind === 'string' ? metadata.assetKind : 'upload',
+          lifecycleStatus,
+          metadata,
+          status: 'pending',
+          assetId: null,
+          expiresAt,
+          createdAt: now.toISOString(),
+          completedAt: null,
+        });
+        if (!intent) throw new Error('上传任务创建失败');
+        res.status(201).json({
+          directUpload: true,
+          intentId: intent.id,
+          uploadUrl: createTosUploadUrl({ key: objectKey, expiresInSeconds: 900 }),
+          headers: { 'Content-Type': mimeType },
+          expiresAt,
+        });
+      } catch (error) {
+        sendError(res, 400, getErrorMessage(error, '直传任务创建失败'));
+      }
+    })();
+  });
+
+  router.post('/assets/direct-upload/complete', (req, res) => {
+    void (async () => {
+      try {
+        const intentId = String(req.body.intentId || '').trim();
+        const intent = contentUploadIntentRepository.find(intentId);
+        if (!intent || intent.userId !== getCurrentUserId(req)) {
+          throw new Error('上传任务不存在');
+        }
+        if (!requireContentResourcePermission(req, res, intent.resourceType)) return;
+        if (intent.status === 'completed' && intent.assetId) {
+          const completedAsset = contentRepository.findAsset(intent.assetId);
+          if (completedAsset) {
+            res.json(completedAsset);
+            return;
+          }
+        }
+        if (Date.parse(intent.expiresAt) <= Date.now()) throw new Error('上传任务已过期，请重新上传');
+
+        const object = await headTosObject(intent.objectKey, intent.bucket);
+        if (object.contentLength !== intent.fileSize) {
+          throw new Error('上传文件大小校验失败，请重新上传');
+        }
+        const fileUrl = intent.publicFileUrl || tosPublicUrl(intent.objectKey);
+        const temporary = intent.lifecycleStatus === 'temporary';
+        const asset = contentService.createAsset({
+          userId: intent.userId,
+          groupId: intent.groupId,
+          resourceType: intent.resourceType,
+          name: intent.name,
+          description: intent.description,
+          originalFileName: intent.originalFileName,
+          storedFileName: intent.storedFileName,
+          mimeType: intent.mimeType,
+          fileSize: object.contentLength,
+          filePath: '',
+          fileUrl,
+          assetKind: intent.assetKind,
+          lifecycleStatus: intent.lifecycleStatus,
+          expiresAt: temporary ? temporaryContentAssetExpiresAt() : null,
+          metadata: {
+            ...intent.metadata,
+            storageProvider: 'tos',
+            storageKey: intent.objectKey,
+            storageBucket: intent.bucket,
+            publicFileUrl: fileUrl,
+          },
+        });
+        if (!asset) throw new Error('素材记录创建失败');
+        contentUploadIntentRepository.complete(intent.id, asset.id);
+        res.status(201).json(asset);
+      } catch (error) {
+        sendError(res, 400, getErrorMessage(error, '直传文件登记失败'));
+      }
+    })();
+  });
+
   router.post('/assets/upload', (req, res) => {
     createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | undefined;
         if (uploadError) {
           sendError(res, 400, uploadErrorMessage(uploadError, '素材上传失败'));
           return;
@@ -856,11 +1023,22 @@ export function createContentRouter() {
           }
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const file = uploadedFilePayload(req);
-          const metadata = {
+          const uploadMetadata = {
             ...parseMetadata(req.body.metadata),
             ...(file?.publicFileUrl ? { publicFileUrl: file.publicFileUrl } : {}),
           };
-          const storedFile = await moveUploadedFileToInputMediaDirectory(req.file, metadata);
+          const storedFile = await moveUploadedFileToInputMediaDirectory(req.file, uploadMetadata);
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(storedFile.storedFileName),
+            filePath: storedFile.filePath,
+            fileUrl: storedFile.fileUrl,
+            mimeType: req.file.mimetype || 'application/octet-stream',
+          });
+          const metadata = {
+            ...uploadMetadata,
+            ...storageMetadata(persistedFile),
+            ...(persistedFile.fileUrl.startsWith('http') ? { publicFileUrl: persistedFile.fileUrl } : {}),
+          };
           const temporary = metadata.temporary === true;
           const asset = contentService.createAsset({
             userId: getCurrentUserId(req),
@@ -873,7 +1051,7 @@ export function createContentRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: storedFile.filePath,
-            fileUrl: storedFile.fileUrl,
+            fileUrl: persistedFile.fileUrl,
             assetKind: typeof metadata.assetKind === 'string' ? metadata.assetKind : 'upload',
             lifecycleStatus: temporary ? 'temporary' : 'permanent',
             expiresAt: temporary ? temporaryContentAssetExpiresAt() : null,
@@ -881,7 +1059,12 @@ export function createContentRouter() {
           });
           res.status(201).json(asset);
         } catch (error) {
-          if (req.file) {
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: persistedFile.filePath,
+            }).catch(() => undefined);
+          } else if (req.file) {
             await import('node:fs/promises').then(({ rm }) => rm(req.file!.path, { force: true }));
           }
           sendError(res, 400, getErrorMessage(error, '素材上传失败'));

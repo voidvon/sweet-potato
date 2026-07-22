@@ -1319,7 +1319,7 @@ async function persistGeneratedImageAttachment(input: {
     name: outputCount > 1 ? `generated-image-${slotIndex + 1}.${extension}` : `generated-image.${extension}`,
     type: processedGenerated.mimeType,
     size: processedGenerated.buffer.byteLength,
-    url: fileUrl,
+    url: workAsset.fileUrl,
     ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
   };

@@ -195,6 +195,9 @@ export type VideoRemakePipUploadResult = {
   mimeType: string;
   fileSize: number;
   fileUrl: string;
+  storageProvider: 'local' | 'tos';
+  storageKey: string;
+  storageBucket?: string;
 };
 
 export function uploadVideoRemakePipAsset(sessionId: string, payload: { userId: string; file: File }) {

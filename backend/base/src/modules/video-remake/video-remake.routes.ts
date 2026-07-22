@@ -5,6 +5,7 @@ import path from 'node:path';
 import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
+import { fileStorageKey, fileStorageService, storageMetadata } from '../../shared/file-storage.js';
 import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
 import {
   contentFilePathForRelativePath,
@@ -200,9 +201,9 @@ export function createVideoRemakeRouter() {
   router.delete('/sessions/:sessionId', (req, res) => {
     try {
       const userId = getCurrentUserId(req);
-      res.json(videoRemakeService.deleteSession(req.params.sessionId, {
-        userId,
-      }));
+      void videoRemakeService.deleteSession(req.params.sessionId, { userId })
+        .then((result) => res.json(result))
+        .catch((error) => sendError(res, 400, getErrorMessage(error, '视频复刻会话删除失败')));
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '视频复刻会话删除失败'));
     }
@@ -215,6 +216,7 @@ export function createVideoRemakeRouter() {
           sendError(res, 400, uploadErrorMessage(uploadError, '视频上传失败'));
           return;
         }
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
         try {
           if (!req.file) {
             throw new Error('请选择要上传的视频文件');
@@ -222,6 +224,12 @@ export function createVideoRemakeRouter() {
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const storedRelativePath = path.relative(contentFilesDir, req.file.path).split(path.sep).join('/');
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(storedRelativePath),
+            filePath: req.file.path,
+            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
+            mimeType: req.file.mimetype || 'application/octet-stream',
+          });
           const result = await videoRemakeService.upload(req.params.sessionId, {
             userId,
             originalFileName,
@@ -229,11 +237,17 @@ export function createVideoRemakeRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
+            fileUrl: persistedFile.fileUrl,
+            ...storageMetadata(persistedFile),
           });
           res.status(201).json(result);
         } catch (error) {
-          if (req.file) {
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: req.file?.path,
+            }).catch(() => undefined);
+          } else if (req.file) {
             await import('node:fs/promises').then(({ rm }) => rm(req.file!.path, { force: true }));
           }
           sendError(res, 400, getErrorMessage(error, '视频上传解析失败'));
@@ -249,6 +263,7 @@ export function createVideoRemakeRouter() {
           sendError(res, 400, uploadErrorMessage(uploadError, '画中画图片上传失败'));
           return;
         }
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
         try {
           if (!req.file) {
             throw new Error('请选择要上传的画中画图片');
@@ -256,6 +271,12 @@ export function createVideoRemakeRouter() {
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const storedRelativePath = path.relative(contentFilesDir, req.file.path).split(path.sep).join('/');
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(storedRelativePath),
+            filePath: req.file.path,
+            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
+            mimeType: req.file.mimetype || 'application/octet-stream',
+          });
           const result = videoRemakeService.uploadPipAsset(req.params.sessionId, {
             userId,
             originalFileName,
@@ -263,11 +284,17 @@ export function createVideoRemakeRouter() {
             mimeType: req.file.mimetype || 'application/octet-stream',
             fileSize: req.file.size,
             filePath: req.file.path,
-            fileUrl: fileUrlForContentRelativePath(storedRelativePath),
+            fileUrl: persistedFile.fileUrl,
+            ...storageMetadata(persistedFile),
           });
           res.status(201).json(result);
         } catch (error) {
-          if (req.file) {
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: req.file?.path,
+            }).catch(() => undefined);
+          } else if (req.file) {
             await import('node:fs/promises').then(({ rm }) => rm(req.file!.path, { force: true }));
           }
           sendError(res, 400, getErrorMessage(error, '画中画图片上传失败'));

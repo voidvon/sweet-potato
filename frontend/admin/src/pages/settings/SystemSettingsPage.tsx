@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Radio, Space, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Flex, Form, Input, InputNumber, Radio, Row, Space, Switch, Typography, message } from 'antd';
 import { DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import {
   getBatchRequestSettings,
+  getFileStorageSettings,
   getIpBlacklistSettings,
   getRateLimitSettings,
   type RateLimitRule,
   updateBatchRequestSettings,
+  updateFileStorageSettings,
   updateIpBlacklistSettings,
   updateRateLimitSettings,
 } from '../../api/system-settings';
@@ -18,6 +20,14 @@ type SystemSettingsForm = {
   batchMaxFileSize: number;
   rateRules: RateLimitRule[];
   ipBlacklist: string;
+  objectStorageEnabled: boolean;
+  objectStorageEndpoint: string;
+  objectStorageBucket: string;
+  objectStorageRegion: string;
+  objectStorageAccessKey: string;
+  objectStorageSecretKey: string;
+  objectStoragePublicBaseUrl: string;
+  objectStorageKeyPrefix: string;
 };
 
 export function SystemSettingsPage() {
@@ -25,22 +35,33 @@ export function SystemSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentIp, setCurrentIp] = useState('');
+  const [objectStorageSecretConfigured, setObjectStorageSecretConfigured] = useState(false);
 
   useEffect(() => {
     Promise.all([
       getBatchRequestSettings(),
       getRateLimitSettings(),
       getIpBlacklistSettings(),
+      getFileStorageSettings(),
     ])
-      .then(([batchSettings, rateSettings, ipSettings]) => {
+      .then(([batchSettings, rateSettings, ipSettings, storageSettings]) => {
         form.setFieldsValue({
           batchMaxCount: batchSettings.maxCount,
           batchMaxDuration: batchSettings.maxDurationSeconds,
           batchMaxFileSize: batchSettings.maxFileSizeMb,
           rateRules: rateSettings.rules,
           ipBlacklist: ipSettings.entries.join('\n'),
+          objectStorageEnabled: storageSettings.enabled,
+          objectStorageEndpoint: storageSettings.endpoint,
+          objectStorageBucket: storageSettings.bucket,
+          objectStorageRegion: storageSettings.region,
+          objectStorageAccessKey: storageSettings.accessKey,
+          objectStorageSecretKey: '',
+          objectStoragePublicBaseUrl: storageSettings.publicBaseUrl,
+          objectStorageKeyPrefix: storageSettings.keyPrefix,
         });
         setCurrentIp(ipSettings.currentIp);
+        setObjectStorageSecretConfigured(storageSettings.secretKeyConfigured);
       })
       .catch((error) => message.error(error instanceof Error ? error.message : '系统设置加载失败'))
       .finally(() => setLoading(false));
@@ -54,6 +75,7 @@ export function SystemSettingsPage() {
     setSaving(true);
     let batchSaved = false;
     let rateSaved = false;
+    let ipSaved = false;
     try {
       const batchSettings = await updateBatchRequestSettings({
         maxCount: values.batchMaxCount,
@@ -64,17 +86,41 @@ export function SystemSettingsPage() {
       const rateSettings = await updateRateLimitSettings(values.rateRules || []);
       rateSaved = true;
       const ipSettings = await updateIpBlacklistSettings(entries);
+      ipSaved = true;
+      const storageSettings = await updateFileStorageSettings({
+        enabled: values.objectStorageEnabled,
+        endpoint: values.objectStorageEndpoint || '',
+        bucket: values.objectStorageBucket || '',
+        region: values.objectStorageRegion || '',
+        accessKey: values.objectStorageAccessKey || '',
+        secretKey: values.objectStorageSecretKey || '',
+        publicBaseUrl: values.objectStoragePublicBaseUrl || '',
+        keyPrefix: values.objectStorageKeyPrefix || '',
+      });
       form.setFieldsValue({
         batchMaxCount: batchSettings.maxCount,
         batchMaxDuration: batchSettings.maxDurationSeconds,
         batchMaxFileSize: batchSettings.maxFileSizeMb,
         rateRules: rateSettings.rules,
         ipBlacklist: ipSettings.entries.join('\n'),
+        objectStorageEnabled: storageSettings.enabled,
+        objectStorageEndpoint: storageSettings.endpoint,
+        objectStorageBucket: storageSettings.bucket,
+        objectStorageRegion: storageSettings.region,
+        objectStorageAccessKey: storageSettings.accessKey,
+        objectStorageSecretKey: '',
+        objectStoragePublicBaseUrl: storageSettings.publicBaseUrl,
+        objectStorageKeyPrefix: storageSettings.keyPrefix,
       });
       setCurrentIp(ipSettings.currentIp);
+      setObjectStorageSecretConfigured(storageSettings.secretKeyConfigured);
       message.success('系统设置已保存并立即生效');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '系统设置保存失败';
+      if (ipSaved) {
+        message.error(`其他系统设置已保存，但文件存储设置未完成：${errorMessage}`);
+        return;
+      }
       if (batchSaved && rateSaved) {
         message.error(`批量 API 请求与限速规则已保存，但 IP 黑名单未完成：${errorMessage}`);
         return;
@@ -104,6 +150,9 @@ export function SystemSettingsPage() {
             batchMaxDuration: 300,
             batchMaxFileSize: 100,
             rateRules: [{ urlPattern: '/api/.*', maxRequests: 60, intervalSeconds: 60, targetUser: 'all' }],
+            objectStorageEnabled: false,
+            objectStorageRegion: 'cn-beijing',
+            objectStorageKeyPrefix: 'app-files',
           }}
         >
           <Card title="批量 API 请求">
@@ -163,6 +212,92 @@ export function SystemSettingsPage() {
                 </>
               )}
             </Form.List>
+          </Card>
+          <Card title="文件存储" style={{ marginTop: 18 }}>
+            <Typography.Paragraph>
+              系统默认使用本地文件系统保存上传文件。需要扩展存储空间时，可以启用火山引擎 TOS 对象存储。
+            </Typography.Paragraph>
+            <Form.Item label="使用火山引擎 TOS" name="objectStorageEnabled" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(previous, current) => previous.objectStorageEnabled !== current.objectStorageEnabled}>
+              {({ getFieldValue }) => getFieldValue('objectStorageEnabled') ? (
+                <Flex vertical gap="middle">
+                  <Alert
+                    showIcon
+                    type="info"
+                    message="启用 TOS 不会自动迁移已有文件"
+                    description="已有文件仍保留在本地。启用后新上传和新生成的文件将保存到 TOS，历史文件需要另行迁移。"
+                  />
+                  <Row gutter={16}>
+                    <Col xs={24} lg={12}>
+                      <Form.Item
+                        label="服务地址（Endpoint）"
+                        name="objectStorageEndpoint"
+                        rules={[{ required: true, message: '请输入 TOS 服务地址' }]}
+                      >
+                        <Input placeholder="https://tos-cn-beijing.volces.com" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={6}>
+                      <Form.Item
+                        label="存储桶（Bucket）"
+                        name="objectStorageBucket"
+                        rules={[{ required: true, message: '请输入存储桶名称' }]}
+                      >
+                        <Input placeholder="bucket-name" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={6}>
+                      <Form.Item
+                        label="地域（Region）"
+                        name="objectStorageRegion"
+                        rules={[{ required: true, message: '请输入地区' }]}
+                      >
+                        <Input placeholder="cn-beijing" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <Form.Item
+                        label="Access Key ID"
+                        name="objectStorageAccessKey"
+                        rules={[{ required: true, message: '请输入 Access Key ID' }]}
+                      >
+                        <Input autoComplete="off" placeholder="Access Key" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <Form.Item
+                        label="Secret Access Key"
+                        name="objectStorageSecretKey"
+                        extra={objectStorageSecretConfigured ? '已配置 Secret Access Key，留空表示保持不变。' : undefined}
+                        rules={[{ required: !objectStorageSecretConfigured, message: '请输入 Secret Access Key' }]}
+                      >
+                        <Input.Password autoComplete="new-password" placeholder="Secret Key" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <Form.Item
+                        label="访问域名"
+                        name="objectStoragePublicBaseUrl"
+                        extra="可选。已配置 CDN 或自定义域名时填写；留空则使用 TOS 默认访问域名。该域名需要允许外部模型读取素材。"
+                      >
+                        <Input placeholder="https://bucket.example.com" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} lg={12}>
+                      <Form.Item
+                        label="文件路径前缀"
+                        name="objectStorageKeyPrefix"
+                        extra="所有文件在存储桶中的统一目录前缀。"
+                      >
+                        <Input placeholder="app-files" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </Flex>
+              ) : null}
+            </Form.Item>
           </Card>
           <Card title="IP 黑名单" style={{ marginTop: 18 }}>
             <Form.Item label="禁止访问的 IP 地址" name="ipBlacklist" extra={`每行填写一个 IP 地址或 CIDR 网段。当前管理端 IP：${currentIp || '读取中'}`}><Input.TextArea rows={5} placeholder={'例如：\n192.168.1.100\n10.0.0.0/24'} disabled={loading} /></Form.Item>

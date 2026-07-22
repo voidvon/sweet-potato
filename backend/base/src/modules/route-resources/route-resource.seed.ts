@@ -221,6 +221,18 @@ export const seededRouteResources: SeedRouteResource[] = [
     isSystem: true,
   },
   {
+    id: 'rr-admin-system-file-management',
+    name: '文件管理',
+    resourceKey: 'admin.system.file_management',
+    resourceType: 'menu',
+    platform: 'admin',
+    path: '/system/files',
+    permissionCode: 'admin.route.system.file_management.view',
+    status: true,
+    sortOrder: 70,
+    isSystem: true,
+  },
+  {
     id: 'rr-admin-system-temporary-assets',
     name: '临时素材清理',
     resourceKey: 'admin.system.temporary_assets',
@@ -229,7 +241,7 @@ export const seededRouteResources: SeedRouteResource[] = [
     path: '/system/temporary-assets',
     permissionCode: 'admin.route.system.temporary_assets.view',
     status: true,
-    sortOrder: 70,
+    sortOrder: 80,
     isSystem: true,
   },
   {
@@ -241,7 +253,7 @@ export const seededRouteResources: SeedRouteResource[] = [
     path: '/system/settings',
     permissionCode: 'admin.route.system.settings.view',
     status: true,
-    sortOrder: 80,
+    sortOrder: 90,
     isSystem: true,
   },
   {
@@ -253,7 +265,7 @@ export const seededRouteResources: SeedRouteResource[] = [
     path: '/system/access-logs',
     permissionCode: 'admin.route.system.access_logs.view',
     status: true,
-    sortOrder: 90,
+    sortOrder: 100,
     isSystem: true,
   },
 ];

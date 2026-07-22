@@ -31,6 +31,7 @@ import { runVideoRemakeAnalysisGraph } from './video-remake.langgraph.js';
 import { videoRemakeRepository } from './video-remake.repository.js';
 import { resumeSceneAwareSegmentedSeedanceVideoGeneration } from './video-remake.segmented-runtime.js';
 import { logger } from '../../shared/logger.js';
+import { fileStorageService } from '../../shared/file-storage.js';
 import {
   artifactDependencies,
   artifactKeyForCard,
@@ -160,11 +161,42 @@ function defaultWorkflow(input: { mode: string; title: string; sourceUrl: string
         fileSize: input.file.fileSize,
         filePath: input.file.filePath,
         fileUrl: input.file.fileUrl,
+        storageProvider: input.file.storageProvider,
+        storageKey: input.file.storageKey,
+        storageBucket: input.file.storageBucket,
       } : undefined,
     },
     runtime: {},
     updatedAt: nowIso(),
   };
+}
+
+function sessionStoredFiles(session: VideoRemakeSession) {
+  const storedFiles = [
+    session.workflow.source.file,
+    ...(session.workflow.runtime.uploadedFiles || []),
+  ].filter(isRecord);
+  return Array.from(new Map(storedFiles.map((file) => [
+    `${fieldText(file.storageProvider)}:${fieldText(file.storageBucket)}:${fieldText(file.storageKey)}:${fieldText(file.filePath)}`,
+    file,
+  ])).values());
+}
+
+async function deleteSessionStoredFiles(session: VideoRemakeSession) {
+  await Promise.all(sessionStoredFiles(session).map((file) => fileStorageService.deleteStoredFile({
+    metadata: file,
+    filePath: fieldText(file.filePath) || undefined,
+  })));
+}
+
+function registerSessionStoredFile(session: VideoRemakeSession, file: Record<string, unknown>) {
+  if (!fieldText(file.storageKey) && !fieldText(file.filePath)) {
+    return;
+  }
+  session.workflow.runtime.uploadedFiles = [
+    ...(session.workflow.runtime.uploadedFiles || []),
+    file,
+  ];
 }
 
 function taskForSession(session: VideoRemakeSession) {
@@ -3636,12 +3668,13 @@ export const videoRemakeService = {
     return snapshot(updated);
   },
 
-  deleteSession(sessionId: string, input: { userId: string }) {
+  async deleteSession(sessionId: string, input: { userId: string }) {
     assertUserId(input.userId);
     const session = requireSession(sessionId);
     if (session.userId !== input.userId) {
       throw new Error('无权访问该会话');
     }
+    await deleteSessionStoredFiles(session);
     if (!videoRemakeRepository.deleteSession(session.id)) {
       throw new Error('会话删除失败');
     }
@@ -3690,6 +3723,7 @@ export const videoRemakeService = {
     if (session.userId !== input.userId) {
       throw new Error('无权访问该会话');
     }
+    await deleteSessionStoredFiles(session);
     const title = '爆款复刻链接解析';
     session.workflow = defaultWorkflow({
       mode: 'video_remake_url_parse',
@@ -3739,6 +3773,7 @@ export const videoRemakeService = {
     if (session.userId !== payload.userId) {
       throw new Error('无权访问该会话');
     }
+    await deleteSessionStoredFiles(session);
     const title = payload.originalFileName || '上传视频复刻';
     session.workflow = defaultWorkflow({
       mode: 'video_remake_upload_parse',
@@ -3751,7 +3786,7 @@ export const videoRemakeService = {
       vid: `remake-vid-${session.id.slice(0, 8)}`,
       sourceUrl: payload.fileUrl,
       fileName: payload.originalFileName,
-      storage: 'local-upload-adapter',
+      storage: payload.storageProvider,
       posterUrl: payload.fileUrl,
     };
     const task = videoRemakeRepository.createTask({
@@ -3787,12 +3822,30 @@ export const videoRemakeService = {
     if (!payload.mimeType.startsWith('image/')) {
       throw new Error('画中画素材只能上传图片');
     }
+    session.workflow.runtime.uploadedFiles = [
+      ...(session.workflow.runtime.uploadedFiles || []),
+      {
+        originalFileName: payload.originalFileName,
+        storedFileName: payload.storedFileName,
+        mimeType: payload.mimeType,
+        fileSize: payload.fileSize,
+        filePath: payload.filePath,
+        fileUrl: payload.fileUrl,
+        storageProvider: payload.storageProvider,
+        storageKey: payload.storageKey,
+        storageBucket: payload.storageBucket,
+      },
+    ];
+    persistSession(session);
     return {
       originalFileName: payload.originalFileName,
       storedFileName: payload.storedFileName,
       mimeType: payload.mimeType,
       fileSize: payload.fileSize,
       fileUrl: payload.fileUrl,
+      storageProvider: payload.storageProvider,
+      storageKey: payload.storageKey,
+      storageBucket: payload.storageBucket,
     };
   },
 
@@ -4319,6 +4372,7 @@ export const videoRemakeService = {
           segmentIndex: item.segmentIndex,
           prompt: item.prompt,
         });
+        registerSessionStoredFile(session, regenerated);
         workingData = {
           ...workingData,
           ...regenerated,
