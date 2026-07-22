@@ -17,6 +17,7 @@ type BillingFormValues = Pick<
   | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'
   | 'contentPlanningGenerationCreditsPerRequest'
+  | 'talkingVideoPromptCreditsPerRequest'
   | 'marketingVideoCreditsPerRequest'
   | 'marketingVideoStoryboardModelConfigId'
   | 'videoUpscaleCreditsPerRequest'
@@ -70,6 +71,7 @@ export function BillingSettingsPage() {
         videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
         contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
         contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
+        talkingVideoPromptCreditsPerRequest: settings.talkingVideoPromptCreditsPerRequest,
         marketingVideoCreditsPerRequest: settings.marketingVideoCreditsPerRequest,
         marketingVideoStoryboardModelConfigId: selectedStoryboardModelId,
         videoUpscaleCreditsPerRequest: settings.videoUpscaleCreditsPerRequest,
@@ -146,6 +148,7 @@ export function BillingSettingsPage() {
               videoUnderstandingCreditsPer1MTokens: 0,
               contentPlanningAnalysisCreditsPerRequest: 2,
               contentPlanningGenerationCreditsPerRequest: 3,
+              talkingVideoPromptCreditsPerRequest: 3,
               marketingVideoCreditsPerRequest: 15,
               marketingVideoStoryboardModelConfigId: '',
               videoUpscaleCreditsPerRequest: 20,
@@ -267,6 +270,17 @@ export function BillingSettingsPage() {
               rules={[
                 { required: true, message: '请输入爆款策划脚本生成单次价格' },
                 { validator: nonNegativePriceValidator('爆款策划脚本生成单次价格') },
+              ]}
+            >
+              <InputNumber addonAfter="credit / 次" min={0} precision={6} style={priceInputStyle} />
+            </Form.Item>
+            <Form.Item
+              label="口播视频 · 提示词生成"
+              extra="点击“生成提示词”并成功完成口播提示词生成时收取的固定积分。"
+              name="talkingVideoPromptCreditsPerRequest"
+              rules={[
+                { required: true, message: '请输入口播视频提示词生成单次价格' },
+                { validator: nonNegativePriceValidator('口播视频提示词生成单次价格') },
               ]}
             >
               <InputNumber addonAfter="credit / 次" min={0} precision={6} style={priceInputStyle} />

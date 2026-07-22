@@ -1,5 +1,4 @@
 import { Switch } from 'antd';
-import { Plus } from 'lucide-react';
 import { useMemo, useRef, type ChangeEvent } from 'react';
 import type {
   LocalMaterialFile,
@@ -9,6 +8,7 @@ import type {
   ToolOption,
 } from '../types';
 import { ImageMaterialStack } from './ImageMaterialStack';
+import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import type { MediaSlotItem } from './MediaSlotStack';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
@@ -62,7 +62,7 @@ export function TalkingVideoPanel({
   return (
     <div className="talking-video-panel">
       <VideoSourcePanel
-        description="上传本地口播参考视频，AI 将参考分镜与口播节奏。"
+        description="上传本地视频或解析短视频链接"
         localUploadLabel="上传口播参考视频"
         material={videoMaterial}
         onMaterialClear={onMaterialClear}
@@ -98,7 +98,7 @@ export function TalkingVideoPanel({
 }
 
 export function TalkingVideoImageMaterials({
-  description = '模特图必选，其余素材可按需补充',
+  description = '',
   headerNote,
   onImageFiles,
   onImageRemove,
@@ -181,6 +181,9 @@ function TalkingVideoImageSlot({
         type="file"
       />
       <div className="talking-video-image-slot-main">
+        <span className={`talking-video-image-requirement${option.role === 'model' ? ' is-required' : ''}`}>
+          {option.role === 'model' ? '必选' : '可选'}
+        </span>
         {files.length ? (
           <ImageMaterialStack
             items={items}
@@ -198,14 +201,13 @@ function TalkingVideoImageSlot({
             onClick={() => inputRef.current?.click()}
             type="button"
           >
-            <Plus aria-hidden="true" size={24} />
+            <AnimatedUploadPlus size={24} />
             <span>{option.label}</span>
           </button>
         ) : null}
       </div>
       <span className={`talking-video-image-slot-meta${files.length ? ' is-filled' : ''}`}>
-        {option.role === 'model' && !files.length ? <b>必选</b> : null}
-        {files.length && option.single ? `${files.length}/1 张` : option.meta}
+        {files.length ? `${files.length}${option.single ? '/1' : ''} 张` : option.single ? '限 1 张' : '\u00A0'}
       </span>
     </div>
   );

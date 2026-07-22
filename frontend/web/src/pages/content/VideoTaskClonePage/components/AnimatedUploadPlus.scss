@@ -1,0 +1,14 @@
+.animated-upload-plus {
+  flex: 0 0 auto;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+button:hover > .animated-upload-plus,
+button:focus-visible > .animated-upload-plus {
+  transform: rotate(90deg);
+}
+
+button:disabled:hover > .animated-upload-plus {
+  transform: rotate(0deg);
+}

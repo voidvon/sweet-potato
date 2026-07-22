@@ -1,6 +1,7 @@
 import { Check, ChevronDown, Clock3, LoaderCircle, RefreshCw, Square, Video } from 'lucide-react';
 import { Tooltip } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { TalkingVideoPromptTask } from '../types';
 import { resolveLocalMaterialUrl } from '../materialUrl';
@@ -45,6 +46,12 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
         type="button"
       >
         {state.isGenerating ? '生成中…' : state.tool.submitText}
+        {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
+          <span className="video-task-generate-price">
+            <CreditIcon />
+            {state.videoPriceLabel}
+          </span>
+        ) : null}
       </button>
     </div>
   );
@@ -98,7 +105,12 @@ function TalkingVideoTaskCard({
   useEffect(() => {
     if (!reasoningOpen || !reasoningRef.current) return;
     reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
-  }, [reasoningOpen, task.phase, task.reasoning]);
+  }, [reasoningOpen, task.reasoning]);
+
+  useEffect(() => {
+    if (!reasoningOpen || !reasoningRef.current) return;
+    reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
+  }, [reasoningOpen, task.phase]);
 
   return (
     <article className={`talking-video-prompt-task${active ? ' is-active' : ''}`}>

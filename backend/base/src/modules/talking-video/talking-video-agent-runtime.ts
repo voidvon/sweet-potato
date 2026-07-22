@@ -310,6 +310,7 @@ export async function runTalkingVideoPromptAgent(input: {
       timeoutMs: 240_000,
       sourceType: 'talking_video_prompt_repair',
       sourceId: randomUUID(),
+      billingMode: 'external_fixed',
     });
     throwIfAborted(input.signal);
     prompt = normalizeTalkingVideoPrompt(repairedPrompt);

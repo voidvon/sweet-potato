@@ -121,6 +121,7 @@ export function migrateDatabase() {
       video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0,
       content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2,
       content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3,
+      talking_video_prompt_credits_per_request REAL NOT NULL DEFAULT 3,
       marketing_video_credits_per_request REAL NOT NULL DEFAULT 15,
       marketing_video_storyboard_model_config_id TEXT NOT NULL DEFAULT '',
       video_upscale_credits_per_request REAL NOT NULL DEFAULT 20,
@@ -723,6 +724,7 @@ export function migrateDatabase() {
   addColumnIfMissing('billing_settings', 'video_understanding_credits_per_1m_tokens', 'video_understanding_credits_per_1m_tokens REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('billing_settings', 'content_planning_analysis_credits_per_request', 'content_planning_analysis_credits_per_request REAL NOT NULL DEFAULT 2');
   addColumnIfMissing('billing_settings', 'content_planning_generation_credits_per_request', 'content_planning_generation_credits_per_request REAL NOT NULL DEFAULT 3');
+  addColumnIfMissing('billing_settings', 'talking_video_prompt_credits_per_request', 'talking_video_prompt_credits_per_request REAL NOT NULL DEFAULT 3');
   addColumnIfMissing('billing_settings', 'marketing_video_credits_per_request', 'marketing_video_credits_per_request REAL NOT NULL DEFAULT 15');
   addColumnIfMissing('billing_settings', 'marketing_video_storyboard_model_config_id', "marketing_video_storyboard_model_config_id TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('billing_settings', 'video_upscale_credits_per_request', 'video_upscale_credits_per_request REAL NOT NULL DEFAULT 20');
