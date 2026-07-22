@@ -1,7 +1,7 @@
 import type { CSSProperties, ChangeEvent } from 'react';
 import { useRef } from 'react';
-import { Plus } from 'lucide-react';
 import { AudioMaterialStack } from './AudioMaterialStack';
+import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import { ImageMaterialStack } from './ImageMaterialStack';
 import { type MediaSlotItem } from './MediaSlotStack';
 import { VideoMaterialSlot } from './VideoMaterialSlot';
@@ -110,7 +110,7 @@ export function MaterialSlot({
                 title={`添加${item.label}`}
                 type="button"
               >
-                <Plus size={24} />
+                <AnimatedUploadPlus size={24} />
               </button>
             )}
           </>
@@ -124,7 +124,7 @@ export function MaterialSlot({
             type="button"
           >
             <span className="video-task-upload-badge">{item.meta}</span>
-            <Plus size={24} />
+            <AnimatedUploadPlus size={24} />
             <span className="video-task-upload-label">{item.label}</span>
           </button>
         )}

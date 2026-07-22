@@ -1,5 +1,4 @@
 import { Switch } from 'antd';
-import { Plus } from 'lucide-react';
 import { useMemo, useRef, type ChangeEvent } from 'react';
 import type {
   LocalMaterialFile,
@@ -9,6 +8,7 @@ import type {
   ToolOption,
 } from '../types';
 import { ImageMaterialStack } from './ImageMaterialStack';
+import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import type { MediaSlotItem } from './MediaSlotStack';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
@@ -201,7 +201,7 @@ function TalkingVideoImageSlot({
             onClick={() => inputRef.current?.click()}
             type="button"
           >
-            <Plus aria-hidden="true" size={24} />
+            <AnimatedUploadPlus size={24} />
             <span>{option.label}</span>
           </button>
         ) : null}

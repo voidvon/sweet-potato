@@ -1,7 +1,8 @@
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pause, Play, Plus, X } from 'lucide-react';
+import { Pause, Play, X } from 'lucide-react';
+import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import './MediaSlotStack.scss';
 
 export type MediaSlotItem = {
@@ -140,7 +141,7 @@ export function MediaSlotStack({
               }}
               type="button"
             >
-              <Plus aria-hidden="true" size={26} strokeWidth={1.6} />
+              <AnimatedUploadPlus size={26} strokeWidth={1.6} />
             </button>
           )}
           {items.map((item, index) => (
