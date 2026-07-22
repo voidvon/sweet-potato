@@ -1,5 +1,5 @@
-import { ClearOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, Modal, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd';
+import { ClearOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { Button, Form, InputNumber, Modal, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -7,16 +7,19 @@ import { resolveAssetUrl } from '@shared/api/core/request';
 import {
   deleteOrphanContentFiles,
   deleteTemporaryAssets,
+  getTemporaryAssetCleanupSettings,
   getTemporaryAssetDiskSpace,
   inspectOrphanContentFiles,
   listTemporaryAssetCleanupCandidates,
   listTemporaryAssetCleanupLogs,
   runTemporaryAssetCleanup,
+  updateTemporaryAssetCleanupSettings,
   type OrphanContentFileInspection,
   type TemporaryAssetCleanupCandidate,
   type TemporaryAssetCleanupLog,
 } from '../../api/content-cleanup';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import './TemporaryAssetCleanupPage.scss';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -154,6 +157,10 @@ function useTableBodyHeight() {
 }
 
 export function TemporaryAssetCleanupPage() {
+  const { setHeaderExtra } = useWorkspaceHeader();
+  const [settingsForm] = Form.useForm();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [candidates, setCandidates] = useState<TemporaryAssetCleanupCandidate[]>([]);
   const [logs, setLogs] = useState<TemporaryAssetCleanupLog[]>([]);
   const [page, setPage] = useState(1);
@@ -172,6 +179,39 @@ export function TemporaryAssetCleanupPage() {
   const [deletingOrphans, setDeletingOrphans] = useState(false);
   const pendingTable = useTableBodyHeight();
   const logTable = useTableBodyHeight();
+
+  async function openSettings() {
+    setSettingsOpen(true);
+    try {
+      settingsForm.setFieldsValue(await getTemporaryAssetCleanupSettings());
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '清理设置加载失败');
+    }
+  }
+
+  async function saveSettings() {
+    try {
+      const values = await settingsForm.validateFields();
+      setSavingSettings(true);
+      await updateTemporaryAssetCleanupSettings(values);
+      message.success('临时素材清理设置已保存');
+      setSettingsOpen(false);
+      await loadData(1, pageSize);
+    } catch (error) {
+      if (error instanceof Error) message.error(error.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  useEffect(() => {
+    setHeaderExtra(
+      <Tooltip title="清理设置">
+        <Button className="temporary-cleanup-header-settings" aria-label="清理设置" icon={<SettingOutlined />} onClick={() => void openSettings()} type="text" />
+      </Tooltip>,
+    );
+    return () => setHeaderExtra(null);
+  }, [setHeaderExtra]);
 
   async function loadData(nextPage = page, nextPageSize = pageSize) {
     setLoading(true);
@@ -623,6 +663,35 @@ export function TemporaryAssetCleanupPage() {
               ) : null}
             </div>
           ) : null}
+        </Modal>
+
+        <Modal
+          centered
+          confirmLoading={savingSettings}
+          okText="保存设置"
+          onCancel={() => setSettingsOpen(false)}
+          onOk={() => void saveSettings()}
+          open={settingsOpen}
+          title="临时素材清理设置"
+        >
+          <Form form={settingsForm} layout="vertical">
+            <Form.Item
+              extra="新产生且未被引用的临时素材将在此时长后进入清理队列。"
+              label="临时素材保留时长"
+              name="retentionHours"
+              rules={[{ required: true, message: '请输入保留时长' }, { type: 'number', min: 1, max: 720, message: '请输入 1-720 小时' }]}
+            >
+              <InputNumber addonAfter="小时" min={1} max={720} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              extra="服务会按此频率检查并清理已过期且未被引用的素材。"
+              label="自动清理间隔"
+              name="cleanupIntervalMinutes"
+              rules={[{ required: true, message: '请输入清理间隔' }, { type: 'number', min: 5, max: 1440, message: '请输入 5-1440 分钟' }]}
+            >
+              <InputNumber addonAfter="分钟" min={5} max={1440} precision={0} style={{ width: '100%' }} />
+            </Form.Item>
+          </Form>
         </Modal>
       </section>
     </ContentStudioLayout>

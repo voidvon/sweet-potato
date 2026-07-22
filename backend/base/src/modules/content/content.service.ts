@@ -68,11 +68,22 @@ import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internal
 
 dayjs.extend(customParseFormat);
 
-const temporaryContentAssetTtlMs = 24 * 60 * 60 * 1000;
-const temporaryContentAssetCleanupIntervalMs = 60 * 60 * 1000;
+const defaultTemporaryContentAssetTtlMs = 24 * 60 * 60 * 1000;
+const defaultTemporaryContentAssetCleanupIntervalMs = 60 * 60 * 1000;
+let temporaryContentAssetTtlMs = defaultTemporaryContentAssetTtlMs;
+let temporaryContentAssetCleanupIntervalMs = defaultTemporaryContentAssetCleanupIntervalMs;
+
+export type TemporaryAssetCleanupSettings = {
+  retentionHours: number;
+  cleanupIntervalMinutes: number;
+};
 
 export function temporaryContentAssetExpiresAt(now = Date.now()) {
   return new Date(now + temporaryContentAssetTtlMs).toISOString();
+}
+
+function temporaryAssetCleanupSettings(): TemporaryAssetCleanupSettings {
+  return { retentionHours: temporaryContentAssetTtlMs / 3_600_000, cleanupIntervalMinutes: temporaryContentAssetCleanupIntervalMs / 60_000 };
 }
 
 function stableJson(value: unknown): string {
@@ -2694,6 +2705,24 @@ export const contentService = {
     temporaryAssetCleanupTimer = setInterval(() => {
       void this.cleanupExpiredTemporaryAssets();
     }, temporaryContentAssetCleanupIntervalMs);
+  },
+
+  getTemporaryAssetCleanupSettings() {
+    return temporaryAssetCleanupSettings();
+  },
+
+  updateTemporaryAssetCleanupSettings(input: Partial<TemporaryAssetCleanupSettings>) {
+    const retentionHours = Number(input.retentionHours);
+    const cleanupIntervalMinutes = Number(input.cleanupIntervalMinutes);
+    if (!Number.isFinite(retentionHours) || retentionHours < 1 || retentionHours > 720) throw new Error('保留时长需在 1-720 小时之间');
+    if (!Number.isFinite(cleanupIntervalMinutes) || cleanupIntervalMinutes < 5 || cleanupIntervalMinutes > 1440) throw new Error('清理间隔需在 5-1440 分钟之间');
+    temporaryContentAssetTtlMs = Math.round(retentionHours * 3_600_000);
+    temporaryContentAssetCleanupIntervalMs = Math.round(cleanupIntervalMinutes * 60_000);
+    if (temporaryAssetCleanupTimer) {
+      clearInterval(temporaryAssetCleanupTimer);
+      temporaryAssetCleanupTimer = setInterval(() => { void contentService.cleanupExpiredTemporaryAssets(); }, temporaryContentAssetCleanupIntervalMs);
+    }
+    return temporaryAssetCleanupSettings();
   },
 
   listTemporaryAssetCleanupCandidates(input: { page?: unknown; pageSize?: unknown }) {

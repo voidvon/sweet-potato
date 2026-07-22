@@ -39,6 +39,11 @@ export type TemporaryAssetDiskSpace = {
   availableBytes: number;
 };
 
+export type TemporaryAssetCleanupSettings = {
+  retentionHours: number;
+  cleanupIntervalMinutes: number;
+};
+
 export type OrphanContentFileInspection = {
   scannedFiles: number;
   orphanFiles: number;
@@ -52,6 +57,17 @@ export type OrphanContentFileInspection = {
 };
 
 const apiBase = '/api/content/temporary-assets';
+
+export function getTemporaryAssetCleanupSettings() {
+  return request<TemporaryAssetCleanupSettings>(`${apiBase}/settings`);
+}
+
+export function updateTemporaryAssetCleanupSettings(settings: TemporaryAssetCleanupSettings) {
+  return request<TemporaryAssetCleanupSettings>(`${apiBase}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+}
 
 export function listTemporaryAssetCleanupCandidates(page = 1, pageSize = 20) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
