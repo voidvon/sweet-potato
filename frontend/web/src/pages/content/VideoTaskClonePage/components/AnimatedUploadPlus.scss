@@ -5,7 +5,9 @@
 }
 
 button:hover > .animated-upload-plus,
-button:focus-visible > .animated-upload-plus {
+button:focus-visible > .animated-upload-plus,
+.animated-upload-plus-host:hover .animated-upload-plus,
+.animated-upload-plus-host:focus-within .animated-upload-plus {
   transform: rotate(90deg);
 }
 

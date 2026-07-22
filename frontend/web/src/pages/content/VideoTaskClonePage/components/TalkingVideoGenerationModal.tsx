@@ -1,5 +1,5 @@
 import { Dropdown, Modal, Popover, message } from 'antd';
-import { ChevronDown, Copy, Layers3, Library, Music2, ScanLine, Upload, Zap } from 'lucide-react';
+import { ChevronDown, Copy, Layers3, Library, Maximize, Music2, ScanLine, Upload, Zap } from 'lucide-react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -8,6 +8,7 @@ import { AudioMaterialStack } from './AudioMaterialStack';
 import { AudioAssetLibraryPanel } from './AudioAssetLibraryList';
 import type { MediaSlotItem } from './MediaSlotStack';
 import { PromptMentionEditor } from './PromptMentionEditor';
+import { PromptModal } from './PromptModal';
 import { TalkingVideoImageMaterials } from './TalkingVideoPanel';
 import { resolveLocalMaterialUrl } from '../materialUrl';
 import './TalkingVideoGenerationModal.scss';
@@ -24,6 +25,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
   const task = state.talkingVideoPromptTask;
   const [draft, setDraft] = useState(task?.prompt || '');
   const [confirmed, setConfirmed] = useState(false);
+  const [promptExpanded, setPromptExpanded] = useState(false);
   const promptModified = draft !== task?.prompt;
   const audioFiles = localFiles(state.talkingVideoGenerationMaterials.audio);
   const hasModelImage = localFiles(state.talkingVideoGenerationMaterials.image)
@@ -41,7 +43,8 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
   };
 
   return (
-    <Modal
+    <>
+      <Modal
       centered
       className="talking-video-generation-modal"
       footer={(
@@ -122,7 +125,8 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         </div>
       )}
       onCancel={() => state.setTalkingVideoGenerateModalOpen(false)}
-      open
+      open={!promptExpanded}
+      keyboard={!promptExpanded}
       title={(
         <span className="talking-video-modal-heading">
           <strong>生成视频</strong>
@@ -162,9 +166,34 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
             selectedMaterials={editorMaterials}
             suggestionContainer="body"
           />
+          <button
+            aria-label="全屏编辑提示词"
+            className="video-task-expand talking-video-modal-prompt-expand"
+            onClick={() => setPromptExpanded(true)}
+            title="全屏编辑提示词"
+            type="button"
+          >
+            <Maximize size={18} />
+          </button>
         </section>
       </div>
-    </Modal>
+      </Modal>
+      {promptExpanded ? (
+        <PromptModal
+          description="检查和调整口播分镜提示词，输入 @ 可引用参考素材"
+          onClose={() => setPromptExpanded(false)}
+          onPlaceholderFiles={state.fillTalkingVideoGenerationMentionFiles}
+          onPromptChange={(value) => {
+            setDraft(value);
+            setConfirmed(false);
+          }}
+          placeholder="检查并调整口播分镜提示词"
+          prompt={draft}
+          selectedMaterials={editorMaterials}
+          title="编辑提示词"
+        />
+      ) : null}
+    </>
   );
 }
 

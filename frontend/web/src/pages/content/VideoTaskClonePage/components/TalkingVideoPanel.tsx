@@ -180,7 +180,7 @@ function TalkingVideoImageSlot({
         ref={inputRef}
         type="file"
       />
-      <div className="talking-video-image-slot-main">
+      <div className="talking-video-image-slot-main animated-upload-plus-host">
         <span className={`talking-video-image-requirement${option.role === 'model' ? ' is-required' : ''}`}>
           {option.role === 'model' ? '必选' : '可选'}
         </span>

@@ -101,6 +101,7 @@ const imageWorksFunctionOptions: WorksFunctionOption[] = [
 const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:all', label: '视频生成', modeKeys: [], modeTitles: [] },
   { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
+  { key: 'video:talking-video', label: '视频生成-口播视频生成', modeKeys: [], modeTitles: [] },
   { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
   { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
   { key: 'video:subtitle-removal', label: '视频生成-字幕擦除', modeKeys: [], modeTitles: [] },
@@ -368,19 +369,19 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
     return videoWorksFunctionOptions[1];
   }
   if (source === 'talking_video') {
-    return videoWorksFunctionOptions[1];
-  }
-  if (source === 'video_remake') {
     return videoWorksFunctionOptions[2];
   }
-  if (source === 'video_upscale') {
+  if (source === 'video_remake') {
     return videoWorksFunctionOptions[3];
   }
-  if (source === 'subtitle_removal') {
+  if (source === 'video_upscale') {
     return videoWorksFunctionOptions[4];
   }
-  if (source === 'video_translation') {
+  if (source === 'subtitle_removal') {
     return videoWorksFunctionOptions[5];
+  }
+  if (source === 'video_translation') {
+    return videoWorksFunctionOptions[6];
   }
   return videoWorksFunctionOptions[0];
 }
@@ -394,6 +395,9 @@ function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   }
   if (functionKey === 'video:creation') {
     return getVideoWorkSource(asset) === 'video_creation';
+  }
+  if (functionKey === 'video:talking-video') {
+    return getVideoWorkSource(asset) === 'talking_video';
   }
   if (functionKey === 'video:remake') {
     return getVideoWorkSource(asset) === 'video_remake';

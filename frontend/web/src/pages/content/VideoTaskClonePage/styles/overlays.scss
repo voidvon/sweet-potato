@@ -3025,8 +3025,9 @@
 .video-task-prompt-modal {
   background: #f5f8fc;
   inset: 0;
+  pointer-events: auto;
   position: fixed;
-  z-index: 1200;
+  z-index: 10020;
 }
 
 .video-task-prompt-modal section {

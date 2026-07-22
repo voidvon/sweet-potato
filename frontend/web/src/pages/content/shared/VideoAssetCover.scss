@@ -63,6 +63,10 @@
   background: rgba(29, 78, 216, 0.42);
 }
 
+.video-asset-cover__type--talking_video {
+  background: rgba(79, 70, 229, 0.46);
+}
+
 .video-asset-cover__type--video_remake {
   background: rgba(13, 148, 136, 0.42);
 }
@@ -81,6 +85,10 @@
 
 .video-asset-cover__type--video_creation::before {
   background: #60a5fa;
+}
+
+.video-asset-cover__type--talking_video::before {
+  background: #a5b4fc;
 }
 
 .video-asset-cover__type--video_remake::before {

@@ -557,8 +557,14 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     if (target.closest('.mention-rich-textarea-menu')) {
       return;
     }
-    if (target === containerRef.current || target.classList.contains('mention-rich-textarea-editor')) {
+    const editorElement = target.closest('.mention-rich-textarea-editor');
+    if (target === containerRef.current) {
       editor.commands.focus('end');
+    } else if (editorElement) {
+      // Text is rendered inside paragraph nodes, so clicking the editor body
+      // does not necessarily target the contenteditable root itself. Focus
+      // without forcing a position to preserve the user's caret location.
+      editor.commands.focus();
     }
   };
 
