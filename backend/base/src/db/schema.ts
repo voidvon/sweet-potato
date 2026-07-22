@@ -501,6 +501,8 @@ export function migrateDatabase() {
     CREATE TABLE IF NOT EXISTS site_access_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ip TEXT NOT NULL,
+      user_id TEXT NOT NULL DEFAULT '',
+      username TEXT NOT NULL DEFAULT '',
       method TEXT NOT NULL,
       path TEXT NOT NULL,
       user_agent TEXT NOT NULL DEFAULT '',
@@ -709,6 +711,8 @@ export function migrateDatabase() {
   addColumnIfMissing('users', 'is_blacklisted', 'is_blacklisted INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'credit_balance', 'credit_balance REAL NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'last_login_at', 'last_login_at TEXT');
+  addColumnIfMissing('site_access_logs', 'user_id', "user_id TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing('site_access_logs', 'username', "username TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('billing_settings', 'seedance_2_credits_per_second_720p', 'seedance_2_credits_per_second_720p REAL NOT NULL DEFAULT 20');
   addColumnIfMissing('billing_settings', 'seedance_2_credits_per_second_480p', 'seedance_2_credits_per_second_480p REAL NOT NULL DEFAULT 12');
   addColumnIfMissing('billing_settings', 'seedance_2_fast_credits_per_second_720p', 'seedance_2_fast_credits_per_second_720p REAL NOT NULL DEFAULT 18');

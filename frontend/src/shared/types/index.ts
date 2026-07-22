@@ -44,6 +44,8 @@ export type ManagedUser = {
   resourceKeys?: string[];
   isBlacklisted: boolean;
   creditBalance: number;
+  totalRechargeCredits: number;
+  totalUsageCredits: number;
   createdAt: string;
   lastLoginAt?: string;
 };
@@ -230,6 +232,12 @@ export type MyCreditLedgerEntry = Pick<
   'id' | 'type' | 'creditDelta' | 'creditBalanceAfter' | 'sourceType' | 'createdAt'
 > & {
   modelName?: string;
+};
+
+export type CreditSummary = {
+  userId: string;
+  totalRechargeCredits: number;
+  totalUsageCredits: number;
 };
 
 export type AdminCreditLedgerEntry = Pick<

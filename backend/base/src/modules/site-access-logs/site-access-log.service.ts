@@ -14,10 +14,11 @@ export const siteAccessLogService = {
     siteAccessLogRepository.create(record);
   },
 
-  list(input: { page?: unknown; pageSize?: unknown }) {
+  list(input: { page?: unknown; pageSize?: unknown; ip?: unknown }) {
     return siteAccessLogRepository.list({
       page: normalizePage(input.page, 1, Number.MAX_SAFE_INTEGER),
       pageSize: normalizePage(input.pageSize, 20, 100),
+      ip: String(input.ip || '').trim().slice(0, 100),
     });
   },
 

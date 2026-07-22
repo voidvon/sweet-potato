@@ -36,7 +36,7 @@ export function createApp() {
   migrateDatabase();
 
   const app = express();
-  app.set('trust proxy', 1);
+  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
   app.use(ipBlacklistMiddleware);
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '20mb' }));

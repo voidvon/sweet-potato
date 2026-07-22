@@ -1103,6 +1103,10 @@ export function listCustomerCreditLedger(input: { userId: string; limit?: number
   }));
 }
 
+export function getCreditSummary(userId: string) {
+  return billingRepository.getCreditSummary(userId);
+}
+
 export function listAdminCreditLedger(input: { userId?: string; limit?: number } = {}) {
   return billingRepository.listLedgerEntries(input).map((entry) => ({
     id: entry.id,

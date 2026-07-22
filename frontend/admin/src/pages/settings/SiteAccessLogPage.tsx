@@ -1,7 +1,7 @@
-import { ReloadOutlined, SettingOutlined } from '@ant-design/icons';
-import { Button, Form, InputNumber, Modal, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputNumber, Modal, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   getSiteAccessLogSettings,
   listSiteAccessLogs,
@@ -22,6 +22,61 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   hour12: false,
 });
 
+function useTableBodyHeight() {
+  const viewportElementRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [bodyHeight, setBodyHeight] = useState(1);
+
+  const measure = useCallback(() => {
+    const viewport = viewportElementRef.current;
+    if (!viewport || viewport.clientHeight <= 0) return;
+
+    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
+    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
+    let paginationHeight = 0;
+    if (pagination) {
+      const style = window.getComputedStyle(pagination);
+      paginationHeight = pagination.offsetHeight
+        + Number.parseFloat(style.marginTop || '0')
+        + Number.parseFloat(style.marginBottom || '0');
+    }
+
+    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
+    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+  }, []);
+
+  const scheduleMeasure = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      measure();
+    });
+  }, [measure]);
+
+  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    viewportElementRef.current = viewport;
+
+    if (!viewport) return;
+    observerRef.current = new ResizeObserver(scheduleMeasure);
+    observerRef.current.observe(viewport);
+    scheduleMeasure();
+  }, [scheduleMeasure]);
+
+  useLayoutEffect(() => {
+    scheduleMeasure();
+  });
+
+  useEffect(() => () => {
+    observerRef.current?.disconnect();
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+  }, []);
+
+  return { bodyHeight, viewportRef };
+}
+
 export function SiteAccessLogPage() {
   const { setHeaderExtra } = useWorkspaceHeader();
   const [settingsForm] = Form.useForm<{ retentionDays: number }>();
@@ -34,11 +89,14 @@ export function SiteAccessLogPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
+  const [ipInput, setIpInput] = useState('');
+  const [ipFilter, setIpFilter] = useState('');
+  const logTable = useTableBodyHeight();
 
-  const loadLogs = useCallback(async (nextPage = page, nextPageSize = pageSize) => {
+  const loadLogs = useCallback(async (nextPage = page, nextPageSize = pageSize, nextIp = ipFilter) => {
     setLoading(true);
     try {
-      const result = await listSiteAccessLogs(nextPage, nextPageSize);
+      const result = await listSiteAccessLogs(nextPage, nextPageSize, nextIp);
       setLogs(result.items);
       setPage(result.page);
       setPageSize(result.pageSize);
@@ -48,7 +106,20 @@ export function SiteAccessLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize]);
+  }, [ipFilter, page, pageSize]);
+
+  function applyIpFilter() {
+    const nextIp = ipInput.trim();
+    setIpInput(nextIp);
+    setIpFilter(nextIp);
+    void loadLogs(1, pageSize, nextIp);
+  }
+
+  function resetIpFilter() {
+    setIpInput('');
+    setIpFilter('');
+    void loadLogs(1, pageSize, '');
+  }
 
   async function openSettings() {
     setSettingsOpen(true);
@@ -91,6 +162,12 @@ export function SiteAccessLogPage() {
       render: (value: string) => <Typography.Text copyable>{value}</Typography.Text>,
     },
     {
+      title: '用户账号',
+      dataIndex: 'username',
+      width: 140,
+      render: (value: string) => value || <Typography.Text type="secondary">-</Typography.Text>,
+    },
+    {
       title: '访问记录',
       key: 'request',
       width: 280,
@@ -105,7 +182,7 @@ export function SiteAccessLogPage() {
     },
     {
       title: '访问时间',
-      dataIndex: 'lastAccessedAt',
+      dataIndex: 'accessedAt',
       width: 180,
       render: (value: string) => dateTimeFormatter.format(new Date(value)),
     },
@@ -116,10 +193,17 @@ export function SiteAccessLogPage() {
       render: (value: string) => <Tooltip title={value}><Typography.Text ellipsis>{value}</Typography.Text></Tooltip>,
     },
     {
-      title: '最近状态',
-      dataIndex: 'lastStatusCode',
-      width: 100,
+      title: '状态码',
+      dataIndex: 'statusCode',
+      width: 90,
       render: (value: number) => <Tag color={value >= 400 ? 'red' : value >= 300 ? 'gold' : 'green'}>{value}</Tag>,
+    },
+    {
+      title: '耗时',
+      dataIndex: 'durationMs',
+      width: 90,
+      align: 'right',
+      render: (value: number) => `${value} ms`,
     },
     {
       title: '访问次数',
@@ -150,27 +234,44 @@ export function SiteAccessLogPage() {
     <ContentStudioLayout>
       <section className="settings-page site-access-log-page">
         <div className="site-access-log-toolbar">
-          <Typography.Text type="secondary">仅展示最近 {retentionDays} 天的访问记录。</Typography.Text>
-          <Space>
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs(page, pageSize)}>刷新</Button>
+          <Space wrap>
+            <Input
+              allowClear
+              className="site-access-log-ip-filter"
+              onChange={(event) => setIpInput(event.target.value)}
+              onPressEnter={applyIpFilter}
+              placeholder="输入 IP 地址"
+              value={ipInput}
+            />
+            <Button icon={<SearchOutlined />} loading={loading} onClick={applyIpFilter}>查询</Button>
+            <Button disabled={!ipInput && !ipFilter} onClick={resetIpFilter}>重置</Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs(page, pageSize, ipFilter)}>刷新</Button>
           </Space>
+          <Typography.Text type="secondary">仅展示最近 {retentionDays} 天的访问记录。</Typography.Text>
         </div>
-        <Table<SiteAccessLog>
-          columns={columns}
-          dataSource={logs}
-          loading={loading}
-          locale={{ emptyText: '暂无访问日志' }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showTotal: (count) => `共 ${count} 条`,
-            onChange: (nextPage, nextPageSize) => void loadLogs(nextPage, nextPageSize),
-          }}
-          rowKey="id"
-          scroll={{ x: 980 }}
-        />
+        <div
+          className="site-access-log-table-viewport"
+          ref={logTable.viewportRef}
+          style={{ '--site-access-log-table-body-height': `${logTable.bodyHeight}px` } as CSSProperties}
+        >
+          <Table<SiteAccessLog>
+            className="site-access-log-table"
+            columns={columns}
+            dataSource={logs}
+            loading={loading}
+            locale={{ emptyText: '暂无访问日志' }}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: true,
+              showTotal: (count) => `共 ${count} 条`,
+              onChange: (nextPage, nextPageSize) => void loadLogs(nextPage, nextPageSize, ipFilter),
+            }}
+            rowKey="id"
+            scroll={{ x: 1120, y: logTable.bodyHeight }}
+          />
+        </div>
       </section>
 
       <Modal

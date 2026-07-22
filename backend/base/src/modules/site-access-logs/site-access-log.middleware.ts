@@ -7,7 +7,7 @@ const ignoredPaths = new Set(['/api/health']);
 
 function shouldRecord(req: Request) {
   if (req.method === 'OPTIONS') return false;
-  const path = req.path;
+  const path = req.originalUrl.split('?')[0];
   return !ignoredPaths.has(path) && !ignoredPathPrefixes.some((prefix) => path.startsWith(prefix));
 }
 
@@ -18,12 +18,15 @@ export function siteAccessLogMiddleware(req: Request, res: Response, next: NextF
   }
 
   const startedAt = Date.now();
+  const requestPath = req.originalUrl.split('?')[0].slice(0, 2000);
   res.once('finish', () => {
     try {
       siteAccessLogService.record({
         ip: resolveClientIp(req),
+        userId: req.auth?.userId || '',
+        username: req.auth?.user.username || '',
         method: req.method.toUpperCase(),
-        path: req.path.slice(0, 2000),
+        path: requestPath,
         userAgent: String(req.header('user-agent') || '').slice(0, 2000),
         statusCode: res.statusCode,
         durationMs: Math.max(0, Date.now() - startedAt),

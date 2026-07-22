@@ -3,6 +3,7 @@ import { requireAdmin } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import {
   getBillingSettings,
+  getCreditSummary,
   listAdminBillableUsageRecords,
   listAdminCreditLedger,
   listAdminLlmUsageRecords,
@@ -22,6 +23,15 @@ export function createBillingRouter() {
     }
     const limit = Number(req.query.limit || 100);
     res.json(listCustomerCreditLedger({ userId: currentUserId, limit: Number.isFinite(limit) ? limit : 100 }));
+  });
+
+  router.get('/me/summary', (req, res) => {
+    const currentUserId = req.auth?.userId;
+    if (!currentUserId) {
+      sendError(res, 401, '请先登录');
+      return;
+    }
+    res.json(getCreditSummary(currentUserId));
   });
 
   router.get('/me/usage', (req, res) => {

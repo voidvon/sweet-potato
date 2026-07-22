@@ -28,6 +28,12 @@ export type SiteConfig = {
   billing: Omit<BillingSettings, 'id' | 'createdAt'>;
 };
 
+export type CreditSummary = {
+  userId: string;
+  totalRechargeCredits: number;
+  totalUsageCredits: number;
+};
+
 export type CreditLedgerType =
   | 'reserve_debit'
   | 'reserve_refund'

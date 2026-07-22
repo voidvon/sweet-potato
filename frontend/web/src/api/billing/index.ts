@@ -1,5 +1,6 @@
 export {
   getBillingSettings,
+  getMyCreditSummary,
   getSiteConfig,
   listBillableUsageRecords,
   listCreditLedger,

@@ -19,6 +19,8 @@ export function ipBlacklistMiddleware(req: Request, res: Response, next: NextFun
   try {
     siteAccessLogService.record({
       ip,
+      userId: '',
+      username: '',
       method: req.method.toUpperCase(),
       path: req.path.slice(0, 2000),
       userAgent: String(req.header('user-agent') || '').slice(0, 2000),
