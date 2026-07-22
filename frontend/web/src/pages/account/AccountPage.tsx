@@ -24,7 +24,7 @@ import {
   ReloadOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { listMyCreditLedger } from '../../api/billing';
+import { getMyCreditSummary, listMyCreditLedger } from '../../api/billing';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { updateUserPassword, updateUserProfile } from '../../api/user';
 import { sourceTypeLabel } from '../../utils/billingLabels';
@@ -90,13 +90,22 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<User>(currentUser);
   const [ledger, setLedger] = useState<MyCreditLedgerEntry[]>([]);
+  const [creditSummary, setCreditSummary] = useState({
+    totalRechargeCredits: 0,
+    totalUsageCredits: 0,
+  });
   const [profileForm] = Form.useForm<UserProfilePayload>();
   const [passwordForm] = Form.useForm<PasswordPayload>();
 
   async function loadCreditLedger() {
     setLedgerLoading(true);
     try {
-      setLedger(await listMyCreditLedger());
+      const [nextLedger, nextSummary] = await Promise.all([
+        listMyCreditLedger(),
+        getMyCreditSummary(),
+      ]);
+      setLedger(nextLedger);
+      setCreditSummary(nextSummary);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '账户积分信息加载失败');
     } finally {
@@ -215,18 +224,6 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
 
   const rechargeRecords = useMemo(
     () => ledger.filter((entry) => entry.type === 'admin_adjust' && entry.creditDelta > 0),
-    [ledger],
-  );
-
-  const totalRechargeCredits = useMemo(
-    () => rechargeRecords.reduce((sum, entry) => sum + entry.creditDelta, 0),
-    [rechargeRecords],
-  );
-
-  const totalUsageCredits = useMemo(
-    () => ledger
-      .filter((entry) => entry.type === 'usage_debit' || entry.type === 'llm_extra_debit')
-      .reduce((sum, entry) => sum + Math.abs(entry.creditDelta), 0),
     [ledger],
   );
 
@@ -352,10 +349,10 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
               {formatIntegerCreditAmount(currentProfile.creditBalance || 0)} Credit
             </Descriptions.Item>
             <Descriptions.Item label="累计充值积分">
-              {formatCredits(totalRechargeCredits)}
+              {formatCredits(creditSummary.totalRechargeCredits)}
             </Descriptions.Item>
             <Descriptions.Item label="累计消耗积分">
-              {formatCredits(totalUsageCredits)}
+              {formatCredits(creditSummary.totalUsageCredits)}
             </Descriptions.Item>
             <Descriptions.Item label="注册时间">
               {formatDateTime(currentProfile.createdAt)}

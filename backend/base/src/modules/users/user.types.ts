@@ -1,4 +1,6 @@
 export type UserRole = 'admin' | 'user';
+export type ManagedUserSortBy = 'creditBalance' | 'totalRechargeCredits' | 'totalUsageCredits';
+export type ManagedUserSortOrder = 'asc' | 'desc';
 
 export type AssignedRole = {
   id: string;
@@ -54,6 +56,8 @@ export type ManagedUser = {
   permissions: string[];
   isBlacklisted: boolean;
   creditBalance: number;
+  totalRechargeCredits: number;
+  totalUsageCredits: number;
   createdAt: string;
   lastLoginAt?: string | null;
 };

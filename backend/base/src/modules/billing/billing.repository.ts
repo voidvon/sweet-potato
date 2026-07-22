@@ -5,6 +5,7 @@ import type {
   CreditLedgerEntry,
   CreditReservation,
   CreditReservationStatus,
+  CreditSummary,
   LlmUsageRecord,
 } from './billing.types.js';
 
@@ -15,6 +16,42 @@ function parseJsonObject(value: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function queryCreditSummaries(userId?: string): CreditSummary[] {
+  const rows = db.prepare(`
+    SELECT
+      users.id as userId,
+      (
+        SELECT COALESCE(SUM(credit_delta), 0)
+        FROM credit_ledger
+        WHERE user_id = users.id
+          AND type = 'admin_adjust'
+          AND credit_delta > 0
+      ) as totalRechargeCredits,
+      (
+        SELECT COALESCE(SUM(credit_cost), 0)
+        FROM llm_usage_records
+        WHERE user_id = users.id
+          AND status = 'completed'
+      ) + (
+        SELECT COALESCE(SUM(credit_cost), 0)
+        FROM billable_usage_records
+        WHERE user_id = users.id
+          AND status = 'completed'
+      ) as totalUsageCredits
+    FROM users
+    WHERE @userId IS NULL OR users.id = @userId
+  `).all({ userId: userId || null }) as Array<{
+    userId: string;
+    totalRechargeCredits: number;
+    totalUsageCredits: number;
+  }>;
+  return rows.map((row) => ({
+    userId: row.userId,
+    totalRechargeCredits: Number(row.totalRechargeCredits || 0),
+    totalUsageCredits: Number(row.totalUsageCredits || 0),
+  }));
 }
 
 type BillingSettingsRow = {
@@ -244,6 +281,18 @@ function parseBillableUsageRecord(row: BillableUsageRecordRow): BillableUsageRec
 }
 
 export const billingRepository = {
+  listCreditSummaries(): CreditSummary[] {
+    return queryCreditSummaries();
+  },
+
+  getCreditSummary(userId: string): CreditSummary {
+    return queryCreditSummaries(userId)[0] || {
+      userId,
+      totalRechargeCredits: 0,
+      totalUsageCredits: 0,
+    };
+  },
+
   getSettings() {
     const row = db.prepare('SELECT * FROM billing_settings WHERE id = 1').get() as BillingSettingsRow | undefined;
     return row ? parseBillingSettings(row) : null;

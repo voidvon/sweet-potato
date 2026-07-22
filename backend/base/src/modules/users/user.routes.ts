@@ -7,7 +7,13 @@ import { resolveUserPermissions } from '../roles/role.service.js';
 import { ensureRoleAssignable } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
 import { hashPassword, publicUser } from './user.service.js';
-import type { ManagedUser, User } from './user.types.js';
+import type { ManagedUser, ManagedUserSortBy, ManagedUserSortOrder, User } from './user.types.js';
+
+const managedUserSortFields = new Set<ManagedUserSortBy>([
+  'creditBalance',
+  'totalRechargeCredits',
+  'totalUsageCredits',
+]);
 
 function parseAmount(value: unknown) {
   const amount = typeof value === 'number' ? value : Number(value);
@@ -25,6 +31,8 @@ function serializeManagedUser(user: ManagedUser | User) {
     permissions: user.permissions || resolveUserPermissions(user),
     isBlacklisted: user.isBlacklisted,
     creditBalance: user.creditBalance,
+    totalRechargeCredits: 'totalRechargeCredits' in user ? user.totalRechargeCredits : 0,
+    totalUsageCredits: 'totalUsageCredits' in user ? user.totalUsageCredits : 0,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
   };
@@ -40,8 +48,17 @@ function normalizeRoleIds(value: unknown) {
 export function createUserRouter() {
   const router = Router();
 
-  router.get('/', requireAdmin, (_req, res) => {
-    res.json(userRepository.list().map(serializeManagedUser));
+  router.get('/', requireAdmin, (req, res) => {
+    const username = typeof req.query.username === 'string' ? req.query.username.trim() : undefined;
+    const requestedSortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : '';
+    const requestedSortOrder = req.query.sortOrder;
+    const sortBy = managedUserSortFields.has(requestedSortBy as ManagedUserSortBy)
+      ? requestedSortBy as ManagedUserSortBy
+      : undefined;
+    const sortOrder = requestedSortOrder === 'asc' || requestedSortOrder === 'desc'
+      ? requestedSortOrder as ManagedUserSortOrder
+      : undefined;
+    res.json(userRepository.list({ username, sortBy, sortOrder }).map(serializeManagedUser));
   });
 
   router.get('/me', (req, res) => {

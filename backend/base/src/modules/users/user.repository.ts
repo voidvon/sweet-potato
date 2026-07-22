@@ -1,7 +1,8 @@
 import { db } from '../../db/database.js';
+import { billingRepository } from '../billing/billing.repository.js';
 import { roleRepository } from '../roles/role.repository.js';
 import { listAllProtectedPermissionCodes } from '../../shared/resource-permission.js';
-import type { ManagedUser, User, UserRole } from './user.types.js';
+import type { ManagedUser, ManagedUserSortBy, ManagedUserSortOrder, User, UserRole } from './user.types.js';
 
 type UserRow = {
   id: string;
@@ -69,7 +70,10 @@ function parseUser(row: UserRow) {
   };
 }
 
-function parseManagedUser(row: ManagedUserRow) {
+function parseManagedUser(row: ManagedUserRow, summary = {
+  totalRechargeCredits: 0,
+  totalUsageCredits: 0,
+}) {
   const assignedRoles = listAssignedRoles(row.id);
   const roleIds = assignedRoles.map((role) => role.id);
   return {
@@ -81,6 +85,8 @@ function parseManagedUser(row: ManagedUserRow) {
       : roleRepository.listPermissionCodesByRoleIds(roleIds),
     isBlacklisted: Boolean(row.isBlacklisted),
     creditBalance: Number(row.creditBalance || 0),
+    totalRechargeCredits: summary.totalRechargeCredits,
+    totalUsageCredits: summary.totalUsageCredits,
   };
 }
 
@@ -122,10 +128,30 @@ export const userRepository = {
     return Number(result.count || 0);
   },
 
-  list() {
+  list(input: {
+    username?: string;
+    sortBy?: ManagedUserSortBy;
+    sortOrder?: ManagedUserSortOrder;
+  } = {}) {
     const listUsersQuery = db.prepare(`${managedUserSelect} ORDER BY created_at ASC`);
-    return (listUsersQuery.all() as ManagedUserRow[])
-      .map(parseManagedUser);
+    const summaries = new Map(
+      billingRepository.listCreditSummaries().map((summary) => [summary.userId, summary]),
+    );
+    const normalizedUsername = input.username?.trim().toLocaleLowerCase();
+    const users = (listUsersQuery.all() as ManagedUserRow[])
+      .filter((row) => !normalizedUsername || row.username.toLocaleLowerCase().includes(normalizedUsername))
+      .map((row) => parseManagedUser(row, summaries.get(row.id)));
+    if (!input.sortBy || !input.sortOrder) {
+      return users;
+    }
+    const direction = input.sortOrder === 'asc' ? 1 : -1;
+    return users.sort((left, right) => {
+      const difference = left[input.sortBy!] - right[input.sortBy!];
+      if (difference !== 0) {
+        return difference * direction;
+      }
+      return left.createdAt.localeCompare(right.createdAt);
+    });
   },
 
   create(user: User) {

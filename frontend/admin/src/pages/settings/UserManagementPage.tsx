@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Button, Descriptions, Dropdown, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
 import type { TableProps, TabsProps } from 'antd';
-import { DownOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DownOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { formatIntegerCreditAmount } from '@shared/utils/credits';
 import type {
   AdminBillableUsageRecord,
@@ -15,6 +23,7 @@ import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { adjustUserCredits, assignUserRoles, listUsers, updateManagedUserPassword } from '../../api/user';
 import { listRoles } from '../../api/role';
 import { billableUsageSourceLabel, sourceTypeLabel } from '../../utils/billingLabels';
+import './UserManagementPage.scss';
 
 type CreditAction = {
   type: 'recharge' | 'deduct';
@@ -37,6 +46,74 @@ type DetailState = {
   usage: AdminLlmUsageRecord[];
   billableUsage: AdminBillableUsageRecord[];
 };
+
+type UserSortField = 'creditBalance' | 'totalRechargeCredits' | 'totalUsageCredits';
+
+type UserSortState = {
+  field?: UserSortField;
+  order?: 'ascend' | 'descend';
+};
+
+const userSortFields = new Set<UserSortField>([
+  'creditBalance',
+  'totalRechargeCredits',
+  'totalUsageCredits',
+]);
+
+function useTableBodyHeight() {
+  const viewportElementRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [bodyHeight, setBodyHeight] = useState(1);
+
+  const measure = useCallback(() => {
+    const viewport = viewportElementRef.current;
+    if (!viewport || viewport.clientHeight <= 0) return;
+
+    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
+    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
+    let paginationHeight = 0;
+    if (pagination) {
+      const style = window.getComputedStyle(pagination);
+      paginationHeight = pagination.offsetHeight
+        + Number.parseFloat(style.marginTop || '0')
+        + Number.parseFloat(style.marginBottom || '0');
+    }
+
+    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
+    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+  }, []);
+
+  const scheduleMeasure = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      measure();
+    });
+  }, [measure]);
+
+  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    viewportElementRef.current = viewport;
+
+    if (!viewport) return;
+    observerRef.current = new ResizeObserver(scheduleMeasure);
+    observerRef.current.observe(viewport);
+    scheduleMeasure();
+  }, [scheduleMeasure]);
+
+  useLayoutEffect(() => {
+    scheduleMeasure();
+  });
+
+  useEffect(() => () => {
+    observerRef.current?.disconnect();
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+  }, []);
+
+  return { bodyHeight, viewportRef };
+}
 
 function formatCredits(credits: number) {
   return `${credits.toFixed(2)} Credit`;
@@ -158,12 +235,24 @@ export function UserManagementPage() {
   const [passwordEditState, setPasswordEditState] = useState<PasswordEditState | null>(null);
   const [detailState, setDetailState] = useState<DetailState | null>(null);
   const [amountInput, setAmountInput] = useState('');
+  const [accountInput, setAccountInput] = useState('');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [sortState, setSortState] = useState<UserSortState>({});
+  const userTable = useTableBodyHeight();
 
-  async function loadUsers() {
+  async function loadUsers(nextSort = sortState, nextAccountFilter = accountFilter) {
     setLoading(true);
     try {
       const [nextUsers, nextRoles] = await Promise.all([
-        listUsers(),
+        listUsers({
+          username: nextAccountFilter,
+          sortBy: nextSort.field,
+          sortOrder: nextSort.order === 'ascend'
+            ? 'asc'
+            : nextSort.order === 'descend'
+              ? 'desc'
+              : undefined,
+        }),
         listRoles(),
       ]);
       setUsers(nextUsers);
@@ -175,6 +264,7 @@ export function UserManagementPage() {
         isDefault: role.isDefault,
         isSystem: role.isSystem,
       })));
+      return nextUsers;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '用户列表加载失败');
     } finally {
@@ -185,6 +275,19 @@ export function UserManagementPage() {
   useEffect(() => {
     void loadUsers();
   }, []);
+
+  function applyAccountFilter() {
+    const nextAccountFilter = accountInput.trim();
+    setAccountInput(nextAccountFilter);
+    setAccountFilter(nextAccountFilter);
+    void loadUsers(sortState, nextAccountFilter);
+  }
+
+  function resetAccountFilter() {
+    setAccountInput('');
+    setAccountFilter('');
+    void loadUsers(sortState, '');
+  }
 
   async function handleAdjustCredits() {
     if (!creditAction) {
@@ -205,9 +308,12 @@ export function UserManagementPage() {
       message.success(creditAction.type === 'recharge' ? '积分充值成功' : '积分扣除成功');
       setCreditAction(null);
       setAmountInput('');
-      await loadUsers();
+      const nextUsers = await loadUsers();
       if (detailState?.user.id === creditAction.user.id) {
-        await openDetail(detailState.user.id);
+        await openDetail(
+          detailState.user.id,
+          nextUsers?.find((user) => user.id === detailState.user.id),
+        );
       }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '积分调整失败');
@@ -216,8 +322,8 @@ export function UserManagementPage() {
     }
   }
 
-  async function openDetail(userId: string) {
-    const user = users.find((item) => item.id === userId);
+  async function openDetail(userId: string, refreshedUser?: ManagedUser) {
+    const user = refreshedUser || users.find((item) => item.id === userId);
     if (!user) {
       return;
     }
@@ -246,9 +352,9 @@ export function UserManagementPage() {
       await assignUserRoles(user.id, roleIds);
       message.success(roleIds.length ? '角色分配已更新' : '角色分配已清空');
       setRoleEditState(null);
-      await loadUsers();
+      const nextUsers = await loadUsers();
       if (detailState?.user.id === user.id) {
-        await openDetail(user.id);
+        await openDetail(user.id, nextUsers?.find((item) => item.id === user.id));
       }
     } catch (error) {
       message.error(error instanceof Error ? error.message : '角色分配保存失败');
@@ -282,23 +388,6 @@ export function UserManagementPage() {
     () => detailState?.ledger.filter((entry) => entry.type === 'admin_adjust' && entry.creditDelta > 0) || [],
     [detailState],
   );
-  const totalRechargeCredits = useMemo(
-    () => rechargeRecords.reduce((sum, entry) => sum + entry.creditDelta, 0),
-    [rechargeRecords],
-  );
-  const totalUsageCredits = useMemo(
-    () => {
-      const llmCredits = detailState?.usage
-        .filter((entry) => entry.status === 'completed')
-        .reduce((sum, entry) => sum + entry.creditCost, 0) || 0;
-      const billableCredits = detailState?.billableUsage
-        .filter((entry) => entry.status === 'completed')
-        .reduce((sum, entry) => sum + entry.creditCost, 0) || 0;
-      return llmCredits + billableCredits;
-    },
-    [detailState],
-  );
-
   const columns: TableProps<ManagedUser>['columns'] = [
     {
       title: '用户名称',
@@ -352,7 +441,25 @@ export function UserManagementPage() {
       title: '积分余额',
       dataIndex: 'creditBalance',
       width: 160,
+      sorter: true,
+      sortOrder: sortState.field === 'creditBalance' ? sortState.order : null,
       render: (value: number) => <strong>{formatIntegerCreditAmount(value)} Credit</strong>,
+    },
+    {
+      title: '累积充值',
+      dataIndex: 'totalRechargeCredits',
+      width: 160,
+      sorter: true,
+      sortOrder: sortState.field === 'totalRechargeCredits' ? sortState.order : null,
+      render: (value: number) => `${formatIntegerCreditAmount(value)} Credit`,
+    },
+    {
+      title: '累积消耗',
+      dataIndex: 'totalUsageCredits',
+      width: 160,
+      sorter: true,
+      sortOrder: sortState.field === 'totalUsageCredits' ? sortState.order : null,
+      render: (value: number) => `${formatIntegerCreditAmount(value)} Credit`,
     },
     {
       title: '注册时间',
@@ -618,31 +725,66 @@ export function UserManagementPage() {
 
   return (
     <ContentStudioLayout>
-      <section className="settings-page">
+      <section className="settings-page user-management-page">
         <section className="settings-header">
           <p>
             管理员可以查看用户名称、用户账号、角色分配、积分余额，并查看充值记录、积分流水、LLM 用量和业务消费明细。
           </p>
         </section>
 
-        <section className="settings-section">
+        <section className="settings-section user-management-section">
           <div className="settings-section-actions">
-          <Button icon={<ReloadOutlined />} onClick={() => void loadUsers()} loading={loading}>
-            刷新
-          </Button>
+            <Space wrap>
+              <Input
+                allowClear
+                className="user-management-account-filter"
+                onChange={(event) => setAccountInput(event.target.value)}
+                onPressEnter={applyAccountFilter}
+                placeholder="搜索用户账号"
+                value={accountInput}
+              />
+              <Button icon={<SearchOutlined />} onClick={applyAccountFilter} loading={loading}>
+                查询
+              </Button>
+              <Button disabled={!accountInput && !accountFilter} onClick={resetAccountFilter}>
+                重置
+              </Button>
+              <Button icon={<ReloadOutlined />} onClick={() => void loadUsers()} loading={loading}>
+                刷新
+              </Button>
+            </Space>
           </div>
-          <Table
-            className="user-management-table"
-            columns={columns}
-            dataSource={users}
-            loading={loading}
-            rowKey="id"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: false,
-              showTotal: (total) => `共 ${total} 位用户`,
-            }}
-          />
+          <div
+            className="user-management-table-viewport"
+            ref={userTable.viewportRef}
+            style={{ '--user-management-table-body-height': `${userTable.bodyHeight}px` } as CSSProperties}
+          >
+            <Table
+              className="user-management-table"
+              columns={columns}
+              dataSource={users}
+              loading={loading}
+              onChange={(_pagination, _filters, sorter, extra) => {
+                if (extra.action !== 'sort') return;
+                const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter;
+                const field = typeof activeSorter.field === 'string' && userSortFields.has(activeSorter.field as UserSortField)
+                  ? activeSorter.field as UserSortField
+                  : undefined;
+                const nextSort: UserSortState = activeSorter.order && field
+                  ? { field, order: activeSorter.order }
+                  : {};
+                setSortState(nextSort);
+                void loadUsers(nextSort, accountFilter);
+              }}
+              rowKey="id"
+              scroll={{ x: 1580, y: userTable.bodyHeight }}
+              pagination={{
+                pageSize: 20,
+                showSizeChanger: false,
+                showTotal: (total) => `共 ${total} 位用户`,
+              }}
+            />
+          </div>
         </section>
 
       <Modal
@@ -758,10 +900,10 @@ export function UserManagementPage() {
                 {formatIntegerCreditAmount(detailState.user.creditBalance)} Credit
               </Descriptions.Item>
               <Descriptions.Item label="累计充值积分">
-                {formatCredits(totalRechargeCredits)}
+                {formatCredits(detailState.user.totalRechargeCredits)}
               </Descriptions.Item>
               <Descriptions.Item label="累计消耗积分">
-                {formatCredits(totalUsageCredits)}
+                {formatCredits(detailState.user.totalUsageCredits)}
               </Descriptions.Item>
             </Descriptions>
             <Tabs items={detailTabItems} />

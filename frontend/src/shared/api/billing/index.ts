@@ -3,6 +3,7 @@ import type {
   AdminCreditLedgerEntry,
   AdminLlmUsageRecord,
   BillingSettings,
+  CreditSummary,
   MyCreditLedgerEntry,
   SiteConfig,
 } from '../../types';
@@ -15,6 +16,7 @@ enum Api {
   usage = '/api/billing/usage',
   billableUsage = '/api/billing/billable-usage',
   myLedger = '/api/billing/me/ledger',
+  mySummary = '/api/billing/me/summary',
 }
 
 export function getBillingSettings() {
@@ -71,4 +73,8 @@ export function listBillableUsageRecords(userId: string, limit = 200) {
 export function listMyCreditLedger(limit = 200) {
   const params = new URLSearchParams({ limit: String(limit) });
   return request<MyCreditLedgerEntry[]>(`${Api.myLedger}?${params.toString()}`);
+}
+
+export function getMyCreditSummary() {
+  return request<CreditSummary>(Api.mySummary);
 }

@@ -3,13 +3,15 @@ import { request } from '@shared/api/core/request';
 export type SiteAccessLog = {
   id: string;
   ip: string;
+  userId: string;
+  username: string;
   method: string;
   path: string;
   userAgent: string;
   accessCount: number;
-  lastAccessedAt: string;
-  lastStatusCode: number;
-  averageDurationMs: number;
+  accessedAt: string;
+  statusCode: number;
+  durationMs: number;
 };
 
 export type SiteAccessLogSettings = {
@@ -25,8 +27,9 @@ export type PaginatedSiteAccessLogs = {
 
 const apiBase = '/api/access-logs';
 
-export function listSiteAccessLogs(page = 1, pageSize = 20) {
+export function listSiteAccessLogs(page = 1, pageSize = 20, ip = '') {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (ip) params.set('ip', ip);
   return request<PaginatedSiteAccessLogs>(`${apiBase}?${params.toString()}`, { dedupe: false });
 }
 

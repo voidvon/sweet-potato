@@ -43,8 +43,21 @@ export function updateManagedUserPassword(id: string, nextPassword: string) {
   });
 }
 
-export function listUsers() {
-  return request<ManagedUser[]>(Api.users);
+export function listUsers(options: {
+  username?: string;
+  sortBy?: 'creditBalance' | 'totalRechargeCredits' | 'totalUsageCredits';
+  sortOrder?: 'asc' | 'desc';
+} = {}) {
+  const params = new URLSearchParams();
+  if (options.username?.trim()) {
+    params.set('username', options.username.trim());
+  }
+  if (options.sortBy && options.sortOrder) {
+    params.set('sortBy', options.sortBy);
+    params.set('sortOrder', options.sortOrder);
+  }
+  const query = params.toString();
+  return request<ManagedUser[]>(query ? `${Api.users}?${query}` : Api.users);
 }
 
 export function adjustUserCredits(id: string, delta: number) {
