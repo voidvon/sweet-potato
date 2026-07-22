@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
@@ -20,6 +19,7 @@ import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-m
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
 import { uploadLocalVideoToVodWithWorker } from './content-viral-director.js';
+import { ensureContentAssetLocalFile } from './content-asset-local-cache.js';
 
 type EnhancementWorkerResult = {
   ok?: boolean;
@@ -333,16 +333,14 @@ export async function createVideoEnhancementTask(payload: CreateVideoEnhancement
   } catch {
     throw new Error('VOLCENGINE_VOD_PLAYBACK_BASE_URL 不是有效的 HTTP(S) 地址');
   }
-  const sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
+  let sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
   if (!sourceAsset || sourceAsset.userId !== payload.userId) {
     throw new Error('待放大视频素材不存在');
   }
   if (!sourceAsset.mimeType.startsWith('video/')) {
     throw new Error('请选择视频素材进行高清放大');
   }
-  if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) {
-    throw new Error('待放大视频尚未保存到本地，请稍后重试');
-  }
+  sourceAsset = await ensureContentAssetLocalFile(sourceAsset);
   await assertCreateVideoSourceDuration(sourceAsset);
   const resolution = String(payload.resolution || '1080p').toLowerCase();
   if (!['1080p', '2k', '4k'].includes(resolution)) {

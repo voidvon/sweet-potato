@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
@@ -21,6 +20,7 @@ import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-m
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
 import { uploadLocalVideoToVodWithWorker } from './content-viral-director.js';
+import { ensureContentAssetLocalFile } from './content-asset-local-cache.js';
 
 type TranslationWorkerResult = {
   ok?: boolean;
@@ -319,14 +319,14 @@ function normalizeSubtitleConfig(payload: CreateVideoTranslationPayload) {
 }
 
 export async function createVideoTranslationTask(payload: CreateVideoTranslationPayload) {
-  const sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
+  let sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
   if (!sourceAsset || sourceAsset.userId !== payload.userId) throw new Error('待翻译的视频素材不存在');
   if (!sourceAsset.mimeType.startsWith('video/')) throw new Error('请选择视频素材进行翻译');
   const sourceFileName = sourceAsset.originalFileName || sourceAsset.storedFileName || sourceAsset.name;
   if (sourceAsset.mimeType.toLowerCase() !== 'video/mp4' && path.extname(sourceFileName).toLowerCase() !== '.mp4') {
     throw new Error('视频翻译仅支持 MP4 格式');
   }
-  if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) throw new Error('源视频尚未保存到本地，请稍后重试');
+  sourceAsset = await ensureContentAssetLocalFile(sourceAsset);
   await assertCreateVideoSourceDuration(sourceAsset);
   const sourceLanguage = String(payload.sourceLanguage || '').trim().toLowerCase();
   const targetLanguage = String(payload.targetLanguage || '').trim().toLowerCase();

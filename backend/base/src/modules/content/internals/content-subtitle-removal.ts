@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
@@ -21,6 +20,7 @@ import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-m
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
 import { aiWorkerUrl } from './content-viral-analysis.js';
 import { uploadLocalVideoToVodWithWorker } from './content-viral-director.js';
+import { ensureContentAssetLocalFile } from './content-asset-local-cache.js';
 
 type SubtitleRemovalWorkerResult = {
   ok?: boolean;
@@ -319,10 +319,10 @@ function normalizeClipFilter(payload: CreateSubtitleRemovalPayload) {
 
 export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPayload) {
   validatePlaybackBaseUrl();
-  const sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
+  let sourceAsset = contentRepository.findAsset(payload.sourceAssetId);
   if (!sourceAsset || sourceAsset.userId !== payload.userId) throw new Error('待擦除字幕的视频素材不存在');
   if (!sourceAsset.mimeType.startsWith('video/')) throw new Error('请选择视频素材进行字幕擦除');
-  if (!sourceAsset.filePath || !existsSync(sourceAsset.filePath)) throw new Error('源视频尚未保存到本地，请稍后重试');
+  sourceAsset = await ensureContentAssetLocalFile(sourceAsset);
   await assertCreateVideoSourceDuration(sourceAsset);
   const mode = payload.mode === 'auto_region' || payload.mode === 'manual' ? payload.mode : 'auto';
   const contentType = payload.contentType === 'text' ? 'text' : 'subtitle';

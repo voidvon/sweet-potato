@@ -194,6 +194,15 @@ export async function headTosObject(key: string, bucket = currentTosStorageConfi
   }
 }
 
+export async function downloadTosObjectToFile(input: { key: string; bucket?: string; filePath: string }) {
+  const bucket = input.bucket || currentTosStorageConfig().bucket
+  await tosClient().getObjectToFile({
+    bucket,
+    key: normalizeStorageKey(input.key),
+    filePath: input.filePath,
+  })
+}
+
 export function storageMetadata(file: StoredFile): StoredFileMetadata {
   return {
     storageProvider: file.provider,
