@@ -532,6 +532,50 @@ export function migrateDatabase() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS file_storage_settings (
+      id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      endpoint TEXT NOT NULL DEFAULT '',
+      bucket TEXT NOT NULL DEFAULT '',
+      region TEXT NOT NULL DEFAULT '',
+      access_key TEXT NOT NULL DEFAULT '',
+      secret_key TEXT NOT NULL DEFAULT '',
+      public_base_url TEXT NOT NULL DEFAULT '',
+      key_prefix TEXT NOT NULL DEFAULT 'app-files',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS file_upload_intents (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      object_key TEXT NOT NULL,
+      public_file_url TEXT NOT NULL DEFAULT '',
+      resource_type TEXT NOT NULL,
+      original_file_name TEXT NOT NULL,
+      stored_file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      asset_kind TEXT NOT NULL DEFAULT 'upload',
+      lifecycle_status TEXT NOT NULL DEFAULT 'temporary',
+      metadata TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      asset_id TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_file_upload_intents_user_status
+      ON file_upload_intents(user_id, status, expires_at);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_file_upload_intents_object
+      ON file_upload_intents(bucket, object_key);
+
     CREATE TABLE IF NOT EXISTS rate_limit_rules (
       id TEXT PRIMARY KEY,
       url_pattern TEXT NOT NULL,
@@ -835,6 +879,7 @@ export function migrateDatabase() {
   addColumnIfMissing('content_assets', 'parent_asset_id', 'parent_asset_id TEXT');
   addColumnIfMissing('content_assets', 'expires_at', 'expires_at TEXT');
   addColumnIfMissing('content_assets', 'retained_at', 'retained_at TEXT');
+  addColumnIfMissing('file_upload_intents', 'public_file_url', "public_file_url TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('content_asset_groups', 'resource_type', "resource_type TEXT NOT NULL DEFAULT 'other'");
   addColumnIfMissing('content_asset_groups', 'metadata', "metadata TEXT NOT NULL DEFAULT '{}'");
   addColumnIfMissing('video_generation_tasks', 'raw_parse_result', "raw_parse_result TEXT NOT NULL DEFAULT '{}'");
@@ -1131,6 +1176,35 @@ export function migrateDatabase() {
         INSERT INTO app_migrations (id, applied_at)
         VALUES (?, ?)
       `).run(temporaryAssetsAdminSortMigrationId, now);
+    })();
+  }
+
+  const fileManagementAdminRouteMigrationId = '20260722-add-admin-file-management-route';
+  const fileManagementAdminRouteMigrationApplied = db.prepare(`
+    SELECT 1
+    FROM app_migrations
+    WHERE id = ?
+  `).get(fileManagementAdminRouteMigrationId);
+  if (!fileManagementAdminRouteMigrationApplied) {
+    db.transaction(() => {
+      const sortOrders: Record<string, number> = {
+        'admin.system.file_management': 70,
+        'admin.system.temporary_assets': 80,
+        'admin.system.settings': 90,
+        'admin.system.access_logs': 100,
+      };
+      const update = db.prepare(`
+        UPDATE route_resources
+        SET sort_order = @sortOrder, updated_at = @updatedAt
+        WHERE resource_key = @resourceKey
+      `);
+      Object.entries(sortOrders).forEach(([resourceKey, sortOrder]) => {
+        update.run({ resourceKey, sortOrder, updatedAt: now });
+      });
+      db.prepare(`
+        INSERT INTO app_migrations (id, applied_at)
+        VALUES (?, ?)
+      `).run(fileManagementAdminRouteMigrationId, now);
     })();
   }
 

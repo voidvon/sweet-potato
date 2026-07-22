@@ -122,6 +122,9 @@ export type VideoRemakeWorkflowState = {
       fileSize: number;
       filePath: string;
       fileUrl: string;
+      storageProvider: 'local' | 'tos';
+      storageKey: string;
+      storageBucket?: string;
     };
   };
   runtime: {
@@ -150,6 +153,7 @@ export type VideoRemakeWorkflowState = {
     };
     videoSegments?: Array<Record<string, unknown>>;
     mergedVideo?: Record<string, unknown>;
+    uploadedFiles?: Array<Record<string, unknown>>;
     referencePrimer?: Record<string, unknown>;
     referencePrimerPlan?: Record<string, unknown>;
     langGraph?: Record<string, unknown>;
@@ -192,6 +196,9 @@ export type UploadVideoRemakePayload = {
   fileSize: number;
   filePath: string;
   fileUrl: string;
+  storageProvider: 'local' | 'tos';
+  storageKey: string;
+  storageBucket?: string;
 };
 
 export type UploadVideoRemakePipAssetPayload = UploadVideoRemakePayload;

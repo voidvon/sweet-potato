@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -17,6 +17,8 @@ import {
 } from '../content/internals/content-common.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from '../content/content.service.js';
+import { contentRepository } from '../content/content.repository.js';
+import { contentUploadIntentRepository } from '../content/content-upload-intent.repository.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { resolveChatCapabilityInvocation } from './chat-capability.service.js';
 import { askConfiguredModel, assertModelConfigReady } from './chat-completion.service.js';
@@ -29,6 +31,16 @@ import {
   parseRequestedCapabilities,
 } from './chat-stream.service.js';
 import type { ChatConversation, ChatMessage } from './chat.types.js';
+import {
+  createTosUploadUrl,
+  currentFileStorageProvider,
+  currentTosStorageConfig,
+  fileStorageKey,
+  fileStorageService,
+  headTosObject,
+  storageMetadata,
+  tosPublicUrl,
+} from '../../shared/file-storage.js';
 const chatFilesDir = path.join(dataDir, 'files');
 mkdirSync(chatFilesDir, { recursive: true });
 
@@ -95,9 +107,159 @@ export function createChatRouter() {
 
   router.use(requirePermission('web.module.chat'));
 
+  router.post('/attachments/direct-upload/prepare', (req, res) => {
+    void (async () => {
+      try {
+        if (await currentFileStorageProvider() !== 'tos') {
+          res.json({ directUpload: false });
+          return;
+        }
+        const originalFileName = String(req.body.originalFileName || '').trim();
+        const mimeType = String(req.body.mimeType || 'application/octet-stream').trim();
+        const fileSize = Number(req.body.fileSize || 0);
+        const mediaKind = inputMediaKindForMimeType(mimeType);
+        if (!mediaKind) {
+          res.json({ directUpload: false });
+          return;
+        }
+        if (!originalFileName) throw new Error('缺少文件名');
+        if (!Number.isSafeInteger(fileSize) || fileSize <= 0) throw new Error('文件大小无效');
+        if (fileSize > batchRequestSettingsService.getFileSizeLimitBytes()) {
+          throw new Error(`上传文件不能超过 ${batchRequestSettingsService.getSettings().maxFileSizeMb} MB`);
+        }
+
+        const id = randomUUID();
+        const storedFileName = inputMediaRelativePath(
+          mediaKind,
+          `${Date.now()}-${id}-${sanitizeFileName(originalFileName)}`,
+        );
+        const objectKey = fileStorageKey(storedFileName);
+        const config = currentTosStorageConfig();
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString();
+        const isImage = mimeType.startsWith('image/');
+        const intent = contentUploadIntentRepository.create({
+          id,
+          userId: getCurrentUserId(req),
+          groupId: '',
+          provider: 'tos',
+          bucket: config.bucket,
+          objectKey,
+          publicFileUrl: tosPublicUrl(objectKey),
+          resourceType: 'other',
+          originalFileName,
+          storedFileName,
+          mimeType,
+          fileSize,
+          name: originalFileName,
+          description: '',
+          assetKind: isImage ? 'image_input' : 'file_input',
+          lifecycleStatus: 'temporary',
+          metadata: {
+            kind: 'chat_reference_upload',
+            source: 'local_upload',
+            temporary: true,
+          },
+          status: 'pending',
+          assetId: null,
+          expiresAt,
+          createdAt: now.toISOString(),
+          completedAt: null,
+        });
+        if (!intent) throw new Error('上传任务创建失败');
+        res.status(201).json({
+          directUpload: true,
+          intentId: intent.id,
+          uploadUrl: createTosUploadUrl({ key: objectKey, expiresInSeconds: 900 }),
+          headers: { 'Content-Type': mimeType },
+          expiresAt,
+        });
+      } catch (error) {
+        sendError(res, 400, error instanceof Error ? error.message : '附件直传任务创建失败');
+      }
+    })();
+  });
+
+  router.post('/attachments/direct-upload/complete', (req, res) => {
+    void (async () => {
+      try {
+        const intent = contentUploadIntentRepository.find(String(req.body.intentId || '').trim());
+        if (!intent || intent.userId !== getCurrentUserId(req) || intent.metadata.kind !== 'chat_reference_upload') {
+          throw new Error('上传任务不存在');
+        }
+        let asset = intent.assetId ? contentRepository.findAsset(intent.assetId) : null;
+        if (asset?.userId !== intent.userId) asset = null;
+        if (!asset) {
+          if (Date.parse(intent.expiresAt) <= Date.now()) throw new Error('上传任务已过期，请重新上传');
+          const object = await headTosObject(intent.objectKey, intent.bucket);
+          if (object.contentLength !== intent.fileSize) throw new Error('上传文件大小校验失败，请重新上传');
+          const fileUrl = intent.publicFileUrl || tosPublicUrl(intent.objectKey);
+          asset = contentService.createAsset({
+            userId: intent.userId,
+            resourceType: 'other',
+            name: intent.name,
+            originalFileName: intent.originalFileName,
+            storedFileName: intent.storedFileName,
+            mimeType: intent.mimeType,
+            fileSize: object.contentLength,
+            filePath: '',
+            fileUrl,
+            assetKind: intent.assetKind,
+            lifecycleStatus: 'temporary',
+            expiresAt: temporaryContentAssetExpiresAt(),
+            metadata: {
+              ...intent.metadata,
+              storageProvider: 'tos',
+              storageKey: intent.objectKey,
+              storageBucket: intent.bucket,
+              publicFileUrl: fileUrl,
+            },
+          });
+          if (!asset) throw new Error('附件素材记录创建失败');
+          contentUploadIntentRepository.complete(intent.id, asset.id);
+        }
+        res.status(201).json({
+          id: `chat-attachment-${asset.id}`,
+          assetId: asset.id,
+          name: asset.originalFileName,
+          type: asset.mimeType,
+          size: asset.fileSize,
+          kind: asset.mimeType.startsWith('image/') ? 'image' : 'file',
+          url: asset.fileUrl,
+        });
+      } catch (error) {
+        sendError(res, 400, error instanceof Error ? error.message : '附件直传登记失败');
+      }
+    })();
+  });
+
+  router.delete('/attachments/:assetId', (req, res) => {
+    void (async () => {
+      try {
+        const asset = contentRepository.findAsset(String(req.params.assetId || '').trim());
+        if (!asset || asset.userId !== getCurrentUserId(req) || asset.metadata.kind !== 'chat_reference_upload') {
+          throw new Error('附件素材不存在');
+        }
+        if (chatRepository.isAttachmentUrlReferenced(asset.fileUrl) || contentRepository.hasAssetReferences(asset.id)) {
+          res.json({ ok: true, deleted: false });
+          return;
+        }
+        await fileStorageService.deleteStoredFile({
+          metadata: asset.metadata,
+          filePath: asset.filePath,
+        });
+        contentRepository.deleteAsset(asset.id);
+        res.json({ ok: true, deleted: true });
+      } catch (error) {
+        sendError(res, 400, error instanceof Error ? error.message : '附件删除失败');
+      }
+    })();
+  });
+
   router.post('/attachments/upload', (req, res) => {
     createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
+        let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | undefined;
         if (uploadError) {
           sendError(res, 400, uploadErrorMessage(uploadError, '附件上传失败'));
           return;
@@ -111,7 +273,14 @@ export function createChatRouter() {
           const userId = getCurrentUserId(req);
           const originalFileName = decodeUploadFileName(req.file.originalname);
           const relativePath = path.relative(chatFilesDir, req.file.path).split(path.sep).join('/');
-          const fileUrl = fileUrlForContentRelativePath(relativePath);
+          const localFileUrl = fileUrlForContentRelativePath(relativePath);
+          persistedFile = await fileStorageService.storeLocalFile({
+            key: fileStorageKey(relativePath),
+            filePath: req.file.path,
+            fileUrl: localFileUrl,
+            mimeType: req.file.mimetype || 'application/octet-stream',
+          });
+          const fileUrl = persistedFile.fileUrl;
           const isImage = (req.file.mimetype || '').startsWith('image/');
           const asset = contentService.createAsset({
             userId,
@@ -130,6 +299,8 @@ export function createChatRouter() {
               kind: 'chat_reference_upload',
               source: 'local_upload',
               temporary: true,
+              ...storageMetadata(persistedFile),
+              ...(fileUrl.startsWith('http') ? { publicFileUrl: fileUrl } : {}),
             },
           });
           if (!asset) {
@@ -145,7 +316,14 @@ export function createChatRouter() {
             url: fileUrl,
           });
         } catch (error) {
-          await rm(req.file.path, { force: true });
+          if (persistedFile) {
+            await fileStorageService.deleteStoredFile({
+              metadata: storageMetadata(persistedFile),
+              filePath: persistedFile.filePath,
+            }).catch(() => undefined);
+          } else {
+            await rm(req.file.path, { force: true });
+          }
           sendError(res, 400, error instanceof Error ? error.message : '附件上传失败');
         }
       })();

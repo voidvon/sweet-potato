@@ -12,6 +12,8 @@ import { createChatRouter } from './modules/chat/chat.routes.js';
 import { createContentRouter } from './modules/content/content.routes.js';
 import { createContentPlanningRouter } from './modules/content-planning/content-planning.routes.js';
 import { createGenerationRouter } from './modules/generation/generation.routes.js';
+import { createFileStorageSettingsRouter } from './modules/file-storage-settings/file-storage-settings.routes.js';
+import { createFileManagementRouter } from './modules/file-management/file-management.routes.js';
 import { createIpBlacklistRouter } from './modules/ip-blacklist/ip-blacklist.routes.js';
 import { ipBlacklistMiddleware } from './modules/ip-blacklist/ip-blacklist.middleware.js';
 import { createModelConfigRouter } from './modules/model-configs/model-config.routes.js';
@@ -70,6 +72,8 @@ export function createApp() {
   app.use('/api/site-config', createSiteConfigRouter());
   app.use('/api/access-logs', createSiteAccessLogRouter());
   app.use('/api/system-settings/batch-request', createBatchRequestSettingsRouter());
+  app.use('/api/system-settings/file-storage', createFileStorageSettingsRouter());
+  app.use('/api/file-management', createFileManagementRouter());
   app.use('/api/system-settings/rate-limits', createRateLimitSettingsRouter());
   app.use('/api/system-settings/ip-blacklist', createIpBlacklistRouter());
   app.use('/api/talking-video', createTalkingVideoRouter());

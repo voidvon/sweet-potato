@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
 contentPublicBaseUrl
 } from '../../../config/env.js';
+import { fileStorageKey, fileStorageService, storageMetadata } from '../../../shared/file-storage.js';
 import { getAudioModelProvider } from '../../audio-models/audio-model.registry.js';
 import { recordSpeechSynthesisUsage, recordVoiceCloneUsage } from '../../billing/billing.service.js';
 import { modelConfigRepository } from '../../model-configs/model-config.repository.js';
@@ -200,6 +201,12 @@ export async function cloneVoiceLibrary(groupId: string, input: { userId: string
       const storedFileName = `voice-clone-preview-${groupId}-${Date.now()}.${extension}`;
       const filePath = path.join(contentFilesDir, storedFileName);
       await writeFile(filePath, previewResult.buffer);
+      const persistedFile = await fileStorageService.storeLocalFile({
+        key: fileStorageKey(storedFileName),
+        filePath,
+        fileUrl: fileUrlFor(storedFileName),
+        mimeType: previewResult.mimeType,
+      });
       await Promise.all(contentRepository.listAssets({ userId: input.userId, groupId, resourceType: 'voice' })
         .filter((asset) => asset.metadata.kind === 'voice_clone_preview')
         .map((asset) => deleteContentAssetFile(asset)));
@@ -214,7 +221,7 @@ export async function cloneVoiceLibrary(groupId: string, input: { userId: string
         mimeType: previewResult.mimeType,
         fileSize: previewResult.buffer.byteLength,
         filePath,
-        fileUrl: fileUrlFor(storedFileName),
+        fileUrl: persistedFile.fileUrl,
         metadata: {
           generatedBy: 'audio_model',
           provider: provider.id,
@@ -222,8 +229,17 @@ export async function cloneVoiceLibrary(groupId: string, input: { userId: string
           kind: 'voice_clone_preview',
           sampleAssetId: sample.id,
           previewText: defaultVoiceClonePreviewText,
+          ...storageMetadata(persistedFile),
+          ...(persistedFile.fileUrl.startsWith('http') ? { publicFileUrl: persistedFile.fileUrl } : {}),
         },
       });
+      if (!previewAsset) {
+        await fileStorageService.deleteStoredFile({
+          metadata: storageMetadata(persistedFile),
+          filePath,
+        }).catch(() => undefined);
+        throw new Error('声音克隆试听素材保存失败');
+      }
       previewAssetId = previewAsset?.id || '';
       previewAudioUrl = previewAsset?.fileUrl || '';
     }

@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, HistoryOutlined, SafetyCertificateOutlined, RobotOutlined, SettingOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, FileOutlined, HistoryOutlined, SafetyCertificateOutlined, RobotOutlined, SettingOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
@@ -15,6 +15,7 @@ const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettings
 const RouteResourceManagementPage = lazy(() => import('../pages/settings/RouteResourceManagementPage').then((m) => ({ default: m.RouteResourceManagementPage })));
 const RoleManagementPage = lazy(() => import('../pages/settings/RoleManagementPage').then((m) => ({ default: m.RoleManagementPage })));
 const UserManagementPage = lazy(() => import('../pages/settings/UserManagementPage').then((m) => ({ default: m.UserManagementPage })));
+const FileManagementPage = lazy(() => import('../pages/settings/FileManagementPage').then((m) => ({ default: m.FileManagementPage })));
 const TemporaryAssetCleanupPage = lazy(() => import('../pages/settings/TemporaryAssetCleanupPage').then((m) => ({ default: m.TemporaryAssetCleanupPage })));
 const SystemSettingsPage = lazy(() => import('../pages/settings/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })));
 const SiteAccessLogPage = lazy(() => import('../pages/settings/SiteAccessLogPage').then((m) => ({ default: m.SiteAccessLogPage })));
@@ -198,6 +199,22 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         icon: <RobotOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-files',
+    path: 'system/files',
+    fullPath: routePaths.fileManagement,
+    element: () => withStudioSuspense(<FileManagementPage />),
+    routeResourceKey: 'admin.system.file_management',
+    handle: {
+      title: '文件管理',
+      surface: 'studio',
+      sidebar: {
+        icon: <FileOutlined />,
         level: 'top',
       },
     },

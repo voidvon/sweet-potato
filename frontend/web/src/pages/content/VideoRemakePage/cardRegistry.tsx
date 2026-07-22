@@ -1,7 +1,7 @@
 import { Alert, Button, Input, InputNumber, Modal, Popover, Radio, Select, Tabs, Tooltip, Upload, message } from 'antd';
 import { useEffect, useRef, useState, type Dispatch, type ReactElement, type ReactNode, type SetStateAction } from 'react';
 import { CheckCircle2, ChevronDown, CircleAlert, Info, ListPlus, Pause, PencilLine, Play, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
-import type { VideoRemakeCardMessage, VideoRemakeCardType } from '../../../api/video-remake';
+import type { VideoRemakeCardMessage, VideoRemakeCardType, VideoRemakePipUploadResult } from '../../../api/video-remake';
 import type { ContentAsset, ContentAssetGroup } from '../../../types';
 import { AppForm } from '../../../components/AppForm';
 import { AssetLibraryAudioWave } from '../../../components/AssetLibraryCard';
@@ -35,7 +35,7 @@ type CardRendererContext = {
   onRegenerateFinalSegment?: (segmentIndex: number, prompt?: string) => Promise<void>;
   onRegenerateFinalSegments?: (segments: FinalSegmentRegenerationInput[]) => Promise<void>;
   onSyncProgress?: () => Promise<void>;
-  onUploadPipImage?: (file: File) => Promise<{ fileUrl: string; originalFileName: string; mimeType: string; fileSize: number }>;
+  onUploadPipImage?: (file: File) => Promise<VideoRemakePipUploadResult>;
   onUploadReferenceImage?: (kind: 'scene' | 'product', file: File) => Promise<ContentAsset>;
   videoAspectRatio?: string;
   videoDurationSeconds?: number;
@@ -1799,7 +1799,7 @@ function PipCard(props: CardRendererProps) {
                       <span>未上传图片</span>
                     )}
                     <div className="remake-asset-actions">
-                      {uploadedImageUrl ? <Button size="small" onClick={() => setItem({ replacementAssetUrl: '', replacementAssetName: '', replacementAssetMimeType: '', replacementAssetType: '' })}>清除</Button> : null}
+                      {uploadedImageUrl ? <Button size="small" onClick={() => setItem({ replacementAssetUrl: '', replacementAssetName: '', replacementAssetMimeType: '', replacementAssetType: '', replacementAssetStorageProvider: '', replacementAssetStorageKey: '', replacementAssetStorageBucket: '' })}>清除</Button> : null}
                       <Upload
                         accept="image/*"
                         beforeUpload={(file) => {
@@ -1814,6 +1814,9 @@ function PipCard(props: CardRendererProps) {
                               replacementAssetMimeType: result.mimeType,
                               replacementAssetSize: result.fileSize,
                               replacementAssetType: 'image',
+                              replacementAssetStorageProvider: result.storageProvider,
+                              replacementAssetStorageKey: result.storageKey,
+                              replacementAssetStorageBucket: result.storageBucket,
                             });
                           });
                           return Upload.LIST_IGNORE;

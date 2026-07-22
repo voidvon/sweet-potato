@@ -2,15 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstat, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { TosClient } from '@volcengine/tos-sdk';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import {
-  volcengineTosConfig,
   volcengineRealPersonConfig,
   volcengineVirtualPortraitConfig
 } from '../../config/env.js';
 import { createTraceId, logger } from '../../shared/logger.js';
+import { currentTosStorageConfig, deleteTosObject, fileStorageKey, fileStorageService, putLocalFileToTos, storageMetadata } from '../../shared/file-storage.js';
 import { chatRepository } from '../chat/chat.repository.js';
 import { releaseReservedFixedBillableUsage } from '../billing/billing.service.js';
 import { contentModules } from './content.defaults.js';
@@ -111,6 +110,24 @@ function localAssetFilePaths(asset: ContentAsset) {
     }
   }
   return [...paths];
+}
+
+async function deleteStoredAssetFiles(asset: ContentAsset) {
+  const [primaryFilePath, ...additionalFilePaths] = localAssetFilePaths(asset);
+  try {
+    await fileStorageService.deleteStoredFile({
+      metadata: asset.metadata,
+      filePath: primaryFilePath,
+    });
+  } catch (error) {
+    logger.warn('stored asset object delete failed', {
+      assetId: asset.id,
+      storageProvider: asset.metadata.storageProvider,
+      storageKey: asset.metadata.storageKey,
+      error: errorLogContext(error),
+    });
+  }
+  await Promise.all(additionalFilePaths.map((filePath) => rm(filePath, { force: true })));
 }
 
 async function listContentDirectoryFiles(directoryPath: string): Promise<Array<{
@@ -229,7 +246,8 @@ function isTransientInputAsset(asset: ContentAsset) {
   const isHiddenUploadGroup = group?.metadata.source === 'local_upload'
     && (group.metadata.systemDefault === true || group.metadata.hiddenFromGroupUi === true);
   return isHiddenUploadGroup
-    || asset.metadata.kind === 'video_create_reference_upload';
+    || asset.metadata.kind === 'video_create_reference_upload'
+    || (asset.lifecycleStatus !== 'permanent' && asset.metadata.temporary === true);
 }
 
 function isAssetIdReferenced(value: unknown, assetId: string): boolean {
@@ -260,9 +278,8 @@ async function cleanupUnreferencedFinishedAssetInputs(finishedAsset: ContentAsse
     if (referencedByAsset || referencedByTask) {
       continue;
     }
-    const inputFilePaths = localAssetFilePaths(inputAsset);
+    await deleteStoredAssetFiles(inputAsset);
     contentRepository.deleteAsset(inputAsset.id);
-    await Promise.all(inputFilePaths.map((filePath) => rm(filePath, { force: true })));
   }
 }
 
@@ -272,19 +289,21 @@ async function cleanupReleasedVideoTaskInputs(task: VideoGenerationTask, assetId
     if (!asset || asset.userId !== task.userId || !isTransientInputAsset(asset)) {
       continue;
     }
+    const referencedByAsset = contentRepository
+      .listAssets({ userId: task.userId })
+      .some((candidate) => candidate.id !== asset.id && isAssetIdReferenced(candidate.metadata, asset.id));
     const referencedByTask = contentRepository.hasAssetReferences(asset.id)
       || contentRepository
         .listVideoTasks(task.userId, { limit: 500 })
         .some((candidate) => candidate.id !== task.id
           && (isAssetIdReferenced(candidate.editableParseResult, asset.id)
             || isAssetIdReferenced(candidate.expertContext, asset.id)));
-    if (referencedByTask) {
+    if (referencedByAsset || referencedByTask) {
       continue;
     }
     const parentAssetId = asset.parentAssetId;
-    const filePaths = localAssetFilePaths(asset);
+    await deleteStoredAssetFiles(asset);
     contentRepository.deleteAsset(asset.id);
-    await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
 
     if (!parentAssetId) continue;
     const parent = contentRepository.findAsset(parentAssetId);
@@ -295,9 +314,8 @@ async function cleanupReleasedVideoTaskInputs(task: VideoGenerationTask, assetId
       || contentRepository.hasAssetReferences(parent.id)) {
       continue;
     }
-    const parentFilePaths = localAssetFilePaths(parent);
+    await deleteStoredAssetFiles(parent);
     contentRepository.deleteAsset(parent.id);
-    await Promise.all(parentFilePaths.map((filePath) => rm(filePath, { force: true })));
   }
 }
 
@@ -312,9 +330,8 @@ async function cleanupReleasedChatInputAssets(finishedAsset: ContentAsset, input
       contentRepository.markAssetTemporaryIfUnreferenced(inputAsset.id, temporaryContentAssetExpiresAt());
       continue;
     }
-    const filePaths = localAssetFilePaths(inputAsset);
+    await deleteStoredAssetFiles(inputAsset);
     contentRepository.deleteAsset(inputAsset.id);
-    await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
   }
 }
 
@@ -377,9 +394,8 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset, inpu
       continue;
     }
     if (inputAsset && isTransientInputAsset(inputAsset)) {
-      const filePaths = localAssetFilePaths(inputAsset);
       contentRepository.deleteAsset(inputAsset.id);
-      await Promise.all(filePaths.map((filePath) => rm(filePath, { force: true })));
+      await deleteStoredAssetFiles(inputAsset);
     } else {
       const filePath = resolveLocalContentFilePathFromUrl(attachment.url);
       if (filePath) {
@@ -572,9 +588,7 @@ export function shouldUseImplicitUploadGroup(metadata?: Record<string, unknown>)
 
 async function deleteLocalVirtualPortraitAsset(asset: ContentAsset) {
   contentRepository.deleteAsset(asset.id);
-  if (asset.filePath && existsSync(asset.filePath)) {
-    await rm(asset.filePath, { force: true });
-  }
+  await deleteStoredAssetFiles(asset);
 }
 
 async function deleteLocalVirtualPortraitGroup(group: ContentAssetGroup) {
@@ -584,9 +598,7 @@ async function deleteLocalVirtualPortraitGroup(group: ContentAssetGroup) {
     resourceType: 'virtual_portrait',
   });
   contentRepository.deleteGroup(group.id);
-  await Promise.all(assets
-    .filter((asset) => asset.filePath && existsSync(asset.filePath))
-    .map((asset) => rm(asset.filePath, { force: true })));
+  await Promise.all(assets.map(deleteStoredAssetFiles));
   return assets;
 }
 
@@ -728,53 +740,6 @@ function isSensitiveRealPersonVideoError(error: unknown) {
   return /input video may contain real person/i.test(error.message);
 }
 
-let cachedTosClient: TosClient | null = null;
-
-function assertVolcengineTosConfigured() {
-  if (!volcengineTosConfig.accessKey || !volcengineTosConfig.secretKey) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLC_ACCESSKEY 和 VOLC_SECRETKEY');
-  }
-  if (!volcengineTosConfig.endpoint) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_ENDPOINT');
-  }
-  if (!volcengineTosConfig.bucket) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_BUCKET');
-  }
-}
-
-function normalizeTosEndpoint(endpoint: string) {
-  const raw = String(endpoint || '').trim();
-  if (!raw) {
-    return raw;
-  }
-  return raw.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-}
-
-function ensureTosClient() {
-  assertVolcengineTosConfigured();
-  if (!cachedTosClient) {
-    cachedTosClient = new TosClient({
-      accessKeyId: volcengineTosConfig.accessKey,
-      accessKeySecret: volcengineTosConfig.secretKey,
-      region: volcengineTosConfig.region,
-      endpoint: normalizeTosEndpoint(volcengineTosConfig.endpoint),
-    });
-  }
-  return cachedTosClient;
-}
-
-function tosPublicBaseUrl() {
-  if (volcengineTosConfig.publicBaseUrl) {
-    return volcengineTosConfig.publicBaseUrl;
-  }
-  try {
-    const endpoint = new URL(volcengineTosConfig.endpoint);
-    return `https://${volcengineTosConfig.bucket}.${endpoint.host}`;
-  } catch {
-    return '';
-  }
-}
-
 function fileExtensionForTemporaryReference(asset: ContentAsset) {
   const extension = extensionForMimeType(asset.mimeType)
     || path.extname(asset.originalFileName || '')
@@ -786,7 +751,7 @@ function fileExtensionForTemporaryReference(asset: ContentAsset) {
 
 function temporaryCharacterReferenceTosKey(input: { taskId: string; sourceAsset: ContentAsset }) {
   const day = new Date().toISOString().slice(0, 10);
-  const keyPrefix = volcengineTosConfig.keyPrefix || 'video-generation-temp';
+  const keyPrefix = currentTosStorageConfig().keyPrefix || 'app-files';
   return [
     keyPrefix,
     'character-reference',
@@ -794,10 +759,6 @@ function temporaryCharacterReferenceTosKey(input: { taskId: string; sourceAsset:
     input.taskId,
     `${input.sourceAsset.id}-${randomUUID()}${fileExtensionForTemporaryReference(input.sourceAsset)}`,
   ].filter(Boolean).join('/');
-}
-
-function encodeObjectKeyForUrl(key: string) {
-  return key.split('/').map((part) => encodeURIComponent(part)).join('/');
 }
 
 async function uploadLocalFileToTos(input: {
@@ -808,25 +769,17 @@ async function uploadLocalFileToTos(input: {
   if (!input.sourceAsset.filePath || !existsSync(input.sourceAsset.filePath)) {
     throw new Error(`人物参考图源文件不存在：${input.sourceAsset.name || input.sourceAsset.id}`);
   }
-  const client = ensureTosClient();
   const key = temporaryCharacterReferenceTosKey(input);
-  const response = await client.putObjectFromFile({
-    bucket: volcengineTosConfig.bucket,
+  const uploaded = await putLocalFileToTos({
     key,
     filePath: input.sourceAsset.filePath,
+    mimeType: input.sourceAsset.mimeType,
   });
-  const publicBaseUrl = tosPublicBaseUrl();
-  if (!publicBaseUrl) {
-    throw new Error('火山 TOS 公网访问地址缺失：请配置 VOLCENGINE_TOS_PUBLIC_BASE_URL');
-  }
-  const headerRecord = response && typeof response === 'object' && 'headers' in response
-    ? response.headers as Record<string, unknown>
-    : {};
   return {
-    bucket: volcengineTosConfig.bucket,
+    bucket: uploaded.bucket,
     key,
-    publicUrl: `${publicBaseUrl}/${encodeObjectKeyForUrl(key)}`,
-    requestId: typeof headerRecord['x-tos-request-id'] === 'string' ? headerRecord['x-tos-request-id'] : '',
+    publicUrl: uploaded.publicUrl,
+    requestId: uploaded.requestId,
   };
 }
 
@@ -836,11 +789,7 @@ async function deleteTemporaryTosObject(key: string) {
     return;
   }
   try {
-    const client = ensureTosClient();
-    await client.deleteObject({
-      bucket: volcengineTosConfig.bucket,
-      key: normalizedKey,
-    });
+    await deleteTosObject(normalizedKey);
   } catch (error) {
     logger.warn('temporary character reference tos object delete failed', {
       key: normalizedKey,
@@ -1376,9 +1325,7 @@ export const contentService = {
     if (!contentRepository.deleteGroup(id)) {
       throw new Error('分组不存在');
     }
-    await Promise.all(assets
-      .filter((asset) => Boolean(asset.filePath))
-      .map((asset) => rm(asset.filePath, { force: true })));
+    await Promise.all(assets.map(deleteStoredAssetFiles));
     return { ok: true };
   },
 
@@ -2189,17 +2136,17 @@ export const contentService = {
     }
     const localFilePaths = localAssetFilePaths(latest);
     const contentAssetInputIds = contentRepository.listAssetIdsForReference('content_asset', id);
+    const videoTaskId = linkedVideoTaskId(latest);
+    const linkedVideoTask = videoTaskId ? contentRepository.findVideoTask(videoTaskId) : null;
+    if (latest.resourceType === 'finished_video' && linkedVideoTask?.userId === latest.userId) {
+      return this.deleteVideoTask(linkedVideoTask.id, latest.userId);
+    }
+    await deleteStoredAssetFiles({ ...latest, filePath: localFilePaths[0] || latest.filePath });
     const asset = contentRepository.deleteAsset(id);
     if (!asset) {
       throw new Error('素材不存在');
     }
-    const videoTaskId = linkedVideoTaskId(asset);
-    const linkedVideoTask = videoTaskId ? contentRepository.findVideoTask(videoTaskId) : null;
     contentRepository.deleteAssetReferences('content_asset', asset.id);
-    await Promise.all(localFilePaths.map((filePath) => rm(filePath, { force: true })));
-    if (linkedVideoTask?.userId === asset.userId) {
-      await this.deleteVideoTask(linkedVideoTask.id, asset.userId);
-    }
     if (asset.resourceType === 'finished_video') {
       await cleanupUnreferencedFinishedAssetInputs(asset);
       await cleanupChatGeneratedImageInputs(asset, contentAssetInputIds);
@@ -2268,6 +2215,7 @@ export const contentService = {
       fileUrl: fileUrlFor(runningStoredFileName),
       metadata: runningPayload,
     });
+    let generatedPersistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
     publishContentEvent({
       type: 'digital-human-three-view-status',
       userId: payload.userId,
@@ -2295,11 +2243,17 @@ export const contentService = {
       const filePath = contentFilePathForRelativePath(storedRelativePath);
       await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, generated.buffer);
+      generatedPersistedFile = await fileStorageService.storeLocalFile({
+        key: fileStorageKey(storedRelativePath),
+        filePath,
+        fileUrl: fileUrlFor(storedRelativePath),
+        mimeType: generated.mimeType,
+      });
       let privateAssetMetadata: Record<string, unknown> = {};
       if (options.syncToPrivateAsset) {
         const remoteGroup = await ensureVirtualPortraitRemoteGroup(group);
         const remoteGroupId = remoteGroup.remoteGroupId;
-        const sourceRef = absolutizeMaterialUrl(fileUrlFor(storedRelativePath));
+        const sourceRef = absolutizeMaterialUrl(generatedPersistedFile.fileUrl);
         if (!sourceRef) {
           await rm(filePath, { force: true });
           throw new Error('火山 CreateAsset 官方示例使用 JSON URL 入库；请配置 CONTENT_PUBLIC_BASE_URL，确保火山可访问 AI 训练生成的人物素材文件');
@@ -2380,7 +2334,7 @@ export const contentService = {
         mimeType: generated.mimeType,
         fileSize: generated.buffer.byteLength,
         filePath,
-        fileUrl: fileUrlFor(storedRelativePath),
+        fileUrl: generatedPersistedFile.fileUrl,
         metadata: {
           generatedBy: 'image_model',
           kind: 'three_view_result',
@@ -2388,6 +2342,8 @@ export const contentService = {
           source: generated.source,
           generatedAt: new Date().toISOString(),
           trainingAssetIds: trainingAssets.map((asset) => asset.id),
+          ...storageMetadata(generatedPersistedFile),
+          ...(generatedPersistedFile.fileUrl.startsWith('http') ? { publicFileUrl: generatedPersistedFile.fileUrl } : {}),
           ...privateAssetMetadata,
         },
       });
@@ -2395,6 +2351,7 @@ export const contentService = {
         await rm(filePath, { force: true });
         throw new Error('三视图素材创建失败');
       }
+      generatedPersistedFile = null;
       if (options.syncToPrivateAsset) {
         logVirtualPortraitAsset('info', 'virtual portrait three view local asset create completed', {
           userId: payload.userId,
@@ -2414,6 +2371,13 @@ export const contentService = {
       });
       return asset;
     } catch (error) {
+      if (generatedPersistedFile) {
+        await fileStorageService.deleteStoredFile({
+          metadata: storageMetadata(generatedPersistedFile),
+          filePath: generatedPersistedFile.filePath,
+        }).catch(() => undefined);
+        generatedPersistedFile = null;
+      }
       const failureReason = error instanceof Error ? error.message : '三视图生成失败，请检查模型配置';
       if (options.syncToPrivateAsset) {
         logVirtualPortraitAsset('error', 'virtual portrait three view generation failed', {
@@ -2750,7 +2714,7 @@ export const contentService = {
     for (const assetId of normalizedAssetIds) {
       const asset = contentRepository.deleteTemporaryAsset(assetId);
       if (!asset) continue;
-      await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
+      await deleteStoredAssetFiles(asset);
       contentRepository.recordTemporaryAssetCleanup(asset, 'manual');
       deleted += 1;
     }
@@ -2813,7 +2777,7 @@ export const contentService = {
         for (const candidate of expired) {
           const asset = contentRepository.deleteExpiredTemporaryAsset(candidate.id, now);
           if (!asset) continue;
-          await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
+          await deleteStoredAssetFiles(asset);
           contentRepository.recordTemporaryAssetCleanup(asset, triggerType);
           deleted += 1;
         }
@@ -3555,17 +3519,21 @@ export const contentService = {
       groupId: String(current.expertContext?.temporaryCharacterReferenceGroupId || '').trim(),
       userId,
     });
-    const referencedAssetIds = contentRepository.listAssetIdsForReference('video_generation_task', id);
-    const task = contentRepository.deleteVideoTask(id) || current;
-    contentRepository.deleteAssetReferences('video_generation_task', id);
     const generatedAssets = contentRepository
-      .listAssets({ userId: task.userId, resourceType: 'finished_video' })
+      .listAssets({ userId: current.userId, resourceType: 'finished_video' })
       .filter((asset) => asset.metadata.videoTaskId === id);
-    await Promise.all(generatedAssets.map(async (asset) => {
+    const referencedAssetIds = Array.from(new Set([
+      ...contentRepository.listAssetIdsForReference('video_generation_task', id),
+      ...videoTaskInputAssetIds(current.expertContext || {}),
+      ...generatedAssets.flatMap(finishedAssetInputIds),
+    ]));
+    for (const asset of generatedAssets) {
+      await deleteStoredAssetFiles(asset);
       contentRepository.deleteAsset(asset.id);
-      await Promise.all(localAssetFilePaths(asset).map((filePath) => rm(filePath, { force: true })));
-    }));
-    await cleanupReleasedVideoTaskInputs(task, referencedAssetIds);
+    }
+    contentRepository.deleteAssetReferences('video_generation_task', id);
+    await cleanupReleasedVideoTaskInputs(current, referencedAssetIds);
+    contentRepository.deleteVideoTask(id);
     return { ok: true };
   },
 

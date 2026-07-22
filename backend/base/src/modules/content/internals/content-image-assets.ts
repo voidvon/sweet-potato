@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir,readFile,rm,writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { fileStorageKey, fileStorageService, storageMetadata } from '../../../shared/file-storage.js';
 import {
 digitalHumanThreeViewPrompt
 } from '../../../config/env.js';
@@ -458,10 +459,11 @@ export async function deleteContentAssetFile(asset: { id: string; filePath: stri
   if (asset.resourceType === 'virtual_portrait' && asset.metadata) {
     await deleteRemoteVirtualPortraitAsset(asset as ContentAsset);
   }
+  await fileStorageService.deleteStoredFile({
+    metadata: asset.metadata,
+    filePath: asset.filePath,
+  });
   contentRepository.deleteAsset(asset.id);
-  if (asset.filePath && existsSync(asset.filePath)) {
-    await rm(asset.filePath, { force: true });
-  }
 }
 
 export function linkedVideoTaskId(asset: { resourceType: ContentResourceType; metadata: Record<string, unknown> }) {
@@ -520,45 +522,61 @@ export async function createGeneratedImageWorkAsset(input: {
   const extension = extensionForMimeType(input.mimeType);
   const storedRelativePath = input.storedFileName || generatedMediaRelativePath('image', `${randomBytes(8).toString('hex')}.${extension}`);
   const filePath = input.filePath || contentFilePathForRelativePath(storedRelativePath);
-  const fileUrl = input.fileUrl || generatedImageFileUrl(storedRelativePath);
+  const localFileUrl = input.fileUrl || generatedImageFileUrl(storedRelativePath);
   if (!input.filePath) {
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, input.buffer);
   }
+  const persistedFile = await fileStorageService.storeLocalFile({
+    key: fileStorageKey(storedRelativePath),
+    filePath,
+    fileUrl: localFileUrl,
+    mimeType: input.mimeType,
+  });
 
   const group = ensureGeneratedAssetGroup(input.userId, 'finished_video', '生成图片', '图片创作自动产生的作品');
   const generatedAt = new Date().toISOString();
-  const asset = createContentAssetRecord({
-    userId: input.userId,
-    groupId: group.id,
-    resourceType: 'finished_video',
-    name: input.title || `生成图片-${new Date().toLocaleString('zh-CN', { hour12: false })}`,
-    description: '图片创作生成的作品',
-    originalFileName: input.originalFileName || `generated-image.${extension}`,
-    storedFileName: storedRelativePath,
-    mimeType: input.mimeType,
-    fileSize: input.buffer.byteLength,
-    filePath,
-    fileUrl,
-    metadata: {
-      generatedBy: 'image_model',
-      generationStatus: 'completed',
-      provider: input.provider,
-      model: input.model,
-      mode: input.mode || 'image_generation',
-      modeTitle: input.modeTitle,
-      prompt: input.prompt,
-      conversationId: input.conversationId,
-      slotIndex: input.slotIndex,
-      width: input.width,
-      height: input.height,
-      generatedAt,
-    },
-  });
-  if (!asset) {
-    throw new Error('图片作品创建失败');
+  try {
+    const asset = createContentAssetRecord({
+      userId: input.userId,
+      groupId: group.id,
+      resourceType: 'finished_video',
+      name: input.title || `生成图片-${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+      description: '图片创作生成的作品',
+      originalFileName: input.originalFileName || `generated-image.${extension}`,
+      storedFileName: storedRelativePath,
+      mimeType: input.mimeType,
+      fileSize: input.buffer.byteLength,
+      filePath,
+      fileUrl: persistedFile.fileUrl,
+      metadata: {
+        generatedBy: 'image_model',
+        generationStatus: 'completed',
+        provider: input.provider,
+        model: input.model,
+        mode: input.mode || 'image_generation',
+        modeTitle: input.modeTitle,
+        prompt: input.prompt,
+        conversationId: input.conversationId,
+        slotIndex: input.slotIndex,
+        width: input.width,
+        height: input.height,
+        generatedAt,
+        ...storageMetadata(persistedFile),
+        ...(persistedFile.fileUrl.startsWith('http') ? { publicFileUrl: persistedFile.fileUrl } : {}),
+      },
+    });
+    if (!asset) {
+      throw new Error('图片作品创建失败');
+    }
+    return asset;
+  } catch (error) {
+    await fileStorageService.deleteStoredFile({
+      metadata: storageMetadata(persistedFile),
+      filePath,
+    }).catch(() => undefined);
+    throw error;
   }
-  return asset;
 }
 
 export function createFinishedVideoAsset(input: {

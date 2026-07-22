@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import { message } from 'antd';
 import { formatCreditAmount } from '@shared/utils/credits';
 import { getSiteConfig } from '../../../api/billing';
-import { createContentAssetGroup, createMarketingVideoStoryboard, getVideoTask, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset } from '../../../api/content';
+import { createContentAssetGroup, createMarketingVideoStoryboard, getVideoTask, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset, uploadContentAssetDirect } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
 import { resolveAssetUrl } from '../../../api/request';
 import {
@@ -681,7 +681,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const selectedFiles = allowedFiles.slice(0, getRemainingCapacity(kind, selectedMaterials[kind.key]));
     if (selectedFiles.length === 0) return;
 
-    const inspectedFiles = await Promise.all(selectedFiles.map(async (file) => ({
+    const inspectedFiles: LocalMaterialFile[] = await Promise.all(selectedFiles.map(async (file) => ({
       audioDuration: kind.key === 'audio' ? await readAudioDuration(file) : undefined,
       file,
       id: `${kind.key}-${crypto.randomUUID()}`,
@@ -689,8 +689,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       trimDuration: kind.key === 'video' ? await readVideoDuration(file) : undefined,
       type: kind.key,
       url: URL.createObjectURL(file),
-    }))) satisfies LocalMaterialFile[];
-    const localFiles = kind.key === 'audio'
+    })));
+    let localFiles: LocalMaterialFile[] = kind.key === 'audio'
       ? inspectedFiles.filter((file) => (
         Number.isFinite(file.audioDuration) && Number(file.audioDuration) > 0 && Number(file.audioDuration) <= 15
       ))
@@ -700,6 +700,52 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       message.warning('口播声音必须是不超过 15 秒的 MP3 或 WAV 音频');
     }
     if (!localFiles.length) return;
+
+    if (kind.key === 'video') {
+      const directUploadFiles = localFiles.filter((file) => (
+        file.file && !shouldTrimReferenceVideo(file.trimDuration)
+      ));
+      if (directUploadFiles.length) {
+        try {
+          const groupId = await ensureUploadGroupId({
+            currentUser,
+            resourceType: 'other',
+            uploadGroupIdsRef,
+          });
+          const directUploadIds = new Set(directUploadFiles.map((file) => file.id));
+          localFiles = await Promise.all(localFiles.map(async (file) => {
+            if (!file.file || !directUploadIds.has(file.id)) return file;
+            const uploaded = await uploadContentAssetDirect({
+              file: file.file,
+              userId: currentUser.id,
+              groupId,
+              resourceType: 'other',
+              name: file.name,
+              metadata: {
+                duration: file.trimDuration,
+                source: 'local_upload',
+                temporary: true,
+                kind: 'video_create_reference_upload',
+                assetKind: 'video_input',
+              },
+            });
+            URL.revokeObjectURL(file.url);
+            return {
+              ...file,
+              assetId: uploaded.id,
+              file: undefined,
+              serverFileUrl: uploaded.fileUrl,
+              storedFileName: uploaded.storedFileName,
+              url: resolveAssetUrl(uploaded.fileUrl),
+            };
+          }));
+        } catch (error) {
+          revokeLocalMaterials(localFiles);
+          message.error(error instanceof Error ? error.message : '参考视频上传失败');
+          return;
+        }
+      }
+    }
 
     setSelectedMaterials((current) => {
       const currentFiles = getLocalFiles(current[kind.key]);

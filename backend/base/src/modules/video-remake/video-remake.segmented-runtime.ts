@@ -558,6 +558,8 @@ async function runSceneAwareSegmentedSeedanceVideoGeneration(
         generationMode,
         materialContext: input.materialContext,
         segments: segmentResults,
+        ...merged.storageMetadata,
+        ...(merged.fileUrl.startsWith('http') ? { publicFileUrl: merged.fileUrl } : {}),
         completedAt: new Date().toISOString(),
       },
     });

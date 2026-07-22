@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { TosClient } from '@volcengine/tos-sdk';
-import { contentPublicBaseUrl, volcengineTosConfig } from '../../../config/env.js';
+import { contentPublicBaseUrl } from '../../../config/env.js';
+import { currentTosStorageConfig, fileStorageKey, fileStorageService, putLocalFileToTos, storageMetadata } from '../../../shared/file-storage.js';
 import { createTraceId, logger, logsDir } from '../../../shared/logger.js';
 import {
   findBillableUsageRecordByCategoryAndSourceId,
@@ -1574,53 +1574,7 @@ function isPublicHttpUrl(value: string) {
   }
 }
 
-let cachedSeedanceReferenceTosClient: TosClient | null = null;
 const seedanceReferenceVideoMinPixels = 409_600;
-
-function assertSeedanceReferenceTosConfigured() {
-  if (!volcengineTosConfig.accessKey || !volcengineTosConfig.secretKey) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLC_ACCESSKEY 和 VOLC_SECRETKEY');
-  }
-  if (!volcengineTosConfig.endpoint) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_ENDPOINT');
-  }
-  if (!volcengineTosConfig.bucket) {
-    throw new Error('缺少火山 TOS 配置：请配置 VOLCENGINE_TOS_BUCKET');
-  }
-}
-
-function normalizeTosEndpoint(endpoint: string) {
-  return String(endpoint || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-}
-
-function seedanceReferenceTosClient() {
-  assertSeedanceReferenceTosConfigured();
-  if (!cachedSeedanceReferenceTosClient) {
-    cachedSeedanceReferenceTosClient = new TosClient({
-      accessKeyId: volcengineTosConfig.accessKey,
-      accessKeySecret: volcengineTosConfig.secretKey,
-      region: volcengineTosConfig.region,
-      endpoint: normalizeTosEndpoint(volcengineTosConfig.endpoint),
-    });
-  }
-  return cachedSeedanceReferenceTosClient;
-}
-
-function seedanceReferenceTosPublicBaseUrl() {
-  if (volcengineTosConfig.publicBaseUrl) {
-    return volcengineTosConfig.publicBaseUrl;
-  }
-  try {
-    const endpoint = new URL(volcengineTosConfig.endpoint);
-    return `https://${volcengineTosConfig.bucket}.${endpoint.host}`;
-  } catch {
-    return '';
-  }
-}
-
-function encodeTosKeyForUrl(key: string) {
-  return key.split('/').map((part) => encodeURIComponent(part)).join('/');
-}
 
 function seedanceReferenceVideoTosKey(asset: Record<string, unknown>, options: { reuseExisting?: boolean; anonymized?: boolean } = {}) {
   const metadata = isRecord(asset.metadata) ? asset.metadata : {};
@@ -1636,7 +1590,7 @@ function seedanceReferenceVideoTosKey(asset: Record<string, unknown>, options: {
   const sourceName = String(asset.originalFileName || asset.name || asset.id || 'reference-video.mp4');
   const extension = path.extname(sourceName) || path.extname(String(asset.filePath || '')) || '.mp4';
   const safeId = String(asset.id || 'asset').replace(/[^\w-]/g, '');
-  const keyPrefix = volcengineTosConfig.keyPrefix || 'video-generation-temp';
+  const keyPrefix = currentTosStorageConfig().keyPrefix || 'app-files';
   return [
     keyPrefix,
     options.anonymized ? 'seedance-reference-video-anonymized' : 'seedance-reference-video',
@@ -1771,7 +1725,6 @@ async function uploadLocalReferenceVideoToTos(asset: Record<string, unknown>, tr
   if (!filePath || !existsSync(filePath)) {
     return '';
   }
-  const client = seedanceReferenceTosClient();
   const prepared = await prepareSeedanceReferenceVideoFile({
     asset,
     filePath,
@@ -1779,22 +1732,19 @@ async function uploadLocalReferenceVideoToTos(asset: Record<string, unknown>, tr
     anonymized: anonymizeReferenceVideo,
   });
   const key = seedanceReferenceVideoTosKey(asset, { anonymized: anonymizeReferenceVideo });
+  let uploaded: Awaited<ReturnType<typeof putLocalFileToTos>>;
   try {
-    await client.putObjectFromFile({
-      bucket: volcengineTosConfig.bucket,
+    uploaded = await putLocalFileToTos({
       key,
       filePath: prepared.filePath,
+      mimeType: 'video/mp4',
     });
   } finally {
     if (prepared.cleanup) {
       await rm(prepared.filePath, { force: true }).catch(() => undefined);
     }
   }
-  const publicBaseUrl = seedanceReferenceTosPublicBaseUrl();
-  if (!publicBaseUrl) {
-    throw new Error('火山 TOS 公网访问地址缺失：请配置 VOLCENGINE_TOS_PUBLIC_BASE_URL');
-  }
-  const publicUrl = `${publicBaseUrl}/${encodeTosKeyForUrl(key)}`;
+  const publicUrl = uploaded.publicUrl;
   const assetId = String(asset.id || '').trim();
   if (assetId) {
     const current = contentRepository.findAsset(assetId);
@@ -1805,7 +1755,7 @@ async function uploadLocalReferenceVideoToTos(asset: Record<string, unknown>, tr
           ...(anonymizeReferenceVideo
             ? {
               seedanceAnonymizedReferenceVideoUrl: publicUrl,
-              seedanceAnonymizedReferenceVideoTosBucket: volcengineTosConfig.bucket,
+              seedanceAnonymizedReferenceVideoTosBucket: uploaded.bucket,
               seedanceAnonymizedReferenceVideoTosKey: key,
               seedanceAnonymizedReferenceVideoSyncedAt: new Date().toISOString(),
               seedanceAnonymizedReferenceVideoWidth: prepared.width,
@@ -1814,7 +1764,7 @@ async function uploadLocalReferenceVideoToTos(asset: Record<string, unknown>, tr
             }
             : {
               seedanceReferenceVideoUrl: publicUrl,
-              seedanceReferenceVideoTosBucket: volcengineTosConfig.bucket,
+              seedanceReferenceVideoTosBucket: uploaded.bucket,
               seedanceReferenceVideoTosKey: key,
               seedanceReferenceVideoSyncedAt: new Date().toISOString(),
               seedanceReferenceVideoWidth: prepared.width,
@@ -3183,7 +3133,19 @@ export async function mergeGeneratedVideoSegments(input: {
     outputPath,
   });
   const outputStat = await stat(outputPath);
-  const fileUrl = fileUrlFor(storedRelativePath);
+  let persistedFile: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>>;
+  try {
+    persistedFile = await fileStorageService.storeLocalFile({
+      key: fileStorageKey(storedRelativePath),
+      filePath: outputPath,
+      fileUrl: fileUrlFor(storedRelativePath),
+      mimeType: 'video/mp4',
+    });
+  } catch (error) {
+    await rm(outputPath, { force: true });
+    throw error;
+  }
+  const fileUrl = persistedFile.fileUrl;
   logVideoGenerationFlow('info', 'ffmpeg concat completed', {
     traceId: input.traceId,
     taskId: input.taskId,
@@ -3196,6 +3158,7 @@ export async function mergeGeneratedVideoSegments(input: {
     fileUrl,
     storedFileName: storedRelativePath,
     fileSize: outputStat.size,
+    storageMetadata: storageMetadata(persistedFile),
   };
 }
 
@@ -3592,6 +3555,8 @@ export async function callSegmentedSeedanceVideoGeneration(input: {
           mode: 'viral_replication_director_generation_segmented',
           materialContext: input.materialContext,
           segments: segmentResults,
+          ...merged.storageMetadata,
+          ...(merged.fileUrl.startsWith('http') ? { publicFileUrl: merged.fileUrl } : {}),
           completedAt: new Date().toISOString(),
         },
       })
@@ -3618,6 +3583,8 @@ export async function callSegmentedSeedanceVideoGeneration(input: {
           mode: 'viral_replication_director_generation_segmented',
           materialContext: input.materialContext,
           segments: segmentResults,
+          ...merged.storageMetadata,
+          ...(merged.fileUrl.startsWith('http') ? { publicFileUrl: merged.fileUrl } : {}),
           generatedAt: new Date().toISOString(),
         },
       });
@@ -3999,6 +3966,8 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
           materialContext: request.materialContext,
           segments: segmentResults,
           resumed: true,
+          ...merged.storageMetadata,
+          ...(merged.fileUrl.startsWith('http') ? { publicFileUrl: merged.fileUrl } : {}),
           completedAt: new Date().toISOString(),
         },
       })
@@ -4026,6 +3995,8 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
           materialContext: request.materialContext,
           segments: segmentResults,
           resumed: true,
+          ...merged.storageMetadata,
+          ...(merged.fileUrl.startsWith('http') ? { publicFileUrl: merged.fileUrl } : {}),
           generatedAt: new Date().toISOString(),
         },
       });

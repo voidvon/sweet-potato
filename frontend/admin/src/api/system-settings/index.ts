@@ -19,9 +19,23 @@ export type IpBlacklistSettings = {
   currentIp: string;
 };
 
+export type FileStorageSettings = {
+  enabled: boolean;
+  provider: 'local' | 'tos';
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKey: string;
+  secretKey: string;
+  secretKeyConfigured: boolean;
+  publicBaseUrl: string;
+  keyPrefix: string;
+};
+
 const batchRequestApiBase = '/api/system-settings/batch-request';
 const rateLimitApiBase = '/api/system-settings/rate-limits';
 const ipBlacklistApiBase = '/api/system-settings/ip-blacklist';
+const fileStorageApiBase = '/api/system-settings/file-storage';
 
 export function getBatchRequestSettings() {
   return request<BatchRequestSettings>(batchRequestApiBase, { dedupe: false });
@@ -53,5 +67,16 @@ export function updateIpBlacklistSettings(entries: string[]) {
   return request<IpBlacklistSettings>(ipBlacklistApiBase, {
     method: 'PUT',
     body: JSON.stringify({ entries }),
+  });
+}
+
+export function getFileStorageSettings() {
+  return request<FileStorageSettings>(fileStorageApiBase, { dedupe: false });
+}
+
+export function updateFileStorageSettings(payload: Omit<FileStorageSettings, 'provider' | 'secretKeyConfigured'>) {
+  return request<FileStorageSettings>(fileStorageApiBase, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }

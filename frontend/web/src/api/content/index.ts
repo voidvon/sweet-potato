@@ -14,6 +14,8 @@ enum Api {
   groups = '/api/content/asset-groups',
   assets = '/api/content/assets',
   uploadAsset = '/api/content/assets/upload',
+  prepareDirectUpload = '/api/content/assets/direct-upload/prepare',
+  completeDirectUpload = '/api/content/assets/direct-upload/complete',
   referenceVideo = '/api/content/reference-video',
   trimReferenceVideo = '/api/content/reference-video/trim',
   videoTasks = '/api/content/video-tasks',
@@ -207,6 +209,56 @@ export function uploadContentAsset(payload: {
   return request<ContentAsset>(Api.uploadAsset, {
     method: 'POST',
     body: formData,
+  });
+}
+
+type PrepareDirectUploadResult = {
+  directUpload: false;
+} | {
+  directUpload: true;
+  intentId: string;
+  uploadUrl: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+};
+
+export async function uploadContentAssetDirect(payload: {
+  file: File;
+  userId: string;
+  groupId: string;
+  resourceType: ContentAssetResourceType;
+  name: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const prepared = await request<PrepareDirectUploadResult>(Api.prepareDirectUpload, {
+    method: 'POST',
+    body: JSON.stringify({
+      groupId: payload.groupId,
+      resourceType: payload.resourceType,
+      name: payload.name,
+      description: payload.description || '',
+      originalFileName: payload.file.name,
+      mimeType: payload.file.type || 'application/octet-stream',
+      fileSize: payload.file.size,
+      metadata: payload.metadata || {},
+    }),
+  });
+  if (!prepared.directUpload) {
+    return uploadContentAsset(payload);
+  }
+
+  const uploadResponse = await fetch(prepared.uploadUrl, {
+    method: 'PUT',
+    headers: prepared.headers,
+    body: payload.file,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error(`文件上传到对象存储失败（${uploadResponse.status}）`);
+  }
+  return request<ContentAsset>(Api.completeDirectUpload, {
+    method: 'POST',
+    body: JSON.stringify({ intentId: prepared.intentId }),
   });
 }
 
