@@ -4,7 +4,7 @@ export type PermissionCatalogEntry = {
   key: string;
   label: string;
   description: string;
-  group: 'chat' | 'content' | 'creator_ops';
+  group: 'chat' | 'content' | 'creator_ops' | 'system';
   moduleCodes?: readonly ContentModuleCode[];
   resourceTypes?: readonly ContentResourceType[];
 };
@@ -112,6 +112,12 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
     label: '微信运营',
     description: '允许访问微信运营模块。',
     group: 'creator_ops',
+  },
+  {
+    key: 'web.system.settings',
+    label: '系统设置',
+    description: '允许访问系统级请求限制与 IP 黑名单设置。',
+    group: 'system',
   },
 ] as const;
 

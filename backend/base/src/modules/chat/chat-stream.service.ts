@@ -6,6 +6,8 @@ import { agentRepository } from '../agents/agent.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
+import { resolveIncomingClientIp } from '../../shared/client-ip.js';
+import { ipBlacklistService } from '../ip-blacklist/ip-blacklist.service.js';
 import { userRepository } from '../users/user.repository.js';
 import { publishGenerationEvent } from '../generation/generation.events.js';
 import { generationRepository } from '../generation/generation.repository.js';
@@ -876,6 +878,10 @@ export function attachChatWebSocketServer(server: HttpServer) {
   const wss = new WebSocketServer({ server, path: '/api/chat/messages/ws' });
 
   wss.on('connection', (socket, request) => {
+    if (ipBlacklistService.isBlocked(resolveIncomingClientIp(request))) {
+      socket.close(1008, 'ip blocked');
+      return;
+    }
     const authedUserId = resolveSocketUserId(request);
     if (!authedUserId) {
       socket.close(1008, 'unauthorized');

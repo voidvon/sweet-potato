@@ -3,12 +3,13 @@ import multer from 'multer';
 import { mkdirSync } from 'node:fs';
 import { mkdir, rename, rm, stat, statfs } from 'node:fs/promises';
 import path from 'node:path';
-import { contentPublicBaseUrl, contentUploadLimitBytes } from '../../config/env.js';
+import { contentPublicBaseUrl } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
 import { requireAdmin, requireAnyPermission, requirePermission } from '../../shared/auth.middleware.js';
 import { listRouteResources } from '../route-resources/route-resource.service.js';
 import { permissionForContentResourceType } from '../../shared/resource-permission.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
+import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
 import { registerContentEventClient } from './content.events.js';
 import { contentRepository } from './content.repository.js';
 import { contentService, temporaryContentAssetExpiresAt } from './content.service.js';
@@ -57,19 +58,28 @@ function decodeUploadFileName(fileName: string) {
   return fileName;
 }
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination(_req, _file, callback) {
-      callback(null, contentFilesDir);
+function createUpload() {
+  return multer({
+    storage: multer.diskStorage({
+      destination(_req, _file, callback) {
+        callback(null, contentFilesDir);
+      },
+      filename(_req, file, callback) {
+        callback(null, `${Date.now()}-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+      },
+    }),
+    limits: {
+      fileSize: batchRequestSettingsService.getFileSizeLimitBytes(),
     },
-    filename(_req, file, callback) {
-      callback(null, `${Date.now()}-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
-    },
-  }),
-  limits: {
-    fileSize: contentUploadLimitBytes,
-  },
-});
+  });
+}
+
+function uploadErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+    return `上传文件不能超过 ${batchRequestSettingsService.getSettings().maxFileSizeMb} MB`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
 
 function parseMetadata(value: unknown) {
   if (!value) {
@@ -332,10 +342,10 @@ export function createContentRouter() {
   });
 
   router.post('/reference-video/trim', requireAnyPermission(listContentPermissionCodes()), (req, res) => {
-    upload.single('file')(req, res, (uploadError) => {
+    createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '参考视频上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '参考视频上传失败'));
           return;
         }
         let sourcePath = '';
@@ -636,10 +646,10 @@ export function createContentRouter() {
     if (!requireContentResourcePermission(req, res, 'real_person')) {
       return;
     }
-    upload.single('file')(req, res, (uploadError) => {
+    createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '真人素材上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '真人素材上传失败'));
           return;
         }
         try {
@@ -670,10 +680,10 @@ export function createContentRouter() {
     if (!requireContentResourcePermission(req, res, 'virtual_portrait')) {
       return;
     }
-    upload.single('file')(req, res, (uploadError) => {
+    createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '人物素材上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '人物素材上传失败'));
           return;
         }
         try {
@@ -826,10 +836,10 @@ export function createContentRouter() {
   });
 
   router.post('/assets/upload', (req, res) => {
-    upload.single('file')(req, res, (uploadError) => {
+    createUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '素材上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '素材上传失败'));
           return;
         }
         try {

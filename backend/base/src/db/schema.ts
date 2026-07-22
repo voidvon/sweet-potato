@@ -498,6 +498,52 @@ export function migrateDatabase() {
       cleaned_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS site_access_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ip TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      user_agent TEXT NOT NULL DEFAULT '',
+      status_code INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      accessed_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_site_access_logs_accessed_at
+      ON site_access_logs(accessed_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_site_access_logs_ip_accessed_at
+      ON site_access_logs(ip, accessed_at DESC);
+
+    CREATE TABLE IF NOT EXISTS site_access_log_settings (
+      id TEXT PRIMARY KEY,
+      retention_days INTEGER NOT NULL DEFAULT 7,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS batch_request_settings (
+      id TEXT PRIMARY KEY,
+      max_count INTEGER NOT NULL DEFAULT 20,
+      max_duration_seconds INTEGER NOT NULL DEFAULT 300,
+      max_file_size_mb INTEGER NOT NULL DEFAULT 100,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rate_limit_rules (
+      id TEXT PRIMARY KEY,
+      url_pattern TEXT NOT NULL,
+      max_requests INTEGER NOT NULL,
+      interval_seconds INTEGER NOT NULL,
+      target_user TEXT NOT NULL DEFAULT 'all',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ip_blacklist_entries (
+      rule TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS video_generation_tasks (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

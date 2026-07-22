@@ -7,6 +7,7 @@ import { contentPlanningService } from './modules/content-planning/content-plann
 import { recoverInterruptedImageGenerations } from './modules/generation/generation-recovery.service.js';
 import { videoRemakeService } from './modules/video-remake/video-remake.service.js';
 import { logger } from './shared/logger.js';
+import { siteAccessLogService } from './modules/site-access-logs/site-access-log.service.js';
 
 const app = createApp();
 const server = createServer(app);
@@ -26,4 +27,5 @@ server.listen(env.port, () => {
   videoRemakeService.startGenerationMonitorScheduler();
   contentService.startVirtualPortraitMirrorSyncScheduler();
   contentService.startTemporaryAssetCleanupScheduler();
+  siteAccessLogService.startCleanupScheduler();
 });

@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, SafetyCertificateOutlined, RobotOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, HistoryOutlined, SafetyCertificateOutlined, RobotOutlined, SettingOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
@@ -16,6 +16,8 @@ const RouteResourceManagementPage = lazy(() => import('../pages/settings/RouteRe
 const RoleManagementPage = lazy(() => import('../pages/settings/RoleManagementPage').then((m) => ({ default: m.RoleManagementPage })));
 const UserManagementPage = lazy(() => import('../pages/settings/UserManagementPage').then((m) => ({ default: m.UserManagementPage })));
 const TemporaryAssetCleanupPage = lazy(() => import('../pages/settings/TemporaryAssetCleanupPage').then((m) => ({ default: m.TemporaryAssetCleanupPage })));
+const SystemSettingsPage = lazy(() => import('../pages/settings/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })));
+const SiteAccessLogPage = lazy(() => import('../pages/settings/SiteAccessLogPage').then((m) => ({ default: m.SiteAccessLogPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -212,6 +214,38 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       surface: 'studio',
       sidebar: {
         icon: <ClearOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-system',
+    path: 'system/settings',
+    fullPath: routePaths.systemSettings,
+    element: () => withStudioSuspense(<SystemSettingsPage />),
+    routeResourceKey: 'admin.system.settings',
+    handle: {
+      title: '系统设置',
+      surface: 'studio',
+      sidebar: {
+        icon: <SettingOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-access-logs',
+    path: 'system/access-logs',
+    fullPath: routePaths.siteAccessLogs,
+    element: () => withStudioSuspense(<SiteAccessLogPage />),
+    routeResourceKey: 'admin.system.access_logs',
+    handle: {
+      title: '站点访问日志',
+      surface: 'studio',
+      sidebar: {
+        icon: <HistoryOutlined />,
         level: 'top',
       },
     },

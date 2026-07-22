@@ -2,10 +2,10 @@ import { Router, type Request } from 'express';
 import multer from 'multer';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { contentUploadLimitBytes, vodUploadLimitBytes } from '../../config/env.js';
 import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
+import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
 import {
   contentFilePathForRelativePath,
   fileUrlForContentRelativePath,
@@ -36,53 +36,64 @@ function decodeUploadFileName(fileName: string) {
   return fileName;
 }
 
-const vodUpload = multer({
-  storage: multer.diskStorage({
-    destination(_req, _file, callback) {
-      const relativePath = inputMediaRelativePath('video', '.keep');
-      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
-      mkdirSync(destination, { recursive: true });
-      callback(null, destination);
+function createVodUpload() {
+  return multer({
+    storage: multer.diskStorage({
+      destination(_req, _file, callback) {
+        const relativePath = inputMediaRelativePath('video', '.keep');
+        const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+        mkdirSync(destination, { recursive: true });
+        callback(null, destination);
+      },
+      filename(_req, file, callback) {
+        callback(null, `${Date.now()}-video-remake-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+      },
+    }),
+    limits: {
+      fileSize: batchRequestSettingsService.getFileSizeLimitBytes(),
     },
-    filename(_req, file, callback) {
-      callback(null, `${Date.now()}-video-remake-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+    fileFilter(_req, file, callback) {
+      if (!file.mimetype.startsWith('video/')) {
+        callback(new Error('请上传视频文件'));
+        return;
+      }
+      callback(null, true);
     },
-  }),
-  limits: {
-    fileSize: vodUploadLimitBytes,
-  },
-  fileFilter(_req, file, callback) {
-    if (!file.mimetype.startsWith('video/')) {
-      callback(new Error('请上传视频文件'));
-      return;
-    }
-    callback(null, true);
-  },
-});
+  });
+}
 
-const pipImageUpload = multer({
-  storage: multer.diskStorage({
-    destination(_req, _file, callback) {
-      const relativePath = inputMediaRelativePath('image', '.keep');
-      const destination = path.dirname(contentFilePathForRelativePath(relativePath));
-      mkdirSync(destination, { recursive: true });
-      callback(null, destination);
+function createPipImageUpload() {
+  return multer({
+    storage: multer.diskStorage({
+      destination(_req, _file, callback) {
+        const relativePath = inputMediaRelativePath('image', '.keep');
+        const destination = path.dirname(contentFilePathForRelativePath(relativePath));
+        mkdirSync(destination, { recursive: true });
+        callback(null, destination);
+      },
+      filename(_req, file, callback) {
+        callback(null, `${Date.now()}-video-remake-pip-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+      },
+    }),
+    limits: {
+      fileSize: batchRequestSettingsService.getFileSizeLimitBytes(),
     },
-    filename(_req, file, callback) {
-      callback(null, `${Date.now()}-video-remake-pip-${sanitizeFileName(decodeUploadFileName(file.originalname))}`);
+    fileFilter(_req, file, callback) {
+      if (!file.mimetype.startsWith('image/')) {
+        callback(new Error('画中画素材只能上传图片'));
+        return;
+      }
+      callback(null, true);
     },
-  }),
-  limits: {
-    fileSize: contentUploadLimitBytes,
-  },
-  fileFilter(_req, file, callback) {
-    if (!file.mimetype.startsWith('image/')) {
-      callback(new Error('画中画素材只能上传图片'));
-      return;
-    }
-    callback(null, true);
-  },
-});
+  });
+}
+
+function uploadErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+    return `上传文件不能超过 ${batchRequestSettingsService.getSettings().maxFileSizeMb} MB`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
 
 function getCurrentUserId(req: Request) {
   return req.auth?.userId || req.auth?.user?.id || '';
@@ -198,10 +209,10 @@ export function createVideoRemakeRouter() {
   });
 
   router.post('/sessions/:sessionId/upload', (req, res) => {
-    vodUpload.single('file')(req, res, (uploadError) => {
+    createVodUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '视频上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '视频上传失败'));
           return;
         }
         try {
@@ -232,10 +243,10 @@ export function createVideoRemakeRouter() {
   });
 
   router.post('/sessions/:sessionId/pip-assets/upload', (req, res) => {
-    pipImageUpload.single('file')(req, res, (uploadError) => {
+    createPipImageUpload().single('file')(req, res, (uploadError) => {
       void (async () => {
         if (uploadError) {
-          sendError(res, 400, uploadError instanceof Error ? uploadError.message : '画中画图片上传失败');
+          sendError(res, 400, uploadErrorMessage(uploadError, '画中画图片上传失败'));
           return;
         }
         try {
