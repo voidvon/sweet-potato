@@ -756,6 +756,34 @@ export const contentRepository = {
     `).run({ assetId, expiresAt, updatedAt }).changes > 0;
   },
 
+  rescheduleTemporaryAssets(retentionDeltaMs: number) {
+    if (!Number.isFinite(retentionDeltaMs) || retentionDeltaMs === 0) return 0;
+
+    const rows = db.prepare(`
+      SELECT id, expires_at
+      FROM content_assets
+      WHERE lifecycle_status = 'temporary' AND expires_at IS NOT NULL
+    `).all() as Array<{ id: string; expires_at: string }>;
+    const update = db.prepare(`
+      UPDATE content_assets
+      SET expires_at = @expiresAt
+      WHERE id = @id AND lifecycle_status = 'temporary' AND expires_at IS NOT NULL
+    `);
+    const reschedule = db.transaction(() => {
+      let updated = 0;
+      for (const row of rows) {
+        const currentExpiresAt = Date.parse(row.expires_at);
+        if (!Number.isFinite(currentExpiresAt)) continue;
+        updated += update.run({
+          id: row.id,
+          expiresAt: new Date(currentExpiresAt + retentionDeltaMs).toISOString(),
+        }).changes;
+      }
+      return updated;
+    });
+    return reschedule();
+  },
+
   listTemporaryAssetCleanupCandidates(input: { page: number; pageSize: number }) {
     const page = Math.max(1, Math.floor(input.page));
     const pageSize = Math.max(1, Math.min(100, Math.floor(input.pageSize)));

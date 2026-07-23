@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Image, Input, Modal, Pagination, Popconfirm, message } from 'antd';
+import { Button, Dropdown, Input, Modal, Pagination, Popconfirm, message } from 'antd';
 import type { MenuProps } from 'antd';
 import { ListFilter, Plus, Search, Trash2 } from 'lucide-react';
 import {
@@ -12,6 +12,7 @@ import {
   uploadContentAsset,
 } from '../../api/content';
 import { API_BASE_URL } from '../../api/request';
+import { AppImage } from '../../components/AppImage';
 import { AppSegmentedTabs } from '../../components/AppSegmentedTabs';
 import { AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../components/AssetLibraryCard';
 import { InfiniteScroll } from '../../components/InfiniteScroll';
@@ -906,7 +907,7 @@ export function ContentResourceLibraryPage({
   function openAssetPreview(asset: ContentAsset) {
     if (asset.mimeType.startsWith('image/')) {
       setPreviewImage({
-        name: asset.name,
+        name: asset.originalFileName || asset.name,
         src: fileUrl(asset),
       });
       return;
@@ -1034,7 +1035,7 @@ export function ContentResourceLibraryPage({
             video={toResultVideoPreview(previewAsset)}
           />
         )}
-        <Image
+        <AppImage
           alt={previewImage?.name || '图片预览'}
           preview={{
             visible: Boolean(previewImage),
@@ -1273,7 +1274,7 @@ export function ContentResourceLibraryPage({
         )}
       </Modal>
 
-      <Image
+      <AppImage
         alt={previewImage?.name || '图片预览'}
         preview={{
           visible: Boolean(previewImage),

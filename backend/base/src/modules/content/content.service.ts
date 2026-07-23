@@ -2680,7 +2680,9 @@ export const contentService = {
     const cleanupIntervalMinutes = Number(input.cleanupIntervalMinutes);
     if (!Number.isFinite(retentionHours) || retentionHours < 1 || retentionHours > 720) throw new Error('保留时长需在 1-720 小时之间');
     if (!Number.isFinite(cleanupIntervalMinutes) || cleanupIntervalMinutes < 5 || cleanupIntervalMinutes > 1440) throw new Error('清理间隔需在 5-1440 分钟之间');
-    temporaryContentAssetTtlMs = Math.round(retentionHours * 3_600_000);
+    const nextTemporaryContentAssetTtlMs = Math.round(retentionHours * 3_600_000);
+    contentRepository.rescheduleTemporaryAssets(nextTemporaryContentAssetTtlMs - temporaryContentAssetTtlMs);
+    temporaryContentAssetTtlMs = nextTemporaryContentAssetTtlMs;
     temporaryContentAssetCleanupIntervalMs = Math.round(cleanupIntervalMinutes * 60_000);
     if (temporaryAssetCleanupTimer) {
       clearInterval(temporaryAssetCleanupTimer);

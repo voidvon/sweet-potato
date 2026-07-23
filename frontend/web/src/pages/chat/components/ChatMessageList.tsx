@@ -1,9 +1,10 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
 import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
-import { Children, cloneElement, useEffect, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
+import { AppImage } from '../../../components/AppImage';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
@@ -416,37 +417,6 @@ export function ChatMessageList({
     });
   }
 
-  function renderPreviewActions(
-    originalNode: ReactElement,
-    attachments: ChatAttachment[],
-    current: number,
-    imageGeneration: ImageGenerationContext | undefined,
-  ) {
-    const currentAttachment = attachments[current] || attachments[0];
-    if (!currentAttachment) {
-      return originalNode;
-    }
-    const actionsNode = originalNode as ReactElement<{ children?: ReactNode; className?: string }>;
-    const actionsClassName = actionsNode.props.className?.split(' ')[0] || 'ant-image-preview-actions';
-    return cloneElement(actionsNode, undefined, [
-      ...Children.toArray(actionsNode.props.children),
-      <button
-        aria-label="download"
-        className={`${actionsClassName}-action chat-image-preview-download`}
-        key="download"
-        onClick={() => {
-          void downloadAttachment(currentAttachment, imageGeneration).catch((error) => {
-            message.error(error instanceof Error ? error.message : '图片下载失败');
-          });
-        }}
-        title="下载"
-        type="button"
-      >
-        <DownloadOutlined />
-      </button>,
-    ]);
-  }
-
   function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined, assistantMessage: ChatMessage) {
     if (assistantMessage.isCompleted === false) {
       message.warning('图片正在生成中，完成后再试');
@@ -699,7 +669,7 @@ export function ChatMessageList({
                       {unavailableImage()}
                     </span>
                   ) : (
-                    <Image
+                    <AppImage
                       alt={attachment.name}
                       className={imageClassName('chat-message-image', attachment.url)}
                       key={attachment.id}
@@ -730,9 +700,16 @@ export function ChatMessageList({
                   {imageGenerationSlotCount ? (
                     <>
                       {renderImageGenerationHeader(item, previousUserMessage)}
-                      <Image.PreviewGroup
+                      <AppImage.PreviewGroup
+                        downloads={imageAttachments.map((attachment) => ({
+                          fileName: attachment.name,
+                          url: resolveAssetUrl(attachment.url),
+                        }))}
+                        onDownload={(_, current) => downloadAttachment(
+                          imageAttachments[current] || imageAttachments[0],
+                          imageGenerationContext,
+                        )}
                         preview={{
-                          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, imageAttachments, info.current, imageGenerationContext),
                         }}
                       >
                         <div className={`chat-image-generation-grid ${imageGenerationLayoutClass}`}>
@@ -779,7 +756,7 @@ export function ChatMessageList({
                             );
                           })}
                         </div>
-                      </Image.PreviewGroup>
+                      </AppImage.PreviewGroup>
                       <div className="chat-image-generation-actions">
                         {renderImageGenerationCreditCost(item, previousUserMessage)}
                         <Button
@@ -999,7 +976,11 @@ export function ChatMessageList({
         </div>
       </div>
 
-      <Image.PreviewGroup
+      <AppImage.PreviewGroup
+        downloads={previewImageGroup.images.map((attachment) => ({
+          fileName: attachment.name,
+          url: resolveAssetUrl(attachment.url),
+        }))}
         items={previewImageGroup.images.map((attachment) => ({
           alt: attachment.name,
           src: resolveAssetUrl(attachment.url),
@@ -1020,7 +1001,6 @@ export function ChatMessageList({
               open,
             }));
           },
-          actionsRender: (originalNode, info) => renderPreviewActions(originalNode, previewImageGroup.images, info.current, undefined),
         }}
       />
 
