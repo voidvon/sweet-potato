@@ -52,7 +52,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #1677ff;
+  color: var(--color-brand);
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
@@ -65,12 +65,12 @@
 
 .collapsible-filter-row__toggle:hover,
 .collapsible-filter-row__toggle:focus-visible {
-  color: #4096ff;
+  color: var(--color-brand);
   outline: none;
 }
 
 .collapsible-filter-row__toggle:active {
-  color: #0958d9;
+  color: var(--color-brand-hover);
 }
 
 .collapsible-filter-row__toggle .anticon {

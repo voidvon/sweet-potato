@@ -30,48 +30,48 @@ const moduleMeta: Record<string, {
   resourceType?: ContentAssetResourceType;
 }> = {
   virtual_portrait_assets: {
-    accent: '#7c3aed',
+    accent: 'var(--color-purple)',
     icon: ContactRound,
     summary: '管理虚拟人像成品、三视图训练和私域入库状态',
     resourceType: 'virtual_portrait',
   },
   ai_voice: {
-    accent: '#16a34a',
+    accent: 'var(--color-success-bright)',
     icon: Mic2,
     summary: '管理音色、试听音频、语速和情绪标签',
     resourceType: 'voice',
   },
   real_person_assets: {
-    accent: '#0f766e',
+    accent: 'var(--color-teal)',
     icon: ContactRound,
     summary: '管理真人认证、同人素材和入库状态',
     resourceType: 'real_person',
   },
   scene_library: {
-    accent: '#d97706',
+    accent: 'var(--color-warning)',
     icon: Video,
     summary: '管理背景、空间、产品展示和短视频场景',
     resourceType: 'scene',
   },
   product_assets: {
-    accent: '#9333ea',
+    accent: 'var(--color-purple)',
     icon: Sparkles,
     summary: '管理产品图片、卖点说明和商品展示素材',
     resourceType: 'product',
   },
   finished_assets: {
-    accent: '#0891b2',
+    accent: 'var(--color-cyan)',
     icon: PlayCircle,
     summary: '管理图片创作和视频生成产出的作品',
     resourceType: 'finished_video',
   },
   video_remake: {
-    accent: '#0f766e',
+    accent: 'var(--color-teal)',
     icon: MessageSquareText,
     summary: '用聊天卡片确认爆款复刻工作流，支持自然语言调起修改卡片',
   },
   create_video: {
-    accent: '#2563eb',
+    accent: 'var(--color-brand-active)',
     icon: Video,
     summary: '选择参数、参考素材和提示词制作视频',
   },

@@ -51,14 +51,14 @@
 }
 
 .video-translation-antd-select .ant-select-arrow {
-  color: #707780;
+  color: var(--color-neutral-500);
 }
 
 .video-translation-swap {
   align-items: center;
   background: transparent;
   border: 0;
-  color: #737880;
+  color: var(--color-neutral-500);
   cursor: pointer;
   display: flex;
   height: 32px;
@@ -67,7 +67,7 @@
 }
 
 .video-translation-swap:disabled {
-  color: #c7cbd1;
+  color: var(--color-neutral-300);
   cursor: not-allowed;
 }
 
@@ -106,7 +106,7 @@
 }
 
 .video-translation-toggle i {
-  background: #d9dde3;
+  background: var(--color-neutral-300);
   border-radius: 999px;
   flex: 0 0 auto;
   height: 20px;
@@ -116,9 +116,9 @@
 }
 
 .video-translation-toggle i::after {
-  background: #fff;
+  background: var(--color-white);
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1px 3px rgb(var(--color-shadow-rgb) / 0.18);
   content: '';
   height: 16px;
   left: 2px;
@@ -129,7 +129,7 @@
 }
 
 .video-translation-toggle input:checked + i {
-  background: #372875;
+  background: var(--color-brand-hover);
 }
 
 .video-translation-toggle input:checked + i::after {
@@ -160,7 +160,7 @@
 
 .video-translation-position-button {
   align-items: center;
-  background: #fff;
+  background: var(--color-white);
   border: 1px solid var(--video-task-border);
   border-radius: 13px;
   color: var(--video-task-ink);
@@ -202,16 +202,16 @@
 }
 
 .video-translation-position-copy small {
-  color: #7a8088;
+  color: var(--color-neutral-500);
   font-size: 11px;
   line-height: 16px;
 }
 
 .video-translation-set-badge {
   align-items: center;
-  background: #f1f2f4;
+  background: var(--color-neutral-100);
   border-radius: 999px;
-  color: #777d86;
+  color: var(--color-neutral-500);
   display: inline-flex;
   font-size: 11px;
   font-weight: 650;

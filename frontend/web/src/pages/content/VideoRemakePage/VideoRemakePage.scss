@@ -1,17 +1,17 @@
 .video-remake-page {
-  --remake-bg-rgb: 243 245 248;
-  --remake-bg: #f3f5f8;
-  --remake-panel: #ffffff;
-  --remake-panel-soft: #f8fafc;
-  --remake-border: #dfe4ea;
-  --remake-blue: #2b7fff;
-  --remake-blue-soft: #e8f1ff;
-  --remake-text: #101828;
-  --remake-muted: #667085;
-  --remake-warn: #f59e0b;
+  --remake-bg-rgb: var(--color-neutral-100-rgb);
+  --remake-bg: var(--color-neutral-100);
+  --remake-panel: var(--color-white);
+  --remake-panel-soft: var(--color-neutral-50);
+  --remake-border: var(--color-neutral-200);
+  --remake-blue: var(--color-brand);
+  --remake-blue-soft: var(--color-brand-soft-strong);
+  --remake-text: var(--color-neutral-900);
+  --remake-muted: var(--color-neutral-500);
+  --remake-warn: var(--color-warning-bright);
   background:
-    radial-gradient(circle at top left, rgba(43, 127, 255, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.06), transparent 26%),
+    radial-gradient(circle at top left, rgb(var(--color-brand-rgb) / 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgb(var(--color-teal-rgb) / 0.06), transparent 26%),
     var(--remake-bg);
   color: var(--remake-text);
   height: 100%;
@@ -57,7 +57,7 @@
 }
 
 .video-remake-session-time {
-  color: #b3bdc9;
+  color: var(--color-neutral-300);
   flex: 0 0 auto;
   font-size: 11px;
   line-height: 1;
@@ -88,7 +88,7 @@
   border: 0;
   border-radius: 999px;
   box-shadow: none;
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   display: inline-flex;
   flex: 0 0 auto;
   height: 24px;
@@ -120,7 +120,7 @@
 .video-remake-session-action.ant-btn:focus-visible {
   background: transparent;
   box-shadow: none;
-  color: #2b7fff;
+  color: var(--color-brand);
 }
 
 .video-remake-main {
@@ -207,8 +207,8 @@
 }
 
 .remake-final-segment-item.is-regenerating {
-  border-color: rgba(43, 127, 255, 0.35);
-  box-shadow: 0 0 0 1px rgba(43, 127, 255, 0.12);
+  border-color: rgb(var(--color-brand-rgb) / 0.35);
+  box-shadow: 0 0 0 1px rgb(var(--color-brand-rgb) / 0.12);
 }
 
 
@@ -267,7 +267,7 @@
   align-items: center;
   background: var(--remake-blue);
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--color-white);
   display: inline-flex;
   font-size: 13px;
   font-weight: 800;
@@ -298,20 +298,20 @@
   // background: var(--remake-blue);
   // border-color: var(--remake-blue);
   border-radius: 18px;
-  // color: #ffffff;
+  // color: var(--color-white);
   display: grid;
   gap: 12px;
   padding: 18px;
 }
 
 .remake-user-video-bubble strong {
-  // color: #ffffff;
+  // color: var(--color-white);
   font-size: 16px;
   line-height: 1.4;
 }
 
 .remake-user-video-bubble video {
-  background: #0f172a;
+  background: var(--color-neutral-950);
   border-radius: 12px;
   display: block;
   height: auto;
@@ -330,7 +330,7 @@
 }
 
 .remake-user-video-meta span {
-  // color: #ffffff;
+  // color: var(--color-white);
   font-size: 13px;
   font-weight: 700;
   overflow: hidden;
@@ -339,13 +339,13 @@
 }
 
 .remake-user-video-meta small {
-  color: rgba(0, 0, 0, 0.78);
+  color: rgb(var(--color-black-rgb) / 0.78);
   flex-shrink: 0;
   font-size: 12px;
 }
 
 .remake-message time {
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   font-size: 11px;
 }
 
@@ -363,7 +363,7 @@
   border: 0;
   border-radius: 8px;
   box-shadow: none;
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   cursor: pointer;
   display: inline-flex;
   height: 22px;
@@ -376,10 +376,10 @@
 .remake-message-icon-action:hover,
 .remake-message-icon-action:focus,
 .remake-message-icon-action:focus-visible {
-  background: #f2f4f7;
+  background: var(--color-neutral-100);
   border: 0;
   box-shadow: none;
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   outline: 0;
 }
 
@@ -403,7 +403,7 @@
 }
 
 .remake-card {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgb(var(--color-white-rgb) / 0.96);
   border: 1px solid var(--remake-border);
   border-radius: 18px;
   box-sizing: border-box;
@@ -416,12 +416,12 @@
 }
 
 .remake-card-focused {
-  border-color: #87b7ff;
+  border-color: var(--color-brand-border);
 }
 
 .remake-card-editing {
-  border-color: #9acbff;
-  box-shadow: 0 8px 24px rgba(43, 127, 255, 0.08);
+  border-color: var(--color-brand-border);
+  box-shadow: 0 8px 24px rgb(var(--color-brand-rgb) / 0.08);
 }
 
 .remake-card-header {
@@ -455,7 +455,7 @@
 }
 
 .remake-card-header em {
-  background: #f2f4f7;
+  background: var(--color-neutral-100);
   border-radius: 999px;
   color: var(--remake-muted);
   font-size: 12px;
@@ -464,28 +464,28 @@
 }
 
 .remake-card-header em.status-confirmed {
-  background: #dcfce7;
-  color: #059669;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .remake-card-header em.status-editing {
-  background: #d1fae5;
-  color: #059669;
+  background: var(--color-teal-soft);
+  color: var(--color-success);
 }
 
 .remake-card-header em.status-pending {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 
 .remake-card-header em.status-expired {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--color-surface-muted);
+  color: var(--color-neutral-500);
 }
 
 .remake-card-header em.status-failed {
-  background: #fee2e2;
-  color: #ef4444;
+  background: var(--color-danger-soft);
+  color: var(--color-danger-bright);
 }
 
 .remake-card-edit-link {
@@ -499,13 +499,13 @@
 }
 
 .remake-card-edit-link:disabled {
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   cursor: not-allowed;
 }
 
 .remake-card-action-link {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-border);
   border-radius: 999px;
   color: var(--remake-blue);
   cursor: pointer;
@@ -515,7 +515,7 @@
 }
 
 .remake-card-action-link:disabled {
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   cursor: not-allowed;
 }
 
@@ -525,10 +525,10 @@
 
 .remake-ai-note {
   align-items: flex-start;
-  background: #f8fafc;
-  border-left: 3px solid #93c5fd;
+  background: var(--color-neutral-50);
+  border-left: 3px solid var(--color-brand-border);
   border-radius: 10px;
-  color: #1f2937;
+  color: var(--color-neutral-800);
   display: flex;
   gap: 10px;
   padding: 12px 14px;
@@ -536,9 +536,9 @@
 
 .remake-ai-note-icon {
   align-items: center;
-  background: #e0f2fe;
+  background: var(--color-brand-soft-strong);
   border-radius: 999px;
-  color: #1677ff;
+  color: var(--color-brand);
   display: inline-flex;
   flex: 0 0 auto;
   height: 26px;
@@ -554,7 +554,7 @@
 }
 
 .remake-ai-note-copy p {
-  color: #1f2937;
+  color: var(--color-neutral-800);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.65;
@@ -563,35 +563,35 @@
 }
 
 .remake-ai-note-copy .remake-ai-note-description {
-  color: #475467;
+  color: var(--color-neutral-600);
   font-weight: 500;
 }
 
 .remake-ai-note-success {
-  background: #f6fdf8;
-  border-left-color: #86d993;
+  background: var(--color-white);
+  border-left-color: var(--color-success-border);
 }
 
 .remake-ai-note-success .remake-ai-note-icon {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--color-success-soft);
+  color: var(--color-success-bright);
 }
 
 .remake-ai-note-failed {
-  background: #fff8f6;
-  border-left-color: #fda29b;
+  background: var(--color-rose-50);
+  border-left-color: var(--color-danger-border);
 }
 
 .remake-ai-note-failed .remake-ai-note-icon {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .remake-summary {
-  background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, var(--color-neutral-25) 0%, var(--color-neutral-50) 100%);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 14px;
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   line-height: 1.75;
   margin: 0;
@@ -603,8 +603,8 @@
 
 .remake-status-bubble {
   align-items: center;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 14px;
   display: flex;
   gap: 10px;
@@ -625,7 +625,7 @@
 }
 
 .remake-status-bubble p {
-  color: #344054;
+  color: var(--color-neutral-700);
   flex: 1;
   font-size: 13px;
   line-height: 1.6;
@@ -643,9 +643,9 @@
 .remake-progress-bubble {
   align-items: stretch;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.96)),
-    #f8fafc;
-  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.035);
+    linear-gradient(180deg, rgb(var(--color-white-rgb) / 0.78), rgb(var(--color-white-rgb) / 0.96)),
+    var(--color-neutral-50);
+  box-shadow: 0 10px 24px rgb(var(--color-shadow-rgb) / 0.035);
   display: grid;
   gap: 12px;
 }
@@ -670,7 +670,7 @@
 
 .remake-status-lines p,
 .remake-expert-progress-list p {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
@@ -684,8 +684,8 @@
 
 .remake-expert-progress-item {
   align-items: center;
-  background: #ffffff;
-  border: 1px solid rgba(223, 228, 234, 0.78);
+  background: var(--color-white);
+  border: 1px solid rgb(var(--color-white-rgb) / 0.78);
   border-radius: 10px;
   display: grid;
   gap: 10px;
@@ -725,62 +725,62 @@
 }
 
 .remake-expert-progress-item.is-running {
-  background: linear-gradient(90deg, rgba(43, 127, 255, 0.08), #ffffff 58%);
-  border-color: rgba(43, 127, 255, 0.22);
+  background: linear-gradient(90deg, rgb(var(--color-brand-rgb) / 0.08), var(--color-white) 58%);
+  border-color: rgb(var(--color-brand-rgb) / 0.22);
 }
 
 .remake-expert-progress-item.is-running .remake-expert-progress-dot {
   animation: remakeParsePulse 1.25s ease-in-out infinite;
   background: var(--remake-blue);
-  box-shadow: 0 0 0 0 rgba(43, 127, 255, 0.35);
+  box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.35);
 }
 
 .remake-expert-progress-item.is-running em {
-  background: #e8f1ff;
-  color: #175cd3;
+  background: var(--color-brand-soft-strong);
+  color: var(--color-brand-hover);
 }
 
 .remake-expert-progress-item.is-done .remake-expert-progress-dot {
-  background: #12b981;
+  background: var(--color-success-bright);
 }
 
 .remake-expert-progress-item.is-done em {
-  background: #ecfdf3;
-  color: #047857;
+  background: var(--color-success-soft);
+  color: var(--color-success-strong);
 }
 
 .remake-expert-progress-item.is-failed {
-  background: #fff7ed;
-  border-color: rgba(194, 65, 12, 0.2);
+  background: var(--color-orange-soft);
+  border-color: rgb(var(--color-danger-rgb) / 0.2);
 }
 
 .remake-expert-progress-item.is-failed .remake-expert-progress-dot {
-  background: #f97316;
+  background: var(--color-orange);
 }
 
 .remake-expert-progress-item.is-failed em {
-  background: #fff7ed;
-  color: #c2410c;
+  background: var(--color-orange-soft);
+  color: var(--color-orange);
 }
 
 .remake-expert-progress-item.is-muted .remake-expert-progress-dot {
-  background: #98a2b3;
+  background: var(--color-neutral-400);
 }
 
 .remake-expert-progress-item.is-muted em {
-  background: #eef2f6;
-  color: #667085;
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
 }
 
 .remake-progress-track {
-  background: #e6eef8;
+  background: var(--color-border-subtle);
   border-radius: 999px;
   height: 7px;
   overflow: hidden;
 }
 
 .remake-progress-track i {
-  background: linear-gradient(90deg, #2b7fff, #12b981);
+  background: linear-gradient(90deg, var(--color-brand), var(--color-success-bright));
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -791,7 +791,7 @@
 
 .remake-progress-track i.is-running::after {
   animation: remakeParseTrackSweep 1.45s ease-in-out infinite;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--color-white-rgb) / 0.78), transparent);
   content: '';
   inset: 0;
   position: absolute;
@@ -813,15 +813,15 @@
 
 @keyframes remakeParsePulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(43, 127, 255, 0.36);
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.36);
   }
 
   70% {
-    box-shadow: 0 0 0 6px rgba(43, 127, 255, 0);
+    box-shadow: 0 0 0 6px rgb(var(--color-brand-rgb) / 0);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(43, 127, 255, 0);
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0);
   }
 }
 
@@ -870,8 +870,8 @@
 }
 
 .remake-expert-detail {
-  background: #fbfdff;
-  border: 1px solid #e5e7eb;
+  background: var(--color-neutral-25);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 14px;
   display: grid;
   gap: 10px;
@@ -898,7 +898,7 @@
 
 .remake-expert-row p,
 .remake-expert-detail > p {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   line-height: 1.7;
   margin: 0;
@@ -912,10 +912,10 @@
 }
 
 .remake-expert-field-list p {
-  background: #ffffff;
-  border: 1px solid #eef2f6;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-100);
   border-radius: 10px;
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   line-height: 1.65;
   margin: 0;
@@ -1003,7 +1003,7 @@
 .remake-radio-field .ant-radio-wrapper {
   display: flex;
   align-items: center;
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   margin-inline-end: 0;
 }
@@ -1030,7 +1030,7 @@
 
 .remake-current-line {
   align-items: center;
-  color: #344054;
+  color: var(--color-neutral-700);
   display: flex;
   font-size: 13px;
   font-weight: 700;
@@ -1043,7 +1043,7 @@
   justify-content: flex-end;
 }
 .remake-static-text {
-  color: #344054;
+  color: var(--color-neutral-700);
   display: inline-block;
   line-height: 32px;
   min-height: 32px;
@@ -1051,8 +1051,8 @@
 
 .remake-asset-field {
   align-items: center;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-300);
   border-radius: 12px;
   color: var(--remake-muted);
   display: flex;
@@ -1081,7 +1081,7 @@
 
 .remake-selected-thumb {
   align-items: center;
-  background: #eef4ff;
+  background: var(--color-brand-soft);
   border-radius: 10px;
   color: var(--remake-blue);
   display: flex;
@@ -1117,8 +1117,8 @@
 
 .remake-picker-card {
   aspect-ratio: 1 / 1;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-300);
   border-radius: 12px;
   color: var(--remake-text);
   cursor: default;
@@ -1137,11 +1137,11 @@
 
 .remake-picker-card.selected {
   border-style: solid;
-  border-color: rgba(24, 34, 48, 0.12);
+  border-color: rgb(var(--color-shadow-rgb) / 0.12);
 }
 
 .remake-picker-card.selected::after {
-  background: rgba(15, 23, 42, 0);
+  background: rgb(var(--color-shadow-rgb) / 0);
   content: '';
   inset: 0;
   pointer-events: none;
@@ -1150,7 +1150,7 @@
 }
 
 .remake-picker-card.selected:hover::after {
-  background: rgba(15, 23, 42, 0.42);
+  background: rgb(var(--color-shadow-rgb) / 0.42);
 }
 
 .remake-picker-card-media {
@@ -1160,9 +1160,9 @@
 }
 
 .remake-picker-card-overlay {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0.72) 100%);
+  background: linear-gradient(180deg, rgb(var(--color-shadow-rgb) / 0.06) 0%, rgb(var(--color-shadow-rgb) / 0.72) 100%);
   bottom: 0;
-  color: #ffffff;
+  color: var(--color-white);
   display: grid;
   gap: 2px;
   left: 0;
@@ -1202,7 +1202,7 @@
 }
 
 .remake-picker-card.audio {
-  background: linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
+  background: linear-gradient(180deg, var(--color-surface-subtle) 0%, var(--color-brand-soft) 100%);
 }
 
 .remake-picker-card-audio-wave {
@@ -1237,7 +1237,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #ffffff;
+  color: var(--color-white);
   cursor: pointer;
   display: inline-flex;
   height: 24px;
@@ -1306,7 +1306,7 @@
 }
 
 .remake-sub-card {
-  background: #fbfdff;
+  background: var(--color-neutral-25);
   border: 1px solid var(--remake-border);
   border-radius: 14px;
   display: grid;
@@ -1355,7 +1355,7 @@
 }
 
 .remake-storyboard-points li {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 14px;
   line-height: 1.85;
   overflow-wrap: anywhere;
@@ -1367,7 +1367,7 @@
 }
 
 .remake-prompt-preview p {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   line-height: 1.7;
   margin: 0;
@@ -1388,15 +1388,15 @@
 }
 
 .remake-seedance-workbench {
-  border-top: 1px solid #eef2f6;
+  border-top: 1px solid var(--color-neutral-100);
   display: grid;
   gap: 14px;
   padding-top: 12px;
 }
 
 .remake-seedance-preview-panel {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  border: 1px solid #eef2f6;
+  background: linear-gradient(180deg, var(--color-white) 0%, var(--color-neutral-25) 100%);
+  border: 1px solid var(--color-neutral-100);
   border-radius: 14px;
   display: grid;
   gap: 10px;
@@ -1437,7 +1437,7 @@
 }
 
 .remake-seedance-editor-panel {
-  background: #ffffff;
+  background: var(--color-white);
 }
 
 .remake-seedance-prompt-preview {
@@ -1448,7 +1448,7 @@
 }
 
 .remake-seedance-prompt-preview p {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 14px;
   line-height: 1.78;
   margin: 0;
@@ -1458,10 +1458,10 @@
 
 .remake-seedance-reference-chip {
   align-items: center;
-  background: #eef4ff;
-  border: 1px solid #b8c7ff;
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-border);
   border-radius: 10px;
-  color: #2f3bbd;
+  color: var(--color-brand-active);
   display: inline-flex;
   gap: 4px;
   margin: 0 1px;
@@ -1479,9 +1479,9 @@
 
 .remake-seedance-reference-chip-icon {
   align-items: center;
-  background: #dbeafe;
+  background: var(--color-border);
   border-radius: 7px;
-  color: #1d4ed8;
+  color: var(--color-brand-active);
   display: inline-flex;
   font-size: 11px;
   font-weight: 800;
@@ -1508,7 +1508,7 @@
 }
 
 .remake-seedance-overview p {
-  background: #f8fafc;
+  background: var(--color-neutral-50);
   border: 1px solid var(--remake-border);
   border-radius: 12px;
   display: grid;
@@ -1541,9 +1541,9 @@
 }
 
 .remake-prompt-editor .ant-input {
-  border-color: #bfdbfe;
+  border-color: var(--color-brand-border);
   border-radius: 12px;
-  color: #1f2937;
+  color: var(--color-neutral-800);
   font-size: 14px;
   line-height: 1.78;
   padding: 12px 14px;
@@ -1551,8 +1551,8 @@
 
 .remake-prompt-editor .ant-input:focus,
 .remake-prompt-editor .ant-input-focused {
-  border-color: #178bff;
-  box-shadow: 0 0 0 2px rgba(23, 139, 255, 0.12);
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px rgb(var(--color-brand-rgb) / 0.12);
 }
 
 .remake-segment-prompt-editor .mention-rich-textarea {
@@ -1560,14 +1560,14 @@
 }
 
 .remake-prompt-preview {
-  background: #ffffff;
-  border: 1px solid #eef2f6;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-100);
   border-radius: 12px;
   padding: 10px 12px;
 }
 
 .remake-final-card {
-  background: #f8fafc;
+  background: var(--color-neutral-50);
   border: 1px solid var(--remake-border);
   border-radius: 14px;
   display: grid;
@@ -1584,7 +1584,7 @@
 }
 
 .remake-final-card-head strong {
-  background: #eaf3ff;
+  background: var(--color-brand-soft);
   border-radius: 999px;
   color: var(--remake-primary);
   font-size: 14px;
@@ -1598,8 +1598,8 @@
 }
 
 .remake-final-generation-mode {
-  background: #ffffff;
-  border: 1px solid #e6edf5;
+  background: var(--color-white);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
   display: grid;
   gap: 8px;
@@ -1619,7 +1619,7 @@
 
 .remake-final-card video {
   aspect-ratio: 16 / 9;
-  background: #0f172a;
+  background: var(--color-neutral-950);
   border-radius: 12px;
   display: block;
   height: min(52vw, 360px);
@@ -1652,7 +1652,7 @@
 }
 
 .remake-final-segments-summary {
-  background: #f8fafc;
+  background: var(--color-neutral-50);
   border: 1px solid var(--remake-border);
   border-radius: 10px;
   display: grid;
@@ -1662,7 +1662,7 @@
 }
 
 .remake-final-segments-summary > div {
-  background: #fff;
+  background: var(--color-white);
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -1682,8 +1682,8 @@
 
 .remake-final-segment-queue {
   align-items: center;
-  background: rgba(43, 127, 255, 0.06);
-  border: 1px solid rgba(43, 127, 255, 0.16);
+  background: rgb(var(--color-brand-rgb) / 0.06);
+  border: 1px solid rgb(var(--color-brand-rgb) / 0.16);
   border-radius: 10px;
   display: flex;
   flex-wrap: wrap;
@@ -1698,8 +1698,8 @@
 
 .remake-final-segment-queue button {
   align-items: center;
-  background: #fff;
-  border: 1px solid rgba(43, 127, 255, 0.2);
+  background: var(--color-white);
+  border: 1px solid rgb(var(--color-brand-rgb) / 0.2);
   border-radius: 999px;
   color: var(--remake-text);
   cursor: pointer;
@@ -1712,8 +1712,8 @@
 }
 
 .remake-final-segment-queue button:hover {
-  background: rgba(43, 127, 255, 0.08);
-  border-color: rgba(43, 127, 255, 0.36);
+  background: rgb(var(--color-brand-rgb) / 0.08);
+  border-color: rgb(var(--color-brand-rgb) / 0.36);
 }
 
 .remake-final-segment-grid {
@@ -1761,7 +1761,7 @@
 
 .remake-final-segment-item video {
   aspect-ratio: 16 / 9;
-  background: #0f172a;
+  background: var(--color-neutral-950);
   border-radius: 8px;
   display: block;
   height: 176px;
@@ -1771,8 +1771,8 @@
 
 .remake-final-segment-placeholder {
   align-items: center;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-300);
   border-radius: 8px;
   color: var(--remake-muted);
   display: flex;
@@ -1783,7 +1783,7 @@
 .remake-final-segment-prompt-button {
   background: transparent;
   border: 0;
-  color: #2563eb;
+  color: var(--color-brand-active);
   cursor: pointer;
   font-size: 13px;
   line-height: 1.4;
@@ -1793,7 +1793,7 @@
 }
 
 .remake-final-segment-prompt-button:hover {
-  color: #1d4ed8;
+  color: var(--color-brand-active);
   text-decoration: underline;
 }
 
@@ -1819,10 +1819,10 @@
 }
 
 .remake-final-segment-queued {
-  background: rgba(22, 163, 74, 0.08);
-  border: 1px solid rgba(22, 163, 74, 0.18);
+  background: rgb(var(--color-success-rgb) / 0.08);
+  border: 1px solid rgb(var(--color-success-rgb) / 0.18);
   border-radius: 999px;
-  color: #15803d;
+  color: var(--color-success);
   font-size: 12px;
   margin-right: auto;
   min-width: 0;
@@ -1854,11 +1854,11 @@
 }
 
 .remake-final-segment-action-menu button:hover:not(:disabled) {
-  background: #f8fafc;
+  background: var(--color-neutral-50);
 }
 
 .remake-final-segment-action-menu button:disabled {
-  color: #94a3b8;
+  color: var(--color-text-tertiary);
   cursor: not-allowed;
 }
 
@@ -1916,11 +1916,11 @@
 
 .remake-video-generation-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.94)),
-    #f8fafc;
+    linear-gradient(180deg, rgb(var(--color-white-rgb) / 0.72), rgb(var(--color-white-rgb) / 0.94)),
+    var(--color-neutral-50);
   border: 1px solid var(--remake-border);
   border-radius: 14px;
-  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.04);
+  box-shadow: 0 12px 28px rgb(var(--color-shadow-rgb) / 0.04);
   color: var(--remake-text);
   display: grid;
   gap: 16px;
@@ -2006,14 +2006,14 @@
 }
 
 .remake-video-generation-progress {
-  background: #e8edf3;
+  background: var(--color-border-subtle);
   border-radius: 999px;
   height: 6px;
   overflow: hidden;
 }
 
 .remake-video-generation-progress span {
-  background: linear-gradient(90deg, #2b7fff, #12b981);
+  background: linear-gradient(90deg, var(--color-brand), var(--color-success-bright));
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -2028,8 +2028,8 @@
 
 .remake-video-generation-row {
   align-items: center;
-  background: #ffffff;
-  border: 1px solid rgba(223, 228, 234, 0.86);
+  background: var(--color-white);
+  border: 1px solid rgb(var(--color-white-rgb) / 0.86);
   border-radius: 10px;
   display: grid;
   gap: 12px;
@@ -2039,13 +2039,13 @@
 }
 
 .remake-video-generation-row.is-running {
-  background: linear-gradient(90deg, rgba(43, 127, 255, 0.08), #ffffff 58%);
-  border-color: rgba(43, 127, 255, 0.22);
+  background: linear-gradient(90deg, rgb(var(--color-brand-rgb) / 0.08), var(--color-white) 58%);
+  border-color: rgb(var(--color-brand-rgb) / 0.22);
 }
 
 .remake-video-generation-row.is-failed {
-  background: #fff7ed;
-  border-color: rgba(194, 65, 12, 0.2);
+  background: var(--color-orange-soft);
+  border-color: rgb(var(--color-danger-rgb) / 0.2);
 }
 
 .remake-video-generation-index {
@@ -2079,7 +2079,7 @@
 }
 
 .remake-video-generation-error {
-  color: #c2410c !important;
+  color: var(--color-orange) !important;
 }
 
 .remake-segment-status-pill {
@@ -2103,41 +2103,41 @@
 }
 
 .remake-segment-status-pill.is-done {
-  background: #ecfdf3;
-  color: #047857;
+  background: var(--color-success-soft);
+  color: var(--color-success-strong);
 }
 
 .remake-segment-status-pill.is-done > span {
-  background: #12b981;
+  background: var(--color-success-bright);
 }
 
 .remake-segment-status-pill.is-running {
-  background: #e8f1ff;
-  color: #175cd3;
+  background: var(--color-brand-soft-strong);
+  color: var(--color-brand-hover);
 }
 
 .remake-segment-status-pill.is-running > span {
   animation: remakeStatusPulse 1.25s ease-in-out infinite;
   background: var(--remake-blue);
-  box-shadow: 0 0 0 0 rgba(43, 127, 255, 0.38);
+  box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.38);
 }
 
 .remake-segment-status-pill.is-failed {
-  background: #fff7ed;
-  color: #c2410c;
+  background: var(--color-orange-soft);
+  color: var(--color-orange);
 }
 
 .remake-segment-status-pill.is-failed > span {
-  background: #f97316;
+  background: var(--color-orange);
 }
 
 .remake-segment-status-pill.is-muted {
-  background: #eef2f6;
-  color: #667085;
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
 }
 
 .remake-segment-status-pill.is-muted > span {
-  background: #98a2b3;
+  background: var(--color-neutral-400);
 }
 
 .remake-generating-indicator {
@@ -2167,15 +2167,15 @@
 
 @keyframes remakeStatusPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(43, 127, 255, 0.36);
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.36);
   }
 
   70% {
-    box-shadow: 0 0 0 6px rgba(43, 127, 255, 0);
+    box-shadow: 0 0 0 6px rgb(var(--color-brand-rgb) / 0);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(43, 127, 255, 0);
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0);
   }
 }
 
@@ -2227,7 +2227,7 @@
 
 .video-remake-composer {
   align-items: end;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgb(var(--color-white-rgb) / 0.92);
   border-top: 1px solid var(--remake-border);
   display: grid;
   gap: 12px;
@@ -2255,9 +2255,9 @@
 }
 
 .remake-selector-library-card.active {
-  background: #f0f7ff;
+  background: var(--color-surface-subtle);
   border-color: var(--remake-blue);
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  box-shadow: 0 0 0 2px rgb(var(--color-brand-rgb) / 0.1);
 }
 
 .remake-selector-library-card.active::before {
@@ -2273,7 +2273,7 @@
 
 .remake-selector-checkline {
   align-items: center;
-  color: #2b7fff;
+  color: var(--color-brand);
   display: inline-flex;
   gap: 4px;
 }

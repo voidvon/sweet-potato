@@ -21,15 +21,15 @@ type MaterialSlotProps = {
 };
 
 const imageThumbs = [
-  'linear-gradient(135deg, #38bdf8 0%, #0f766e 100%)',
-  'linear-gradient(135deg, #e5e7eb 0%, #6b7280 100%)',
-  'linear-gradient(135deg, #111827 0%, #fef3c7 100%)',
-  'linear-gradient(135deg, #f7fee7 0%, #422006 100%)',
-  'linear-gradient(135deg, #ecfeff 0%, #155e75 100%)',
-  'linear-gradient(135deg, #1f2937 0%, #f9fafb 100%)',
-  'linear-gradient(135deg, #064e3b 0%, #bbf7d0 100%)',
-  'linear-gradient(135deg, #0f172a 0%, #fde68a 100%)',
-  'linear-gradient(135deg, #f0abfc 0%, #22d3ee 50%, #fef08a 100%)',
+  'linear-gradient(135deg, var(--color-cyan) 0%, var(--color-teal) 100%)',
+  'linear-gradient(135deg, var(--color-neutral-200) 0%, var(--color-neutral-500) 100%)',
+  'linear-gradient(135deg, var(--color-neutral-900) 0%, var(--color-warning-soft) 100%)',
+  'linear-gradient(135deg, var(--color-warning-soft) 0%, var(--color-plum-900) 100%)',
+  'linear-gradient(135deg, var(--color-surface-subtle) 0%, var(--color-neutral-600) 100%)',
+  'linear-gradient(135deg, var(--color-neutral-800) 0%, var(--color-neutral-50) 100%)',
+  'linear-gradient(135deg, var(--color-teal) 0%, var(--color-success-border) 100%)',
+  'linear-gradient(135deg, var(--color-neutral-950) 0%, var(--color-warning-border) 100%)',
+  'linear-gradient(135deg, var(--color-rose-400) 0%, var(--color-cyan) 50%, var(--color-warning-border) 100%)',
 ];
 
 export function MaterialSlot({
@@ -204,7 +204,7 @@ function getImageItems(count: number, selected: SelectedMaterialValue): MediaSlo
 function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlotItem[] {
   if (Array.isArray(selected)) {
     return selected.slice(0, count).map((file, index) => ({
-      background: '#fffbeb',
+      background: 'var(--color-warning-soft)',
       caption: `音·${index + 1}`,
       detail: formatDuration(getAudioDuration(file)),
       id: file.id,
@@ -216,7 +216,7 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlo
 
   const name = selected ?? '';
   return Array.from({ length: count }, (_, index) => ({
-    background: '#fffbeb',
+    background: 'var(--color-warning-soft)',
     caption: `音·${index + 1}`,
     detail: '7s',
     id: `audio-${index + 1}`,

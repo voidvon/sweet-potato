@@ -1,9 +1,9 @@
 .asset-library-card {
   appearance: none;
-  background: #ffffff;
-  border: 1px solid #dfe6f0;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 8px;
-  color: #1f2937;
+  color: var(--color-neutral-800);
   display: flex;
   flex-direction: column;
   font: inherit;
@@ -26,23 +26,23 @@
 
 .asset-library-card--interactive:hover,
 .asset-library-card--interactive:focus-visible {
-  border-color: #b8cff0;
-  box-shadow: 0 12px 28px rgba(30, 64, 175, 0.10);
+  border-color: var(--color-brand-border);
+  box-shadow: 0 12px 28px rgb(var(--color-teal-rgb) / 0.1);
   outline: none;
   transform: translateY(-1px);
 }
 
 .asset-library-card--body-interactive:has(.asset-library-card__body--interactive:hover),
 .asset-library-card--body-interactive:has(.asset-library-card__body--interactive:focus-visible) {
-  border-color: #b8cff0;
-  box-shadow: 0 12px 28px rgba(30, 64, 175, 0.10);
+  border-color: var(--color-brand-border);
+  box-shadow: 0 12px 28px rgb(var(--color-teal-rgb) / 0.1);
   transform: translateY(-1px);
 }
 
 .asset-library-card__preview {
   align-items: center;
-  background: #f2f6fb;
-  color: #1677ff;
+  background: var(--color-surface-muted);
+  color: var(--color-brand);
   display: flex;
   flex: 0 0 132px;
   height: 132px;
@@ -73,7 +73,7 @@
 .asset-library-card__audio-wave span {
   animation: asset-library-audio-wave-pulse 1.25s ease-in-out infinite;
   animation-delay: calc(var(--bar-index) * -0.08s);
-  background: #2584ff;
+  background: var(--color-brand);
   border-radius: 999px;
   display: block;
   height: 28px;
@@ -126,10 +126,10 @@
 
 .asset-library-card__preview-audio-button {
   align-items: center;
-  background: rgba(15, 23, 42, 0.72);
+  background: rgb(var(--color-shadow-rgb) / 0.72);
   border: 0;
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--color-white);
   cursor: pointer;
   display: inline-flex;
   height: 32px;
@@ -153,12 +153,12 @@
 
 .asset-library-card__preview-audio-button:hover,
 .asset-library-card__preview-audio-button:focus-visible {
-  background: rgba(15, 23, 42, 0.82);
+  background: rgb(var(--color-shadow-rgb) / 0.82);
   outline: none;
 }
 
 .asset-library-card__title {
-  color: #1f2937;
+  color: var(--color-neutral-800);
   display: block;
   font-size: 15px;
   font-weight: 700;
@@ -171,20 +171,20 @@
 }
 
 .asset-library-card__description {
-  color: #64748b;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .asset-library-card__status {
-  color: #2563eb;
+  color: var(--color-brand-active);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.5;
 }
 
 .asset-library-card__meta {
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -233,9 +233,9 @@
 
 .asset-library-card__create-icon {
   align-items: center;
-  background: #f0f3f8;
+  background: var(--color-neutral-100);
   border-radius: 999px;
-  color: #9aa5b3;
+  color: var(--color-neutral-400);
   display: flex;
   height: 56px;
   justify-content: center;
@@ -244,14 +244,14 @@
 }
 
 .asset-library-card__create-title {
-  color: #2b3440;
+  color: var(--color-button-text);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.4;
 }
 
 .asset-library-card__create-description {
-  color: #8a95a5;
+  color: var(--color-neutral-400);
   font-size: 13px;
   line-height: 1.5;
   margin-top: 8px;

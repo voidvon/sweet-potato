@@ -5,10 +5,10 @@
 }
 
 .image-attachment-stack-item {
-  background: #f2f4f7;
-  border: 1px solid #ffffff;
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-white);
   border-radius: 14px;
-  box-shadow: -2px 3px 3px 1px #0000000d;
+  box-shadow: -2px 3px 3px 1px rgb(var(--color-black-rgb) / 0.051);
   box-sizing: border-box;
   display: block;
   height: 92px;
@@ -29,9 +29,9 @@
 }
 
 .image-attachment-stack-shadow {
-  background: #f2f4f7;
+  background: var(--color-neutral-100);
   border-radius: inherit;
-  box-shadow: 0 8px 12px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 8px 12px rgb(var(--color-shadow-rgb) / 0.22);
   inset: 0;
   position: absolute;
 }
@@ -50,7 +50,7 @@
 }
 
 .image-attachment-stack-frame::after {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 100%);
+  background: linear-gradient(to top, rgb(var(--color-black-rgb) / 0.55) 0%, rgb(var(--color-black-rgb) / 0) 100%);
   bottom: 0;
   content: '';
   height: 18px;
@@ -61,12 +61,12 @@
 }
 
 .image-attachment-stack-mask {
-  background: #f2f4f7;
+  background: var(--color-neutral-100);
   z-index: 1;
 }
 
 .image-attachment-grid-item {
-  background: #f2f4f7;
+  background: var(--color-neutral-100);
 }
 
 .image-attachment-stack-item .ant-image,
@@ -81,8 +81,8 @@
 
 .image-attachment-unavailable {
   align-items: center;
-  background: #f2f4f7;
-  color: #667085;
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
   display: flex;
   flex-direction: column;
   font-size: 10px;
@@ -105,7 +105,7 @@
 
 .image-attachment-stack-index {
   bottom: 3px;
-  color: #ffffff;
+  color: var(--color-white);
   font-size: 10px;
   font-weight: 800;
   left: 0;
@@ -118,8 +118,8 @@
 
 .image-attachment-uploading {
   align-items: center;
-  background: rgba(15, 23, 42, 0.42);
-  color: #ffffff;
+  background: rgb(var(--color-shadow-rgb) / 0.42);
+  color: var(--color-white);
   display: flex;
   inset: 0;
   justify-content: center;

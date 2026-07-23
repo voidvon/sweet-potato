@@ -24,7 +24,7 @@
 }
 
 .range-popover-filter__label {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -41,7 +41,7 @@
 }
 
 .range-popover-filter__separator {
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   font-size: 12px;
   line-height: 1;
 }
@@ -114,7 +114,7 @@
 }
 
 .xingtu-price-quote-filter__label {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   flex: 0 0 auto;
   font-size: 12px;
   line-height: 26px;
@@ -122,10 +122,10 @@
 
 .xingtu-price-quote-filter__select {
   align-items: center;
-  background: #fff;
-  border: 1px solid #d9d9d9;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-300);
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--color-neutral-600);
   cursor: pointer;
   display: inline-flex;
   flex: 0 1 auto;
@@ -138,8 +138,8 @@
 }
 
 .xingtu-price-quote-filter__select.is-selected {
-  border-color: #1677ff;
-  color: #1677ff;
+  border-color: var(--color-brand);
+  color: var(--color-brand);
 }
 
 .xingtu-price-quote-filter__select-control {

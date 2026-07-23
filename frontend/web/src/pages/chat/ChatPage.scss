@@ -9,7 +9,6 @@
   --image-accent-hover: var(--color-brand-hover);
   --image-accent-soft: var(--color-brand-soft);
   --image-accent-border: var(--color-brand-border);
-  background: var(--chat-bg);
   color: var(--chat-text);
   display: flex;
   flex: 1 1 auto;
@@ -86,11 +85,11 @@
 .chat-page .video-workbench-footer::before {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0) 0,
-    rgba(255, 255, 255, 0.48) 44%,
-    rgba(255, 255, 255, 0.82) 70%,
-    rgba(255, 255, 255, 0.96) 88%,
-    #ffffff 100%
+    rgb(var(--color-white-rgb) / 0) 0,
+    rgb(var(--color-white-rgb) / 0.48) 44%,
+    rgb(var(--color-white-rgb) / 0.82) 70%,
+    rgb(var(--color-white-rgb) / 0.96) 88%,
+    var(--color-white) 100%
   );
   bottom: 100%;
   content: "";
@@ -175,7 +174,7 @@
 }
 
 .chat-page .chat-session-preview {
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   display: block;
   flex: 1 1 auto;
   font-size: 12px;

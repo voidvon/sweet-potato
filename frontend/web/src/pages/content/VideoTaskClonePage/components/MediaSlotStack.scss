@@ -18,11 +18,11 @@
 
 .video-task-stack-item,
 .media-slot-popover__item {
-  background: #f1f5f9;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: var(--color-surface-muted);
+  border: 1px solid rgb(var(--color-white-rgb) / 0.9);
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
-  color: #cbd5e1;
+  box-shadow: 0 2px 8px rgb(var(--color-shadow-rgb) / 0.1);
+  color: var(--color-neutral-300);
   cursor: pointer;
   height: 92px;
   left: 0;
@@ -37,38 +37,38 @@
 
 .video-task-stack-item.is-audio,
 .media-slot-popover__item:has(.video-task-audio-preview-inner) {
-  background: #fffbeb;
-  border-color: rgba(255, 255, 255, 0.95);
+  background: var(--color-warning-soft);
+  border-color: rgb(var(--color-white-rgb) / 0.95);
 }
 
 .video-task-stack-item:hover,
 .media-slot-popover__item:hover {
-  box-shadow: 0 10px 24px rgba(22, 119, 255, 0.18);
+  box-shadow: 0 10px 24px rgb(var(--color-brand-rgb) / 0.18);
 }
 
 .video-task-stack-item.is-leading-add,
 .media-slot-popover__item.is-leading-add {
   align-items: center;
-  background: #f8fafc;
-  border: 1px dashed #b9c7da;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-300);
   box-shadow: none;
-  color: #91a2bb;
+  color: var(--color-text-tertiary);
   display: flex;
   justify-content: center;
 }
 
 .video-task-stack-item.is-leading-add:hover,
 .media-slot-popover__item.is-leading-add:hover {
-  background: #f3f7fc;
-  border-color: #79a8ef;
+  background: var(--color-surface-muted);
+  border-color: var(--color-text-tertiary);
   box-shadow: none;
-  color: #397ee8;
+  color: var(--color-brand);
 }
 
 .video-task-stack-item.is-leading-add:focus-visible,
 .media-slot-popover__item.is-leading-add:focus-visible {
-  border-color: #79a8ef;
-  outline: 2px solid rgba(57, 126, 232, 0.2);
+  border-color: var(--color-text-tertiary);
+  outline: 2px solid rgb(var(--color-brand-rgb) / 0.2);
   outline-offset: 2px;
 }
 
@@ -116,9 +116,9 @@
 }
 
 .video-task-stack-caption {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  background: linear-gradient(to top, rgb(var(--color-black-rgb) / 0.55), transparent);
   bottom: 0;
-  color: #fff;
+  color: var(--color-white);
   font-size: 10px;
   font-weight: 500;
   left: 0;
@@ -132,11 +132,11 @@
 
 .video-task-slot-delete {
   align-items: center;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgb(var(--color-black-rgb) / 0.65);
   border: 0;
   border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-  color: #fff;
+  box-shadow: 0 1px 3px rgb(var(--color-black-rgb) / 0.1), 0 1px 2px -1px rgb(var(--color-black-rgb) / 0.1);
+  color: var(--color-white);
   display: flex;
   height: 24px;
   justify-content: center;
@@ -150,12 +150,12 @@
 }
 
 .video-task-slot-delete:hover {
-  background: rgba(0, 0, 0, 0.85);
+  background: rgb(var(--color-black-rgb) / 0.85);
 }
 
 .video-task-audio-preview-inner {
   align-items: center;
-  background: #fffbeb;
+  background: var(--color-warning-soft);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -167,10 +167,10 @@
 
 .video-task-audio-play {
   align-items: center;
-  background: #f59e0b;
+  background: var(--color-warning-bright);
   border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(146, 64, 14, 0.1);
-  color: #fff;
+  box-shadow: 0 1px 3px rgb(var(--color-rose-shadow-rgb) / 0.1);
+  color: var(--color-white);
   display: flex;
   height: 28px;
   justify-content: center;
@@ -179,15 +179,15 @@
 }
 
 .media-slot-popover__item:hover .video-task-audio-play {
-  background: #d97706;
+  background: var(--color-warning);
 }
 
 .video-task-audio-play.is-playing {
-  background: #f59e0b;
+  background: var(--color-warning-bright);
 }
 
 .video-task-audio-name {
-  color: #78350f;
+  color: var(--color-warning-strong);
   display: -webkit-box;
   font-size: 9px;
   font-weight: 500;
@@ -201,10 +201,10 @@
 }
 
 .video-task-audio-duration {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(var(--color-white-rgb) / 0.8);
   border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(146, 64, 14, 0.1);
-  color: #b45309;
+  box-shadow: 0 1px 3px rgb(var(--color-rose-shadow-rgb) / 0.1);
+  color: var(--color-warning-strong);
   font-size: 9px;
   font-weight: 520;
   line-height: 9px;

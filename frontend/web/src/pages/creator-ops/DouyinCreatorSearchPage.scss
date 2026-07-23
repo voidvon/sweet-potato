@@ -18,7 +18,7 @@
 
 .douyin-account-trigger.ant-btn {
   align-items: center;
-  background-color: #edf2f8;
+  background-color: var(--color-border-subtle);
   border: 1px solid transparent;
   border-radius: 999px;
   box-sizing: border-box;
@@ -38,7 +38,7 @@
 .douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
 .douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
 .douyin-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
-  background-color: #e3ebf5;
+  background-color: var(--color-border-subtle);
   border: 1px solid transparent;
   box-shadow: none;
   outline: none;
@@ -46,9 +46,9 @@
 
 .douyin-account-trigger-avatar {
   align-items: center;
-  background: #111827;
+  background: var(--color-neutral-900);
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-white);
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 16px;
@@ -66,7 +66,7 @@
 }
 
 .douyin-account-trigger .anticon {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   flex: 0 0 auto;
   font-size: 12px;
   margin-left: 8px;
@@ -81,8 +81,8 @@
 
 .douyin-spotlight-bar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgb(var(--color-white-rgb) / 0.92);
+  border: 1px solid rgb(var(--color-shadow-rgb) / 0.08);
   border-radius: 999px;
   display: grid;
   gap: 8px;
@@ -137,11 +137,11 @@
 }
 
 .douyin-account-item:hover {
-  background: #f5f7fb;
+  background: var(--color-surface-muted);
 }
 
 .douyin-account-item.selected {
-  background: #eef4ff;
+  background: var(--color-brand-soft);
 }
 
 .douyin-account-name {
@@ -159,7 +159,7 @@
 }
 
 .douyin-account-backstage.ant-btn {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   flex: 0 0 auto;
 }
 
@@ -203,7 +203,7 @@
 }
 
 .douyin-results-toolbar-meta {
-  color: #4b5563;
+  color: var(--color-neutral-600);
   font-size: 13px;
 }
 
@@ -212,7 +212,7 @@
 }
 
 .douyin-search-results-table {
-  background: #fff;
+  background: var(--color-white);
   border-radius: 8px;
   flex: 1 1 auto;
   max-width: 100%;
@@ -235,18 +235,18 @@
 }
 
 .douyin-search-results-table .ant-table-thead > tr > th {
-  color: #374151;
+  color: var(--color-neutral-700);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .douyin-search-results-table .ant-table-selection-column {
-  background: #fff;
+  background: var(--color-white);
 }
 
 .douyin-search-results-table .ant-table-tbody > tr > td {
-  color: #4b5563;
+  color: var(--color-neutral-600);
 }
 
 .douyin-search-results-table .ant-table-container {
@@ -283,18 +283,18 @@
 }
 
 .douyin-favorite-button.ant-btn {
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   min-width: 0;
 }
 
 .douyin-favorite-button.ant-btn:hover,
 .douyin-favorite-button.ant-btn:focus,
 .douyin-favorite-button.ant-btn:focus-visible {
-  color: #f59e0b;
+  color: var(--color-warning-bright);
 }
 
 .douyin-favorite-button.ant-btn.is-active {
-  color: #f59e0b;
+  color: var(--color-warning-bright);
 }
 
 @media (max-width: 900px) {

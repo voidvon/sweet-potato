@@ -8,9 +8,9 @@
 
 .douyin-cell-avatar {
   align-items: center;
-  background: #e5e7eb;
+  background: var(--color-neutral-200);
   border-radius: 999px;
-  color: #111827;
+  color: var(--color-neutral-900);
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 16px;
@@ -59,7 +59,7 @@
 }
 
 .douyin-cell-creator-title {
-  color: #111827;
+  color: var(--color-neutral-900);
   font-weight: 600;
   margin-bottom: 4px;
 }
@@ -75,7 +75,7 @@
 .douyin-cell-link-text:hover,
 .douyin-cell-link-text:focus,
 .douyin-cell-link-text:focus-visible {
-  color: #1677ff;
+  color: var(--color-brand);
   outline: none;
 }
 
@@ -101,9 +101,9 @@
 
 .xingtu-cell-avatar {
   align-items: center;
-  background: #eef2ff;
+  background: var(--color-brand-soft);
   border-radius: 999px;
-  color: #1d4ed8;
+  color: var(--color-brand-active);
   display: inline-flex;
   flex: 0 0 auto;
   height: 40px;
@@ -133,7 +133,7 @@
 
 .xingtu-cell-creator-title {
   align-items: center;
-  color: #111827;
+  color: var(--color-neutral-900);
   display: flex;
   font-size: 13px;
   font-weight: 600;
@@ -163,9 +163,9 @@
 
 .xingtu-cell-creator-badges .ant-tag,
 .xingtu-cell-topics .ant-tag {
-  background: #f5f7fa;
+  background: var(--color-surface-muted);
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--color-neutral-600);
   font-size: 12px;
   line-height: 18px;
   margin-inline-end: 0;
@@ -174,7 +174,7 @@
 
 .xingtu-cell-creator-icon-tag {
   align-items: center;
-  background: #fff7e6;
+  background: var(--color-warning-soft);
   border-radius: 6px;
   display: inline-flex;
   height: 18px;

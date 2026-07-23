@@ -6,6 +6,32 @@ import 'antd/dist/reset.css';
 import App from './App';
 import './styles.scss';
 
+function resolveCssColor(token: string) {
+  const probe = document.createElement('span');
+  probe.style.color = `var(${token})`;
+  probe.style.display = 'none';
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color;
+}
+
+const themeColors = {
+  brand: resolveCssColor('--color-brand'),
+  brandBorder: resolveCssColor('--color-brand-border'),
+  brandHover: resolveCssColor('--color-brand-hover'),
+  brandSoft: resolveCssColor('--color-brand-soft'),
+  brandSoftStrong: resolveCssColor('--color-brand-soft-strong'),
+  danger: resolveCssColor('--color-danger'),
+  neutral100: resolveCssColor('--color-neutral-100'),
+  neutral500: resolveCssColor('--color-neutral-500'),
+  neutral900: resolveCssColor('--color-neutral-900'),
+  onBrand: resolveCssColor('--color-on-brand'),
+  success: resolveCssColor('--color-success'),
+  surfaceSubtle: resolveCssColor('--color-surface-subtle'),
+  warning: resolveCssColor('--color-warning'),
+};
+
 const loadingElement = document.getElementById('loadingPage');
 if (loadingElement) {
   loadingElement.remove();
@@ -32,25 +58,38 @@ createRoot(rootElement).render(
           Button: {
             contentFontSizeLG: 13,
             controlHeightLG: 38,
+            primaryColor: themeColors.onBrand,
           },
           Input: {
             borderRadiusLG: 16,
-            colorBorder: '#eeeff0',
+            colorBorder: themeColors.neutral100,
             inputFontSizeLG: 13,
+          },
+          Menu: {
+            darkItemColor: themeColors.neutral500,
+            darkItemHoverBg: themeColors.brandSoft,
+            darkItemSelectedBg: themeColors.brandSoftStrong,
+            darkItemSelectedColor: themeColors.brandHover,
+            itemHoverBg: themeColors.brandSoft,
+            itemSelectedBg: themeColors.brandSoftStrong,
+            itemSelectedColor: themeColors.brandHover,
           },
           Modal: {
             borderRadiusLG: 22,
           },
         },
         token: {
-          colorBgLayout: '#f5faff',
-          colorError: '#dc2626',
-          colorInfo: '#1677ff',
-          colorPrimary: '#1677ff',
-          colorSuccess: '#15803d',
-          colorText: '#101828',
-          colorTextSecondary: '#667085',
-          colorWarning: '#d97706',
+          colorBgLayout: themeColors.surfaceSubtle,
+          colorError: themeColors.danger,
+          colorInfo: themeColors.brand,
+          colorPrimary: themeColors.brand,
+          colorSuccess: themeColors.success,
+          colorText: themeColors.neutral900,
+          colorTextSecondary: themeColors.neutral500,
+          colorWarning: themeColors.warning,
+          controlItemBgActive: themeColors.brandSoftStrong,
+          controlItemBgActiveHover: themeColors.brandBorder,
+          controlItemBgHover: themeColors.brandSoft,
         },
       }}
     >

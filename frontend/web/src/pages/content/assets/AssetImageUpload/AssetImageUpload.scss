@@ -42,7 +42,7 @@
 }
 
 .photo-upload-antd .ant-upload-list-picture-card .ant-upload-list-item-name {
-  background: rgba(255, 255, 255, 0.94);
+  background: rgb(var(--color-white-rgb) / 0.94);
   bottom: 0;
   color: var(--text-secondary);
   font-size: 12px;

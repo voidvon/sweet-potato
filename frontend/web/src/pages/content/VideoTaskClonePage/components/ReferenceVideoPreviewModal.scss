@@ -12,10 +12,10 @@
 
 .vc-create__preview-modal .ant-modal-close {
   align-items: center;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgb(var(--color-white-rgb) / 0.95);
   border-radius: 999px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
-  color: #0f172a;
+  box-shadow: 0 8px 22px rgb(var(--color-shadow-rgb) / 0.18);
+  color: var(--color-neutral-950);
   display: flex;
   height: 40px;
   justify-content: center;
@@ -26,8 +26,8 @@
 }
 
 .vc-create__preview-modal .ant-modal-close:hover {
-  background: #fff;
-  color: #0f172a;
+  background: var(--color-white);
+  color: var(--color-neutral-950);
 }
 
 .vc-create__preview-shell button {
@@ -42,7 +42,7 @@
 
 .video-task-asset-player {
   align-items: center;
-  background: #080b12;
+  background: var(--color-black);
   border-radius: 22px;
   display: flex;
   height: 100%;
@@ -53,7 +53,7 @@
 }
 
 .video-task-asset-player__video {
-  background: #000;
+  background: var(--color-black);
   height: 100%;
   object-fit: contain;
   width: 100%;
@@ -61,11 +61,11 @@
 
 .video-task-asset-player__mute-pill {
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgb(var(--color-white-rgb) / 0.92);
   border: 0;
   border-radius: 999px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-  color: #111827;
+  box-shadow: 0 1px 2px rgb(var(--color-shadow-rgb) / 0.08);
+  color: var(--color-neutral-900);
   cursor: pointer;
   display: inline-flex;
   font-size: 12px;
@@ -80,7 +80,7 @@
 }
 
 .video-task-asset-player__controls {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+  background: linear-gradient(to top, rgb(var(--color-black-rgb) / 0.78), rgb(var(--color-black-rgb) / 0.28), transparent);
   bottom: 0;
   left: 0;
   padding: 36px 16px 10px;
@@ -91,12 +91,12 @@
 }
 
 .video-task-asset-player__controls-inner {
-  color: rgba(255, 255, 255, 0.92);
+  color: rgb(var(--color-white-rgb) / 0.92);
   pointer-events: auto;
 }
 
 .asset-video-player-range {
-  accent-color: #fff;
+  accent-color: var(--color-white);
   cursor: pointer;
   height: 12px;
 }
@@ -118,7 +118,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgb(var(--color-white-rgb) / 0.9);
   display: inline-flex;
   height: 24px;
   justify-content: center;
@@ -128,11 +128,11 @@
 }
 
 .video-task-asset-player__icon-btn:hover {
-  color: #fff;
+  color: var(--color-white);
 }
 
 .video-task-asset-player__time {
-  color: rgba(255, 255, 255, 0.88);
+  color: rgb(var(--color-white-rgb) / 0.88);
   font-size: 11px;
   font-weight: 700;
   min-width: 5.8rem;

@@ -9,15 +9,15 @@
 }
 
 .claw-dialog-card {
-  background: #ffffff;
-  border: 1px solid var(--chat-border, #d7e8fa);
+  background: var(--color-white);
+  border: 1px solid var(--chat-border, var(--color-border));
   border-radius: 18px;
-  box-shadow: 0 8px 19px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 19px rgb(var(--color-shadow-rgb) / 0.06);
 }
 
 .claw-dialog-heading {
-  border-bottom: 1px solid #e2eef9;
-  color: #171717;
+  border-bottom: 1px solid var(--color-brand-soft);
+  color: var(--color-black);
   font-size: 14px;
   line-height: 1.45;
   padding: 14px 20px;
@@ -25,7 +25,7 @@
 
 .claw-dialog-input-zone {
   align-items: start;
-  border-bottom: 1px solid #e2eef9;
+  border-bottom: 1px solid var(--color-brand-soft);
   display: grid;
   gap: 18px;
   grid-template-columns: auto minmax(0, 1fr);
@@ -33,9 +33,9 @@
 }
 
 .claw-dialog-hint {
-  background: #f3f9ff;
+  background: var(--color-surface-subtle);
   border-radius: 9px;
-  color: #182230;
+  color: var(--color-neutral-800);
   font-size: 12px;
   line-height: 1.45;
   margin: 12px 20px 0 16px;
@@ -56,7 +56,7 @@
 
 .claw-reference-group-bridge {
   align-items: center;
-  color: #98a2b3;
+  color: var(--color-neutral-400);
   display: inline-flex;
   flex: 0 0 auto;
   height: 100%;
@@ -79,10 +79,10 @@
 .claw-reference-empty,
 .claw-reference-add {
   align-items: center;
-  background: #f2f3f7;
+  background: var(--color-neutral-100);
   border: 0;
   border-radius: 12px;
-  color: #8c99aa;
+  color: var(--color-neutral-400);
   cursor: pointer;
   transition: background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
@@ -108,8 +108,8 @@
 
 .claw-reference-empty:hover:not(:disabled),
 .claw-reference-add:hover:not(:disabled) {
-  background: #ebedf2;
-  box-shadow: 0 7px 13px rgba(15, 23, 42, 0.1);
+  background: var(--color-border-subtle);
+  box-shadow: 0 7px 13px rgb(var(--color-shadow-rgb) / 0.1);
   transform: translateY(-1px);
 }
 
@@ -120,10 +120,10 @@
 }
 
 .claw-reference-badge {
-  background: #ffffff;
+  background: var(--color-white);
   border-radius: 999px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
-  color: #7a8798;
+  box-shadow: 0 6px 14px rgb(var(--color-shadow-rgb) / 0.08);
+  color: var(--color-neutral-500);
   font-size: 9px;
   font-weight: 800;
   left: 6px;
@@ -134,17 +134,17 @@
 }
 
 .claw-reference-label {
-  color: #6d7785;
+  color: var(--color-neutral-500);
   font-size: 10.5px;
   line-height: 1;
 }
 
 .image-attachment-stack-frame .claw-reference-remove {
   align-items: center;
-  background: rgba(15, 23, 42, 0.74);
+  background: rgb(var(--color-shadow-rgb) / 0.74);
   border: 0;
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--color-white);
   cursor: pointer;
   display: inline-flex;
   height: 20px;
@@ -170,7 +170,7 @@
 
 .claw-dialog-mode-hint {
   align-self: center;
-  color: #182230;
+  color: var(--color-neutral-800);
   font-size: 14px;
   line-height: 1.55;
   min-width: 0;
@@ -180,7 +180,7 @@
   background: transparent;
   border: 0;
   border-radius: 0;
-  color: #182230;
+  color: var(--color-neutral-800);
   line-height: 1.55;
   overflow: visible;
 }
@@ -223,10 +223,10 @@
 
 .claw-option-button.ant-btn {
   align-items: center;
-  border-color: #e5e7eb;
+  border-color: var(--color-neutral-200);
   border-radius: 9px;
   box-shadow: none;
-  color: #171717;
+  color: var(--color-black);
   display: inline-flex;
   font-size: 12px;
   font-weight: 800;
@@ -236,14 +236,14 @@
 }
 
 .claw-option-button.is-active.ant-btn {
-  background: var(--image-accent-soft, #eaf4ff);
-  border-color: var(--image-accent-border, #b9ddff);
-  color: var(--image-accent-hover, #1677ff);
+  background: var(--image-accent-soft, var(--color-brand-soft));
+  border-color: var(--image-accent-border, var(--color-brand-border));
+  color: var(--image-accent-hover, var(--color-brand));
 }
 
 .claw-option-button .ant-btn-icon {
   align-items: center;
-  background: rgba(255, 255, 255, 0.76);
+  background: rgb(var(--color-white-rgb) / 0.76);
   border-radius: 4px;
   display: inline-flex;
   height: 19px;
@@ -252,7 +252,7 @@
 }
 
 .claw-option-divider {
-  background: #d9d9d9;
+  background: var(--color-neutral-300);
   height: 15px;
   width: 1px;
 }
@@ -271,7 +271,7 @@
 }
 
 .claw-mode-dropdown .ant-dropdown-menu-item-selected {
-  background: #eaf4ff;
+  background: var(--color-brand-soft);
 }
 
 .claw-mode-menu-item {
@@ -284,9 +284,9 @@
 
 .claw-mode-menu-icon {
   align-items: center;
-  background: #f3f4f6;
+  background: var(--color-neutral-100);
   border-radius: 6px;
-  color: #111827;
+  color: var(--color-neutral-900);
   display: inline-flex;
   height: 24px;
   justify-content: center;
@@ -294,7 +294,7 @@
 }
 
 .claw-mode-dropdown .ant-dropdown-menu-item-selected .claw-mode-menu-icon {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgb(var(--color-white-rgb) / 0.78);
 }
 
 .claw-mode-menu-copy {
@@ -308,7 +308,7 @@
 }
 
 .claw-mode-menu-copy span {
-  color: #171717;
+  color: var(--color-black);
   font-size: 12px;
   line-height: 1.2;
 }
@@ -331,26 +331,26 @@
 }
 
 .claw-background-menu-title {
-  color: #171717;
+  color: var(--color-black);
   font-size: 13px;
   line-height: 1.25;
 }
 
 .claw-background-menu-description {
-  color: #737373;
+  color: var(--color-neutral-500);
   font-size: 11px;
   line-height: 1.35;
   white-space: normal;
 }
 
 .claw-image-model-dropdown .ant-dropdown-menu-item-selected {
-  background: #eaf4ff;
+  background: var(--color-brand-soft);
 }
 
 .claw-size-popover .ant-popover-inner {
-  background: #ffffff;
+  background: var(--color-white);
   border-radius: 15px;
-  box-shadow: 0 10px 23px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 10px 23px rgb(var(--color-shadow-rgb) / 0.14);
   padding: 0;
 }
 
@@ -371,7 +371,7 @@
 }
 
 .claw-size-panel-section h3 {
-  color: #7b8794;
+  color: var(--color-neutral-500);
   font-size: 11px;
   line-height: 1.2;
   margin: 0;
@@ -386,10 +386,10 @@
 .claw-aspect-option,
 .claw-resolution-option {
   align-items: center;
-  background: #f5f6f9;
+  background: var(--color-neutral-100);
   border: 1px solid transparent;
   border-radius: 7px;
-  color: #111827;
+  color: var(--color-neutral-900);
   cursor: pointer;
   display: inline-grid;
   justify-items: center;
@@ -408,13 +408,13 @@
 
 .claw-aspect-option.selected,
 .claw-resolution-option.selected {
-  background: #eaf4ff;
-  border-color: #91caff;
-  color: #1677ff;
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+  color: var(--color-brand);
 }
 
 .claw-aspect-icon {
-  border: 1px solid #111827;
+  border: 1px solid var(--color-neutral-900);
   border-radius: 2px;
   display: block;
   height: 10px;
@@ -479,9 +479,9 @@
 
 .claw-canvas-size-row {
   align-items: center;
-  background: #f5f6f9;
+  background: var(--color-neutral-100);
   border-radius: 7px;
-  color: #7b8794;
+  color: var(--color-neutral-500);
   display: flex;
   font-size: 11px;
   justify-content: space-between;
@@ -490,24 +490,24 @@
 }
 
 .claw-canvas-size-row strong {
-  color: #111827;
+  color: var(--color-neutral-900);
   font-size: 11px;
 }
 
 .claw-prompt-status {
-  color: #111827;
+  color: var(--color-neutral-900);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .claw-prompt-status.ready {
-  color: var(--image-accent-hover, #1677ff);
+  color: var(--image-accent-hover, var(--color-brand));
 }
 
 .claw-credit {
   align-items: center;
-  color: #171717;
+  color: var(--color-black);
   display: inline-flex;
   font-size: 12px;
   font-weight: 800;
@@ -516,16 +516,16 @@
 }
 
 .claw-credit svg {
-  color: #ff9500;
+  color: var(--color-warning-bright);
 }
 
 .claw-send-button.ant-btn {
   align-items: center;
-  background: #ececec;
+  background: var(--color-sidebar-hover);
   border: 0;
   border-radius: 999px;
   box-shadow: none;
-  color: #6d7785;
+  color: var(--color-neutral-500);
   display: inline-flex;
   height: 36px;
   justify-content: center;
@@ -535,16 +535,16 @@
 }
 
 .claw-send-button.ant-btn:not(:disabled) {
-  background: var(--image-accent, #2f80ed);
-  color: #ffffff;
+  background: var(--image-accent, var(--color-brand));
+  color: var(--color-white);
 }
 
 .claw-send-button.ant-btn:not(:disabled):hover {
-  background: var(--image-accent-hover, #1677ff);
+  background: var(--image-accent-hover, var(--color-brand));
 }
 
 .claw-send-button.ant-btn:disabled {
-  color: #7b8794;
+  color: var(--color-neutral-500);
 }
 
 .claw-feature-grid {
@@ -555,10 +555,10 @@
 
 .claw-feature-card {
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #dedede;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 13px;
-  color: #171717;
+  color: var(--color-black);
   cursor: pointer;
   display: grid;
   gap: 10px;
@@ -572,25 +572,25 @@
 
 .claw-feature-card:hover,
 .claw-feature-card.selected {
-  border-color: var(--image-accent-border, #b9ddff);
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+  border-color: var(--image-accent-border, var(--color-brand-border));
+  box-shadow: 0 6px 14px rgb(var(--color-shadow-rgb) / 0.06);
   transform: translateY(-1px);
 }
 
 .claw-feature-card.selected {
-  background: #f5faff;
+  background: var(--color-surface-subtle);
 }
 
 .claw-feature-card.selected .claw-feature-icon {
-  background: var(--image-accent-soft, #eaf4ff);
-  color: var(--image-accent-hover, #1677ff);
+  background: var(--image-accent-soft, var(--color-brand-soft));
+  color: var(--image-accent-hover, var(--color-brand));
 }
 
 .claw-feature-icon {
   align-items: center;
-  background: #f3f4f6;
+  background: var(--color-neutral-100);
   border-radius: 9px;
-  color: #111827;
+  color: var(--color-neutral-900);
   display: inline-flex;
   height: 38px;
   justify-content: center;
@@ -609,7 +609,7 @@
 }
 
 .claw-feature-copy small {
-  color: #646464;
+  color: var(--color-neutral-500);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
@@ -617,9 +617,9 @@
 
 .claw-feature-check {
   align-items: center;
-  background: var(--image-accent, #2f80ed);
+  background: var(--image-accent, var(--color-brand));
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--color-white);
   display: inline-flex;
   height: 16px;
   justify-content: center;

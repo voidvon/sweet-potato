@@ -210,7 +210,7 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
   const audioFiles = localFiles(state.talkingVideoGenerationMaterials.audio);
   const selectedAudio = audioFiles[0];
   const audioItems = useMemo(() => audioFiles.map((file): MediaSlotItem => ({
-    background: '#f3f7fc',
+    background: 'var(--color-surface-muted)',
     caption: '口播',
     detail: file.audioDuration ? `${Math.round(file.audioDuration)}s` : '音频',
     id: file.id,

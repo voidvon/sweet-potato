@@ -31,6 +31,22 @@ body {
   font-size: 12px;
 }
 
+// Keep every Ant Design dropdown menu aligned with the pink brand palette.
+.ant-dropdown-menu .ant-dropdown-menu-item:hover,
+.ant-dropdown-menu .ant-dropdown-menu-item-active,
+.ant-dropdown-menu .ant-dropdown-menu-submenu-title:hover,
+.ant-dropdown-menu .ant-dropdown-menu-submenu-title-active {
+  background-color: var(--color-brand-soft);
+}
+
+.ant-dropdown-menu .ant-dropdown-menu-item-selected,
+.ant-dropdown-menu .ant-dropdown-menu-item-selected:hover,
+.ant-dropdown-menu .ant-dropdown-menu-submenu-title-selected,
+.ant-dropdown-menu .ant-dropdown-menu-submenu-title-selected:hover {
+  background-color: var(--color-brand-soft-strong);
+  color: var(--color-brand-hover);
+}
+
 // Keep context-based, static, and locally customized Ant Design modals consistent.
 .ant-modal .ant-modal-container,
 .ant-modal .ant-modal-content {
@@ -38,19 +54,19 @@ body {
 }
 
 .ant-modal .ant-modal-close {
-  background-color: #f2f4f7 !important;
+  background-color: var(--color-neutral-100) !important;
   border-radius: 50% !important;
   transform: translate(-6px, 6px);
 }
 
 .ant-modal .ant-modal-close:hover {
-  background-color: #e4e7ec !important;
+  background-color: var(--color-neutral-200) !important;
 }
 
 // Blur the page behind every Ant Design modal and ease the blur in with the mask.
 .ant-modal-root .ant-modal-mask {
   -webkit-backdrop-filter: blur(10px);
-  background-color: rgba(0, 0, 0, 0.45);
+  background-color: rgb(var(--color-black-rgb) / 0.45);
   backdrop-filter: blur(10px);
   opacity: 1 !important;
 }
@@ -74,7 +90,7 @@ body {
 }
 
 * {
-  scrollbar-color: rgba(102, 112, 133, 0.32) transparent;
+  scrollbar-color: rgb(var(--color-text-muted-rgb) / 0.32) transparent;
   scrollbar-width: thin;
 }
 
@@ -88,12 +104,12 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(102, 112, 133, 0.32);
+  background: rgb(var(--color-text-muted-rgb) / 0.32);
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(71, 84, 103, 0.44);
+  background: rgb(var(--color-rose-shadow-rgb) / 0.44);
 }
 
 #root {
@@ -138,7 +154,7 @@ h2 {
 
 .notice {
   background: var(--color-success-soft);
-  border: 1px solid color-mix(in srgb, var(--color-success) 24%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--color-success) 24%, var(--color-white));
   border-radius: 7px;
   color: var(--color-success);
   margin: 18px 0 0;
@@ -147,7 +163,7 @@ h2 {
 
 .page-request-loading {
   align-items: center;
-  background: rgba(248, 250, 252, 0.62);
+  background: rgb(var(--color-white-rgb) / 0.62);
   backdrop-filter: blur(5px);
   border-radius: inherit;
   display: flex;
@@ -169,11 +185,11 @@ h2 {
 
 .page-request-loading-card {
   align-items: center;
-  background: rgba(17, 24, 39, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgb(var(--color-shadow-rgb) / 0.9);
+  border: 1px solid rgb(var(--color-white-rgb) / 0.16);
   border-radius: 999px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
-  color: #ffffff;
+  box-shadow: 0 18px 48px rgb(var(--color-shadow-rgb) / 0.24);
+  color: var(--color-white);
   display: inline-flex;
   font-size: 12px;
   font-weight: 700;
@@ -221,13 +237,13 @@ h2 {
 @keyframes app-modal-mask-blur-in {
   from {
     -webkit-backdrop-filter: blur(0);
-    background-color: rgba(0, 0, 0, 0);
+    background-color: rgb(var(--color-black-rgb) / 0);
     backdrop-filter: blur(0);
   }
 
   to {
     -webkit-backdrop-filter: blur(10px);
-    background-color: rgba(0, 0, 0, 0.45);
+    background-color: rgb(var(--color-black-rgb) / 0.45);
     backdrop-filter: blur(10px);
   }
 }
@@ -235,13 +251,13 @@ h2 {
 @keyframes app-modal-mask-blur-out {
   from {
     -webkit-backdrop-filter: blur(10px);
-    background-color: rgba(0, 0, 0, 0.45);
+    background-color: rgb(var(--color-black-rgb) / 0.45);
     backdrop-filter: blur(10px);
   }
 
   to {
     -webkit-backdrop-filter: blur(0);
-    background-color: rgba(0, 0, 0, 0);
+    background-color: rgb(var(--color-black-rgb) / 0);
     backdrop-filter: blur(0);
   }
 }

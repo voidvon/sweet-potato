@@ -28,7 +28,7 @@
 }
 
 .option-popover-filter__group-label {
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -51,7 +51,7 @@
   background: transparent;
   border: 0;
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--color-neutral-600);
   cursor: pointer;
   display: inline-flex;
   font-size: 12px;
@@ -65,12 +65,12 @@
 }
 
 .option-popover-filter__option:hover {
-  background: #f7f8fa;
+  background: var(--color-neutral-50);
 }
 
 .option-popover-filter__option.is-selected {
-  background: #eef4ff;
-  color: #1677ff;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .option-popover-filter__option .anticon {

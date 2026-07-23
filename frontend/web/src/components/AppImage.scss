@@ -2,12 +2,12 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgb(var(--color-white-rgb) / 0.88);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
 }
 
 .app-image-preview-download:hover {
-  color: #fff;
+  color: var(--color-white);
 }

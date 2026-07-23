@@ -20,14 +20,14 @@
 }
 
 .rate-rule {
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 10px;
   padding: 16px 16px 2px;
 }
 
 .rate-rule-heading {
-  color: #344054;
+  color: var(--color-neutral-700);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 12px;

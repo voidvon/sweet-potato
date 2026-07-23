@@ -1,11 +1,11 @@
 .app-segmented-tabs.ant-segmented {
   --app-segmented-tabs-item-min-width: 60px;
 
-  background: #ffffff;
-  border: 1px solid #dce3ec;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 9999px;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-  color: #64748b;
+  box-shadow: 0 1px 4px rgb(var(--color-shadow-rgb) / 0.12);
+  color: var(--color-neutral-500);
   font-weight: 800;
 }
 
@@ -20,7 +20,7 @@
 .app-segmented-tabs.ant-segmented .ant-segmented-item,
 .app-segmented-tabs.ant-segmented.ant-segmented-lg .ant-segmented-item {
   border-radius: 9999px;
-  color: #64748b;
+  color: var(--color-neutral-500);
   min-width: var(--app-segmented-tabs-item-min-width);
 }
 
@@ -33,9 +33,9 @@
 .app-segmented-tabs.ant-segmented.ant-segmented-lg .ant-segmented-thumb,
 .app-segmented-tabs.ant-segmented .ant-segmented-item-selected,
 .app-segmented-tabs.ant-segmented.ant-segmented-lg .ant-segmented-item-selected {
-  background: #020617;
+  background: var(--color-neutral-900);
   border-radius: 9999px;
-  color: #ffffff;
+  color: var(--color-white);
 }
 
 .app-segmented-tabs.ant-segmented .ant-segmented-thumb,

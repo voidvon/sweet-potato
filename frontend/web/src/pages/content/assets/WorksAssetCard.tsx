@@ -171,7 +171,7 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
             <Button
               aria-label={`删除 ${asset.name}`}
               className="works-asset-card__delete-button"
-              icon={<Trash2 color="#ffffff" size={14} />}
+              icon={<Trash2 color="var(--color-white)" size={14} />}
               size="small"
               type="text"
             />

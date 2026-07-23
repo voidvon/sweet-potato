@@ -24,8 +24,8 @@
 
 .xingtu-spotlight-bar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgb(var(--color-white-rgb) / 0.92);
+  border: 1px solid rgb(var(--color-shadow-rgb) / 0.08);
   border-radius: 999px;
   display: grid;
   gap: 8px;
@@ -50,7 +50,7 @@
   border: 0;
   border-radius: 999px;
   box-shadow: none;
-  color: #6b7280;
+  color: var(--color-neutral-500);
   font-size: 12px;
   height: 34px;
   line-height: 34px;
@@ -62,14 +62,14 @@
 }
 
 .xingtu-search-mode-group.ant-radio-group .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
-  background: #eef4ff;
-  color: #1677ff;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
   font-weight: 600;
 }
 
 .xingtu-account-trigger.ant-btn {
   align-items: center;
-  background-color: #edf2f8;
+  background-color: var(--color-border-subtle);
   border: 1px solid transparent;
   border-radius: 999px;
   box-sizing: border-box;
@@ -89,14 +89,14 @@
 .xingtu-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
 .xingtu-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
 .xingtu-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
-  background-color: #e3ebf5;
+  background-color: var(--color-border-subtle);
   border: 1px solid transparent;
   box-shadow: none;
   outline: none;
 }
 
 .xingtu-account-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):active {
-  background-color: #d7e4f5;
+  background-color: var(--color-border);
   border: 1px solid transparent;
   box-shadow: none;
   outline: none;
@@ -104,9 +104,9 @@
 
 .xingtu-account-trigger-avatar {
   align-items: center;
-  background: #1677ff;
+  background: var(--color-brand);
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-white);
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 16px;
@@ -134,7 +134,7 @@
 }
 
 .xingtu-account-trigger .anticon {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   flex: 0 0 auto;
   font-size: 12px;
   margin-left: 8px;
@@ -182,12 +182,12 @@
 }
 
 .xingtu-account-item:hover {
-  background: #f5f7fb;
+  background: var(--color-surface-muted);
 }
 
 .xingtu-account-item.selected {
-  background: #eef4ff;
-  color: #1677ff;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .xingtu-account-name {
@@ -217,7 +217,7 @@
 }
 
 .xingtu-account-popover-footer {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-sidebar-hover);
   margin-top: 8px;
   padding-top: 12px;
 }
@@ -232,8 +232,8 @@
 }
 
 .xingtu-filter-panel {
-  background: #fff;
-  border: 1px solid #ebeef2;
+  background: var(--color-white);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 8px;
   display: grid;
   gap: 0;
@@ -248,8 +248,8 @@
 
 .xingtu-filter-panel-title {
   align-items: center;
-  border-right: 1px solid #f0f2f5;
-  color: #4b5563;
+  border-right: 1px solid var(--color-neutral-100);
+  color: var(--color-neutral-600);
   display: flex;
   font-size: 12px;
   font-weight: 600;
@@ -275,8 +275,8 @@
 
 .xingtu-filter-section-side {
   align-items: center;
-  border-right: 1px solid #f0f2f5;
-  color: #4b5563;
+  border-right: 1px solid var(--color-neutral-100);
+  color: var(--color-neutral-600);
   display: flex;
   font-size: 12px;
   font-weight: 600;
@@ -286,7 +286,7 @@
 }
 
 .xingtu-filter-panel-divider {
-  background: #f0f2f5;
+  background: var(--color-neutral-100);
   height: 1px;
   width: 100%;
 }
@@ -301,7 +301,7 @@
 
 .xingtu-filter-line-label {
   align-items: center;
-  color: #6b7280;
+  color: var(--color-neutral-500);
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 12px;
@@ -336,7 +336,7 @@
   background: transparent;
   border: 0;
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--color-neutral-600);
   cursor: pointer;
   display: inline-flex;
   font-size: 12px;
@@ -347,12 +347,12 @@
 }
 
 .xingtu-filter-option:hover {
-  background: #f7f8fa;
+  background: var(--color-neutral-50);
 }
 
 .xingtu-filter-option.selected {
-  background: #eef4ff;
-  color: #1677ff;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .xingtu-filter-option-dropdown .anticon {
@@ -389,7 +389,7 @@
 }
 
 .buyin-aggregate-filter__label {
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   font-size: 12px;
   line-height: 22px;
 }
@@ -412,7 +412,7 @@
 
 .xingtu-filter-subgroup-label {
   align-items: center;
-  color: #9ca3af;
+  color: var(--color-neutral-400);
   display: inline-flex;
   flex: 0 0 auto;
   font-size: 12px;
@@ -424,7 +424,7 @@
   align-items: center;
   background: currentColor;
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-white);
   display: inline-flex;
   font-size: 11px;
   height: 16px;
@@ -442,7 +442,7 @@
 }
 
 .xingtu-filter-popover-title {
-  color: #374151;
+  color: var(--color-neutral-700);
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 10px;
@@ -467,7 +467,7 @@
 
 .xingtu-filter-popover-footer {
   align-items: center;
-  border-top: 1px solid #f0f2f5;
+  border-top: 1px solid var(--color-neutral-100);
   display: flex;
   justify-content: space-between;
   margin-top: 10px;
@@ -475,7 +475,7 @@
 }
 
 .xingtu-filter-popover-summary {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1;
 }
@@ -502,7 +502,7 @@
 }
 
 .xingtu-search-results-table {
-  background: #fff;
+  background: var(--color-white);
   border-radius: 8px;
   max-width: 100%;
   min-width: 0;
@@ -560,14 +560,14 @@
 }
 
 .xingtu-search-results-table .ant-table-thead > tr > th {
-  color: #374151;
+  color: var(--color-neutral-700);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .xingtu-search-results-table .ant-table-tbody > tr > td {
-  color: #4b5563;
+  color: var(--color-neutral-600);
 }
 
 .xingtu-search-results-table .ant-table-container {
@@ -596,9 +596,9 @@
 
 .xingtu-cell-avatar {
   align-items: center;
-  background: #eef2ff;
+  background: var(--color-brand-soft);
   border-radius: 999px;
-  color: #1d4ed8;
+  color: var(--color-brand-active);
   display: inline-flex;
   flex: 0 0 auto;
   height: 40px;
@@ -628,7 +628,7 @@
 
 .xingtu-cell-creator-title {
   align-items: center;
-  color: #111827;
+  color: var(--color-neutral-900);
   display: flex;
   font-size: 13px;
   font-weight: 600;
@@ -658,9 +658,9 @@
 
 .xingtu-cell-creator-badges .ant-tag,
 .xingtu-cell-topics .ant-tag {
-  background: #f5f7fa;
+  background: var(--color-surface-muted);
   border-radius: 6px;
-  color: #4b5563;
+  color: var(--color-neutral-600);
   font-size: 12px;
   line-height: 18px;
   margin-inline-end: 0;
@@ -669,7 +669,7 @@
 
 .xingtu-cell-creator-icon-tag {
   align-items: center;
-  background: #fff7e6;
+  background: var(--color-warning-soft);
   border-radius: 6px;
   display: inline-flex;
   height: 18px;
@@ -678,7 +678,7 @@
 }
 
 .xingtu-cell-price {
-  color: #f97316;
+  color: var(--color-orange);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -692,7 +692,7 @@
 }
 
 .xingtu-cell-operation-hint {
-  color: #6b7280;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -742,13 +742,13 @@
 
   .xingtu-filter-section-side {
     border-right: 0;
-    border-bottom: 1px solid #f0f2f5;
+    border-bottom: 1px solid var(--color-neutral-100);
     justify-content: flex-start;
   }
 
   .xingtu-filter-panel-title {
     border-right: 0;
-    border-bottom: 1px solid #f0f2f5;
+    border-bottom: 1px solid var(--color-neutral-100);
     padding-bottom: 10px;
   }
 

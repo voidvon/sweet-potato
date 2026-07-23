@@ -1,8 +1,8 @@
 .mention-rich-textarea {
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
+  background: var(--color-white);
+  border: 1px solid var(--color-brand-border);
   border-radius: 12px;
-  color: #1f2937;
+  color: var(--color-neutral-800);
   font-size: 14px;
   line-height: 1.78;
   overflow: hidden;
@@ -10,12 +10,12 @@
 }
 
 .mention-rich-textarea:focus-within {
-  border-color: #178bff;
-  box-shadow: 0 0 0 2px rgba(23, 139, 255, 0.12);
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px rgb(var(--color-brand-rgb) / 0.12);
 }
 
 .mention-rich-textarea.is-disabled {
-  background: #f8fafc;
+  background: var(--color-neutral-50);
   cursor: not-allowed;
 }
 
@@ -37,7 +37,7 @@
 }
 
 .mention-rich-textarea-editor p.is-editor-empty:first-child::before {
-  color: #94a3b8;
+  color: var(--color-text-tertiary);
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -46,10 +46,10 @@
 
 .mention-rich-textarea-chip {
   align-items: center;
-  background: #f7fbff;
-  border: 1px solid #e8f3ff;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-brand-soft);
   border-radius: 999px;
-  color: #087bdc;
+  color: var(--color-brand);
   display: inline-flex;
   font-weight: 400;
   line-height: 1;
@@ -64,22 +64,22 @@
 }
 
 .mention-rich-textarea-chip.is-placeholder {
-  background: #f8fafc;
-  border-color: #9fb2cf;
+  background: var(--color-neutral-50);
+  border-color: var(--color-text-tertiary);
   border-style: dashed;
-  color: #5d6c82;
+  color: var(--color-neutral-500);
   cursor: pointer;
   padding-right: 8px;
 }
 
 .mention-rich-textarea-chip.is-placeholder:hover {
-  background: #f1f6fd;
-  border-color: #6f8db8;
+  background: var(--color-surface-muted);
+  border-color: var(--color-text-tertiary);
 }
 
 .mention-rich-textarea-chip.is-placeholder .mention-rich-textarea-chip-icon {
-  background: #eef3f9;
-  color: #6b7f9d;
+  background: var(--color-surface-muted);
+  color: var(--color-neutral-500);
   font-size: 0;
   position: relative;
 }
@@ -106,7 +106,7 @@
 }
 
 .mention-rich-textarea-chip.is-placeholder b {
-  color: #5d6c82;
+  color: var(--color-neutral-500);
 }
 
 .mention-rich-textarea-chip img {
@@ -119,9 +119,9 @@
 
 .mention-rich-textarea-chip-icon {
   align-items: center;
-  background: #f7fbff;
+  background: var(--color-surface-subtle);
   border-radius: 999px;
-  color: #00a8ff;
+  color: var(--color-cyan);
   display: inline-flex;
   font-size: 11px;
   font-weight: 800;
@@ -132,46 +132,46 @@
 }
 
 .mention-rich-textarea-chip b {
-  color: #1677ff;
+  color: var(--color-brand);
   font-size: 13px;
   font-weight: 400;
 }
 
 .mention-rich-textarea-chip[data-mention-kind='audio'] {
-  background: #effdfa;
-  border-color: #99f6e4;
-  color: #0f766e;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-teal);
 }
 
 .mention-rich-textarea-chip[data-mention-kind='audio'] .mention-rich-textarea-chip-icon {
-  background: #ccfbf1;
-  color: #0d9488;
+  background: var(--color-teal-soft);
+  color: var(--color-teal);
 }
 
 .mention-rich-textarea-chip[data-mention-kind='audio'] b {
-  color: #0f766e;
+  color: var(--color-teal);
 }
 
 .mention-rich-textarea-chip[data-mention-kind='video'] {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
+  background: var(--color-orange-soft);
+  border-color: var(--color-warning-soft);
+  color: var(--color-orange);
 }
 
 .mention-rich-textarea-chip[data-mention-kind='video'] .mention-rich-textarea-chip-icon {
-  background: #ffedd5;
-  color: #f97316;
+  background: var(--color-warning-soft);
+  color: var(--color-orange);
 }
 
 .mention-rich-textarea-chip[data-mention-kind='video'] b {
-  color: #c2410c;
+  color: var(--color-orange);
 }
 
 .mention-rich-textarea-menu {
-  background: #ffffff;
-  border: 1px solid #dbe7f8;
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
   border-radius: 14px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 18px 40px rgb(var(--color-shadow-rgb) / 0.14);
   display: grid;
   gap: 0;
   max-width: 300px;
@@ -183,7 +183,7 @@
 }
 
 .mention-rich-textarea-menu__header {
-  border-bottom: 1px solid #edf2f9;
+  border-bottom: 1px solid var(--color-border-subtle);
   margin: -6px 0 0 -6px;
   padding: 12px 14px 12px 14px;
 }
@@ -199,13 +199,13 @@
 }
 
 .mention-rich-textarea-menu__header strong {
-  color: #62748e;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1.2;
 }
 
 .mention-rich-textarea-menu--empty {
-  color: #667085;
+  color: var(--color-neutral-500);
   font-size: 13px;
   padding: 10px 12px;
 }
@@ -215,7 +215,7 @@
   background: transparent;
   border: 0;
   border-radius: 12px;
-  color: #172033;
+  color: var(--color-neutral-800);
   cursor: pointer;
   display: grid;
   gap: 8px;
@@ -229,17 +229,17 @@
 
 .mention-rich-textarea-menu button.is-selected,
 .mention-rich-textarea-menu button:hover {
-  background: #eef5ff;
-  box-shadow: inset 0 0 0 1px #dbeafe;
+  background: var(--color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
 .mention-rich-textarea-menu img,
 .mention-rich-textarea-menu button > span:first-child {
   align-items: center;
-  background: #eef4fb;
-  border: 1px solid #dbe7f8;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
-  color: #00a8ff;
+  color: var(--color-cyan);
   display: flex;
   font-size: 18px;
   font-weight: 800;
@@ -250,15 +250,15 @@
 }
 
 .mention-rich-textarea-menu button > span:first-child[data-mention-kind='audio'] {
-  background: #f0fdfa;
-  border-color: #99f6e4;
-  color: #0d9488;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-teal);
 }
 
 .mention-rich-textarea-menu button > span:first-child[data-mention-kind='video'] {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #f97316;
+  background: var(--color-orange-soft);
+  border-color: var(--color-warning-soft);
+  color: var(--color-orange);
 }
 
 .mention-rich-textarea-fallback-menu {
@@ -276,7 +276,7 @@
 }
 
 .mention-rich-textarea-option__body strong {
-  color: #172033;
+  color: var(--color-neutral-800);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.15;
@@ -286,7 +286,7 @@
 }
 
 .mention-rich-textarea-option__body small {
-  color: #69758a;
+  color: var(--color-neutral-500);
   font-size: 12px;
   line-height: 1.25;
   overflow: hidden;

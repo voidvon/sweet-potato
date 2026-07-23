@@ -1,6 +1,6 @@
 .talking-video-history {
-  background: #f8fafc;
-  border-right: 1px solid #e3e7ed;
+  background: var(--color-neutral-50);
+  border-right: 1px solid var(--color-neutral-200);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -11,7 +11,7 @@
 
 .talking-video-history-header {
   align-items: center;
-  color: #647084;
+  color: var(--color-neutral-500);
   display: flex;
   flex: 0 0 auto;
   justify-content: space-between;
@@ -28,7 +28,7 @@
 }
 
 .talking-video-history-header small {
-  color: #9aa3b1;
+  color: var(--color-neutral-400);
   font-size: 11px;
 }
 
@@ -40,7 +40,7 @@
   min-height: 0;
   overflow-y: auto;
   padding: 0 4px 20px 0;
-  scrollbar-color: #d4d8df transparent;
+  scrollbar-color: var(--color-neutral-300) transparent;
   scrollbar-width: thin;
 }
 
@@ -88,22 +88,22 @@
 }
 
 .talking-video-prompt-task {
-  background: #fff;
-  border: 1px solid #e2e6ec;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 12px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 28px rgb(var(--color-shadow-rgb) / 0.04);
   display: grid;
   gap: 10px;
   padding: 10px;
 }
 
 .talking-video-prompt-task.is-active {
-  border-color: #bfd6f8;
+  border-color: var(--color-brand-border);
 }
 
 .talking-video-source-preview {
   aspect-ratio: 16 / 9;
-  background: #060b19;
+  background: var(--color-neutral-900);
   border-radius: 9px;
   overflow: hidden;
   position: relative;
@@ -117,10 +117,10 @@
 
 .talking-video-task-status {
   align-items: center;
-  background: rgba(7, 13, 27, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgb(var(--color-shadow-rgb) / 0.78);
+  border: 1px solid rgb(var(--color-white-rgb) / 0.12);
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-white);
   display: inline-flex;
   font-size: 10px;
   gap: 4px;
@@ -147,9 +147,9 @@
 
 .talking-video-task-icon {
   align-items: center;
-  background: #edf5ff;
+  background: var(--color-brand-soft);
   border-radius: 8px;
-  color: #1677ff;
+  color: var(--color-brand);
   display: flex;
   height: 30px;
   justify-content: center;
@@ -162,7 +162,7 @@
 }
 
 .talking-video-task-meta strong {
-  color: #172033;
+  color: var(--color-neutral-800);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -170,7 +170,7 @@
 }
 
 .talking-video-task-meta time {
-  color: #929bab;
+  color: var(--color-neutral-400);
   font-size: 10px;
   margin-top: 1px;
 }
@@ -192,8 +192,8 @@
 
 .talking-video-reasoning,
 .talking-video-final-result {
-  background: #f8fafc;
-  border: 1px solid #e4e8ee;
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
   border-radius: 9px;
   overflow: hidden;
 }
@@ -203,7 +203,7 @@
   align-items: center;
   background: transparent;
   border: 0;
-  color: #344054;
+  color: var(--color-neutral-700);
   display: flex;
   justify-content: space-between;
   min-height: 38px;
@@ -227,7 +227,7 @@
   align-self: stretch;
   background: transparent;
   border: 0;
-  color: #344054;
+  color: var(--color-neutral-700);
   display: flex;
   flex: 1;
   justify-content: space-between;
@@ -236,12 +236,12 @@
 }
 
 .talking-video-final-result-toggle > span:last-child {
-  color: #8b95a5;
+  color: var(--color-neutral-400);
   font-size: 10px;
 }
 
 .talking-video-reasoning > button i {
-  background: #16a34a;
+  background: var(--color-success-bright);
   border-radius: 50%;
   height: 7px;
   width: 7px;
@@ -249,7 +249,7 @@
 
 .talking-video-reasoning.is-running > button i {
   animation: talking-video-pulse 1.2s ease-in-out infinite;
-  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
+  box-shadow: 0 0 0 4px rgb(var(--color-success-rgb) / 0.1);
 }
 
 @keyframes talking-video-pulse {
@@ -263,7 +263,7 @@
 }
 
 .talking-video-reasoning > button > span:last-child {
-  color: #8b95a5;
+  color: var(--color-neutral-400);
   font-size: 10px;
 }
 
@@ -278,8 +278,8 @@
 
 .talking-video-reasoning-content,
 .talking-video-final-result > div {
-  border-top: 1px solid #e6eaf0;
-  color: #4b5565;
+  border-top: 1px solid var(--color-neutral-200);
+  color: var(--color-neutral-600);
   font-size: 12px;
   overflow: auto;
   padding: 10px;
@@ -297,7 +297,7 @@
 }
 
 .talking-video-reasoning-heading {
-  color: #263348;
+  color: var(--color-neutral-700);
   font-size: 11px;
   font-weight: 700;
   margin: 7px 0 2px;
@@ -309,9 +309,9 @@
 
 .talking-video-reasoning-progress {
   align-items: center;
-  background: #f1f6fd;
-  border-top: 1px solid #e2eaf5;
-  color: #55708f;
+  background: var(--color-surface-muted);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-neutral-500);
   display: flex !important;
   gap: 6px;
   margin: 10px -10px -10px;
@@ -326,10 +326,10 @@
 
 .talking-video-task-error {
   align-items: center;
-  background: #fff7f7;
-  border: 1px solid #fecaca;
+  background: var(--color-rose-50);
+  border: 1px solid var(--color-danger-border);
   border-radius: 9px;
-  color: #b42318;
+  color: var(--color-danger-strong);
   display: flex;
   font-size: 11px;
   justify-content: space-between;

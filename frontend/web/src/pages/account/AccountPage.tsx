@@ -247,7 +247,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       dataIndex: 'creditDelta',
       width: 160,
       render: (value: number) => (
-        <span style={{ color: value >= 0 ? '#15803d' : '#b91c1c' }}>
+        <span style={{ color: value >= 0 ? 'var(--color-success)' : 'var(--color-danger-strong)' }}>
           {value >= 0 ? '+' : ''}{formatCreditsCeilTwoDecimals(value)}
         </span>
       ),

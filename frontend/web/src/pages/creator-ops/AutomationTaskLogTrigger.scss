@@ -1,8 +1,8 @@
 .automation-task-log-trigger.ant-btn {
   align-items: center;
-  background: #f5f7fb;
+  background: var(--color-surface-muted);
   border: 1px solid transparent;
-  color: #6b7280;
+  color: var(--color-neutral-500);
   display: inline-flex;
   height: 40px;
   justify-content: center;
@@ -13,28 +13,28 @@
 .automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
 .automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus,
 .automation-task-log-trigger.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
-  background: #edf2f8;
+  background: var(--color-border-subtle);
   border-color: transparent;
   box-shadow: none;
-  color: #1677ff;
+  color: var(--color-brand);
   outline: none;
 }
 
 .automation-task-log-trigger.ant-btn.is-running,
 .automation-task-log-trigger.ant-btn.is-waiting_user {
-  color: #1677ff;
+  color: var(--color-brand);
 }
 
 .automation-task-log-trigger.ant-btn.is-done {
-  color: #389e0d;
+  color: var(--color-success-bright);
 }
 
 .automation-task-log-trigger.ant-btn.is-canceled {
-  color: #d48806;
+  color: var(--color-warning);
 }
 
 .automation-task-log-trigger.ant-btn.is-failed {
-  color: #cf1322;
+  color: var(--color-danger-strong);
 }
 
 .automation-task-log-popover {
@@ -60,5 +60,5 @@
 }
 
 .automation-task-log-popover-empty {
-  color: #6b7280;
+  color: var(--color-neutral-500);
 }
