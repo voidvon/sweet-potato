@@ -1,0 +1,42 @@
+.discover-management-page {
+  gap: 16px;
+}
+
+.discover-management-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.discover-management-preview {
+  background: #f4f5f7;
+  border-radius: 6px;
+  display: block;
+  height: 56px;
+  object-fit: cover;
+  width: 56px;
+}
+
+.discover-category-create {
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.discover-candidate-toolbar {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  margin-bottom: 16px;
+}
+
+@media (max-width: 720px) {
+  .discover-management-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .discover-candidate-toolbar {
+    grid-template-columns: 1fr;
+  }
+}

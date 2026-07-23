@@ -3,6 +3,8 @@ export const routePaths = {
   appRoot: '/',
   defaultLanding: '/users/accounts',
   account: '/account',
+  allWorks: '/works',
+  discover: '/discover',
   modelSettings: '/models',
   billingSettings: '/billing',
   routeResourceManagement: '/system/routes',

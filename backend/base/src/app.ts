@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { dataDir } from './db/database.js';
 import { migrateDatabase } from './db/schema.js';
+import { createAdminWorkRouter } from './modules/admin-works/admin-work.routes.js';
 import { createBatchRequestSettingsRouter } from './modules/batch-request-settings/batch-request-settings.routes.js';
 import { batchRequestSettingsMiddleware } from './modules/batch-request-settings/batch-request-settings.middleware.js';
 import { createAppEventsRouter } from './modules/app-events/app-events.routes.js';
@@ -12,6 +13,7 @@ import { createChatRouter } from './modules/chat/chat.routes.js';
 import { createContentRouter } from './modules/content/content.routes.js';
 import { createContentPlanningRouter } from './modules/content-planning/content-planning.routes.js';
 import { createGenerationRouter } from './modules/generation/generation.routes.js';
+import { createAdminDiscoverRouter, createDiscoverRouter } from './modules/discover/discover.routes.js';
 import { createFileStorageSettingsRouter } from './modules/file-storage-settings/file-storage-settings.routes.js';
 import { createFileManagementRouter } from './modules/file-management/file-management.routes.js';
 import { createIpBlacklistRouter } from './modules/ip-blacklist/ip-blacklist.routes.js';
@@ -56,6 +58,9 @@ export function createApp() {
   app.use(requireAuth);
 
   app.use('/api/auth', createAuthRouter());
+  app.use('/api/admin/works', createAdminWorkRouter());
+  app.use('/api/admin/discover', createAdminDiscoverRouter());
+  app.use('/api/discover', createDiscoverRouter());
   app.use('/api/app', createAppEventsRouter());
   app.use('/api/users', createUserRouter());
   app.use('/api/roles', createRoleRouter());

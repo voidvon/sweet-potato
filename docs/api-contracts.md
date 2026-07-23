@@ -2,6 +2,18 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-23 发现管理
+
+- `GET /api/admin/discover/categories`、`GET /api/admin/discover/items` 及对应分类/条目的增删改接口仅管理员可访问。
+- `POST /api/admin/discover/items` 使用 `sourceAssetId` 从全部作品候选池创建条目，并在发布时保存展示字段快照，同时写入 `content_asset_references(reference_type = 'discover_item')` 保留附件。
+- `GET /api/discover/categories`、`GET /api/discover/items` 返回启用分类和已发布条目；前台只读取快照字段，不依赖源作品实时元数据。
+
+## 2026-07-23 后台全部作品
+
+- 后台新增 `/works` 管理路由，仅管理员可访问，用表格展示全部用户已完成的图片和视频作品。
+- `GET /api/admin/works` 仅管理员可访问，支持 `page`、`pageSize` 和 `username` 查询参数；`username` 对用户名进行不区分大小写的包含搜索。
+- 响应为 `{ items, page, pageSize, total }`，默认每页 `20` 条，按作品更新时间倒序排列；无文件地址以及生成中、排队中或失败的记录不会作为作品返回。
+
 ## 2026-07-20 主体替换视频生成
 
 - `POST /api/video-source/subject-replaces` 提交模特、服饰、人脸、背景或商品替换任务，要求 `web.module.content.create_video` 权限。

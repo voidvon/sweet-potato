@@ -1,5 +1,5 @@
 import { Suspense, lazy, type ReactNode } from 'react';
-import { ApartmentOutlined, ClearOutlined, CreditCardOutlined, FileOutlined, HistoryOutlined, SafetyCertificateOutlined, RobotOutlined, SettingOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, AppstoreOutlined, ClearOutlined, CreditCardOutlined, FileOutlined, HistoryOutlined, SafetyCertificateOutlined, RobotOutlined, SettingOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
 import { Navigate, type RouteObject, type UIMatch, useLocation } from 'react-router-dom';
 import { AppRequestLoading } from '@shared/components/AppRequestLoading';
 import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallback';
@@ -19,6 +19,8 @@ const FileManagementPage = lazy(() => import('../pages/settings/FileManagementPa
 const TemporaryAssetCleanupPage = lazy(() => import('../pages/settings/TemporaryAssetCleanupPage').then((m) => ({ default: m.TemporaryAssetCleanupPage })));
 const SystemSettingsPage = lazy(() => import('../pages/settings/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })));
 const SiteAccessLogPage = lazy(() => import('../pages/settings/SiteAccessLogPage').then((m) => ({ default: m.SiteAccessLogPage })));
+const AllWorksPage = lazy(() => import('../pages/works/AllWorksPage').then((m) => ({ default: m.AllWorksPage })));
+const DiscoverManagementPage = lazy(() => import('../pages/discover/DiscoverManagementPage').then((m) => ({ default: m.DiscoverManagementPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -170,6 +172,31 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
         level: 'child',
       },
     },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'all-works',
+    path: 'works',
+    fullPath: routePaths.allWorks,
+    element: () => withStudioSuspense(<AllWorksPage />),
+    routeResourceKey: 'admin.all_works',
+    handle: {
+      title: '全部作品',
+      surface: 'studio',
+      sidebar: {
+        icon: <AppstoreOutlined />,
+        level: 'top',
+      },
+    },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'discover',
+    path: 'discover',
+    fullPath: routePaths.discover,
+    element: () => withStudioSuspense(<DiscoverManagementPage />),
+    routeResourceKey: 'admin.discover',
+    handle: { title: '发现', surface: 'studio', sidebar: { icon: <AppstoreOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {

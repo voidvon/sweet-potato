@@ -16,8 +16,6 @@ import {
   ProductOutlined,
   RobotFilled,
   RobotOutlined,
-  SettingFilled,
-  SettingOutlined,
   StarFilled,
   StarOutlined,
   ThunderboltFilled,
@@ -56,7 +54,6 @@ const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCr
 const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
 const WechatAutomationPage = lazy(() => import('../pages/creator-ops/WechatAutomationPage').then((m) => ({ default: m.WechatAutomationPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
-const SystemSettingsPage = lazy(() => import('../pages/system-settings/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -349,7 +346,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withSuspense(<DiscoverPage />),
     routeResource: { protected: false, resourceType: 'menu' },
     handle: {
-      title: '探索发现',
+      title: '发现',
       sidebar: { icon: <CompassOutlined />, selectedIcon: <CompassFilled />, sortOrder: -10 },
     },
   },
@@ -555,28 +552,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     ),
     handle: {
       title: '账号中心',
-      surface: 'studio',
-    },
-  },
-  {
-    key: 'system-settings',
-    path: 'system-settings',
-    fullPath: routePaths.systemSettings,
-    element: () => withStudioSuspense(<SystemSettingsPage />),
-    routeResource: {
-      permissionCode: 'web.system.settings',
-      // The settings screen is currently UI-only. Keep it visible by default
-      // until a backend permission resource is introduced for the real config.
-      protected: false,
-      resourceKey: 'web.system.settings',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '系统设置',
-      sidebar: {
-        icon: <SettingOutlined />,
-        selectedIcon: <SettingFilled />,
-      },
       surface: 'studio',
     },
   },

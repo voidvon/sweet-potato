@@ -459,6 +459,41 @@ export function migrateDatabase() {
       PRIMARY KEY (asset_id, reference_type, reference_id, role)
     );
 
+    CREATE TABLE IF NOT EXISTS discover_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS discover_items (
+      id TEXT PRIMARY KEY,
+      category_id TEXT NOT NULL,
+      source_asset_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      media_type TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      original_file_name TEXT NOT NULL DEFAULT '',
+      file_size INTEGER NOT NULL DEFAULT 0,
+      like_count INTEGER NOT NULL DEFAULT 0,
+      view_count INTEGER NOT NULL DEFAULT 0,
+      duration REAL NOT NULL DEFAULT 0,
+      source_created_at TEXT,
+      source_completed_at TEXT,
+      reference_assets TEXT NOT NULL DEFAULT '[]',
+      aspect_ratio TEXT NOT NULL DEFAULT '1 / 1',
+      status TEXT NOT NULL DEFAULT 'draft',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      published_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS marketing_video_storyboards (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -706,6 +741,15 @@ export function migrateDatabase() {
     CREATE INDEX IF NOT EXISTS idx_content_assets_group_updated
     ON content_assets(group_id, updated_at DESC);
 
+    CREATE INDEX IF NOT EXISTS idx_content_assets_resource_updated
+    ON content_assets(resource_type, updated_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_discover_items_category_status_order
+    ON discover_items(category_id, status, sort_order, updated_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_discover_items_source_asset
+    ON discover_items(source_asset_id);
+
     CREATE INDEX IF NOT EXISTS idx_video_generation_tasks_user_updated
     ON video_generation_tasks(user_id, updated_at DESC);
 
@@ -879,6 +923,102 @@ export function migrateDatabase() {
   addColumnIfMissing('content_assets', 'parent_asset_id', 'parent_asset_id TEXT');
   addColumnIfMissing('content_assets', 'expires_at', 'expires_at TEXT');
   addColumnIfMissing('content_assets', 'retained_at', 'retained_at TEXT');
+  addColumnIfMissing('discover_items', 'like_count', 'like_count INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing('discover_items', 'view_count', 'view_count INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing('discover_items', 'duration', 'duration REAL NOT NULL DEFAULT 0');
+  addColumnIfMissing('discover_items', 'source_created_at', 'source_created_at TEXT');
+  addColumnIfMissing('discover_items', 'source_completed_at', 'source_completed_at TEXT');
+  addColumnIfMissing('discover_items', 'reference_assets', "reference_assets TEXT NOT NULL DEFAULT '[]'");
+  addColumnIfMissing('discover_items', 'aspect_ratio', "aspect_ratio TEXT NOT NULL DEFAULT '1 / 1'");
+  db.exec(`
+    UPDATE discover_items
+    SET aspect_ratio = REPLACE(aspect_ratio, ':', ' / ')
+    WHERE aspect_ratio LIKE '%:%';
+    UPDATE discover_items
+    SET aspect_ratio = COALESCE(
+      NULLIF(REPLACE((SELECT json_extract(asset.metadata, '$.ratio') FROM content_assets asset WHERE asset.id = discover_items.source_asset_id), ':', ' / '), ''),
+      NULLIF(REPLACE((SELECT json_extract(asset.metadata, '$.aspectRatio') FROM content_assets asset WHERE asset.id = discover_items.source_asset_id), ':', ' / '), ''),
+      CASE
+        WHEN (SELECT CAST(json_extract(asset.metadata, '$.width') AS REAL) FROM content_assets asset WHERE asset.id = discover_items.source_asset_id) > 0
+         AND (SELECT CAST(json_extract(asset.metadata, '$.height') AS REAL) FROM content_assets asset WHERE asset.id = discover_items.source_asset_id) > 0
+        THEN (SELECT CAST(json_extract(asset.metadata, '$.width') AS REAL) || ' / ' || CAST(json_extract(asset.metadata, '$.height') AS REAL) FROM content_assets asset WHERE asset.id = discover_items.source_asset_id)
+        ELSE '1 / 1'
+      END
+    )
+    WHERE aspect_ratio IS NULL OR TRIM(aspect_ratio) = '' OR aspect_ratio = '1 / 1';
+  `);
+  db.exec(`
+    UPDATE discover_items
+    SET source_created_at = COALESCE(source_created_at, (
+          SELECT asset.created_at FROM content_assets asset WHERE asset.id = discover_items.source_asset_id
+        )),
+        source_completed_at = COALESCE(source_completed_at, (
+          SELECT COALESCE(
+            json_extract(asset.metadata, '$.completedAt'),
+            json_extract(asset.metadata, '$.generatedAt'),
+            asset.updated_at
+          )
+          FROM content_assets asset WHERE asset.id = discover_items.source_asset_id
+        )),
+        duration = CASE WHEN duration > 0 THEN duration ELSE COALESCE((
+          SELECT CAST(REPLACE(REPLACE(json_extract(asset.metadata, '$.duration'), '秒', ''), 's', '') AS REAL)
+          FROM content_assets asset WHERE asset.id = discover_items.source_asset_id
+        ), 0) END
+    WHERE source_created_at IS NULL OR source_completed_at IS NULL OR duration = 0;
+
+    UPDATE discover_items
+    SET reference_assets = COALESCE((
+      SELECT json_group_array(json_object(
+        'id', reference.id,
+        'name', reference.name,
+        'originalFileName', reference.original_file_name,
+        'mimeType', reference.mime_type,
+        'fileUrl', reference.file_url,
+        'metadata', json(CASE WHEN json_valid(reference.metadata) THEN reference.metadata ELSE '{}' END)
+      ))
+      FROM content_assets source
+      INNER JOIN content_assets reference ON reference.user_id = source.user_id
+      WHERE source.id = discover_items.source_asset_id
+        AND reference.id IN (
+          SELECT CAST(value AS TEXT)
+          FROM json_tree(CASE WHEN json_valid(source.metadata) THEN source.metadata ELSE '{}' END, '$.materialContext')
+          WHERE key IN ('id', 'sourceAssetId') AND type = 'text'
+          UNION
+          SELECT CAST(json_extract(source.metadata, '$.sourceAssetId') AS TEXT)
+          WHERE json_type(source.metadata, '$.sourceAssetId') = 'text'
+        )
+    ), '[]')
+    WHERE reference_assets = '[]';
+  `);
+  const discoverRetentionNow = new Date().toISOString();
+  db.prepare(`
+    INSERT OR IGNORE INTO content_asset_references (
+      asset_id, reference_type, reference_id, role, created_at
+    )
+    SELECT reference.id, 'discover_item', discover.id, 'input', @now
+    FROM discover_items discover
+    INNER JOIN content_assets source ON source.id = discover.source_asset_id
+    INNER JOIN content_assets reference ON reference.user_id = source.user_id
+    WHERE reference.id IN (
+      SELECT CAST(value AS TEXT)
+      FROM json_tree(CASE WHEN json_valid(source.metadata) THEN source.metadata ELSE '{}' END, '$.materialContext')
+      WHERE key IN ('id', 'sourceAssetId') AND type = 'text'
+      UNION
+      SELECT CAST(json_extract(source.metadata, '$.sourceAssetId') AS TEXT)
+      WHERE json_type(source.metadata, '$.sourceAssetId') = 'text'
+    )
+  `).run({ now: discoverRetentionNow });
+  db.prepare(`
+    UPDATE content_assets
+    SET lifecycle_status = 'retained', expires_at = NULL,
+        retained_at = @now, updated_at = @now
+    WHERE lifecycle_status = 'temporary'
+      AND EXISTS (
+        SELECT 1 FROM content_asset_references reference
+        WHERE reference.asset_id = content_assets.id
+          AND reference.reference_type = 'discover_item'
+      )
+  `).run({ now: discoverRetentionNow });
   addColumnIfMissing('file_upload_intents', 'public_file_url', "public_file_url TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('content_asset_groups', 'resource_type', "resource_type TEXT NOT NULL DEFAULT 'other'");
   addColumnIfMissing('content_asset_groups', 'metadata', "metadata TEXT NOT NULL DEFAULT '{}'");
@@ -1077,6 +1217,11 @@ export function migrateDatabase() {
       updatedAt: now,
     });
   });
+  db.prepare(`
+    UPDATE route_resources
+    SET name = '发现', updated_at = @updatedAt
+    WHERE id = 'rr-admin-discover' AND is_system = 1
+  `).run({ updatedAt: now });
 
   const restoreSystemCreateVideoRouteMigrationId = '20260720-restore-system-create-video-route';
   const restoreSystemCreateVideoRouteMigrationApplied = db.prepare(`
