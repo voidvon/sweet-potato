@@ -5,6 +5,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { Bot, FolderUp, Plus, RefreshCw, Search } from 'lucide-react';
 import { generateDigitalHumanThreeView, generateVirtualPortraitThreeView, syncVirtualPortraitRemoteLibrary, uploadVirtualPortraitAsset } from '../../../../api/content';
 import { API_BASE_URL } from '../../../../api/request';
+import { AppButton } from '@shared/components/AppButton';
 import { AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../../../components/AssetLibraryCard';
 import { isElectronEgg, saveAssetFile } from '../../../../ipc';
 import { ContentStudioLayout } from '../../../../layouts/ContentStudioLayout';
@@ -510,9 +511,9 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
           {/* <Button icon={<Bot size={16} />} onClick={() => openCreateModal('ai')} type="primary">
             AI生成
           </Button> */}
-          <Button icon={<Plus size={16} />} onClick={() => openCreateModal('local')} type="primary">
+          <AppButton icon={<Plus size={16} />} onClick={() => openCreateModal('local')} tone="brand" type="primary">
             本地上传
-          </Button>
+          </AppButton>
         </div>
 
         <div className="voice-board-content">
@@ -570,6 +571,7 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
       </section>
 
       <Modal
+        className="asset-library-themed-modal"
         footer={null}
         onCancel={() => setChoiceOpen(false)}
         open={choiceOpen}
@@ -591,6 +593,7 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
       </Modal>
 
       <Modal
+        className="asset-library-themed-modal"
         centered
         footer={createMode === 'local' ? [
           <Button key="cancel" onClick={() => {
@@ -735,13 +738,13 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
         )}
       </Modal>
 
-      <Modal footer={null} onCancel={() => setDetailOpen(false)} open={detailOpen} title={library.activeGroup?.name || '数字人项目'} width={1020}>
+      <Modal className="asset-library-themed-modal digital-human-detail-modal" footer={null} onCancel={() => setDetailOpen(false)} open={detailOpen} title={library.activeGroup?.name || '数字人项目'} width={1020}>
         {library.activeGroup && (
           <div className="asset-detail-workspace">
             {!isLocalUploadGroup && (
               <div className="material-group-editor">
                 <Input onChange={(event) => setEditingName(event.target.value)} value={editingName} />
-                <Button onClick={() => void library.renameGroup(library.activeGroup!.id, editingName)} type="primary">保存名称</Button>
+                <AppButton onClick={() => void library.renameGroup(library.activeGroup!.id, editingName)} tone="brand" type="primary">保存名称</AppButton>
                 <Button danger loading={library.isDeletingGroup} onClick={() => void handleDeleteProject()}>删除{label}</Button>
               </div>
             )}
@@ -753,9 +756,9 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
                     {isVirtualPortrait ? <small>素材会同步入库到火山私域人物素材资产库。</small> : null}
                   </div>
                   <div className="digital-human-local-actions">
-                    <Button loading={library.isUploading} onClick={() => localReplaceInputRef.current?.click()}>替换图片</Button>
+                    <AppButton loading={library.isUploading} onClick={() => localReplaceInputRef.current?.click()} tone="brand" type="primary">替换图片</AppButton>
                     {activeThreeViewResult && (
-                      <Button onClick={() => void handleDownloadThreeView(activeThreeViewResult)}>下载结果</Button>
+                      <Button className="asset-detail-secondary-button" onClick={() => void handleDownloadThreeView(activeThreeViewResult)}>下载结果</Button>
                     )}
                     <Button danger loading={library.isDeletingGroup} onClick={() => void handleDeleteProject()}>删除{label}</Button>
                   </div>
@@ -800,16 +803,17 @@ export function DigitalHumanAssetsPage({ currentUser, variant = 'digital_human' 
                       <span>由训练照片合并生成一张标准多视图图，包含全身正/侧/背和头部多角度。</span>
                     </div>
                     <div className="digital-human-result-header-actions">
-                      <Button
+                      <AppButton
                         disabled={!hasTrainingPhotos || isActiveGroupGenerating}
                         loading={isActiveGroupGenerating}
                         onClick={() => void handleGenerateThreeView()}
+                        tone="brand"
                         type="primary"
                       >
                         重新生成三视图
-                      </Button>
+                      </AppButton>
                       {activeThreeViewResult && !isActiveGroupGenerating && !activeGroupFailureReason && (
-                        <Button onClick={() => void handleDownloadThreeView(activeThreeViewResult)}>下载结果</Button>
+                        <Button className="asset-detail-secondary-button" onClick={() => void handleDownloadThreeView(activeThreeViewResult)}>下载结果</Button>
                       )}
                     </div>
                   </div>

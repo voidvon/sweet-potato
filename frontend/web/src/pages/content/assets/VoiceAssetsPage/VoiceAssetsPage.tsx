@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Button, Input, Modal, Pagination, Spin, message } from 'antd';
 import { Plus, Search, Upload } from 'lucide-react';
 import { API_BASE_URL } from '../../../../api/request';
+import { AppButton } from '@shared/components/AppButton';
 import { AssetLibraryAudioWave, AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../../../components/AssetLibraryCard';
 import { ContentStudioLayout } from '../../../../layouts/ContentStudioLayout';
 import type { ContentAsset, ContentAssetGroup, User } from '../../../../types';
@@ -283,9 +284,9 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />
-          <Button icon={<Plus size={16} />} onClick={() => openCreateModal()} type="primary">
+          <AppButton icon={<Plus size={16} />} onClick={() => openCreateModal()} tone="brand" type="primary">
             本地上传
-          </Button>
+          </AppButton>
         </div>
 
         <div className="voice-board-content">
@@ -347,6 +348,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
       </section>
 
       <Modal
+        className="asset-library-themed-modal"
         confirmLoading={library.isUploading}
         okText="提交"
         onCancel={() => {
@@ -374,7 +376,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
       </Modal>
 
       <Modal
-        className="voice-detail-modal"
+        className="asset-library-themed-modal voice-detail-modal"
         footer={null}
         onCancel={() => setDetailOpen(false)}
         open={detailOpen}
@@ -397,7 +399,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
               <div className="voice-detail-audio-stack">
                 {library.activeGroup.metadata?.source === 'local_upload' && activeVoiceSample ? (
                   <div className="voice-preview-player">
-                    <strong>原音频</strong>
+                    {/* <strong>原音频</strong> */}
                     <audio controls src={assetUrl(activeVoiceSample)} />
                   </div>
                 ) : clonePreviewAsset && cloneStatus === 'success' ? (
@@ -465,6 +467,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
       </Modal>
 
       <Modal
+        className="asset-library-themed-modal voice-name-edit-modal"
         okText="保存"
         onCancel={() => setNameEditOpen(false)}
         onOk={() => void handleRenameVoiceLibrary()}

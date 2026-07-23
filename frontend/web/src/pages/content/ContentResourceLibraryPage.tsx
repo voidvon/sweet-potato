@@ -13,6 +13,7 @@ import {
 } from '../../api/content';
 import { API_BASE_URL } from '../../api/request';
 import { AppImage } from '../../components/AppImage';
+import { AppButton } from '@shared/components/AppButton';
 import { AppSegmentedTabs } from '../../components/AppSegmentedTabs';
 import { AssetLibraryCard, AssetLibraryCreateCard, AssetLibraryPlaceholderCard, AssetLibrarySkeletonCards } from '../../components/AssetLibraryCard';
 import { InfiniteScroll } from '../../components/InfiniteScroll';
@@ -1066,9 +1067,9 @@ export function ContentResourceLibraryPage({
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />
-          <Button icon={<Plus size={16} />} loading={singleDefaultGroup && isUploading} onClick={openCreateEntry} type="primary">
+          <AppButton icon={<Plus size={16} />} loading={singleDefaultGroup && isUploading} onClick={openCreateEntry} tone="brand" type="primary">
             {copy.addTitle}
-          </Button>
+          </AppButton>
           {singleDefaultGroup && (
             <input
               accept={copy.accept}
@@ -1106,9 +1107,12 @@ export function ContentResourceLibraryPage({
                     <div className="material-name" title={asset.name}>{asset.name}</div>
                     <div className="material-meta">上传于 {formatDate(asset.createdAt)}</div>
                     <Popconfirm
+                      cancelButtonProps={{ className: 'asset-library-popconfirm-cancel' }}
                       cancelText="取消"
+                      okButtonProps={{ className: 'asset-library-popconfirm-confirm' }}
                       okText="删除"
                       onConfirm={() => void handleDeleteAsset(asset.id)}
+                      overlayClassName="asset-library-themed-popconfirm"
                       title="确认删除这个素材吗？"
                     >
                       <Button danger icon={<Trash2 size={14} />} size="small" type="text">删除</Button>
@@ -1160,6 +1164,7 @@ export function ContentResourceLibraryPage({
       </section>
 
       <Modal
+        className="asset-library-themed-modal"
         confirmLoading={isUploading}
         okText={copy.createOkText}
         onCancel={() => setCreateModalOpen(false)}
@@ -1190,6 +1195,7 @@ export function ContentResourceLibraryPage({
       </Modal>
 
       <Modal
+        className="asset-library-themed-modal"
         footer={null}
         onCancel={() => setGroupModalOpen(false)}
         open={groupModalOpen}
@@ -1263,7 +1269,7 @@ export function ContentResourceLibraryPage({
         )}
       </Modal>
 
-      <Modal footer={null} onCancel={closePreviewAsset} open={Boolean(previewAsset)} title={previewAsset?.name || '素材预览'} width={760}>
+      <Modal className="asset-library-themed-modal" footer={null} onCancel={closePreviewAsset} open={Boolean(previewAsset)} title={previewAsset?.name || '素材预览'} width={760}>
         {previewAsset && (
           <div className="asset-detail">
             {previewAsset.mimeType.startsWith('video/') && <video controls ref={previewVideoRef} src={fileUrl(previewAsset)} />}

@@ -1,6 +1,6 @@
 .audio-upload-antd {
   background: #ffffff;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-rose-200);
   border-radius: 8px;
   display: grid;
   gap: 12px;
@@ -17,10 +17,10 @@
 
 .audio-upload-control {
   align-items: center;
-  background: #f8fbff;
-  border: 1px dashed #a9bce2;
+  background: var(--color-rose-50);
+  border: 1px dashed var(--color-rose-300);
   border-radius: 8px;
-  color: var(--accent-blue);
+  color: var(--color-rose-600);
   cursor: pointer;
   display: grid;
   gap: 6px;
@@ -31,25 +31,25 @@
 }
 
 .audio-upload-control span {
-  color: var(--text-primary);
+  color: var(--color-plum-900);
   font-size: 14px;
   font-weight: 700;
 }
 
 .audio-upload-control small {
-  color: var(--text-muted);
+  color: var(--color-plum-600);
   font-size: 12px;
 }
 
 .audio-upload-control:hover {
-  background: var(--accent-blue-light);
-  border-color: var(--accent-blue);
+  background: var(--color-rose-100);
+  border-color: var(--color-rose-500);
 }
 
 .audio-upload-item {
   align-items: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background: var(--color-rose-50);
+  border: 1px solid var(--color-rose-200);
   border-radius: 8px;
   display: grid;
   gap: 14px;
@@ -63,7 +63,7 @@
 }
 
 .audio-upload-item strong {
-  color: var(--text-primary);
+  color: var(--color-plum-900);
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -71,7 +71,7 @@
 }
 
 .audio-upload-item span {
-  color: var(--text-muted);
+  color: var(--color-plum-600);
   font-size: 12px;
 }
 

@@ -729,8 +729,8 @@
 
 .photo-upload-grid {
   align-content: start;
-  background: #ffffff;
-  border: 1px solid #edf0f5;
+  background: var(--color-rose-50);
+  border: 1px solid var(--color-rose-200);
   border-radius: 12px;
   display: grid;
   gap: 12px;
@@ -789,7 +789,7 @@
 }
 
 .photo-upload-add {
-  background: #fafafa;
+  background: var(--color-rose-50);
   border-style: dashed;
   color: var(--text-primary);
   cursor: pointer;
@@ -798,8 +798,9 @@
 }
 
 .photo-upload-add:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
+  background: var(--color-rose-100);
+  border-color: var(--color-rose-500);
+  color: var(--color-rose-700);
 }
 
 .photo-upload-add strong {
@@ -862,7 +863,7 @@
 
 .digital-human-bad-examples i {
   align-items: center;
-  background: #eef7ff;
+  background: var(--color-rose-100);
   border-radius: 50%;
   display: flex;
   font-size: 34px;
@@ -1001,6 +1002,182 @@
   border-radius: 7px;
   height: 36px;
   padding-inline: 16px;
+}
+
+// 人物、人声、场景、产品素材共用的淡粉主题。作品页维持独立视觉。
+.material-page.voice-board-page:not(.works-assets-page) {
+  --voice-board-surface: var(--color-rose-50);
+  --bg-primary: var(--color-rose-50);
+  --bg-secondary: #ffffff;
+  --bg-hover: var(--color-rose-100);
+  --text-primary: var(--color-plum-900);
+  --text-secondary: var(--color-plum-700);
+  --accent-blue: var(--color-rose-600);
+  --accent-blue-light: var(--color-rose-100);
+  --border-color: var(--color-rose-200);
+  --shadow-sm: var(--shadow-rose-sm);
+  background:
+    radial-gradient(circle at 92% 4%, rgb(var(--color-rose-rgb) / 0.08), transparent 24%),
+    linear-gradient(145deg, #ffffff 0%, var(--color-rose-50) 58%, var(--color-rose-100) 100%);
+  border: 1px solid var(--color-rose-100);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-toolbar {
+  border-bottom: 1px solid var(--color-rose-100);
+  padding-bottom: 16px;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-search.ant-input-affix-wrapper {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--color-rose-200);
+  border-radius: 10px;
+  box-shadow: 0 5px 18px rgb(var(--color-rose-rgb) / 0.05);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-search.ant-input-affix-wrapper:hover {
+  border-color: var(--color-rose-300);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-search.ant-input-affix-wrapper-focused {
+  background: #ffffff;
+  border-color: var(--color-rose-500);
+  box-shadow: 0 0 0 3px rgb(var(--color-rose-rgb) / 0.1);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-search .ant-input-prefix {
+  color: var(--color-rose-500);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-toolbar .ant-btn-default:hover {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-300);
+  color: var(--color-rose-700);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-primary:not(.app-button--brand) {
+  background: var(--color-rose-600);
+  border-color: var(--color-rose-600);
+  box-shadow: 0 7px 18px rgb(var(--color-rose-rgb) / 0.14);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-primary:not(.app-button--brand):hover,
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-primary:not(.app-button--brand):focus-visible {
+  background: var(--color-rose-500);
+  border-color: var(--color-rose-500);
+  color: #ffffff;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-default:not(.ant-btn-dangerous):hover,
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-default:not(.ant-btn-dangerous):focus-visible,
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-text:not(.ant-btn-dangerous):hover,
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-text:not(.ant-btn-dangerous):focus-visible {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-300);
+  color: var(--color-rose-700);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-link:not(.ant-btn-dangerous) {
+  color: var(--color-rose-600);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-link:not(.ant-btn-dangerous):hover,
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn-link:not(.ant-btn-dangerous):focus-visible {
+  color: var(--color-rose-500);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-btn:focus-visible {
+  outline: 3px solid rgb(var(--color-rose-rgb) / 0.16);
+  outline-offset: 2px;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card,
+.material-page.voice-board-page:not(.works-assets-page) .material-card,
+.material-page.voice-board-page:not(.works-assets-page) .digital-human-project-card,
+.material-page.voice-board-page:not(.works-assets-page) .real-person-card,
+.material-page.voice-board-page:not(.works-assets-page) .voice-library-card,
+.material-page.voice-board-page:not(.works-assets-page) .scene-group-card {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: var(--color-rose-200);
+  color: var(--color-plum-900);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card--interactive:hover,
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card--interactive:focus-visible,
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card--body-interactive:has(.asset-library-card__body--interactive:hover),
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card--body-interactive:has(.asset-library-card__body--interactive:focus-visible),
+.material-page.voice-board-page:not(.works-assets-page) .material-card:hover,
+.material-page.voice-board-page:not(.works-assets-page) .digital-human-project-card:hover,
+.material-page.voice-board-page:not(.works-assets-page) .real-person-card:hover,
+.material-page.voice-board-page:not(.works-assets-page) .voice-library-card:hover,
+.material-page.voice-board-page:not(.works-assets-page) .scene-group-card:hover {
+  border-color: var(--color-rose-400);
+  box-shadow: var(--shadow-rose-sm);
+  transform: none;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__preview,
+.material-page.voice-board-page:not(.works-assets-page) .material-preview,
+.material-page.voice-board-page:not(.works-assets-page) .digital-human-cover,
+.material-page.voice-board-page:not(.works-assets-page) .voice-card-visual,
+.material-page.voice-board-page:not(.works-assets-page) .scene-cover-grid > div {
+  background: linear-gradient(145deg, #ffffff 0%, var(--color-rose-50) 100%);
+  color: var(--color-rose-600);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__audio-wave span {
+  background: var(--color-rose-500);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__title,
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__create-title,
+.material-page.voice-board-page:not(.works-assets-page) .material-name {
+  color: var(--color-plum-900);
+}
+
+// .material-page.voice-board-page:not(.works-assets-page) .asset-library-card__description,
+// .material-page.voice-board-page:not(.works-assets-page) .asset-library-card__meta,
+// .material-page.voice-board-page:not(.works-assets-page) .asset-library-card__create-description,
+// .material-page.voice-board-page:not(.works-assets-page) .material-meta,
+// .material-page.voice-board-page:not(.works-assets-page) .voice-board-pagination {
+//   color: var(--color-plum-600);
+// }
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__status,
+.material-page.voice-board-page:not(.works-assets-page) .material-status {
+  color: var(--color-rose-600);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card--create {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), var(--color-rose-50));
+  border-color: var(--color-rose-300);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .asset-library-card__create-icon {
+  background: var(--color-rose-100);
+  color: var(--color-rose-600);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .voice-board-pagination {
+  background: transparent;
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-pagination-item-active {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-500);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .ant-pagination-item-active a,
+.material-page.voice-board-page:not(.works-assets-page) .ant-pagination-item:hover a,
+.material-page.voice-board-page:not(.works-assets-page) .ant-pagination-prev:hover .ant-pagination-item-link,
+.material-page.voice-board-page:not(.works-assets-page) .ant-pagination-next:hover .ant-pagination-item-link {
+  color: var(--color-rose-700);
+}
+
+.material-page.voice-board-page:not(.works-assets-page) .single-library-asset-card .ant-btn-dangerous:hover {
+  background: var(--color-danger-soft);
 }
 
 .works-assets-page {
@@ -1401,8 +1578,14 @@
 }
 
 .single-library-asset-card .ant-btn {
+  border-radius: 10px;
   justify-self: flex-start;
-  padding-inline: 0;
+  padding-inline: 10px;
+}
+
+.single-library-asset-card .ant-btn-dangerous {
+  column-gap: 6px;
+  height: 32px;
 }
 
 .finished-video-card--completed .asset-library-card__preview {
@@ -1554,9 +1737,9 @@
 
 .voice-card-visual {
   align-items: center;
-  background: #f2f6fb;
+  background: var(--color-rose-50);
   border: 0;
-  color: #1677ff;
+  color: var(--color-rose-600);
   cursor: pointer;
   display: flex;
   flex: 0 0 132px;
@@ -1570,7 +1753,7 @@
 }
 
 .voice-card-badge {
-  background: #6d43dc;
+  background: var(--color-rose-600);
   border-radius: 999px;
   color: #ffffff !important;
   font-size: 12px;
@@ -1582,7 +1765,7 @@
 }
 
 .voice-card-badge.training {
-  background: #2563eb;
+  background: var(--color-rose-500);
 }
 
 .voice-card-badge.failed {
@@ -1591,13 +1774,13 @@
 
 .voice-card-badge.success,
 .voice-card-badge.idle {
-  background: #6d43dc;
+  background: var(--color-rose-600);
 }
 
 .voice-board-empty {
   align-items: center;
   background: #ffffff;
-  border: 1px dashed #d2dbe8;
+  border: 1px dashed var(--color-rose-300);
   border-radius: 8px;
   color: #7a8797;
   display: flex;
@@ -1643,7 +1826,7 @@
 .voice-create-choice-grid button {
   align-items: center;
   background: #ffffff;
-  border: 2px dashed #e1e4e8;
+  border: 2px dashed var(--color-rose-200);
   border-radius: 8px;
   color: #999999;
   cursor: pointer;
@@ -1656,8 +1839,9 @@
 }
 
 .voice-create-choice-grid button:hover {
-  border-color: #1677ff;
-  color: #1677ff;
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-500);
+  color: var(--color-rose-700);
 }
 
 .voice-create-choice-grid strong {
@@ -1681,7 +1865,7 @@
 }
 
 .voice-create-form label > span {
-  color: #475467;
+  color: var(--color-plum-800);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1704,7 +1888,7 @@
 .voice-record-panel,
 .voice-clone-upload-panel,
 .voice-prompt-text {
-  background: #f5f7fb;
+  background: var(--color-rose-50);
   border-radius: 8px;
   padding: 22px;
 }
@@ -1769,19 +1953,20 @@
 }
 
 .voice-detail-modal .ant-modal-content {
+  border: 1px solid var(--color-rose-100);
   border-radius: 14px;
   overflow: hidden;
   padding: 0;
 }
 
 .voice-detail-modal .ant-modal-header {
-  border-bottom: 1px solid #e6e8eb;
+  border-bottom: 1px solid var(--color-rose-100);
   margin: 0;
   padding: 20px 28px;
 }
 
 .voice-detail-modal .ant-modal-title {
-  color: #161616;
+  color: var(--color-plum-900);
   font-size: 20px;
   font-weight: 800;
 }
@@ -1807,9 +1992,9 @@
 
 .voice-detail-wave {
   align-items: center;
-  background: #f4f7fb;
+  background: var(--color-rose-50);
   border-radius: 10px;
-  color: #2584ff;
+  color: var(--color-rose-600);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1817,20 +2002,25 @@
   min-height: 100px;
   padding: 18px;
   text-align: center;
+  overflow: hidden;
 }
 
 .voice-detail-wave.training {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--color-rose-100);
+  border: 1px solid var(--color-rose-200);
 }
 
 .voice-detail-waveform {
   transform: scale(1.02);
 }
 
+.voice-detail-waveform span {
+  background: var(--color-rose-500);
+}
+
 .voice-detail-generating {
   align-items: center;
-  color: #2563eb;
+  color: var(--color-rose-600);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1866,8 +2056,8 @@
 }
 
 .voice-detail-info h3 {
-  border-bottom: 1px solid #e5e7eb;
-  color: #181818;
+  border-bottom: 1px solid var(--color-rose-100);
+  color: var(--color-plum-900);
   font-size: 16px;
   font-weight: 800;
   margin: 0;
@@ -1883,13 +2073,12 @@
 }
 
 .voice-detail-row > span {
-  color: #9aa0a8;
   font-size: 14px;
   font-weight: 700;
 }
 
 .voice-detail-row strong {
-  color: #202124;
+  color: var(--color-plum-900);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1909,7 +2098,7 @@
 
 .voice-detail-modal .voice-preview-player,
 .voice-detail-footer-actions {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-rose-100);
   display: flex;
   gap: 14px;
   justify-content: flex-end;
@@ -1922,6 +2111,216 @@
   height: 42px;
   min-width: 112px;
   padding-inline: 20px;
+}
+
+.voice-detail-modal .ant-btn-link {
+  color: var(--color-rose-600);
+  padding-inline: 4px;
+}
+
+.voice-detail-modal .ant-btn-link:hover {
+  color: var(--color-rose-500);
+}
+
+.voice-detail-modal .ant-btn-dangerous,
+.digital-human-detail-modal .ant-btn-dangerous {
+  border-radius: 10px;
+  padding-inline: 16px;
+}
+
+.voice-detail-modal .ant-btn-dangerous:hover,
+.digital-human-detail-modal .ant-btn-dangerous:hover {
+  background: var(--color-danger-soft);
+}
+
+.digital-human-detail-modal .ant-modal-content {
+  border: 1px solid var(--color-rose-100);
+}
+
+.digital-human-detail-modal .asset-detail-secondary-button.ant-btn {
+  background: #ffffff;
+  border-color: var(--color-rose-300);
+  border-radius: 10px;
+  color: var(--color-rose-700);
+}
+
+.digital-human-detail-modal .asset-detail-secondary-button.ant-btn:hover {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-400);
+  color: var(--color-rose-600);
+}
+
+.voice-name-edit-modal .ant-input {
+  border-color: var(--color-rose-200);
+}
+
+.voice-name-edit-modal .ant-input:hover {
+  border-color: var(--color-rose-300);
+}
+
+.voice-name-edit-modal .ant-input:focus {
+  border-color: var(--color-rose-500);
+  box-shadow: 0 0 0 3px rgb(var(--color-rose-rgb) / 0.1);
+}
+
+.voice-name-edit-modal .ant-btn-primary {
+  background: var(--color-rose-600);
+  border-color: var(--color-rose-600);
+}
+
+.voice-name-edit-modal .ant-btn-primary:hover {
+  background: var(--color-rose-500);
+  border-color: var(--color-rose-500);
+}
+
+.voice-name-edit-modal .ant-btn-default:hover {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-300);
+  color: var(--color-rose-700);
+}
+
+// 素材库弹窗通过 Portal 渲染，不能继承页面作用域，因此统一挂载主题类。
+.asset-library-themed-modal .ant-btn-primary:not(.app-button--brand) {
+  background: var(--color-rose-600);
+  border-color: var(--color-rose-600);
+  box-shadow: 0 7px 18px rgb(var(--color-rose-rgb) / 0.14);
+}
+
+.asset-library-themed-modal .ant-btn-primary:not(.app-button--brand):hover,
+.asset-library-themed-modal .ant-btn-primary:not(.app-button--brand):focus-visible {
+  background: var(--color-rose-500);
+  border-color: var(--color-rose-500);
+  color: #ffffff;
+}
+
+.asset-library-themed-modal .ant-btn-default:not(.ant-btn-dangerous) {
+  border-color: var(--color-rose-200);
+  color: var(--color-plum-800);
+}
+
+.asset-library-themed-modal .ant-btn-default:not(.ant-btn-dangerous):hover,
+.asset-library-themed-modal .ant-btn-default:not(.ant-btn-dangerous):focus-visible,
+.asset-library-themed-modal .ant-btn-text:not(.ant-btn-dangerous):hover,
+.asset-library-themed-modal .ant-btn-text:not(.ant-btn-dangerous):focus-visible {
+  background: var(--color-rose-50);
+  border-color: var(--color-rose-300);
+  color: var(--color-rose-700);
+}
+
+.asset-library-themed-modal .ant-btn-link:not(.ant-btn-dangerous) {
+  color: var(--color-rose-600);
+}
+
+.asset-library-themed-modal .ant-btn-link:not(.ant-btn-dangerous):hover,
+.asset-library-themed-modal .ant-btn-link:not(.ant-btn-dangerous):focus-visible {
+  color: var(--color-rose-500);
+}
+
+.asset-library-themed-modal .ant-btn:focus-visible {
+  outline: 3px solid rgb(var(--color-rose-rgb) / 0.16);
+  outline-offset: 2px;
+}
+
+.asset-library-themed-modal .ant-input,
+.asset-library-themed-modal .ant-input-affix-wrapper {
+  border-color: var(--color-rose-200);
+}
+
+.asset-library-themed-modal .ant-input:hover,
+.asset-library-themed-modal .ant-input-affix-wrapper:hover,
+.asset-library-themed-modal .ant-upload-select:hover {
+  border-color: var(--color-rose-300) !important;
+}
+
+.asset-library-themed-modal .ant-input:focus,
+.asset-library-themed-modal .ant-input-affix-wrapper-focused {
+  border-color: var(--color-rose-500);
+  box-shadow: 0 0 0 3px rgb(var(--color-rose-rgb) / 0.1);
+}
+
+.asset-library-themed-popconfirm .ant-popover-inner {
+  border: 1px solid var(--color-rose-100);
+  border-radius: 14px;
+  box-shadow: var(--shadow-rose-md);
+  padding: 16px;
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-message-icon {
+  color: var(--color-rose-600);
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-message-icon .anticon {
+  color: var(--color-rose-600) !important;
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-title {
+  color: var(--color-plum-900);
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-buttons {
+  gap: 8px;
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-buttons .ant-btn {
+  border-radius: 9px;
+  min-width: 56px;
+  padding-inline: 14px;
+}
+
+.asset-library-themed-popconfirm .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined {
+  background: #ffffff !important;
+  border-color: var(--color-rose-200) !important;
+  color: var(--color-plum-800) !important;
+}
+
+.asset-library-themed-popconfirm .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:hover,
+.asset-library-themed-popconfirm .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:focus-visible {
+  background: var(--color-rose-50) !important;
+  border-color: var(--color-rose-300) !important;
+  color: var(--color-rose-700) !important;
+}
+
+.asset-library-themed-popconfirm .ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid {
+  background: var(--color-rose-600) !important;
+  border-color: var(--color-rose-600) !important;
+  box-shadow: none;
+  color: #ffffff !important;
+}
+
+.asset-library-themed-popconfirm .ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid:hover,
+.asset-library-themed-popconfirm .ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid:focus-visible {
+  background: var(--color-rose-500) !important;
+  border-color: var(--color-rose-500) !important;
+  color: #ffffff !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn {
+  background: #ffffff !important;
+  border-color: var(--color-rose-200) !important;
+  color: var(--color-plum-800) !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn:hover,
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn:focus-visible {
+  background: var(--color-rose-50) !important;
+  background-color: var(--color-rose-50) !important;
+  border-color: var(--color-rose-300) !important;
+  color: var(--color-rose-700) !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn {
+  background: var(--color-rose-600) !important;
+  background-color: var(--color-rose-600) !important;
+  border-color: var(--color-rose-600) !important;
+  color: #ffffff !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn:hover,
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn:focus-visible {
+  background: var(--color-rose-500) !important;
+  background-color: var(--color-rose-500) !important;
+  border-color: var(--color-rose-500) !important;
+  color: #ffffff !important;
 }
 
 .voice-detail-modal .audio-upload-control {

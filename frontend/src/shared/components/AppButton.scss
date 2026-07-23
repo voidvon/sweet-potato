@@ -5,14 +5,20 @@
     var(--color-rose-600) 58%,
     var(--color-rose-500) 100%
   );
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 14px;
-  box-shadow: 0 12px 28px rgb(var(--color-rose-rgb) / 0.2);
+  box-sizing: border-box;
+  box-shadow: 0 12px 28px rgb(var(--color-rose-rgb) / 0.18);
+  flex: 0 0 auto;
   font-size: 14px;
   font-weight: 600;
-  height: 50px;
-  margin-top: 6px;
   transition: background 200ms ease, box-shadow 200ms ease;
+  white-space: nowrap;
+}
+
+.app-button--brand.ant-btn-lg {
+  border-radius: 14px;
+  height: 50px;
 }
 
 .app-button--brand.ant-btn:hover,
@@ -23,7 +29,9 @@
     var(--color-rose-500) 62%,
     var(--color-rose-400) 100%
   );
-  box-shadow: 0 14px 30px rgb(var(--color-rose-rgb) / 0.2);
+  border-color: transparent;
+  box-shadow: 0 12px 28px rgb(var(--color-rose-rgb) / 0.14);
+  color: #ffffff;
 }
 
 .app-button--brand.ant-btn:focus-visible {
