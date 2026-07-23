@@ -6,6 +6,27 @@
   --color-brand-soft-strong: #dceeff;
   --color-brand-border: #b9ddff;
 
+  // 低饱和玫瑰粉：适合大面积浅背景、品牌强调与交互状态。
+  --color-rose-50: #fcf8fa;
+  --color-rose-100: #f8eef2;
+  --color-rose-200: #edd7df;
+  --color-rose-300: #dfb5c4;
+  --color-rose-400: #cb879f;
+  --color-rose-500: #b85f7f;
+  --color-rose-600: #9f496a;
+  --color-rose-700: #823a57;
+  --color-rose-rgb: 184 95 127;
+
+  // 中性梅子色：用于淡粉主题的高对比文字和层级强调。
+  --color-plum-600: #92677a;
+  --color-plum-700: #795668;
+  --color-plum-800: #5f4251;
+  --color-plum-900: #402b35;
+
+  // 粉色主题可复用阴影。
+  --shadow-rose-sm: 0 8px 24px rgba(112, 68, 88, 0.12);
+  --shadow-rose-md: 0 24px 72px rgba(112, 68, 88, 0.14);
+
   // 页面、卡片和弱化区域使用的基础表面色。
   --color-surface: #ffffff;
   --color-surface-subtle: #f5faff;
