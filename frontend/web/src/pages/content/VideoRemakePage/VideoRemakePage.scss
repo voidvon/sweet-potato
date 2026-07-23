@@ -1,4 +1,15 @@
 .video-remake-page {
+  // 视频复刻的过程与状态沿用早期信息蓝，不跟随全局品牌色切换。
+  --color-brand: var(--color-info);
+  --color-brand-active: var(--color-info-hover);
+  --color-brand-border: var(--color-info-border);
+  --color-brand-hover: var(--color-info-hover);
+  --color-brand-rgb: 22 119 255;
+  --color-brand-soft: var(--color-info-soft);
+  --color-brand-soft-strong: #dceeff;
+  --color-border: #dceafa;
+  --color-border-subtle: #e8eef5;
+  --color-surface-subtle: #f5faff;
   --remake-bg-rgb: var(--color-neutral-100-rgb);
   --remake-bg: var(--color-neutral-100);
   --remake-panel: var(--color-white);
@@ -28,10 +39,6 @@
   min-height: 0;
   min-width: 0;
   padding: 0;
-}
-
-.video-remake-sidebar-header {
-  padding-bottom: 2px;
 }
 
 .video-remake-session-item {
@@ -578,7 +585,7 @@
 }
 
 .remake-ai-note-failed {
-  background: var(--color-rose-50);
+  background: var(--color-danger-soft);
   border-left-color: var(--color-danger-border);
 }
 

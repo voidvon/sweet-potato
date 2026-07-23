@@ -1,6 +1,9 @@
 @use './styles/tokens';
 
 :root {
+  --app-scrollbar-size: 6px;
+  --app-scrollbar-thumb: rgb(var(--color-text-muted-rgb) / 0.32);
+  --app-scrollbar-thumb-hover: rgb(var(--color-text-muted-rgb) / 0.44);
   color: var(--color-text);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
@@ -16,6 +19,40 @@ body {
 
 .ant-btn {
   border-radius: 999px;
+}
+
+.ant-btn.ant-btn-sm {
+  font-size: 12px;
+  gap: 2px;
+}
+
+.ant-btn.ant-btn-sm > .ant-btn-icon,
+.ant-btn.ant-btn-sm > .ant-btn-icon > svg,
+.ant-btn.ant-btn-sm > svg {
+  height: 12px;
+  width: 12px;
+}
+
+// Keep every Ant Design Select aligned with the global control radius.
+body .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  border-color: var(--color-control-border) !important;
+  border-radius: 14px !important;
+}
+
+body .ant-select:not(.ant-select-customize-input):not(.ant-select-disabled):hover .ant-select-selector,
+body .ant-select:not(.ant-select-customize-input).ant-select-focused .ant-select-selector {
+  border-color: var(--color-control-border) !important;
+}
+
+body .ant-select-lg .ant-select-selection-item,
+body .ant-select-lg .ant-select-selection-placeholder,
+body .ant-select-lg .ant-select-selection-search-input,
+body .ant-select-lg .ant-select-content.ant-select-content-has-value,
+body .ant-select-lg .ant-select-content-value,
+body .ant-select-lg .ant-select-placeholder,
+body .ant-select-lg .ant-select-content input {
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
 .ant-btn:not(.ant-btn-sm):not(.ant-btn-lg) {
@@ -96,13 +133,13 @@ body {
 }
 
 * {
-  scrollbar-color: rgb(var(--color-text-muted-rgb) / 0.32) transparent;
+  scrollbar-color: var(--app-scrollbar-thumb) transparent;
   scrollbar-width: thin;
 }
 
 *::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
+  height: var(--app-scrollbar-size);
+  width: var(--app-scrollbar-size);
 }
 
 *::-webkit-scrollbar-track {
@@ -110,12 +147,30 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-text-muted-rgb) / 0.32);
+  background: var(--app-scrollbar-thumb);
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--color-rose-shadow-rgb) / 0.44);
+  background: var(--app-scrollbar-thumb-hover);
+}
+
+// Ant Design Select uses a simulated scrollbar for virtualized option lists.
+.ant-select-dropdown {
+  --rc-virtual-list-scrollbar-bg: var(--app-scrollbar-thumb);
+}
+
+.ant-select-dropdown .rc-virtual-list-scrollbar-vertical {
+  width: var(--app-scrollbar-size) !important;
+}
+
+.ant-select-dropdown .rc-virtual-list-scrollbar-horizontal {
+  height: var(--app-scrollbar-size) !important;
+}
+
+.ant-select-dropdown .rc-virtual-list-scrollbar-thumb:hover,
+.ant-select-dropdown .rc-virtual-list-scrollbar-thumb-moving {
+  --rc-virtual-list-scrollbar-bg: var(--app-scrollbar-thumb-hover);
 }
 
 #root {

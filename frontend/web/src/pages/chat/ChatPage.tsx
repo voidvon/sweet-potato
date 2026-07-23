@@ -61,7 +61,7 @@ export function ChatPage() {
               icon={<Plus size={14} />}
               onClick={chat.startNewConversation}
               size="small"
-              type="text"
+              type="primary"
             >
               新建
             </Button>

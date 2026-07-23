@@ -206,6 +206,7 @@ export function VideoTranslationPanel({ config, onChange, selectedMaterials }: V
             value: size,
             label: String(size),
           }))}
+          size="large"
           value={config.fontSize}
         />
       </div>
@@ -249,6 +250,7 @@ function LanguageSelect({ label, onChange, options, value }: LanguageSelectProps
         className="video-translation-antd-select"
         onChange={onChange}
         options={options}
+        size="large"
         value={value}
       />
     </div>

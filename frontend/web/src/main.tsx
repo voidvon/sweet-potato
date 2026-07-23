@@ -23,6 +23,7 @@ const themeColors = {
   brandHover: resolveCssColor('--color-brand-hover'),
   brandSoft: resolveCssColor('--color-brand-soft'),
   brandSoftStrong: resolveCssColor('--color-brand-soft-strong'),
+  controlBorder: resolveCssColor('--color-control-border'),
   danger: resolveCssColor('--color-danger'),
   neutral100: resolveCssColor('--color-neutral-100'),
   neutral500: resolveCssColor('--color-neutral-500'),
@@ -77,6 +78,13 @@ createRoot(rootElement).render(
           },
           Modal: {
             borderRadiusLG: 22,
+          },
+          Select: {
+            borderRadius: 14,
+            borderRadiusLG: 14,
+            borderRadiusSM: 14,
+            colorBorder: themeColors.controlBorder,
+            fontSizeLG: 13,
           },
         },
         token: {

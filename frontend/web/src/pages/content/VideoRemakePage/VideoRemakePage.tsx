@@ -1986,14 +1986,20 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
   return (
     <div className="video-remake-page">
       <VideoWorkbenchLayout
-        sidebarHeader={(
-          <div className="video-remake-sidebar-header">
-            <Button block icon={<Plus size={16} />} onClick={handleNewSession} type="primary">
-              新建复刻
+        sidebarTitle={(
+          <>
+            <span>会话</span>
+            <Button
+              aria-label="新建复刻"
+              icon={<Plus size={12} />}
+              onClick={handleNewSession}
+              size="small"
+              type="primary"
+            >
+              新建
             </Button>
-          </div>
+          </>
         )}
-        sidebarTitle="会话"
         sidebarContent={(
           <div className="video-remake-sidebar-section">
             <div className="video-workbench-list">

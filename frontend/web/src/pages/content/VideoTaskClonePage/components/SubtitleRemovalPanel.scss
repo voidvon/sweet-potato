@@ -437,9 +437,13 @@
   padding: 0 8px;
 }
 
-.subtitle-editor-section-heading > button:hover,
-.subtitle-editor-region-card header > button:hover {
+.subtitle-editor-section-heading > button:hover {
   background: var(--color-sidebar-hover);
+}
+
+.subtitle-editor-region-card header > button:hover {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-300);
 }
 
 .subtitle-editor-section-heading > button:disabled,
@@ -504,7 +508,7 @@
 }
 
 .subtitle-editor-region-card.is-active {
-  background: var(--color-rose-50);
+  background: var(--color-neutral-50);
   border-color: var(--color-neutral-400);
 }
 
