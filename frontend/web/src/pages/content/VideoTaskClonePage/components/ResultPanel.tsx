@@ -140,7 +140,7 @@ export function ResultPanel({
         >
           <Button
             className={activeFilterCount > 0 ? 'video-task-filter has-filters' : 'video-task-filter'}
-            icon={<Filter size={18} />}
+            icon={<Filter size={14} />}
             type="primary"
           >
             筛选
