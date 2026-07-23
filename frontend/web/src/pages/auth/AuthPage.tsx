@@ -13,7 +13,7 @@ import {
 import { AppButton } from '@shared/components/AppButton';
 import { AuthExperience } from '@shared/components/AuthExperience';
 import { loginAccount, registerAccount } from "../../api/auth";
-import appLogo from "@shared/assets/app-logo.png";
+import sidebarLogo from "@shared/assets/sidebar-logo.png";
 import type { AuthSession, LoginPayload, RegisterPayload } from "../../types";
 
 type AuthMode = "login" | "register";
@@ -52,7 +52,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
         { icon: <PlayCircleOutlined />, title: '视频创作', description: '覆盖口播与内容生产流程' },
         { icon: <ThunderboltOutlined />, title: '高效工作流', description: '素材、任务与作品统一管理' },
       ]}
-      logoSrc={appLogo}
+      logoSrc={sidebarLogo}
       panelDescription={mode === 'login' ? '登录后继续管理素材与创作任务。' : '只需一个账号，开启你的 AI 创作空间。'}
       panelEyebrow={mode === 'login' ? '欢迎回来' : '开始创作'}
       panelFooter={<><SafetyCertificateOutlined />账号信息将被安全加密保护</>}

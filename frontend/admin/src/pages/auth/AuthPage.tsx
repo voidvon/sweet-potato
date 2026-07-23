@@ -12,7 +12,7 @@ import {
 import { AppButton } from '@shared/components/AppButton';
 import { AuthExperience } from '@shared/components/AuthExperience';
 import { loginAccount } from '@shared/api/auth';
-import appLogo from '@shared/assets/app-logo.png';
+import sidebarLogo from '@shared/assets/sidebar-logo.png';
 import type { AuthSession, LoginPayload } from '@shared/types';
 
 type AuthPageProps = {
@@ -47,7 +47,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
         { icon: <BarChartOutlined />, title: '业务运营', description: '掌握积分、内容与使用情况' },
         { icon: <SettingOutlined />, title: '系统配置', description: '集中维护模型和平台配置' },
       ]}
-      logoSrc={appLogo}
+      logoSrc={sidebarLogo}
       panelDescription="请使用已授权的管理员账号继续访问。"
       panelEyebrow="管理员入口"
       panelFooter={<><SafetyCertificateOutlined />受保护的内部管理空间</>}
