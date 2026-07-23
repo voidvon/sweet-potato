@@ -1064,6 +1064,7 @@ export function ContentResourceLibraryPage({
             onChange={(event) => setSearchKeyword(event.target.value)}
             placeholder="搜索素材名称..."
             prefix={<Search size={17} />}
+            size="large"
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />

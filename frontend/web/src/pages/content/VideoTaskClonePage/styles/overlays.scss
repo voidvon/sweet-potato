@@ -318,7 +318,7 @@
 }
 
 .video-task-audio-progress-bar span {
-  background: linear-gradient(90deg, var(--color-brand) 0%, var(--color-brand-border) 100%);
+  background: var(--color-brand);
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -2551,17 +2551,17 @@
 
 .video-task-ratio-grid button.is-active,
 .video-task-quality-grid button.is-active {
-  background: var(--color-brand-soft);
-  border-color: var(--color-brand);
-  box-shadow: inset 0 1px 0 rgb(var(--color-white-rgb) / 0.86), 0 5px 14px rgb(var(--color-brand-rgb) / 0.08);
-  color: var(--color-brand-hover);
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-400);
+  box-shadow: inset 0 1px 0 rgb(var(--color-white-rgb) / 0.86), 0 5px 14px rgb(var(--color-shadow-rgb) / 0.06);
+  color: var(--color-neutral-800);
 }
 
 .video-task-ratio-grid button:hover,
 .video-task-quality-grid button:hover {
-  background: var(--color-brand-soft);
-  border-color: var(--color-brand-border);
-  box-shadow: 0 6px 16px rgb(var(--color-brand-rgb) / 0.08);
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-300);
+  box-shadow: 0 6px 16px rgb(var(--color-shadow-rgb) / 0.05);
 }
 
 .video-task-ratio-grid button:active,
@@ -2571,8 +2571,8 @@
 
 .video-task-ratio-grid button.is-active:hover,
 .video-task-quality-grid button.is-active:hover {
-  background: var(--color-brand-soft-strong);
-  border-color: var(--color-brand);
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-400);
 }
 
 .video-task-ratio-grid button strong {
@@ -2658,7 +2658,7 @@
 }
 
 .video-task-param-popover button:focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--color-neutral-400);
   outline-offset: 2px;
 }
 
@@ -2684,27 +2684,27 @@
 }
 
 .video-task-param-popover.is-model .video-task-param-options button:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-neutral-50);
 }
 
 .video-task-param-popover.is-model .video-task-param-options button:active {
-  background: var(--color-brand-soft);
+  background: var(--color-neutral-100);
 }
 
 .video-task-param-popover.is-model .video-task-param-options button.is-active {
-  background: var(--color-brand-soft);
+  background: var(--color-neutral-100);
   border-color: transparent;
-  box-shadow: inset 3px 0 0 var(--color-brand);
-  color: var(--color-brand-hover);
+  box-shadow: inset 3px 0 0 var(--color-neutral-500);
+  color: var(--color-neutral-800);
   font-weight: 400;
 }
 
 .video-task-param-popover.is-model .video-task-param-options button.is-active:hover {
-  background: var(--color-brand-soft-strong);
+  background: var(--color-neutral-200);
 }
 
 .video-task-param-popover.is-model .video-task-param-options button.is-active strong {
-  color: var(--color-brand-hover);
+  color: var(--color-neutral-800);
 }
 
 .video-task-param-option-copy {
@@ -2734,7 +2734,7 @@
 }
 
 .video-task-param-option-check {
-  color: var(--color-brand-hover);
+  color: var(--color-neutral-600);
   flex: none;
   margin-top: auto;
   margin-bottom: auto;
@@ -2754,16 +2754,22 @@
 }
 
 .video-task-param-popover.is-duration .video-task-param-options button:hover {
-  background: var(--color-brand-soft);
-  border-color: var(--color-brand-border);
-  color: var(--color-brand-hover);
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-300);
+  color: var(--color-neutral-800);
 }
 
 .video-task-param-popover.is-duration .video-task-param-options button:active {
   transform: translateY(1px);
 }
 
-.video-task-param-popover.is-duration .video-task-param-options button.is-active,
+.video-task-param-popover.is-duration .video-task-param-options button.is-active {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-400);
+  color: var(--color-neutral-800);
+  font-weight: 600;
+}
+
 .video-task-filter-group button.is-active {
   background: var(--color-brand-soft);
   border-color: var(--color-brand);

@@ -15,6 +15,8 @@ import { CreditIcon } from '../components/CreditIcon';
 import { formatIntegerCreditAmount } from '../utils/credits';
 import './WorkspaceShellLayout.scss';
 
+const SHOW_TUTORIAL_ACTION = false;
+
 export type WorkspaceRouteState = {
   activeOpenKeys: string[];
   currentMenuTitle: string;
@@ -234,14 +236,16 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       aria-label="全局操作"
       className={`workspace-global-actions${floating ? ' workspace-global-actions-floating' : ''}`}
     >
-      <button
-        className="workspace-global-action workspace-global-action-secondary"
-        onClick={() => message.info('教程内容正在完善，敬请期待')}
-        type="button"
-      >
-        <QuestionCircleOutlined />
-        <span>教程</span>
-      </button>
+      {SHOW_TUTORIAL_ACTION ? (
+        <button
+          className="workspace-global-action workspace-global-action-secondary"
+          onClick={() => message.info('教程内容正在完善，敬请期待')}
+          type="button"
+        >
+          <QuestionCircleOutlined />
+          <span>教程</span>
+        </button>
+      ) : null}
       <div className="workspace-credit-actions">
         <button
           className="workspace-credit-action workspace-credit-balance"

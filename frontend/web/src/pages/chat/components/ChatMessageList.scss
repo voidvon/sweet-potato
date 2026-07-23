@@ -397,15 +397,75 @@
 }
 
 .chat-image-generation-mode-tag.ant-tag {
-  background: var(--image-accent-soft, var(--color-brand-soft));
-  border: 1px solid var(--image-accent-border, var(--color-brand-border));
+  background: var(--image-generation-tone-bg);
+  border: 1px solid var(--image-generation-tone-border);
   border-radius: 6px;
-  color: var(--image-accent-hover, var(--color-brand));
+  color: var(--image-generation-tone-text);
   font-size: 12px;
   font-weight: 600;
   line-height: 22px;
   margin: 0;
   padding: 0 8px;
+}
+
+.chat-image-generation-mode-tag.tone-blue {
+  --image-generation-tone-bg: var(--color-generation-tone-blue-bg);
+  --image-generation-tone-text: var(--color-generation-tone-blue-text);
+  --image-generation-tone-border: var(--color-generation-tone-blue-border);
+}
+
+.chat-image-generation-mode-tag.tone-emerald {
+  --image-generation-tone-bg: var(--color-generation-tone-emerald-bg);
+  --image-generation-tone-text: var(--color-generation-tone-emerald-text);
+  --image-generation-tone-border: var(--color-generation-tone-emerald-border);
+}
+
+.chat-image-generation-mode-tag.tone-amber {
+  --image-generation-tone-bg: var(--color-generation-tone-amber-bg);
+  --image-generation-tone-text: var(--color-generation-tone-amber-text);
+  --image-generation-tone-border: var(--color-generation-tone-amber-border);
+}
+
+.chat-image-generation-mode-tag.tone-violet {
+  --image-generation-tone-bg: var(--color-generation-tone-violet-bg);
+  --image-generation-tone-text: var(--color-generation-tone-violet-text);
+  --image-generation-tone-border: var(--color-generation-tone-violet-border);
+}
+
+.chat-image-generation-mode-tag.tone-rose {
+  --image-generation-tone-bg: var(--color-generation-tone-rose-bg);
+  --image-generation-tone-text: var(--color-generation-tone-rose-text);
+  --image-generation-tone-border: var(--color-generation-tone-rose-border);
+}
+
+.chat-image-generation-mode-tag.tone-cyan {
+  --image-generation-tone-bg: var(--color-generation-tone-cyan-bg);
+  --image-generation-tone-text: var(--color-generation-tone-cyan-text);
+  --image-generation-tone-border: var(--color-generation-tone-cyan-border);
+}
+
+.chat-image-generation-mode-tag.tone-fuchsia {
+  --image-generation-tone-bg: var(--color-generation-tone-fuchsia-bg);
+  --image-generation-tone-text: var(--color-generation-tone-fuchsia-text);
+  --image-generation-tone-border: var(--color-generation-tone-fuchsia-border);
+}
+
+.chat-image-generation-mode-tag.tone-lime {
+  --image-generation-tone-bg: var(--color-generation-tone-lime-bg);
+  --image-generation-tone-text: var(--color-generation-tone-lime-text);
+  --image-generation-tone-border: var(--color-generation-tone-lime-border);
+}
+
+.chat-image-generation-mode-tag.tone-orange {
+  --image-generation-tone-bg: var(--color-generation-tone-orange-bg);
+  --image-generation-tone-text: var(--color-generation-tone-orange-text);
+  --image-generation-tone-border: var(--color-generation-tone-orange-border);
+}
+
+.chat-image-generation-mode-tag.tone-indigo {
+  --image-generation-tone-bg: var(--color-generation-tone-indigo-bg);
+  --image-generation-tone-text: var(--color-generation-tone-indigo-text);
+  --image-generation-tone-border: var(--color-generation-tone-indigo-border);
 }
 
 .chat-image-generation-header time {

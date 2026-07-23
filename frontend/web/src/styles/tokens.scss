@@ -1,30 +1,33 @@
 :root {
-  // 暖粉中性色阶。页面、文本、边框优先使用下方语义 token，色阶用于确有层级差异的局部组件。
+  // 冷灰中性色阶。页面、文本、边框优先使用下方语义 token，色阶用于确有层级差异的局部组件。
   --color-white: #ffffff;
   --color-black: #000000;
-  --color-neutral-25: #fffbfc;
-  --color-neutral-50: #fff7f9;
-  --color-neutral-100: #fcecf1;
-  --color-neutral-200: #f3d9e2;
-  --color-neutral-300: #e5bfcc;
-  --color-neutral-400: #c89aa9;
-  --color-neutral-500: #876a77;
-  --color-neutral-600: #745a66;
-  --color-neutral-700: #5f4652;
-  --color-neutral-800: #4d3742;
-  --color-neutral-900: #402b35;
-  --color-neutral-950: #2d1d25;
+  --color-neutral-25: #fcfdf9;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #172033;
+  --color-neutral-950: #0f172a;
 
   // 品牌主色及其交互、弱强调和边框状态。
-  --color-brand: #fb7399;
-  --color-brand-hover: #e85f88;
-  --color-brand-active: #d64e78;
-  --color-brand-soft: #fff0f4;
-  --color-brand-soft-strong: #ffdce6;
-  --color-brand-border: #f8b6c9;
+  --color-brand: #84cc16;
+  --color-brand-hover: #a3e635;
+  --color-brand-active: #65a30d;
+  --color-brand-soft: #f7fee7;
+  --color-brand-soft-strong: #ecfccb;
+  --color-brand-border: #d9f99d;
   --color-on-brand: var(--color-white);
 
-  // 信息蓝用于需要与粉色主交互区分的数据指标和信息提示。
+  // 次强调色用于需要从主色中跳出的标签、图标和提示。
+  --color-accent-2: #f59e0b;
+
+  // 信息蓝用于需要与青柠主交互区分的数据指标和信息提示。
   --color-info: #1677ff;
   --color-info-hover: #0958d9;
   --color-info-soft: #eaf4ff;
@@ -38,51 +41,87 @@
   --color-teal-soft: #e7f2f0;
   --color-cyan: #568392;
   --color-cyan-soft: #e8f1f4;
-  --color-orange: #c7774f;
-  --color-orange-soft: #fff1e9;
+  --color-orange: var(--color-accent-2);
+  --color-orange-soft: #fffbeb;
 
-  // 明快玫瑰色阶：围绕品牌粉构建背景、边框和交互状态。
-  --color-rose-50: #fff8fa;
-  --color-rose-100: #fff0f4;
-  --color-rose-200: #ffdce6;
-  --color-rose-300: #f8b6c9;
-  --color-rose-400: #fb8aaa;
-  --color-rose-500: #fb7399;
-  --color-rose-600: #e85f88;
-  --color-rose-700: #d64e78;
-  --color-rose-rgb: 251 115 153;
+  // 图片生成模式标签的分类色，保留不同能力类型的早期视觉识别。
+  --color-generation-tone-blue-bg: #e8f0ff;
+  --color-generation-tone-blue-text: #1d4ed8;
+  --color-generation-tone-blue-border: rgb(37 99 235 / 0.2);
+  --color-generation-tone-emerald-bg: #e6f7ef;
+  --color-generation-tone-emerald-text: #047857;
+  --color-generation-tone-emerald-border: rgb(16 185 129 / 0.22);
+  --color-generation-tone-amber-bg: #fff4e0;
+  --color-generation-tone-amber-text: #b45309;
+  --color-generation-tone-amber-border: rgb(245 158 11 / 0.24);
+  --color-generation-tone-violet-bg: #f0e9ff;
+  --color-generation-tone-violet-text: #6d28d9;
+  --color-generation-tone-violet-border: rgb(124 58 237 / 0.22);
+  --color-generation-tone-rose-bg: #ffe2eb;
+  --color-generation-tone-rose-text: #be123c;
+  --color-generation-tone-rose-border: rgb(225 29 72 / 0.22);
+  --color-generation-tone-cyan-bg: #def4fa;
+  --color-generation-tone-cyan-text: #0e7490;
+  --color-generation-tone-cyan-border: rgb(8 145 178 / 0.22);
+  --color-generation-tone-fuchsia-bg: #fbe6ff;
+  --color-generation-tone-fuchsia-text: #a21caf;
+  --color-generation-tone-fuchsia-border: rgb(192 38 211 / 0.22);
+  --color-generation-tone-lime-bg: #ecf7d0;
+  --color-generation-tone-lime-text: #4d7c0f;
+  --color-generation-tone-lime-border: rgb(101 163 13 / 0.26);
+  --color-generation-tone-orange-bg: #ffeada;
+  --color-generation-tone-orange-text: #c2410c;
+  --color-generation-tone-orange-border: rgb(234 88 12 / 0.22);
+  --color-generation-tone-indigo-bg: #e6e6ff;
+  --color-generation-tone-indigo-text: #4338ca;
+  --color-generation-tone-indigo-border: rgb(79 70 229 / 0.22);
 
-  // 中性梅子色：用于淡粉主题的高对比文字和层级强调。
-  --color-plum-600: #92677a;
-  --color-plum-700: #795668;
-  --color-plum-800: #5f4251;
-  --color-plum-900: #402b35;
+  // 兼容既有组件的历史色阶命名，值统一映射到新的青柠品牌色。
+  --color-rose-50: var(--color-brand-soft);
+  --color-rose-100: var(--color-brand-soft-strong);
+  --color-rose-200: var(--color-brand-border);
+  --color-rose-300: #bef264;
+  --color-rose-400: var(--color-brand-hover);
+  --color-rose-500: var(--color-brand);
+  --color-rose-600: var(--color-brand-active);
+  --color-rose-700: #4d7c0f;
+  --color-rose-rgb: 132 204 22;
 
-  // 粉色主题可复用阴影。
+  // 兼容既有组件的历史文字色命名，统一使用冷灰文字色阶。
+  --color-plum-600: var(--color-neutral-500);
+  --color-plum-700: var(--color-neutral-600);
+  --color-plum-800: var(--color-neutral-700);
+  --color-plum-900: var(--color-neutral-900);
+
+  // 品牌主题可复用阴影（保留变量名以兼容既有组件）。
   --shadow-rose-sm: 0 8px 24px rgb(var(--color-rose-shadow-rgb) / 0.12);
   --shadow-rose-md: 0 24px 72px rgb(var(--color-rose-shadow-rgb) / 0.14);
 
   // 页面、卡片和弱化区域使用的基础表面色。
-  --color-surface: #fffdfd;
-  --color-surface-subtle: var(--color-rose-50);
-  --color-surface-muted: var(--color-rose-100);
+  --color-surface: var(--color-white);
+  --color-surface-page-neutral: #f6f7f9;
+  --color-surface-subtle: var(--color-brand-soft);
+  --color-surface-muted: var(--color-brand-soft-strong);
   --color-surface-raised: var(--color-neutral-50);
   --color-surface-sunken: var(--color-neutral-100);
-  --color-surface-subtle-rgb: 255 248 251;
-  --color-sidebar-hover: var(--color-rose-100);
+  --color-skeleton-surface: #f3f5f7;
+  --color-skeleton-fill: #e9edf1;
+  --color-surface-subtle-rgb: 247 254 231;
+  --color-sidebar-hover: var(--color-brand-soft-strong);
 
   // 通用边框和弱分割线颜色。
-  --color-border: var(--color-rose-200);
-  --color-border-subtle: #f7e2e9;
+  --color-border: var(--color-brand-border);
+  --color-border-subtle: #e7f6c5;
   --color-border-neutral: var(--color-neutral-200);
   --color-border-strong: var(--color-neutral-300);
+  --color-track-ring: #ededed;
 
   // 主文本、次级文本、三级文本、辅助文本和禁用文本颜色。
   --color-text: var(--color-neutral-900);
   --color-text-secondary: var(--color-neutral-600);
   --color-text-tertiary: var(--color-plum-600);
   --color-text-muted: var(--color-neutral-500);
-  --color-text-placeholder: #c18fa0;
+  --color-text-placeholder: var(--color-neutral-400);
   --color-text-disabled: var(--color-neutral-400);
   --color-text-inverse: var(--color-white);
   --color-button-text: var(--color-plum-800);
@@ -107,16 +146,16 @@
   // 透明色统一由 RGB 通道 token 组合，避免各页面维护相近但不一致的遮罩色。
   --color-white-rgb: 255 255 255;
   --color-black-rgb: 0 0 0;
-  --color-neutral-100-rgb: 252 236 241;
-  --color-shadow-rgb: 64 43 53;
-  --color-text-muted-rgb: 135 106 119;
-  --color-brand-rgb: 251 115 153;
+  --color-neutral-100-rgb: 241 245 249;
+  --color-shadow-rgb: 15 23 42;
+  --color-text-muted-rgb: 100 116 139;
+  --color-brand-rgb: 132 204 22;
   --color-success-rgb: 21 128 61;
   --color-warning-rgb: 217 119 6;
   --color-danger-rgb: 220 38 38;
   --color-purple-rgb: 212 111 158;
   --color-teal-rgb: 79 130 125;
-  --color-rose-shadow-rgb: 112 68 88;
+  --color-rose-shadow-rgb: 77 124 15;
 
   --color-overlay-soft: rgb(var(--color-shadow-rgb) / 0.08);
   --color-overlay: rgb(var(--color-black-rgb) / 0.45);

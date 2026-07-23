@@ -780,7 +780,7 @@
 }
 
 .remake-progress-track i {
-  background: linear-gradient(90deg, var(--color-brand), var(--color-success-bright));
+  background: var(--color-brand);
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -2013,7 +2013,7 @@
 }
 
 .remake-video-generation-progress span {
-  background: linear-gradient(90deg, var(--color-brand), var(--color-success-bright));
+  background: var(--color-brand);
   border-radius: inherit;
   display: block;
   height: 100%;

@@ -1,14 +1,9 @@
 .app-button--brand.ant-btn {
-  background: linear-gradient(
-    112deg,
-    var(--color-rose-700) 0%,
-    var(--color-rose-600) 58%,
-    var(--color-rose-500) 100%
-  );
-  border: 1px solid transparent;
-  border-radius: 14px;
+  background: var(--color-brand);
+  border-color: var(--color-brand);
   box-sizing: border-box;
-  box-shadow: 0 12px 28px rgb(var(--color-rose-rgb) / 0.18);
+  box-shadow: none;
+  color: var(--color-white);
   flex: 0 0 auto;
   font-size: 14px;
   font-weight: 600;
@@ -17,21 +12,21 @@
 }
 
 .app-button--brand.ant-btn-lg {
-  border-radius: 14px;
   height: 50px;
 }
 
 .app-button--brand.ant-btn:hover,
 .app-button--brand.ant-btn:focus-visible {
-  background: linear-gradient(
-    112deg,
-    var(--color-rose-600) 0%,
-    var(--color-rose-500) 62%,
-    var(--color-rose-400) 100%
-  );
-  border-color: transparent;
-  box-shadow: 0 12px 28px rgb(var(--color-rose-rgb) / 0.14);
-  color: #ffffff;
+  background: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
+  box-shadow: none;
+  color: var(--color-white);
+}
+
+.app-button--brand.ant-btn:active {
+  background: var(--color-brand-active);
+  border-color: var(--color-brand-active);
+  color: var(--color-white);
 }
 
 .app-button--brand.ant-btn:focus-visible {

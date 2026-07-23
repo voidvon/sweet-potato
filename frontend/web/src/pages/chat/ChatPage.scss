@@ -128,7 +128,7 @@
 }
 
 .workspace:has(.chat-page) .workspace-header {
-  border-bottom-color: color-mix(in srgb, var(--color-border) 92%, transparent);
+  border-bottom-color: var(--color-neutral-200);
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr) auto;
   padding: 0 16px;

@@ -31,7 +31,13 @@ body {
   font-size: 12px;
 }
 
-// Keep every Ant Design dropdown menu aligned with the pink brand palette.
+// Static message APIs render outside ConfigProvider context, so keep info icons on-brand.
+.ant-message .ant-message-notice-icon.ant-message-notice-icon-info,
+.ant-message .ant-message-notice-icon.ant-message-notice-icon-loading {
+  color: var(--color-brand-active) !important;
+}
+
+// Keep every Ant Design dropdown menu aligned with the brand palette.
 .ant-dropdown-menu .ant-dropdown-menu-item:hover,
 .ant-dropdown-menu .ant-dropdown-menu-item-active,
 .ant-dropdown-menu .ant-dropdown-menu-submenu-title:hover,
@@ -44,7 +50,7 @@ body {
 .ant-dropdown-menu .ant-dropdown-menu-submenu-title-selected,
 .ant-dropdown-menu .ant-dropdown-menu-submenu-title-selected:hover {
   background-color: var(--color-brand-soft-strong);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-active);
 }
 
 // Keep context-based, static, and locally customized Ant Design modals consistent.

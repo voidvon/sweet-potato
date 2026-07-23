@@ -33,6 +33,25 @@ type ImageGenerationCellStyle = CSSProperties & {
   '--chat-image-aspect-ratio'?: string;
 };
 
+const imageGenerationModeToneMap: Record<string, string> = {
+  dialog: 'blue',
+  detail: 'amber',
+  outfit: 'violet',
+  'model-views': 'indigo',
+  'pose-reference': 'cyan',
+  upscale: 'lime',
+  cutout: 'orange',
+  background: 'emerald',
+  'scene-extract': 'fuchsia',
+  'model-face-swap': 'rose',
+  'head-swap': 'rose',
+  'face-swap': 'rose',
+  redraw: 'blue',
+  'detail-enhance': 'amber',
+  'print-extract': 'fuchsia',
+  'face-enhance': 'cyan',
+};
+
 function imageExtension(contentType: string, attachmentName: string) {
   const mimeType = contentType.split(';', 1)[0].trim().toLowerCase();
   const extensionByMimeType: Record<string, string> = {
@@ -547,7 +566,8 @@ export function ChatMessageList({
 
   function renderImageGenerationModeTag(imageGeneration: ImageGenerationContext | undefined) {
     const modeTitle = imageGeneration?.modeTitle || '图片生成';
-    return <Tag className="chat-image-generation-mode-tag">{modeTitle}</Tag>;
+    const modeTone = imageGenerationModeToneMap[imageGeneration?.modeKey || ''] || 'blue';
+    return <Tag className={`chat-image-generation-mode-tag tone-${modeTone}`}>{modeTitle}</Tag>;
   }
 
   function renderImageGenerationHeader(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {

@@ -361,6 +361,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
             onChange={(event) => setSearchKeyword(event.target.value)}
             placeholder="搜索真人名称或 Group ID..."
             prefix={<Search size={17} />}
+            size="large"
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />

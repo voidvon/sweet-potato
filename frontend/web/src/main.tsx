@@ -18,6 +18,7 @@ function resolveCssColor(token: string) {
 
 const themeColors = {
   brand: resolveCssColor('--color-brand'),
+  brandActive: resolveCssColor('--color-brand-active'),
   brandBorder: resolveCssColor('--color-brand-border'),
   brandHover: resolveCssColor('--color-brand-hover'),
   brandSoft: resolveCssColor('--color-brand-soft'),
@@ -69,10 +70,10 @@ createRoot(rootElement).render(
             darkItemColor: themeColors.neutral500,
             darkItemHoverBg: themeColors.brandSoft,
             darkItemSelectedBg: themeColors.brandSoftStrong,
-            darkItemSelectedColor: themeColors.brandHover,
+            darkItemSelectedColor: themeColors.brandActive,
             itemHoverBg: themeColors.brandSoft,
             itemSelectedBg: themeColors.brandSoftStrong,
-            itemSelectedColor: themeColors.brandHover,
+            itemSelectedColor: themeColors.brandActive,
           },
           Modal: {
             borderRadiusLG: 22,
@@ -83,6 +84,8 @@ createRoot(rootElement).render(
           colorError: themeColors.danger,
           colorInfo: themeColors.brand,
           colorPrimary: themeColors.brand,
+          colorPrimaryActive: themeColors.brandActive,
+          colorPrimaryHover: themeColors.brandHover,
           colorSuccess: themeColors.success,
           colorText: themeColors.neutral900,
           colorTextSecondary: themeColors.neutral500,
