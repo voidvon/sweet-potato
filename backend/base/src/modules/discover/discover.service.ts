@@ -81,6 +81,8 @@ export const discoverService = {
     })
     return { ...result, items: result.items.map(publicItem) }
   },
+  likeItem(id: string) { return discoverRepository.incrementLikeCount(id) },
+  viewItem(id: string) { return discoverRepository.incrementViewCount(id) },
   createItem(input: Record<string, unknown>) {
     const sourceAssetId = text(input.sourceAssetId); const categoryId = text(input.categoryId); const asset = sourceAssetId ? contentRepository.findAsset(sourceAssetId) : null
     if (!asset || !categoryId || !discoverRepository.findCategory(categoryId)) throw new Error('来源作品或分类不存在')

@@ -7,6 +7,14 @@ export function createDiscoverRouter() {
   const router = Router()
   router.get('/categories', (_req, res) => res.json({ items: discoverService.listCategories().filter((item) => item.status === 'active') }))
   router.get('/items', (req, res) => res.json(discoverService.listPublicItems(req.query)))
+  router.post('/items/:id/like', (req, res) => {
+    const counts = discoverService.likeItem(req.params.id)
+    return counts ? res.json(counts) : sendError(res, 404, '发现条目不存在')
+  })
+  router.post('/items/:id/view', (req, res) => {
+    const counts = discoverService.viewItem(req.params.id)
+    return counts ? res.json(counts) : sendError(res, 404, '发现条目不存在')
+  })
   return router
 }
 

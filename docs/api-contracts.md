@@ -7,6 +7,7 @@
 - `GET /api/admin/discover/categories`、`GET /api/admin/discover/items` 及对应分类/条目的增删改接口仅管理员可访问。
 - `POST /api/admin/discover/items` 使用 `sourceAssetId` 从全部作品候选池创建条目，并在发布时保存展示字段快照，同时写入 `content_asset_references(reference_type = 'discover_item')` 保留附件。
 - `GET /api/discover/categories`、`GET /api/discover/items` 返回启用分类和已发布条目；前台只读取快照字段，不依赖源作品实时元数据。
+- `POST /api/discover/items/:id/like` 与 `POST /api/discover/items/:id/view` 分别原子累加已发布条目的点赞量和浏览量，返回 `{ likeCount, viewCount }`；接口不负责用户级去重。
 
 ## 2026-07-23 后台全部作品
 

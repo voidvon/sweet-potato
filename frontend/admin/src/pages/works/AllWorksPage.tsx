@@ -1,10 +1,11 @@
 import { EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
-import { Button, Image, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Image, Input, Modal, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { resolveAssetUrl } from '@shared/api/core/request'
 import { listAdminWorks, type AdminWork } from '../../api/admin-works'
 import { createDiscoverItem, listDiscoverCategories, type DiscoverCategory } from '../../api/discover'
+import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail'
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout'
 import './AllWorksPage.scss'
 
@@ -76,22 +77,6 @@ function useTableBodyHeight() {
   }, [])
 
   return { bodyHeight, viewportRef }
-}
-
-function WorkThumbnail({ work, onPreview }: { work: AdminWork; onPreview: () => void }) {
-  const url = resolveAssetUrl(work.fileUrl)
-  return (
-    <button
-      aria-label={`预览作品：${work.name}`}
-      className="all-works-thumbnail-button"
-      onClick={onPreview}
-      type="button"
-    >
-      {work.mediaType === 'image'
-        ? <Image alt={work.name} height={56} preview={false} src={url} width={56} />
-        : <video className="all-works-thumbnail" muted preload="metadata" src={url} />}
-    </button>
-  )
 }
 
 export function AllWorksPage() {
@@ -189,14 +174,13 @@ export function AllWorksPage() {
       title: '作品结果',
       key: 'preview',
       width: 96,
-      render: (_, work) => <WorkThumbnail onPreview={() => setPreviewWork(work)} work={work} />,
-    },
-    {
-      title: '类型',
-      dataIndex: 'mediaType',
-      width: 90,
-      render: (value: AdminWork['mediaType']) => (
-        <Tag color={value === 'image' ? 'blue' : 'purple'}>{value === 'image' ? '图片' : '视频'}</Tag>
+      render: (_, work) => (
+        <WorkPreviewThumbnail
+          fileUrl={work.fileUrl}
+          mediaType={work.mediaType}
+          onPreview={() => setPreviewWork(work)}
+          title={work.name}
+        />
       ),
     },
     {
@@ -299,7 +283,7 @@ export function AllWorksPage() {
               onChange: (nextPage) => void loadWorks(nextPage, username),
             }}
             rowKey="id"
-            scroll={{ x: 1310, y: workTable.bodyHeight }}
+            scroll={{ x: 1220, y: workTable.bodyHeight }}
           />
         </div>
       </section>
@@ -315,7 +299,7 @@ export function AllWorksPage() {
       >
         {previewWork?.mediaType === 'image'
           ? <Image alt={previewWork.name} className="all-works-preview-image" src={previewUrl} />
-          : <video className="all-works-preview-video" controls ref={previewVideoRef} src={previewUrl} />}
+          : <video autoPlay className="all-works-preview-video" controls playsInline ref={previewVideoRef} src={previewUrl} />}
       </Modal>
 
       <Modal

@@ -749,8 +749,8 @@ function getFirstPermittedBusinessRoute(currentUser: User) {
   return route?.fullPath || null;
 }
 
-function resolveDefaultAppPath(currentUser: User) {
-  return getFirstPermittedBusinessRoute(currentUser) || routePaths.account;
+function resolveDefaultAppPath(_currentUser: User) {
+  return routePaths.discover;
 }
 
 function getPermissionState(currentUser: User): PermissionState {
@@ -758,7 +758,7 @@ function getPermissionState(currentUser: User): PermissionState {
 
   return {
     canAccessAccount: true,
-    defaultAppPath: firstPermittedBusinessPath || routePaths.account,
+    defaultAppPath: routePaths.discover,
     hasAnyBusinessAccess: Boolean(firstPermittedBusinessPath),
   };
 }

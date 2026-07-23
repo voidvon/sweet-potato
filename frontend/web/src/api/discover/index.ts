@@ -49,6 +49,8 @@ export type DiscoverItemListResult = {
   total: number
 }
 
+export type DiscoverItemCounts = Pick<DiscoverItem, 'likeCount' | 'viewCount'>
+
 export function listDiscoverItems(input: {
   page?: number
   pageSize?: number
@@ -64,4 +66,12 @@ export function listDiscoverItems(input: {
   if (input.mediaType) params.set('mediaType', input.mediaType)
   if (input.search) params.set('search', input.search)
   return request<DiscoverItemListResult>(`/api/discover/items?${params.toString()}`, { dedupe: false })
+}
+
+export function likeDiscoverItem(id: string) {
+  return request<DiscoverItemCounts>(`/api/discover/items/${encodeURIComponent(id)}/like`, { method: 'POST' })
+}
+
+export function viewDiscoverItem(id: string) {
+  return request<DiscoverItemCounts>(`/api/discover/items/${encodeURIComponent(id)}/view`, { method: 'POST' })
 }

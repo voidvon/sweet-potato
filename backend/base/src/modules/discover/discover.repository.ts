@@ -16,6 +16,23 @@ const parseReferenceAssets = (value: string): DiscoverReferenceAsset[] => {
 }
 const mapItem = (row: ItemRow): DiscoverItem => ({ id: row.id, categoryId: row.category_id, sourceAssetId: row.source_asset_id, title: row.title, description: row.description, mediaType: row.media_type, mimeType: row.mime_type, fileUrl: row.file_url, originalFileName: row.original_file_name, fileSize: Number(row.file_size || 0), likeCount: Number(row.like_count || 0), viewCount: Number(row.view_count || 0), duration: Number(row.duration || 0), sourceCreatedAt: row.source_created_at, sourceCompletedAt: row.source_completed_at, referenceAssets: parseReferenceAssets(row.reference_assets), aspectRatio: row.aspect_ratio || '1 / 1', status: row.status, sortOrder: row.sort_order, publishedAt: row.published_at, createdAt: row.created_at, updatedAt: row.updated_at })
 
+function incrementPublicItemCount(id: string, column: 'like_count' | 'view_count') {
+  const result = db.prepare(`
+    UPDATE discover_items
+    SET ${column} = ${column} + 1
+    WHERE id = ?
+      AND status = 'published'
+      AND EXISTS (
+        SELECT 1 FROM discover_categories c
+        WHERE c.id = discover_items.category_id AND c.status = 'active'
+      )
+  `).run(id)
+  if (!result.changes) return null
+
+  return db.prepare('SELECT like_count AS likeCount, view_count AS viewCount FROM discover_items WHERE id = ?')
+    .get(id) as Pick<DiscoverItem, 'likeCount' | 'viewCount'>
+}
+
 export const discoverRepository = {
   listCategories() {
     return (db.prepare('SELECT * FROM discover_categories ORDER BY sort_order ASC, name ASC').all() as CategoryRow[]).map(mapCategory)
@@ -68,6 +85,8 @@ export const discoverRepository = {
     const row = db.prepare('SELECT * FROM discover_items WHERE id = ?').get(id) as ItemRow | undefined
     return row ? mapItem(row) : null
   },
+  incrementLikeCount(id: string) { return incrementPublicItemCount(id, 'like_count') },
+  incrementViewCount(id: string) { return incrementPublicItemCount(id, 'view_count') },
   createItem(input: Omit<DiscoverItem, 'id' | 'createdAt' | 'updatedAt' | 'publishedAt'> & { publishedAt?: string | null }) {
     const now = new Date().toISOString(); const id = randomUUID()
     db.prepare(`INSERT INTO discover_items (id, category_id, source_asset_id, title, description, media_type, mime_type, file_url, original_file_name, file_size, like_count, view_count, duration, source_created_at, source_completed_at, reference_assets, aspect_ratio, status, sort_order, published_at, created_at, updated_at) VALUES (@id, @categoryId, @sourceAssetId, @title, @description, @mediaType, @mimeType, @fileUrl, @originalFileName, @fileSize, @likeCount, @viewCount, @duration, @sourceCreatedAt, @sourceCompletedAt, @referenceAssetsJson, @aspectRatio, @status, @sortOrder, @publishedAt, @createdAt, @updatedAt)`).run({ id, ...input, referenceAssetsJson: JSON.stringify(input.referenceAssets), createdAt: now, updatedAt: now, publishedAt: input.status === 'published' ? (input.publishedAt || now) : null })

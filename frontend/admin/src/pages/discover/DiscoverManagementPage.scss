@@ -1,5 +1,7 @@
 .discover-management-page {
   gap: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .discover-management-toolbar {
@@ -8,13 +10,27 @@
   justify-content: flex-start;
 }
 
-.discover-management-preview {
-  background: #f4f5f7;
-  border-radius: 6px;
+.discover-management-table-viewport {
+  height: 100%;
+  min-height: 0;
+}
+
+.discover-management-table .ant-table-body {
+  height: var(--discover-management-table-body-height);
+  max-height: var(--discover-management-table-body-height) !important;
+  scrollbar-gutter: stable;
+}
+
+.discover-management-preview-image,
+.discover-management-preview-video {
   display: block;
-  height: 56px;
-  object-fit: cover;
-  width: 56px;
+  margin: 0 auto;
+  max-height: 70vh;
+  max-width: 100%;
+}
+
+.discover-management-preview-video {
+  width: 100%;
 }
 
 .discover-category-create {

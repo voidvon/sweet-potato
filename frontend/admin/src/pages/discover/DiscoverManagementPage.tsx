@@ -1,7 +1,7 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TagsOutlined } from '@ant-design/icons'
-import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, message } from 'antd'
+import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TagsOutlined } from '@ant-design/icons'
+import { Button, Image, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { resolveAssetUrl } from '@shared/api/core/request'
 import { listAdminWorks, type AdminWork } from '../../api/admin-works'
 import {
@@ -12,17 +12,67 @@ import {
   listDiscoverCategories,
   listDiscoverItems,
   updateDiscoverCategory,
+  updateDiscoverItem,
   type DiscoverCategory,
   type DiscoverItem,
 } from '../../api/discover'
+import { WorkPreviewThumbnail, type WorkPreviewMedia } from '../../components/WorkPreviewThumbnail'
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout'
 import './DiscoverManagementPage.scss'
 
-function MediaPreview({ item }: { item: Pick<DiscoverItem, 'fileUrl' | 'mediaType' | 'title'> }) {
-  const url = resolveAssetUrl(item.fileUrl)
-  return item.mediaType === 'image'
-    ? <img alt={item.title} className="discover-management-preview" src={url} />
-    : <video className="discover-management-preview" muted preload="metadata" src={url} />
+function useTableBodyHeight() {
+  const viewportElementRef = useRef<HTMLDivElement | null>(null)
+  const observerRef = useRef<ResizeObserver | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
+  const [bodyHeight, setBodyHeight] = useState(1)
+
+  const measure = useCallback(() => {
+    const viewport = viewportElementRef.current
+    if (!viewport || viewport.clientHeight <= 0) return
+
+    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0
+    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination')
+    let paginationHeight = 0
+    if (pagination) {
+      const style = window.getComputedStyle(pagination)
+      paginationHeight = pagination.offsetHeight
+        + Number.parseFloat(style.marginTop || '0')
+        + Number.parseFloat(style.marginBottom || '0')
+    }
+
+    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight))
+    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight)
+  }, [])
+
+  const scheduleMeasure = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current)
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null
+      measure()
+    })
+  }, [measure])
+
+  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
+    observerRef.current?.disconnect()
+    observerRef.current = null
+    viewportElementRef.current = viewport
+
+    if (!viewport) return
+    observerRef.current = new ResizeObserver(scheduleMeasure)
+    observerRef.current.observe(viewport)
+    scheduleMeasure()
+  }, [scheduleMeasure])
+
+  useLayoutEffect(() => {
+    scheduleMeasure()
+  })
+
+  useEffect(() => () => {
+    observerRef.current?.disconnect()
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current)
+  }, [])
+
+  return { bodyHeight, viewportRef }
 }
 
 export function DiscoverManagementPage() {
@@ -34,6 +84,7 @@ export function DiscoverManagementPage() {
   const [editingCategoryId, setEditingCategoryId] = useState<string>()
   const [editingCategoryName, setEditingCategoryName] = useState('')
   const [categorySaving, setCategorySaving] = useState(false)
+  const [categorySorting, setCategorySorting] = useState(false)
   const [candidateModalOpen, setCandidateModalOpen] = useState(false)
   const [candidateWorks, setCandidateWorks] = useState<AdminWork[]>([])
   const [candidateLoading, setCandidateLoading] = useState(false)
@@ -43,6 +94,10 @@ export function DiscoverManagementPage() {
   const [candidateSearch, setCandidateSearch] = useState('')
   const [candidateCategoryId, setCandidateCategoryId] = useState<string>()
   const [addingWorkId, setAddingWorkId] = useState<string>()
+  const [updatingItemId, setUpdatingItemId] = useState<string>()
+  const [previewMedia, setPreviewMedia] = useState<WorkPreviewMedia | null>(null)
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null)
+  const discoverTable = useTableBodyHeight()
 
   const loadDiscover = useCallback(async () => {
     setLoading(true)
@@ -137,6 +192,51 @@ export function DiscoverManagementPage() {
     }
   }
 
+  const changeItemCategory = useCallback(async (item: DiscoverItem, nextCategoryId: string) => {
+    if (item.categoryId === nextCategoryId) return
+    setUpdatingItemId(item.id)
+    try {
+      const updatedItem = await updateDiscoverItem(item.id, { categoryId: nextCategoryId })
+      setItems((current) => current.map((currentItem) => currentItem.id === item.id
+        ? { ...currentItem, categoryId: updatedItem.categoryId }
+        : currentItem))
+      message.success('分类已更新')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '分类更新失败')
+    } finally {
+      setUpdatingItemId(undefined)
+    }
+  }, [])
+
+  const moveCategory = useCallback(async (categoryId: string, direction: -1 | 1) => {
+    const currentIndex = categories.findIndex((category) => category.id === categoryId)
+    const targetIndex = currentIndex + direction
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= categories.length) return
+
+    const reordered = [...categories]
+    ;[reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex]!, reordered[currentIndex]!]
+    const normalized = reordered.map((category, index) => ({ ...category, sortOrder: index * 10 }))
+    setCategorySorting(true)
+    try {
+      await Promise.all(normalized.map((category) => updateDiscoverCategory(category.id, { sortOrder: category.sortOrder })))
+      setCategories(normalized)
+      message.success('分类顺序已更新')
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '分类排序失败')
+      await loadDiscover()
+    } finally {
+      setCategorySorting(false)
+    }
+  }, [categories, loadDiscover])
+
+  const closePreview = useCallback(() => {
+    if (previewVideoRef.current) {
+      previewVideoRef.current.pause()
+      previewVideoRef.current.currentTime = 0
+    }
+    setPreviewMedia(null)
+  }, [])
+
   const addedAssetIds = useMemo(() => new Set(items.map((item) => item.sourceAssetId)), [items])
   const categoryColumns = useMemo<ColumnsType<DiscoverCategory>>(() => [
     {
@@ -147,6 +247,32 @@ export function DiscoverManagementPage() {
         : name,
     },
     { title: '标识', dataIndex: 'slug', width: 180 },
+    {
+      title: '排序',
+      width: 100,
+      render: (_, category, index) => (
+        <Space size={0}>
+          <Tooltip title="上移">
+            <Button
+              aria-label="上移分类"
+              disabled={categorySorting || index === 0}
+              icon={<ArrowUpOutlined />}
+              onClick={() => void moveCategory(category.id, -1)}
+              type="text"
+            />
+          </Tooltip>
+          <Tooltip title="下移">
+            <Button
+              aria-label="下移分类"
+              disabled={categorySorting || index === categories.length - 1}
+              icon={<ArrowDownOutlined />}
+              onClick={() => void moveCategory(category.id, 1)}
+              type="text"
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
     {
       title: '操作',
       width: 180,
@@ -164,21 +290,63 @@ export function DiscoverManagementPage() {
         </Space>
       ),
     },
-  ], [categorySaving, editingCategoryId, editingCategoryName])
+  ], [categories.length, categorySaving, categorySorting, editingCategoryId, editingCategoryName, moveCategory])
 
   const itemColumns = useMemo<ColumnsType<DiscoverItem>>(() => [
-    { title: '预览', width: 90, render: (_, item) => <MediaPreview item={item} /> },
+    {
+      title: '预览',
+      width: 90,
+      render: (_, item) => (
+        <WorkPreviewThumbnail
+          fileUrl={item.fileUrl}
+          mediaType={item.mediaType}
+          onPreview={() => setPreviewMedia(item)}
+          title={item.title}
+        />
+      ),
+    },
     { title: '标题', dataIndex: 'title', ellipsis: true },
-    { title: '分类', width: 160, render: (_, item) => categories.find((category) => category.id === item.categoryId)?.name || '-' },
+    {
+      title: '分类',
+      width: 180,
+      render: (_, item) => (
+        <Select
+          disabled={Boolean(updatingItemId)}
+          loading={updatingItemId === item.id}
+          onChange={(categoryId) => void changeItemCategory(item, categoryId)}
+          options={categories.map((category) => ({
+            disabled: category.status !== 'active',
+            label: category.name,
+            value: category.id,
+          }))}
+          style={{ width: '100%' }}
+          value={item.categoryId}
+        />
+      ),
+    },
+    { title: '浏览量', dataIndex: 'viewCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
+    { title: '点赞量', dataIndex: 'likeCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
     { title: '状态', dataIndex: 'status', width: 110, render: (value: DiscoverItem['status']) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? '已发布' : value === 'hidden' ? '已隐藏' : '草稿'}</Tag> },
     {
       title: '操作',
       width: 100,
       render: (_, item) => <Popconfirm onConfirm={async () => { await deleteDiscoverItem(item.id); await loadDiscover() }} title="确认从发现移除？"><Button danger icon={<DeleteOutlined />} type="link">移除</Button></Popconfirm>,
     },
-  ], [categories, loadDiscover])
+  ], [categories, changeItemCategory, loadDiscover, updatingItemId])
 
   const candidateColumns = useMemo<ColumnsType<AdminWork>>(() => [
+    {
+      title: '预览',
+      width: 90,
+      render: (_, work) => (
+        <WorkPreviewThumbnail
+          fileUrl={work.fileUrl}
+          mediaType={work.mediaType}
+          onPreview={() => setPreviewMedia({ fileUrl: work.fileUrl, mediaType: work.mediaType, title: work.name })}
+          title={work.name}
+        />
+      ),
+    },
     { title: '作品名称', dataIndex: 'name', ellipsis: true },
     { title: '类型', dataIndex: 'mediaType', width: 90, render: (value: AdminWork['mediaType']) => value === 'image' ? '图片' : '视频' },
     { title: '用户', dataIndex: 'username', width: 150, ellipsis: true },
@@ -202,7 +370,21 @@ export function DiscoverManagementPage() {
             <Button icon={<TagsOutlined />} onClick={() => setCategoryModalOpen(true)}>分类管理</Button>
           </Space>
         </div>
-        <Table columns={itemColumns} dataSource={items} loading={loading} pagination={{ pageSize: 10 }} rowKey="id" />
+        <div
+          className="discover-management-table-viewport"
+          ref={discoverTable.viewportRef}
+          style={{ '--discover-management-table-body-height': `${discoverTable.bodyHeight}px` } as CSSProperties}
+        >
+          <Table
+            className="discover-management-table"
+            columns={itemColumns}
+            dataSource={items}
+            loading={loading}
+            pagination={{ pageSize: 20, showSizeChanger: false }}
+            rowKey="id"
+            scroll={{ x: 900, y: discoverTable.bodyHeight }}
+          />
+        </div>
       </section>
 
       <Modal footer={null} onCancel={() => setCategoryModalOpen(false)} open={categoryModalOpen} title="分类管理" width={720}>
@@ -219,6 +401,22 @@ export function DiscoverManagementPage() {
           <Input.Search allowClear enterButton={<SearchOutlined />} onChange={(event) => setCandidateSearchInput(event.target.value)} onSearch={() => { const search = candidateSearchInput.trim(); setCandidateSearch(search); void loadCandidates(1, search) }} placeholder="搜索作品名称或用户" value={candidateSearchInput} />
         </div>
         <Table columns={candidateColumns} dataSource={candidateWorks} loading={candidateLoading} pagination={{ current: candidatePage, pageSize: 10, total: candidateTotal, showSizeChanger: false, onChange: (page) => void loadCandidates(page) }} rowKey="id" size="small" />
+      </Modal>
+
+      <Modal
+        centered
+        destroyOnHidden
+        footer={null}
+        onCancel={closePreview}
+        open={Boolean(previewMedia)}
+        title={previewMedia?.title || '作品预览'}
+        width={820}
+      >
+        {previewMedia?.mediaType === 'image'
+          ? <Image alt={previewMedia.title} className="discover-management-preview-image" src={resolveAssetUrl(previewMedia.fileUrl)} />
+          : previewMedia
+            ? <video autoPlay className="discover-management-preview-video" controls playsInline ref={previewVideoRef} src={resolveAssetUrl(previewMedia.fileUrl)} />
+            : null}
       </Modal>
     </ContentStudioLayout>
   )

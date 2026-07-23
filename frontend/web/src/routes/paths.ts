@@ -1,7 +1,7 @@
 export const routePaths = {
   login: '/login',
   appRoot: '/app',
-  defaultLanding: '/app/content/video_remake',
+  defaultLanding: '/app/discover',
   defaultModule: '/app/image',
   discover: '/app/discover',
   module: (moduleId = ':moduleId') => `/app/modules/${moduleId}`,

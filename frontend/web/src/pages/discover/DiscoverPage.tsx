@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FireFilled, HeartOutlined, SearchOutlined } from '@ant-design/icons'
-import { Empty, Input, Spin, Tabs } from 'antd'
+import { FireFilled, HeartFilled, HeartOutlined } from '@ant-design/icons'
+import { Empty, message, Spin, Tabs } from 'antd'
 import { Play } from 'lucide-react'
 import { resolveAssetUrl } from '@shared/api/core/request'
+import { getStoredUser } from '@shared/utils/session'
 import { AppImage } from '../../components/AppImage'
 import { InfiniteScroll } from '../../components/InfiniteScroll'
 import { ResultVideoPreviewModal } from '../content/VideoTaskClonePage/components/ResultVideoPreviewModal'
-import { listDiscoverCategories, listDiscoverItems, type DiscoverCategory, type DiscoverItem } from '../../api/discover'
+import {
+  likeDiscoverItem,
+  listDiscoverCategories,
+  listDiscoverItems,
+  type DiscoverCategory,
+  type DiscoverItem,
+  type DiscoverItemCounts,
+  viewDiscoverItem,
+} from '../../api/discover'
 import './DiscoverPage.scss'
 
 const DISCOVER_PAGE_SIZE = 20
 const DISCOVER_RATIO_CACHE_KEY = 'discover-media-ratios'
+const DISCOVER_LIKES_CACHE_KEY = 'discover-liked-item-ids'
 
 function discoverColumnCount() {
   if (typeof window === 'undefined') return 5
@@ -34,13 +44,33 @@ function readRatioCache() {
   }
 }
 
+function likesCacheKey() {
+  return `${DISCOVER_LIKES_CACHE_KEY}:${getStoredUser()?.id || 'current-user'}`
+}
+
+function readLikedItemIds() {
+  if (typeof window === 'undefined') return new Set<string>()
+  try {
+    const value = JSON.parse(window.localStorage.getItem(likesCacheKey()) || '[]')
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [])
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function persistLikedItemIds(itemIds: Set<string>) {
+  try {
+    window.localStorage.setItem(likesCacheKey(), JSON.stringify([...itemIds]))
+  } catch {
+    // The in-memory guard still prevents repeated clicks when storage is unavailable.
+  }
+}
+
 export function DiscoverPage() {
   const [categories, setCategories] = useState<DiscoverCategory[]>([])
   const [items, setItems] = useState<DiscoverItem[]>([])
   const [mediaType, setMediaType] = useState<'all' | DiscoverItem['mediaType']>('all')
   const [categoryId, setCategoryId] = useState('')
-  const [query, setQuery] = useState('')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -50,20 +80,19 @@ export function DiscoverPage() {
   const [measuredRatios, setMeasuredRatios] = useState<Record<string, string>>(readRatioCache)
   const [loadedMediaIds, setLoadedMediaIds] = useState<Set<string>>(() => new Set())
   const [columnCount, setColumnCount] = useState(discoverColumnCount)
+  const [likedItemIds, setLikedItemIds] = useState<Set<string>>(readLikedItemIds)
   const listRequestIdRef = useRef(0)
+  const likedItemIdsRef = useRef(likedItemIds)
 
   useEffect(() => {
     let active = true
     listDiscoverCategories()
-      .then((result) => { if (active) setCategories(result.items) })
+      .then((result) => {
+        if (active) setCategories([...result.items].sort((left, right) => left.sortOrder - right.sortOrder))
+      })
       .catch(() => { if (active) setCategories([]) })
     return () => { active = false }
   }, [])
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250)
-    return () => window.clearTimeout(timer)
-  }, [query])
 
   useEffect(() => {
     let active = true
@@ -79,7 +108,6 @@ export function DiscoverPage() {
       pageSize: DISCOVER_PAGE_SIZE,
       categoryId: categoryId || undefined,
       mediaType: mediaType === 'all' ? undefined : mediaType,
-      search: debouncedQuery || undefined,
     })
       .then((result) => {
         if (!active || requestId !== listRequestIdRef.current) return
@@ -94,7 +122,7 @@ export function DiscoverPage() {
         if (active && requestId === listRequestIdRef.current) setLoading(false)
       })
     return () => { active = false }
-  }, [categoryId, debouncedQuery, mediaType])
+  }, [categoryId, mediaType])
 
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || items.length >= total) return
@@ -107,7 +135,6 @@ export function DiscoverPage() {
         pageSize: DISCOVER_PAGE_SIZE,
         categoryId: categoryId || undefined,
         mediaType: mediaType === 'all' ? undefined : mediaType,
-        search: debouncedQuery || undefined,
       })
       if (requestId !== listRequestIdRef.current) return
       setItems((current) => {
@@ -121,7 +148,46 @@ export function DiscoverPage() {
     } finally {
       if (requestId === listRequestIdRef.current) setLoadingMore(false)
     }
-  }, [categoryId, debouncedQuery, items.length, loading, loadingMore, mediaType, page, total])
+  }, [categoryId, items.length, loading, loadingMore, mediaType, page, total])
+
+  const updateItemCounts = useCallback((itemId: string, counts: DiscoverItemCounts) => {
+    setItems((current) => current.map((item) => item.id === itemId ? { ...item, ...counts } : item))
+    setPreviewItem((current) => current?.id === itemId ? { ...current, ...counts } : current)
+  }, [])
+
+  const openPreview = useCallback((item: DiscoverItem) => {
+    setPreviewItem(item)
+    void viewDiscoverItem(item.id)
+      .then((counts) => updateItemCounts(item.id, counts))
+      .catch(() => message.error('浏览量更新失败'))
+  }, [updateItemCounts])
+
+  const likeItem = useCallback((item: DiscoverItem) => {
+    if (likedItemIdsRef.current.has(item.id)) return
+
+    const nextLikedItemIds = new Set(likedItemIdsRef.current)
+    nextLikedItemIds.add(item.id)
+    likedItemIdsRef.current = nextLikedItemIds
+    setLikedItemIds(nextLikedItemIds)
+    persistLikedItemIds(nextLikedItemIds)
+    setItems((current) => current.map((currentItem) => currentItem.id === item.id
+      ? { ...currentItem, likeCount: currentItem.likeCount + 1 }
+      : currentItem))
+
+    void likeDiscoverItem(item.id)
+      .then((counts) => updateItemCounts(item.id, counts))
+      .catch(() => {
+        const rolledBackItemIds = new Set(likedItemIdsRef.current)
+        rolledBackItemIds.delete(item.id)
+        likedItemIdsRef.current = rolledBackItemIds
+        setLikedItemIds(rolledBackItemIds)
+        persistLikedItemIds(rolledBackItemIds)
+        setItems((current) => current.map((currentItem) => currentItem.id === item.id
+          ? { ...currentItem, likeCount: Math.max(0, currentItem.likeCount - 1) }
+          : currentItem))
+        message.error('点赞失败，请稍后重试')
+      })
+  }, [updateItemCounts])
 
   const rememberMediaSize = useCallback((itemId: string, width: number, height: number) => {
     if (!width || !height) return
@@ -171,7 +237,6 @@ export function DiscoverPage() {
             ]}
             onChange={(key) => setMediaType(key as typeof mediaType)}
           />
-          <Input allowClear className="discover-search" onChange={(event) => setQuery(event.target.value)} placeholder="搜索" prefix={<SearchOutlined />} value={query} />
         </div>
 
         <Tabs
@@ -209,11 +274,11 @@ export function DiscoverPage() {
                   <article
                     className="discover-card"
                     key={item.id}
-                    onClick={() => setPreviewItem(item)}
+                    onClick={() => openPreview(item)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        setPreviewItem(item)
+                        openPreview(item)
                       }
                     }}
                     role="button"
@@ -251,7 +316,20 @@ export function DiscoverPage() {
                       {item.mediaType === 'video' ? <span className="discover-play"><Play aria-hidden="true" fill="currentColor" size={12} strokeWidth={2} /></span> : null}
                       <div className="discover-card-meta">
                         <span><FireFilled /> {item.viewCount}</span>
-                        <span><HeartOutlined /> {item.likeCount}</span>
+                        <button
+                          aria-label={likedItemIds.has(item.id) ? '已点赞' : '点赞'}
+                          aria-pressed={likedItemIds.has(item.id)}
+                          className={`discover-like${likedItemIds.has(item.id) ? ' is-liked' : ''}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            likeItem(item)
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          type="button"
+                        >
+                          {likedItemIds.has(item.id) ? <HeartFilled /> : <HeartOutlined />}
+                          <span>{item.likeCount}</span>
+                        </button>
                       </div>
                     </div>
                   </article>
