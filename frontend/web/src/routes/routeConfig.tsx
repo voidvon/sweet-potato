@@ -2,6 +2,8 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import {
   AudioFilled,
   AudioOutlined,
+  CompassFilled,
+  CompassOutlined,
   FolderFilled,
   FolderOpenFilled,
   FolderOpenOutlined,
@@ -48,6 +50,7 @@ import type { AuthSession, CreativeModuleCode, User } from '../types';
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
+const DiscoverPage = lazy(() => import('../pages/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
 const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
 const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
@@ -74,6 +77,7 @@ type SidebarMenuMeta = {
   icon: ReactNode;
   label?: string;
   selectedIcon?: ReactNode;
+  sortOrder?: number;
   tag?: 'HOT' | 'NEW';
 };
 
@@ -336,6 +340,17 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       contentNavigation: {
         code: 'product_assets',
       },
+    },
+  },
+  {
+    key: 'discover',
+    path: 'discover',
+    fullPath: routePaths.discover,
+    element: () => withSuspense(<DiscoverPage />),
+    routeResource: { protected: false, resourceType: 'menu' },
+    handle: {
+      title: '探索发现',
+      sidebar: { icon: <CompassOutlined />, selectedIcon: <CompassFilled />, sortOrder: -10 },
     },
   },
   {
@@ -711,6 +726,10 @@ function getRouteSortOrder(route: WorkspacePageDefinition, resourceInfoMap?: Map
   const resourceSortOrder = resolveResourceInfo(route, resourceInfoMap)?.sortOrder;
   if (resourceSortOrder !== undefined) {
     return resourceSortOrder;
+  }
+
+  if (route.handle?.sidebar?.sortOrder !== undefined) {
+    return route.handle.sidebar.sortOrder;
   }
 
   if (route.handle?.sidebar && !route.handle.sidebar.groupKey) {

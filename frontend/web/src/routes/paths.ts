@@ -3,6 +3,7 @@ export const routePaths = {
   appRoot: '/app',
   defaultLanding: '/app/content/video_remake',
   defaultModule: '/app/image',
+  discover: '/app/discover',
   module: (moduleId = ':moduleId') => `/app/modules/${moduleId}`,
   contentRoot: '/app/content',
   contentDefault: '/app/content/create_video',
