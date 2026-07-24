@@ -1224,7 +1224,6 @@
 .video-task-epa-pill-line button,
 .video-task-epa-pill {
   align-items: center;
-  background: var(--color-sidebar-hover);
   border: 0;
   border-radius: 999px;
   color: var(--color-neutral-800);
@@ -1462,8 +1461,8 @@
 
 .video-task-epa-locked-note {
   align-items: center;
-  background: var(--color-success-soft);
-  border: 1px solid var(--color-success-soft);
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-hover);
   border-radius: 12px;
   color: var(--color-teal);
   display: flex;
@@ -1481,7 +1480,7 @@
 .video-task-epa-switch-row {
   align-items: center;
   background: var(--color-white);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-neutral-300);
   border-radius: 12px;
   cursor: pointer;
   display: grid;
@@ -1493,8 +1492,8 @@
 }
 
 .video-task-epa-switch-row:hover {
-  background: var(--color-success-soft);
-  border-color: var(--color-success-soft);
+  background: var(--color-brand-soft);
+  border-color: var(--color-neutral-900);
 }
 
 .video-task-epa-switch {
@@ -1668,13 +1667,13 @@
 }
 
 .video-task-epa-stage-pill.is-completed {
-  background: var(--color-success-soft);
+  background: var(--color-brand-soft);
   color: var(--color-teal);
 }
 
 .video-task-epa-thinking-panel {
-  background: var(--color-success-soft);
-  border: 1px solid var(--color-success-soft);
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-soft);
   border-radius: 18px;
 }
 
@@ -1949,21 +1948,6 @@
   gap: 12px;
 }
 
-.video-task-epa-clear {
-  align-items: center;
-  background: var(--color-white);
-  border: 1px solid var(--color-danger-border);
-  border-radius: 14px;
-  color: var(--color-danger-bright);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 15px;
-  font-weight: 700;
-  gap: 6px;
-  height: 44px;
-  padding: 0 16px;
-  white-space: nowrap;
-}
 
 .video-task-epa-points {
   align-items: center;
@@ -2012,8 +1996,13 @@
 }
 
 .video-task-epa-btn-text {
+  border-radius: 18px;
+  height: 46px;
   background: transparent;
   color: var(--color-neutral-400);
+  > span {
+    font-size: 15px;
+  }
 }
 
 .video-task-epa-btn-secondary {
@@ -2067,7 +2056,6 @@
 }
 
 .video-task-epa-stepper-btn:disabled {
-  background: var(--color-sidebar-hover);
   color: var(--color-neutral-300);
   cursor: not-allowed;
 }
@@ -2329,13 +2317,6 @@
 .video-task-epa-footer {
   min-height: 78px;
   padding: 14px 24px 16px;
-}
-
-.video-task-epa-clear {
-  border-radius: 10px;
-  font-size: 13px;
-  height: 38px;
-  padding: 0 13px;
 }
 
 .video-task-epa-btn {

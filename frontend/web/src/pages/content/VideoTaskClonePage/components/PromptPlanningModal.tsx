@@ -1,4 +1,4 @@
-import { Modal } from 'antd';
+import { Button, Modal } from 'antd';
 import {
   AlertCircle,
   Check,
@@ -1539,10 +1539,10 @@ export function PromptPlanningModal({
 
           <footer className="video-task-epa-footer">
               <div className="video-task-epa-footer-left">
-                <button className="video-task-epa-clear" disabled={isBusy} onClick={clearAll} type="button">
+                <Button disabled={isBusy} onClick={clearAll} danger>
                   <Trash2 size={15} />
                   清除
-                </button>
+                </Button>
                 {footerPoints !== null ? (
                   <span className="video-task-epa-points">
                     <Zap size={14} />
@@ -1554,9 +1554,12 @@ export function PromptPlanningModal({
               <div className="video-task-epa-footer-right">
                 {activeStep === 'step1' ? (
                   <>
-                    <button className="video-task-epa-btn video-task-epa-btn-text" onClick={() => setOpen(false)} type="button">
+                    {/* <button className="video-task-epa-btn video-task-epa-btn-text" onClick={() => setOpen(false)} type="button">
                       取消
-                    </button>
+                    </button> */}
+                    <Button className="video-task-epa-btn-text" onClick={() => setOpen(false)} type='text'>
+                      取消
+                    </Button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"
                       disabled={analysisCredits === null || isAnalyzing || isBusy || imageFiles.length === 0}
@@ -1600,13 +1603,13 @@ export function PromptPlanningModal({
 
                 {activeStep === 'step3' ? (
                   <>
-                    <button
-                      className="video-task-epa-btn video-task-epa-btn-text"
+                    <Button
+                      className="video-task-epa-btn-text"
                       onClick={() => setViewStep('step2')}
-                      type="button"
+                      type='text'
                     >
                       返回上一步
-                    </button>
+                    </Button>
                     {isManualPresetMissing ? (
                       <span className="video-task-epa-footer-warning">
                         <AlertCircle aria-hidden="true" size={14} />
@@ -1654,13 +1657,13 @@ export function PromptPlanningModal({
 
                 {activeStep === 'step4' ? (
                   <>
-                    <button
-                      className="video-task-epa-btn video-task-epa-btn-text"
+                    <Button
+                      className="video-task-epa-btn-text"
                       onClick={() => setViewStep('step3')}
-                      type="button"
+                      type='text'
                     >
                       返回上一步
-                    </button>
+                    </Button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-secondary"
                       disabled={generationCredits === null || isBusy || !session || session.status === 'generating'}
