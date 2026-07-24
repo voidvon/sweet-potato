@@ -11,7 +11,11 @@ import {
 import { createTraceId, logger } from '../../shared/logger.js';
 import { currentTosStorageConfig, deleteTosObject, fileStorageKey, fileStorageService, putLocalFileToTos, storageMetadata } from '../../shared/file-storage.js';
 import { chatRepository } from '../chat/chat.repository.js';
-import { releaseReservedFixedBillableUsage } from '../billing/billing.service.js';
+import {
+  estimateVideoGenerationPrice,
+  releaseReservedFixedBillableUsage,
+  reserveFixedBillableUsage,
+} from '../billing/billing.service.js';
 import { contentModules } from './content.defaults.js';
 import { publishContentEvent } from './content.events.js';
 import { contentRepository } from './content.repository.js';
@@ -54,7 +58,7 @@ import {
 
 import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, resolveLocalContentFilePathFromUrl, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
-import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
+import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, seedanceDurationSeconds, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { backfillMissingGeneratedVideoCovers, mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
 import { assertCreateVideoSourcesDuration } from './internals/content-video-duration.js';
@@ -3003,6 +3007,7 @@ export const contentService = {
       explicitIds: payload.characterReferenceImageIds,
     });
     let stage: 'create_task' | 'queue_video_model' = 'create_task';
+    let ownedVideoBillingReservationId = '';
     logger.info('video production request started', {
       traceId,
       userId: payload.userId,
@@ -3047,6 +3052,47 @@ export const contentService = {
           : taskMode === 'subject_replace'
             ? `主体替换 ${duration}`
             : `视频制作 ${ratio} ${duration}`;
+      let videoBillingReservationId = String(payload.videoBillingReservationId || '').trim();
+      if (!payload.skipVideoBilling && !videoBillingReservationId) {
+        const requestedDurationSeconds = seedanceDurationSeconds(duration, resolvedModelOption, resolvedConfig.settings);
+        const durationSeconds = requestedDurationSeconds > 0
+          ? requestedDurationSeconds
+          : resolvedModelOption.durationPolicy.defaultSeconds;
+        const price = estimateVideoGenerationPrice({
+          durationSeconds,
+          modelId: resolvedModelOption.id,
+          modelName: resolvedModelOption.name,
+          resolution: quality,
+        });
+        const billingSourceId = `video-generation:${randomUUID()}`;
+        const reservation = reserveFixedBillableUsage({
+          userId: payload.userId,
+          category: 'video_generation',
+          sourceType: 'video_generation',
+          sourceId: billingSourceId,
+          sessionId: billingSourceId,
+          credits: price.credits,
+          step: 'video_generation',
+          stepLabel: '视频生成',
+          pricingMode: 'per_second',
+          quantitySnapshot: {
+            seconds: price.durationSeconds,
+            resolution: price.resolution,
+            configuredCreditsPerSecond: price.creditsPerSecond,
+            priceSource: 'system-billing-settings',
+          },
+          requestSnapshot: {
+            quality,
+            ratio,
+            duration,
+            durationSeconds: price.durationSeconds,
+            videoModelProviderId: resolvedProvider.id,
+            videoModelId: resolvedModelOption.id,
+          },
+        });
+        videoBillingReservationId = reservation.id;
+        ownedVideoBillingReservationId = reservation.id;
+      }
       const expertContext = {
         mode: taskMode,
         traceId,
@@ -3067,7 +3113,7 @@ export const contentService = {
         subjectReplaceRemoteVideo: payload.subjectReplaceRemoteVideo || null,
         generateAudio: payload.generateAudio !== false,
         skipVideoBilling: payload.skipVideoBilling === true,
-        videoBillingReservationId: String(payload.videoBillingReservationId || ''),
+        videoBillingReservationId,
         userPrompt,
       };
       const precreatedTask = precreatedTaskId ? this.getVideoTask(precreatedTaskId, payload.userId) : null;
@@ -3140,6 +3186,7 @@ export const contentService = {
         selectedSkillIds: taskWithPendingResult.selectedSkillIds,
         expertContext: {
           ...taskWithPendingResult.expertContext,
+          videoBillingReservationId,
           videoResult: taskIdPendingResult,
           videoGenerationResult: taskIdPendingResult,
           currentStep: 'video_generation_submitted',
@@ -3181,6 +3228,9 @@ export const contentService = {
       });
       return generatingTask;
     } catch (error) {
+      if (ownedVideoBillingReservationId) {
+        releaseReservedFixedBillableUsage(ownedVideoBillingReservationId);
+      }
       logger.error('video production request failed', {
         traceId,
         endpoint: 'POST /api/content/video-productions',

@@ -74,7 +74,6 @@ type StreamCompletionResponse = {
 type NonLlmModelBillingSettings = {
   multiplier: number;
   creditsPerRequest: number;
-  creditsPer1MTokens: number;
   voiceCloneCredits: number;
   speechCreditsPer1kChars: number;
   priceSource: string;
@@ -276,10 +275,6 @@ function nonLlmModelBillingSettingsOf(modelConfig: AiModelConfig): NonLlmModelBi
     creditsPerRequest: normalizeNumber(
       billing.creditsPerRequest,
       normalizeNumber(billing.perRequestUsd, 0),
-    ),
-    creditsPer1MTokens: normalizeNumber(
-      billing.creditsPer1MTokens,
-      normalizeNumber(billing.usdPer1MTokens, 0),
     ),
     voiceCloneCredits: normalizeNumber(
       billing.voiceCloneCredits,
@@ -498,6 +493,37 @@ export function estimateVodUnderstandingCredits(tokenCount: number) {
 export function estimateVideoUpscaleCredits() {
   const settings = assertSystemBillingReady();
   return roundCredits(Math.max(0, settings.videoUpscaleCreditsPerRequest));
+}
+
+export function estimateSubtitleRemovalPrice(durationSeconds: number) {
+  const settings = assertSystemBillingReady();
+  const seconds = Math.max(1, Math.ceil(durationSeconds));
+  const creditsPerSecond = Math.max(0, settings.subtitleRemovalCreditsPerSecond);
+  return {
+    credits: roundCredits(seconds * creditsPerSecond),
+    creditsPerSecond,
+    durationSeconds: seconds,
+  };
+}
+
+export function estimateVideoTranslationPrice(input: {
+  durationSeconds: number;
+  eraseSourceSubtitles: boolean;
+  translationTypes: Array<'subtitle' | 'voice' | 'face'>;
+}) {
+  const settings = assertSystemBillingReady();
+  const seconds = Math.max(1, Math.ceil(input.durationSeconds));
+  const creditsPerSecond = (input.translationTypes.includes('subtitle')
+    ? settings.videoTranslationSubtitleCreditsPerSecond
+    : 0)
+    + (input.translationTypes.includes('voice') ? settings.videoTranslationVoiceCreditsPerSecond : 0)
+    + (input.translationTypes.includes('face') ? settings.videoTranslationFaceCreditsPerSecond : 0)
+    + (input.eraseSourceSubtitles ? settings.videoTranslationEraseSourceCreditsPerSecond : 0);
+  return {
+    credits: roundCredits(seconds * Math.max(0, creditsPerSecond)),
+    creditsPerSecond: Math.max(0, creditsPerSecond),
+    durationSeconds: seconds,
+  };
 }
 
 export function reserveVideoUpscaleCredits(input: {
@@ -1476,6 +1502,7 @@ export function recordVideoGenerationUsage(input: {
   sourceId: string;
   taskId?: string;
   durationSeconds: number;
+  resolution?: string;
   usage?: {
     completionTokens?: number;
     totalTokens?: number;
@@ -1486,15 +1513,12 @@ export function recordVideoGenerationUsage(input: {
   responseSnapshot?: Record<string, unknown>;
   usageRaw?: Record<string, unknown>;
 }) {
-  const billing = nonLlmModelBillingSettingsOf(input.modelConfig);
-  const completionTokens = Math.max(0, Math.floor(Number(input.usage?.completionTokens) || 0));
-  const totalTokens = Math.max(
-    completionTokens,
-    Math.floor(Number(input.usage?.totalTokens) || 0),
-  );
-  if (totalTokens <= 0) {
-    throw new Error('视频模型未返回 token 用量，系统已取消按秒兜底计费，请检查模型接入返回');
-  }
+  const price = estimateVideoGenerationPrice({
+    durationSeconds: input.durationSeconds,
+    modelId: input.modelConfig.model,
+    modelName: input.modelConfig.name,
+    resolution: input.resolution,
+  });
   return persistBillableUsageCharge({
     userId: input.userId,
     category: 'video_generation',
@@ -1502,14 +1526,12 @@ export function recordVideoGenerationUsage(input: {
     sourceType: input.sourceType,
     sourceId: input.sourceId,
     taskId: input.taskId,
-    pricingMode: 'per_1m_tokens',
+    pricingMode: 'per_second',
     quantitySnapshot: {
-      completionTokens,
-      totalTokens,
-      inputTokens: 0,
-      creditRounding: 'ceil',
-      hasToolUsage: Boolean(input.usage?.toolUsage && Object.keys(input.usage.toolUsage).length),
-      priceSource: billing.priceSource,
+      seconds: price.durationSeconds,
+      resolution: price.resolution,
+      configuredCreditsPerSecond: price.creditsPerSecond,
+      priceSource: 'system-billing-settings',
     },
     requestSnapshot: input.requestSnapshot,
     responseSnapshot: input.responseSnapshot,
@@ -1518,11 +1540,74 @@ export function recordVideoGenerationUsage(input: {
       providerUsage: input.usage?.raw || {},
       toolUsage: input.usage?.toolUsage || {},
     },
-    creditBaseCost: roundCredits(totalTokens / 1_000_000 * billing.creditsPer1MTokens),
-    multiplier: billing.multiplier,
-    priceSource: billing.priceSource,
-    creditRounding: 'ceil',
+    creditBaseCost: price.credits,
+    multiplier: 1,
+    priceSource: 'system-billing-settings',
   });
+}
+
+export function estimateVideoGenerationPrice(input: {
+  durationSeconds: number;
+  modelId: string;
+  modelName?: string;
+  resolution?: string;
+}) {
+  const settings = assertSystemBillingReady();
+  const durationSeconds = Math.max(1, Math.round(input.durationSeconds));
+  return resolveSeedanceVideoPrice({
+    durationSeconds,
+    modelId: input.modelId,
+    modelName: input.modelName,
+    resolution: input.resolution,
+    settings,
+  });
+}
+
+export function resolveSeedanceVideoPrice(input: {
+  durationSeconds: number;
+  modelId: string;
+  modelName?: string;
+  resolution?: string;
+  settings: Pick<BillingSettings,
+    | 'seedance2CreditsPerSecond480p'
+    | 'seedance2CreditsPerSecond720p'
+    | 'seedance2FastCreditsPerSecond480p'
+    | 'seedance2FastCreditsPerSecond720p'
+    | 'seedance2MiniCreditsPerSecond480p'
+    | 'seedance2MiniCreditsPerSecond720p'>;
+}) {
+  const resolution = /480p/i.test(input.resolution || '') ? '480p' : '720p';
+  const modelPrices = {
+    'doubao-seedance-2-0-260128': {
+      '480p': input.settings.seedance2CreditsPerSecond480p,
+      '720p': input.settings.seedance2CreditsPerSecond720p,
+    },
+    'doubao-seedance-2-0-fast-260128': {
+      '480p': input.settings.seedance2FastCreditsPerSecond480p,
+      '720p': input.settings.seedance2FastCreditsPerSecond720p,
+    },
+    'doubao-seedance-2-0-mini-260615': {
+      '480p': input.settings.seedance2MiniCreditsPerSecond480p,
+      '720p': input.settings.seedance2MiniCreditsPerSecond720p,
+    },
+  }[input.modelId];
+  if (!modelPrices) {
+    throw new Error(`视频模型「${input.modelName || input.modelId}」尚未配置按清晰度计费价格`);
+  }
+  const creditsPerSecond = Number(modelPrices[resolution]);
+  if (!Number.isFinite(creditsPerSecond) || creditsPerSecond < 0) {
+    throw new Error(`视频模型「${input.modelName || input.modelId}」的 ${resolution} 计费价格无效`);
+  }
+  const durationSeconds = Math.max(0, input.durationSeconds);
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error('视频时长无效');
+  }
+  return {
+    credits: roundCredits(durationSeconds * creditsPerSecond),
+    creditsPerSecond,
+    durationSeconds,
+    resolution,
+  };
 }
 
 export function recordVoiceCloneUsage(input: {

@@ -7,6 +7,7 @@ import { fileStorageKey, fileStorageService, storageMetadata } from '../../share
 import {
   getBillingSettings,
   releaseReservedFixedBillableUsage,
+  resolveSeedanceVideoPrice,
   reserveFixedBillableUsage,
 } from '../billing/billing.service.js';
 import type { BillingSettings } from '../billing/billing.types.js';
@@ -229,31 +230,24 @@ export function resolveDanceRemakePrice(input: {
     | 'seedance2MiniCreditsPerSecond720p'>;
   videoModelId: string;
 }) {
-  const resolution = /480p/i.test(input.quality) ? '480p' : '720p';
-  const modelPrices = {
-    'doubao-seedance-2-0-260128': {
-      '480p': input.settings.seedance2CreditsPerSecond480p,
-      '720p': input.settings.seedance2CreditsPerSecond720p,
-    },
-    'doubao-seedance-2-0-fast-260128': {
-      '480p': input.settings.seedance2FastCreditsPerSecond480p,
-      '720p': input.settings.seedance2FastCreditsPerSecond720p,
-    },
-    'doubao-seedance-2-0-mini-260615': {
-      '480p': input.settings.seedance2MiniCreditsPerSecond480p,
-      '720p': input.settings.seedance2MiniCreditsPerSecond720p,
-    },
-  }[input.videoModelId];
-  if (!modelPrices) throw new VideoSourceError('当前视频模型尚未配置按秒价格', 400);
-  const creditsPerSecond = Number(modelPrices[resolution]);
-  if (!Number.isFinite(creditsPerSecond) || creditsPerSecond < 0) {
-    throw new VideoSourceError('当前视频模型计费配置无效', 500);
+  try {
+    const price = resolveSeedanceVideoPrice({
+        durationSeconds: input.durationSeconds,
+        modelId: input.videoModelId,
+        resolution: input.quality,
+        settings: input.settings,
+      });
+    return {
+      credits: price.credits,
+      creditsPerSecond: price.creditsPerSecond,
+      resolution: price.resolution,
+    };
+  } catch (error) {
+    throw new VideoSourceError(
+      error instanceof Error ? error.message : '当前视频模型计费配置无效',
+      400,
+    );
   }
-  return {
-    credits: Number((input.durationSeconds * creditsPerSecond).toFixed(6)),
-    creditsPerSecond,
-    resolution,
-  };
 }
 
 function ownAsset(id: string, userId: string, kind: 'image' | 'video') {
@@ -265,7 +259,13 @@ function ownAsset(id: string, userId: string, kind: 'image' | 'video') {
   return asset;
 }
 
-export async function materializeRemoteVideo(input: { input: string; trimEnd?: number; trimStart?: number; userId: string }) {
+export async function materializeRemoteVideo(input: {
+  assetKind?: string;
+  input: string;
+  trimEnd?: number;
+  trimStart?: number;
+  userId: string;
+}) {
   const source = await videoSourceService.resolve(input.input);
   const id = `${source.platform}-${source.externalId}-${randomUUID()}`;
   const outputRelativePath = inputMediaRelativePath('video', `${id}-trimmed.mp4`);
@@ -304,7 +304,7 @@ export async function materializeRemoteVideo(input: { input: string; trimEnd?: n
       fileSize: output.size,
       filePath: outputPath,
       fileUrl: persistedFile.fileUrl,
-      assetKind: 'dance_remake_reference_video',
+      assetKind: input.assetKind || 'dance_remake_reference_video',
       lifecycleStatus: 'temporary',
       expiresAt: temporaryContentAssetExpiresAt(),
       metadata: {

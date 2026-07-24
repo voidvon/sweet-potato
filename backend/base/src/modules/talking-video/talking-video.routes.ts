@@ -11,6 +11,7 @@ import {
   settleFixedBillableUsage,
 } from '../billing/billing.service.js';
 import type { CreditReservation } from '../billing/billing.types.js';
+import { materializeRemoteVideo } from '../video-source/dance-remake.service.js';
 import type { TalkingVideoPromptImage } from './talking-video.prompt.js';
 import {
   talkingVideoHistoryRepository,
@@ -234,10 +235,22 @@ export function createTalkingVideoRouter() {
       const userId = currentUserId(req);
       const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
       const videoAssetId = String(body.videoAssetId || '');
-      if (!videoAssetId) {
+      const remoteVideo = body.remoteVideo && typeof body.remoteVideo === 'object'
+        ? body.remoteVideo as Record<string, unknown>
+        : null;
+      const remoteVideoInput = String(remoteVideo?.input || '').trim();
+      if (!videoAssetId && !remoteVideoInput) {
         throw new Error('请先上传口播参考视频');
       }
-      const video = ownedAsset(userId, videoAssetId, 'video');
+      const video = videoAssetId
+        ? ownedAsset(userId, videoAssetId, 'video')
+        : await materializeRemoteVideo({
+          assetKind: 'talking_video_reference_video',
+          input: remoteVideoInput,
+          trimEnd: typeof remoteVideo?.trimEnd === 'number' ? remoteVideo.trimEnd : undefined,
+          trimStart: typeof remoteVideo?.trimStart === 'number' ? remoteVideo.trimStart : undefined,
+          userId,
+        });
       const durationSeconds = Number((await assertCreateVideoSourceDuration(video)).toFixed(3));
       const imagePayload = Array.isArray(body.images) ? body.images.slice(0, 9) : [];
       const historyImages = imagePayload.map((item) => {

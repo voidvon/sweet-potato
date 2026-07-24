@@ -4,6 +4,7 @@ import {
   getBillingSettings,
   releaseReservedFixedBillableUsage,
   releaseFixedBillableUsage,
+  resolveSeedanceVideoPrice,
   reserveFixedBillableUsage,
   settleFixedBillableUsage,
 } from '../billing/billing.service.js';
@@ -57,33 +58,13 @@ function marketingVideoPrice(input: {
   quality: string;
   duration: string;
 }) {
-  const resolution = /480p/i.test(input.quality) ? '480p' : '720p';
-  const prices = {
-    'doubao-seedance-2-0-260128': {
-      '720p': input.settings.seedance2CreditsPerSecond720p,
-      '480p': input.settings.seedance2CreditsPerSecond480p,
-    },
-    'doubao-seedance-2-0-fast-260128': {
-      '720p': input.settings.seedance2FastCreditsPerSecond720p,
-      '480p': input.settings.seedance2FastCreditsPerSecond480p,
-    },
-    'doubao-seedance-2-0-mini-260615': {
-      '720p': input.settings.seedance2MiniCreditsPerSecond720p,
-      '480p': input.settings.seedance2MiniCreditsPerSecond480p,
-    },
-  } as const;
-  const modelPrices = prices[input.modelId as keyof typeof prices];
-  if (!modelPrices) {
-    throw new Error('当前视频模型尚未配置按秒价格');
-  }
   const durationSeconds = marketingVideoDurationSeconds(input.duration);
-  const creditsPerSecond = Number(modelPrices[resolution]);
-  return {
-    resolution,
+  return resolveSeedanceVideoPrice({
     durationSeconds,
-    creditsPerSecond,
-    credits: Number((durationSeconds * creditsPerSecond).toFixed(6)),
-  };
+    modelId: input.modelId,
+    resolution: input.quality,
+    settings: input.settings,
+  });
 }
 
 function requiredText(value: unknown, label: string) {

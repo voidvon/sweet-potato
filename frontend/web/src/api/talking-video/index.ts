@@ -53,7 +53,12 @@ export type TalkingVideoPromptTimings = {
 };
 
 export async function streamTalkingVideoPrompt(taskId: string, payload: {
-  videoAssetId: string;
+  videoAssetId?: string;
+  remoteVideo?: {
+    input: string;
+    trimEnd?: number;
+    trimStart?: number;
+  };
   images: Array<{
     assetId: string;
     role: 'model' | 'product' | 'background' | 'detail';

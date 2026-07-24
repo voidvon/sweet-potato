@@ -45,6 +45,21 @@ import type {
   VideoTranslationConfig,
   WorksTab,
 } from './types';
+
+function seedanceCreditsPerSecond(
+  billing: SiteConfig['billing'],
+  model: string,
+  quality: string,
+) {
+  const is480p = quality === '480P';
+  if (model === 'Seedance 2.0 Fast') {
+    return is480p ? billing.seedance2FastCreditsPerSecond480p : billing.seedance2FastCreditsPerSecond720p;
+  }
+  if (model === 'Seedance 2.0 Mini') {
+    return is480p ? billing.seedance2MiniCreditsPerSecond480p : billing.seedance2MiniCreditsPerSecond720p;
+  }
+  return is480p ? billing.seedance2CreditsPerSecond480p : billing.seedance2CreditsPerSecond720p;
+}
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, readVideoDuration, readVideoUrlDuration, shouldTrimReferenceVideo } from './videoMetadata';
 import { planningApplyPayloadToFormState } from './planningHelpers';
 import {
@@ -514,6 +529,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (tool.key === 'talking-video') {
       return formatCreditAmount(billing.talkingVideoPromptCreditsPerRequest);
     }
+    if (tool.workspace.generate.handler === 'video-generation') {
+      const durationSeconds = Number.parseFloat(duration);
+      if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        return '';
+      }
+      const creditsPerSecond = seedanceCreditsPerSecond(billing, model, quality);
+      return formatCreditAmount(durationSeconds * creditsPerSecond);
+    }
     if (tool.workspace.generate.handler === 'dance-remake' || tool.workspace.generate.handler === 'subject-replace') {
       if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
         return '';
@@ -521,12 +544,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const durationSeconds = Math.max(4, Math.min(15, Math.ceil(selectedVideoDuration)));
       const isStandard = tool.workspace.generate.handler === 'dance-remake' && danceRemakeMode === 'standard';
       const effectiveModel = isStandard ? 'Seedance 2.0 Mini' : model;
-      const is480p = isStandard || quality === '480P';
-      const creditsPerSecond = effectiveModel === 'Seedance 2.0 Fast'
-        ? (is480p ? billing.seedance2FastCreditsPerSecond480p : billing.seedance2FastCreditsPerSecond720p)
-        : effectiveModel === 'Seedance 2.0 Mini'
-          ? (is480p ? billing.seedance2MiniCreditsPerSecond480p : billing.seedance2MiniCreditsPerSecond720p)
-          : (is480p ? billing.seedance2CreditsPerSecond480p : billing.seedance2CreditsPerSecond720p);
+      const creditsPerSecond = seedanceCreditsPerSecond(
+        billing,
+        effectiveModel,
+        isStandard ? '480P' : quality,
+      );
       return formatCreditAmount(durationSeconds * creditsPerSecond);
     }
     if (!selectedVideoDuration || !Number.isFinite(selectedVideoDuration)) {
@@ -550,7 +572,20 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return formatCreditAmount(billedVideoSeconds * creditsPerSecond);
     }
     return '';
-  }, [danceRemakeMode, model, quality, selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
+  }, [danceRemakeMode, duration, model, quality, selectedVideoDuration, siteConfig, tool.key, tool.workspace.generate.handler, videoTranslationConfig]);
+
+  // The talking-video confirmation modal submits a full video task. Keep its
+  // estimate separate from the prompt-generation price shown in the composer.
+  const talkingVideoGenerationPriceLabel = useMemo(() => {
+    const billing = siteConfig?.billing;
+    if (!billing || tool.key !== 'talking-video') return '';
+    const sourceSeconds = talkingVideoPromptTask?.sourceVideo.trimDuration
+      || talkingVideoPromptTask?.sourceVideo.mediaDuration
+      || Number.parseFloat(duration);
+    const billedSeconds = Math.min(15, Math.max(4, Math.round(sourceSeconds || 5)));
+    const creditsPerSecond = seedanceCreditsPerSecond(billing, model, quality);
+    return formatCreditAmount(billedSeconds * creditsPerSecond);
+  }, [duration, model, quality, siteConfig, talkingVideoPromptTask, tool.key]);
 
   const marketingVideoGenerationPriceLabel = useMemo(() => {
     const billing = siteConfig?.billing;
@@ -558,12 +593,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (!billing || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
       return '';
     }
-    const is480p = quality === '480P';
-    const creditsPerSecond = model === 'Seedance 2.0 Fast'
-      ? (is480p ? billing.seedance2FastCreditsPerSecond480p : billing.seedance2FastCreditsPerSecond720p)
-      : model === 'Seedance 2.0 Mini'
-        ? (is480p ? billing.seedance2MiniCreditsPerSecond480p : billing.seedance2MiniCreditsPerSecond720p)
-        : (is480p ? billing.seedance2CreditsPerSecond480p : billing.seedance2CreditsPerSecond720p);
+    const creditsPerSecond = seedanceCreditsPerSecond(billing, model, quality);
     return formatCreditAmount(Number((durationSeconds * creditsPerSecond).toFixed(6)));
   }, [model, quality, siteConfig]);
 
@@ -1511,12 +1541,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
     try {
       const [videoAssetIds, imageAssetIds] = await Promise.all([
-        ensureMaterialAssetIds({
-          currentUser,
-          resourceType: 'other',
-          files: [sourceVideo],
-          uploadGroupIdsRef,
-        }),
+        sourceVideo.remoteSourceUrl && !sourceVideo.assetId
+          ? Promise.resolve([])
+          : ensureMaterialAssetIds({
+            currentUser,
+            resourceType: 'other',
+            files: [sourceVideo],
+            uploadGroupIdsRef,
+          }),
         ensureMaterialAssetIds({
           currentUser,
           resourceType: 'other',
@@ -1525,7 +1557,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         }),
       ]);
       const videoAssetId = videoAssetIds[0];
-      if (!videoAssetId) throw new Error('口播参考视频上传失败');
+      if (!videoAssetId && !sourceVideo.remoteSourceUrl) throw new Error('口播参考视频上传失败');
       updateTalkingVideoTask(taskId, (current) => ({
         ...current,
         phase: 'uploading_assets',
@@ -1542,6 +1574,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
       await streamTalkingVideoPrompt(taskId, {
         videoAssetId,
+        remoteVideo: !videoAssetId && sourceVideo.remoteSourceUrl ? {
+          input: sourceVideo.remoteSourceUrl,
+          trimEnd: sourceVideo.trimEnd,
+          trimStart: sourceVideo.trimStart,
+        } : undefined,
         images: imageAssetIds.map((assetId, index) => ({
           assetId,
           role: imageFiles[index].talkingVideoRole || 'detail',
@@ -2297,6 +2334,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     talkingVideoInputExpanded,
     talkingVideoPromptTask,
     talkingVideoPromptTasks,
+    talkingVideoGenerationPriceLabel,
     stopTalkingVideoPrompt,
     uploadAnchor,
     videoProductions,

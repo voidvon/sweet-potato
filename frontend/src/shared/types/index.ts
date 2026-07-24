@@ -202,8 +202,6 @@ export type ImageBillingSettings = {
 };
 
 export type VideoBillingSettings = {
-  multiplier: number;
-  creditsPer1MTokens: number;
   priceSource?: string;
 };
 

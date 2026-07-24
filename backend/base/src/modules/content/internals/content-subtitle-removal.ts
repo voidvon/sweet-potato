@@ -2,6 +2,12 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
 import { createTraceId, logger } from '../../../shared/logger.js';
+import {
+  estimateSubtitleRemovalPrice,
+  releaseReservedFixedBillableUsage,
+  reserveFixedBillableUsage,
+  settleReservedFixedBillableUsage,
+} from '../../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content.repository.js';
 import type {
   CreateSubtitleRemovalPayload,
@@ -112,6 +118,9 @@ function playbackUrlFromFileName(fileName: string) {
 async function failSubtitleRemovalTask(taskId: string, reason: string) {
   const task = contentRepository.findVideoTask(taskId);
   if (!task) return null;
+  const context = removalContext(task);
+  const reservationId = String(context.videoBillingReservationId || '').trim();
+  if (reservationId) releaseReservedFixedBillableUsage(reservationId);
   const result = removalResult(task);
   const failedResult: VideoGenerationResult = {
     ...(result || {
@@ -128,7 +137,11 @@ async function failSubtitleRemovalTask(taskId: string, reason: string) {
     videoUrl: null,
     generatedAt: new Date().toISOString(),
   };
-  updateRemovalTask({ task, context: removalContext(task), result: failedResult });
+  updateRemovalTask({
+    task,
+    context: { ...context, videoBillingStatus: reservationId ? 'released' : 'none' },
+    result: failedResult,
+  });
   markFinishedVideoAssetFailed(result?.assetId, reason);
   return contentRepository.markVideoTaskFailed(taskId, reason);
 }
@@ -142,6 +155,7 @@ async function completeSubtitleRemovalTask(task: VideoGenerationTask, worker: Su
   }
   const remoteVideoUrl = playbackUrlFromFileName(fileName);
   const mode = String(context.subtitleRemovalMode || 'auto');
+  const reservationId = String(context.videoBillingReservationId || '').trim();
   const finishedAsset = createFinishedVideoAsset({
     userId: task.userId,
     taskId: task.id,
@@ -191,6 +205,17 @@ async function completeSubtitleRemovalTask(task: VideoGenerationTask, worker: Su
     renderStatus: 'rendered',
     generatedAt: new Date().toISOString(),
   };
+  const billingRecord = reservationId
+    ? settleReservedFixedBillableUsage({
+      reservationId,
+      category: 'video_generation',
+      provider: 'volcengine-vod',
+      model: 'subtitle-erase',
+      taskId: task.id,
+      sessionId: task.id,
+      responseSnapshot: { fileName, remoteVideoUrl, runId: result?.jobId || '' },
+    })
+    : null;
   updateRemovalTask({
     task,
     context: {
@@ -199,6 +224,11 @@ async function completeSubtitleRemovalTask(task: VideoGenerationTask, worker: Su
       subtitleRemovalFileName: fileName,
       outputVid: worker.vid,
       remoteGeneratedVideoUrl: remoteVideoUrl,
+      ...(billingRecord ? {
+        videoBillingStatus: 'settled',
+        videoBillingRecordId: billingRecord.id,
+        videoBillingCredits: billingRecord.creditCost,
+      } : {}),
     },
     result: completedResult,
   });
@@ -323,7 +353,7 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
   if (!sourceAsset || sourceAsset.userId !== payload.userId) throw new Error('待擦除字幕的视频素材不存在');
   if (!sourceAsset.mimeType.startsWith('video/')) throw new Error('请选择视频素材进行字幕擦除');
   sourceAsset = await ensureContentAssetLocalFile(sourceAsset);
-  await assertCreateVideoSourceDuration(sourceAsset);
+  const sourceDurationSeconds = await assertCreateVideoSourceDuration(sourceAsset);
   const mode = payload.mode === 'auto_region' || payload.mode === 'manual' ? payload.mode : 'auto';
   const contentType = payload.contentType === 'text' ? 'text' : 'subtitle';
   const locations = normalizeLocations({ ...payload, mode });
@@ -352,34 +382,70 @@ export async function createSubtitleRemovalTask(payload: CreateSubtitleRemovalPa
     },
   });
   if (!task) throw new Error('字幕擦除任务创建失败');
-  const pendingAsset = createPendingFinishedVideoAsset({
-    userId: payload.userId,
-    taskId: task.id,
-    title,
-    provider: 'volcengine-vod',
-    model: 'subtitle-erase',
-    ratio: aspectRatio,
-    duration: '',
-    mode: 'subtitle_removal',
-    materialContext: { sourceAssetId: sourceAsset.id, mode, contentType, locations, clipFilter },
-  });
-  const pendingResult: VideoGenerationResult = {
-    version: 1,
-    taskId: task.id,
-    sourceType: 'subtitle_removal',
-    status: 'pending',
-    provider: 'volcengine-vod',
-    model: 'subtitle-erase',
-    videoUrl: null,
-    duration: '',
-    ratio: aspectRatio,
-    assetId: pendingAsset.id,
-    renderMode: 'provider_generation',
-    renderStatus: 'queued',
-    generatedAt: new Date().toISOString(),
-  };
-  updateRemovalTask({ task, context: removalContext(task), result: pendingResult });
-  contentRepository.markVideoTaskGenerating(task.id);
+  let reservationId = '';
+  let pendingResult: VideoGenerationResult;
+  try {
+    const price = estimateSubtitleRemovalPrice(sourceDurationSeconds);
+    const reservation = reserveFixedBillableUsage({
+      userId: payload.userId,
+      category: 'video_generation',
+      sourceType: 'subtitle_removal',
+      sourceId: `subtitle-removal:${task.id}`,
+      sessionId: task.id,
+      credits: price.credits,
+      step: 'subtitle_removal',
+      stepLabel: '字幕擦除',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: price.durationSeconds,
+        configuredCreditsPerSecond: price.creditsPerSecond,
+        priceSource: 'system-billing-settings',
+      },
+      requestSnapshot: { mode, contentType, locations, clipFilter, sourceAssetId: sourceAsset.id },
+    });
+    reservationId = reservation.id;
+    const pendingAsset = createPendingFinishedVideoAsset({
+      userId: payload.userId,
+      taskId: task.id,
+      title,
+      provider: 'volcengine-vod',
+      model: 'subtitle-erase',
+      ratio: aspectRatio,
+      duration: '',
+      mode: 'subtitle_removal',
+      materialContext: { sourceAssetId: sourceAsset.id, mode, contentType, locations, clipFilter },
+    });
+    pendingResult = {
+      version: 1,
+      taskId: task.id,
+      sourceType: 'subtitle_removal',
+      status: 'pending',
+      provider: 'volcengine-vod',
+      model: 'subtitle-erase',
+      videoUrl: null,
+      duration: '',
+      ratio: aspectRatio,
+      assetId: pendingAsset.id,
+      renderMode: 'provider_generation',
+      renderStatus: 'queued',
+      generatedAt: new Date().toISOString(),
+    };
+    updateRemovalTask({
+      task,
+      context: {
+        ...removalContext(task),
+        videoBillingReservationId: reservation.id,
+        videoBillingStatus: 'reserved',
+        videoBillingCredits: reservation.reservedCredits,
+      },
+      result: pendingResult,
+    });
+    contentRepository.markVideoTaskGenerating(task.id);
+  } catch (error) {
+    if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+    contentRepository.markVideoTaskFailed(task.id, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 
   void (async () => {
     try {

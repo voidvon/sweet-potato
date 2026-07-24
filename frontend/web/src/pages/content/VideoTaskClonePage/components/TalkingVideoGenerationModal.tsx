@@ -1,6 +1,7 @@
 import { Button, Dropdown, Modal, Popover, message } from 'antd';
 import { ChevronDown, Copy, Layers3, Library, Maximize, Music2, ScanLine, Upload } from 'lucide-react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { CreditIcon } from '@shared/components/CreditIcon';
 import { modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue } from '../types';
@@ -30,6 +31,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
   const audioFiles = localFiles(state.talkingVideoGenerationMaterials.audio);
   const hasModelImage = localFiles(state.talkingVideoGenerationMaterials.image)
     .some((file) => file.talkingVideoRole === 'model');
+  const canSubmit = confirmed && Boolean(draft.trim()) && hasModelImage;
   const editorMaterials = {
     image: state.talkingVideoGenerationMaterials.image,
     audio: state.talkingVideoGenerationMaterials.audio,
@@ -119,15 +121,23 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 <Button icon={<ScanLine size={15} />}>{state.quality}<ChevronDown size={14} /></Button>
               </Dropdown>
             </div>
-            <Button
-              className="talking-video-modal-submit"
-              disabled={!confirmed || !draft.trim() || !hasModelImage || state.isTalkingVideoSubmitting}
-              loading={state.isTalkingVideoSubmitting}
-              onClick={() => void state.generateTalkingVideoFromPrompt(draft)}
-              type="primary"
-            >
-              {state.isTalkingVideoSubmitting ? '提交中…' : '提交生成'}
-            </Button>
+            <div className="talking-video-modal-submit-actions">
+              {canSubmit && !state.isTalkingVideoSubmitting && state.talkingVideoGenerationPriceLabel ? (
+                <span className="talking-video-modal-cost">
+                  <CreditIcon />
+                  {state.talkingVideoGenerationPriceLabel}
+                </span>
+              ) : null}
+              <Button
+                className="talking-video-modal-submit"
+                disabled={!canSubmit || state.isTalkingVideoSubmitting}
+                loading={state.isTalkingVideoSubmitting}
+                onClick={() => void state.generateTalkingVideoFromPrompt(draft)}
+                type="primary"
+              >
+                {state.isTalkingVideoSubmitting ? '提交中…' : '提交生成'}
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -157,10 +167,25 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         </div>
 
         <section className="talking-video-modal-prompt">
-          <header>
-            <span />
-            <Button icon={<Copy size={14} />} onClick={() => void copyPrompt()} size="small">复制</Button>
-          </header>
+          <div className="talking-video-modal-prompt-actions">
+            <Button
+              aria-label="复制提示词"
+              className="talking-video-modal-prompt-action"
+              icon={<Copy size={16} />}
+              onClick={() => void copyPrompt()}
+              title="复制提示词"
+              type="text"
+            />
+            <Button
+              aria-label="全屏编辑提示词"
+              className="talking-video-modal-prompt-action video-task-expand"
+              icon={<Maximize size={18} />}
+              onClick={() => setPromptExpanded(true)}
+              shape="circle"
+              title="全屏编辑提示词"
+              type="text"
+            />
+          </div>
           <PromptMentionEditor
             minRows={1}
             onChange={(value) => {
@@ -172,15 +197,6 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
             prompt={draft}
             selectedMaterials={editorMaterials}
             suggestionContainer="body"
-          />
-          <Button
-            aria-label="全屏编辑提示词"
-            className="video-task-expand talking-video-modal-prompt-expand"
-            icon={<Maximize size={18} />}
-            onClick={() => setPromptExpanded(true)}
-            shape="circle"
-            title="全屏编辑提示词"
-            type="text"
           />
         </section>
       </div>

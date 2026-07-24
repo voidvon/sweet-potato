@@ -2,6 +2,12 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { volcengineVodConfig } from '../../../config/env.js';
 import { createTraceId, logger } from '../../../shared/logger.js';
+import {
+  estimateVideoTranslationPrice,
+  releaseReservedFixedBillableUsage,
+  reserveFixedBillableUsage,
+  settleReservedFixedBillableUsage,
+} from '../../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content.repository.js';
 import type {
   CreateVideoTranslationPayload,
@@ -125,6 +131,9 @@ function outputVideoUrl(output: NonNullable<TranslationWorkerResult['outputVideo
 async function failVideoTranslationTask(taskId: string, reason: string) {
   const task = contentRepository.findVideoTask(taskId);
   if (!task) return null;
+  const context = translationContext(task);
+  const reservationId = String(context.videoBillingReservationId || '').trim();
+  if (reservationId) releaseReservedFixedBillableUsage(reservationId);
   const result = translationResult(task);
   const failedResult: VideoGenerationResult = {
     ...(result || {
@@ -141,7 +150,11 @@ async function failVideoTranslationTask(taskId: string, reason: string) {
     videoUrl: null,
     generatedAt: new Date().toISOString(),
   };
-  updateTranslationTask({ task, context: translationContext(task), result: failedResult });
+  updateTranslationTask({
+    task,
+    context: { ...context, videoBillingStatus: reservationId ? 'released' : 'none' },
+    result: failedResult,
+  });
   markFinishedVideoAssetFailed(result?.assetId, reason);
   return contentRepository.markVideoTaskFailed(taskId, reason);
 }
@@ -154,6 +167,7 @@ async function completeVideoTranslationTask(task: VideoGenerationTask, worker: T
   const remoteVideoUrl = outputVideoUrl(output);
   const duration = Number(output.durationSecond);
   const durationLabel = Number.isFinite(duration) && duration > 0 ? `${duration}s` : result?.duration || '';
+  const reservationId = String(context.videoBillingReservationId || '').trim();
   const finishedAsset = createFinishedVideoAsset({
     userId: task.userId,
     taskId: task.id,
@@ -207,6 +221,22 @@ async function completeVideoTranslationTask(task: VideoGenerationTask, worker: T
     renderStatus: 'rendered',
     generatedAt: new Date().toISOString(),
   };
+  const billingRecord = reservationId
+    ? settleReservedFixedBillableUsage({
+      reservationId,
+      category: 'video_generation',
+      provider: 'volcengine-vod',
+      model: 'ai-video-translation',
+      taskId: task.id,
+      sessionId: task.id,
+      responseSnapshot: {
+        outputFileName: output.fileName || '',
+        outputVid: output.vid || '',
+        projectId: result?.jobId || '',
+        remoteVideoUrl,
+      },
+    })
+    : null;
   updateTranslationTask({
     task,
     context: {
@@ -215,6 +245,11 @@ async function completeVideoTranslationTask(task: VideoGenerationTask, worker: T
       outputVid: output.vid,
       outputFileName: output.fileName,
       remoteGeneratedVideoUrl: remoteVideoUrl,
+      ...(billingRecord ? {
+        videoBillingStatus: 'settled',
+        videoBillingRecordId: billingRecord.id,
+        videoBillingCredits: billingRecord.creditCost,
+      } : {}),
     },
     result: completedResult,
   });
@@ -327,7 +362,7 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
     throw new Error('视频翻译仅支持 MP4 格式');
   }
   sourceAsset = await ensureContentAssetLocalFile(sourceAsset);
-  await assertCreateVideoSourceDuration(sourceAsset);
+  const sourceDurationSeconds = await assertCreateVideoSourceDuration(sourceAsset);
   const sourceLanguage = String(payload.sourceLanguage || '').trim().toLowerCase();
   const targetLanguage = String(payload.targetLanguage || '').trim().toLowerCase();
   if (!sourceLanguages.has(sourceLanguage)) throw new Error(`不支持的源语言：${sourceLanguage || '空'}`);
@@ -359,41 +394,90 @@ export async function createVideoTranslationTask(payload: CreateVideoTranslation
     },
   });
   if (!task) throw new Error('视频翻译任务创建失败');
-  const pendingAsset = createPendingFinishedVideoAsset({
-    userId: payload.userId,
-    taskId: task.id,
-    title,
-    provider: 'volcengine-vod',
-    model: 'ai-video-translation',
-    ratio: aspectRatio,
-    duration: '',
-    mode: 'video_translation',
-    materialContext: {
-      sourceAssetId: sourceAsset.id,
-      sourceLanguage,
-      targetLanguage,
+  let reservationId = '';
+  let pendingResult: VideoGenerationResult;
+  try {
+    const price = estimateVideoTranslationPrice({
+      durationSeconds: sourceDurationSeconds,
+      eraseSourceSubtitles: subtitleConfig.isEraseSource,
       translationTypes,
-      subtitleSource,
-      subtitleConfig,
-    },
-  });
-  const pendingResult: VideoGenerationResult = {
-    version: 1,
-    taskId: task.id,
-    sourceType: 'video_translation',
-    status: 'pending',
-    provider: 'volcengine-vod',
-    model: 'ai-video-translation',
-    videoUrl: null,
-    duration: '',
-    ratio: aspectRatio,
-    assetId: pendingAsset.id,
-    renderMode: 'provider_generation',
-    renderStatus: 'queued',
-    generatedAt: new Date().toISOString(),
-  };
-  updateTranslationTask({ task, context: translationContext(task), result: pendingResult });
-  contentRepository.markVideoTaskGenerating(task.id);
+    });
+    const reservation = reserveFixedBillableUsage({
+      userId: payload.userId,
+      category: 'video_generation',
+      sourceType: 'video_translation',
+      sourceId: `video-translation:${task.id}`,
+      sessionId: task.id,
+      credits: price.credits,
+      step: 'video_translation',
+      stepLabel: '视频翻译',
+      pricingMode: 'per_second',
+      quantitySnapshot: {
+        seconds: price.durationSeconds,
+        configuredCreditsPerSecond: price.creditsPerSecond,
+        translationTypes,
+        eraseSourceSubtitles: subtitleConfig.isEraseSource,
+        priceSource: 'system-billing-settings',
+      },
+      requestSnapshot: {
+        sourceAssetId: sourceAsset.id,
+        sourceLanguage,
+        targetLanguage,
+        translationTypes,
+        subtitleSource,
+        subtitleConfig,
+      },
+    });
+    reservationId = reservation.id;
+    const pendingAsset = createPendingFinishedVideoAsset({
+      userId: payload.userId,
+      taskId: task.id,
+      title,
+      provider: 'volcengine-vod',
+      model: 'ai-video-translation',
+      ratio: aspectRatio,
+      duration: '',
+      mode: 'video_translation',
+      materialContext: {
+        sourceAssetId: sourceAsset.id,
+        sourceLanguage,
+        targetLanguage,
+        translationTypes,
+        subtitleSource,
+        subtitleConfig,
+      },
+    });
+    pendingResult = {
+      version: 1,
+      taskId: task.id,
+      sourceType: 'video_translation',
+      status: 'pending',
+      provider: 'volcengine-vod',
+      model: 'ai-video-translation',
+      videoUrl: null,
+      duration: '',
+      ratio: aspectRatio,
+      assetId: pendingAsset.id,
+      renderMode: 'provider_generation',
+      renderStatus: 'queued',
+      generatedAt: new Date().toISOString(),
+    };
+    updateTranslationTask({
+      task,
+      context: {
+        ...translationContext(task),
+        videoBillingReservationId: reservation.id,
+        videoBillingStatus: 'reserved',
+        videoBillingCredits: reservation.reservedCredits,
+      },
+      result: pendingResult,
+    });
+    contentRepository.markVideoTaskGenerating(task.id);
+  } catch (error) {
+    if (reservationId) releaseReservedFixedBillableUsage(reservationId);
+    contentRepository.markVideoTaskFailed(task.id, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 
   void (async () => {
     try {

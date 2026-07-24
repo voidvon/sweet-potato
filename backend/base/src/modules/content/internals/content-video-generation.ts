@@ -303,6 +303,7 @@ export function recordVideoGenerationUsageIfNeeded(input: {
   jobId?: string;
   duration?: string;
   durationSeconds?: number;
+  resolution?: string;
   usage?: VideoGenerationUsageSnapshot;
   requestSnapshot?: Record<string, unknown>;
   responseSnapshot?: Record<string, unknown>;
@@ -349,6 +350,7 @@ export function recordVideoGenerationUsageIfNeeded(input: {
     sourceId,
     taskId: input.taskId,
     durationSeconds: billedDurationSeconds,
+    resolution: input.resolution || String(input.requestSnapshot?.resolution || ''),
     usage: input.usage,
     requestSnapshot: input.requestSnapshot,
     responseSnapshot: input.responseSnapshot,
@@ -2666,6 +2668,7 @@ export async function callConfiguredVideoModel(input: {
         modelId: input.modelId || modelOption.id,
         jobId: result.jobId,
         durationSeconds: effectiveDurationSeconds,
+        resolution: input.resolution || input.seedanceOptions?.resolution,
         usage: result.usage,
         requestSnapshot: {
           requestMode,
@@ -2955,6 +2958,7 @@ async function regenerateCopyrightSafeVideoSegment(input: {
       modelId: input.modelId,
       jobId: completed.jobId,
       durationSeconds: input.seconds,
+      resolution: input.resolution || input.seedanceOptions.resolution,
       usage: completed.usage,
       responseSnapshot: {
         provider: completed.provider,
@@ -3404,6 +3408,7 @@ export async function callSegmentedSeedanceVideoGeneration(input: {
           modelId: input.modelId,
           jobId: completed.jobId,
           durationSeconds: seconds,
+          resolution: input.resolution || input.seedanceOptions.resolution,
           usage: completed.usage,
           responseSnapshot: {
             provider: completed.provider,
@@ -3806,6 +3811,7 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
           modelId: request.modelId,
           jobId: completed.jobId,
           durationSeconds: seconds,
+          resolution: request.resolution || request.seedanceOptions.resolution,
           usage: completed.usage,
           responseSnapshot: {
             provider: completed.provider,

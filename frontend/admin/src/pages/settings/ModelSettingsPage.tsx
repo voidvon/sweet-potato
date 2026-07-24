@@ -252,11 +252,9 @@ function videoBillingSettingsOf(record: ModelConfig): VideoBillingSettings {
     ? settings.billing as Record<string, unknown>
     : {};
   return {
-    multiplier: toNumericValue(billing.multiplier, 1),
-    creditsPer1MTokens: toNumericValue(billing.creditsPer1MTokens, toNumericValue(billing.usdPer1MTokens, 0)),
     priceSource: typeof billing.priceSource === 'string' && billing.priceSource.trim()
       ? billing.priceSource.trim()
-      : 'official-manual',
+      : 'system-billing-settings',
   };
 }
 
@@ -653,18 +651,18 @@ function ModelFormModal({
                   默认 Base URL：{videoProvider?.defaultBaseUrl || 'https://ark.cn-beijing.volces.com/api/v3'}
                 </div>
               )}
-              <div className="model-subtext">
-                这里配置该模型的业务计费参数，所有消耗都会直接按积分口径计算。
-              </div>
-              <Form.Item
-                label="模型消耗倍率"
-                name={['settings', 'billing', 'multiplier']}
-                rules={[{ required: true, message: '请输入模型消耗倍率' }]}
-              >
-                <InputNumber controls={false} min={0} precision={2} step={0.01} style={{ width: '100%' }} />
-              </Form.Item>
               {activeType === 'audio' ? (
                 <>
+                  <div className="model-subtext">
+                    这里配置该模型的业务计费参数，所有消耗都会直接按积分口径计算。
+                  </div>
+                  <Form.Item
+                    label="模型消耗倍率"
+                    name={['settings', 'billing', 'multiplier']}
+                    rules={[{ required: true, message: '请输入模型消耗倍率' }]}
+                  >
+                    <InputNumber controls={false} min={0} precision={2} step={0.01} style={{ width: '100%' }} />
+                  </Form.Item>
                   <Form.Item
                     label="声音克隆单价 (Credit / 次)"
                     name={['settings', 'billing', 'voiceCloneCredits']}
@@ -679,22 +677,18 @@ function ModelFormModal({
                   >
                     <InputNumber min={0} precision={6} style={{ width: '100%' }} />
                   </Form.Item>
+                  <Form.Item
+                    label="价格来源备注"
+                    name={['settings', 'billing', 'priceSource']}
+                  >
+                    <Input placeholder="例如：official-manual-2026-06-12" />
+                  </Form.Item>
                 </>
               ) : (
-                <Form.Item
-                  label="视频生成单价 (Credit / 1M tokens)"
-                  name={['settings', 'billing', 'creditsPer1MTokens']}
-                  rules={[{ required: true, message: '请输入视频生成单价' }]}
-                >
-                  <InputNumber min={0} precision={2} step={0.01} style={{ width: '100%' }} />
-                </Form.Item>
+                <div className="model-subtext">
+                  视频生成按当前模型、清晰度和生成时长计费，单价在系统计费配置中维护。
+                </div>
               )}
-              <Form.Item
-                label="价格来源备注"
-                name={['settings', 'billing', 'priceSource']}
-              >
-                <Input placeholder="例如：official-manual-2026-06-12" />
-              </Form.Item>
             </div>
           </div>
         ) : (
@@ -1592,15 +1586,12 @@ export function ModelSettingsPage() {
           {
             title: '计费参数',
             width: 240,
-            render: (_, record) => {
-              const billing = videoBillingSettingsOf(record);
-              return (
-                <Space orientation="vertical" size={2}>
-                  <span>倍率 {billing.multiplier.toFixed(2)}</span>
-                  <span className="model-subtext">{billing.creditsPer1MTokens.toFixed(6)} Credit / 1M tokens</span>
-                </Space>
-              );
-            },
+            render: () => (
+              <Space orientation="vertical" size={2}>
+                <span>按秒计费</span>
+                <span className="model-subtext">模型 · 清晰度 · 时长</span>
+              </Space>
+            ),
           },
           {
             title: 'Base URL',

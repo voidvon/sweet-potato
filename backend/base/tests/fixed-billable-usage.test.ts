@@ -4,6 +4,9 @@ import { db } from '../src/db/database.js';
 import { migrateDatabase } from '../src/db/schema.js';
 import {
   findReservedFixedBillableUsage,
+  estimateSubtitleRemovalPrice,
+  estimateVideoGenerationPrice,
+  estimateVideoTranslationPrice,
   InsufficientStepCreditsError,
   normalizeBillingSettings,
   recordVideoGenerationUsage,
@@ -57,8 +60,35 @@ test('billing settings include default Seedance prices by model and resolution',
   assert.equal(settings.seedance2MiniCreditsPerSecond480p, 7);
 });
 
-test('video generation rounds billed credits up before debiting the balance', () => {
-  const userId = createBillingTestUser(10);
+test('video operation estimates use configured model, resolution, duration, and enabled modes', () => {
+  assert.deepEqual(estimateVideoGenerationPrice({
+    durationSeconds: 5,
+    modelId: 'doubao-seedance-2-0-260128',
+    resolution: '480P',
+  }), {
+    credits: 60,
+    creditsPerSecond: 12,
+    durationSeconds: 5,
+    resolution: '480p',
+  });
+  assert.deepEqual(estimateSubtitleRemovalPrice(5.1), {
+    credits: 12,
+    creditsPerSecond: 2,
+    durationSeconds: 6,
+  });
+  assert.deepEqual(estimateVideoTranslationPrice({
+    durationSeconds: 5.1,
+    eraseSourceSubtitles: true,
+    translationTypes: ['subtitle', 'voice', 'face'],
+  }), {
+    credits: 42,
+    creditsPerSecond: 7,
+    durationSeconds: 6,
+  });
+});
+
+test('video generation bills by model, resolution, and duration without token usage', () => {
+  const userId = createBillingTestUser(100);
   const now = new Date().toISOString();
   try {
     const record = recordVideoGenerationUsage({
@@ -66,18 +96,13 @@ test('video generation rounds billed credits up before debiting the balance', ()
       modelConfig: {
         id: `video-billing-${userId}`,
         type: 'video',
-        name: 'Video billing rounding test',
-        provider: 'test-provider',
-        model: 'test-video-model',
+        name: 'Seedance 2.0',
+        provider: 'volcengine-seedance',
+        model: 'doubao-seedance-2-0-260128',
         apiKey: 'test',
         baseUrl: 'https://example.com',
         temperature: 0,
-        settings: {
-          billing: {
-            creditsPer1MTokens: 1,
-            multiplier: 2,
-          },
-        },
+        settings: {},
         isDefault: false,
         sortOrder: 0,
         createdAt: now,
@@ -87,21 +112,21 @@ test('video generation rounds billed credits up before debiting the balance', ()
       sourceId: `${userId}:video-generation`,
       taskId: `${userId}:task`,
       durationSeconds: 5,
-      usage: {
-        completionTokens: 1_534_204,
-        totalTokens: 1_534_204,
-      },
+      resolution: '480P',
     });
 
-    assert.equal(record.creditBaseCost, 1.534204);
-    assert.equal(record.creditBilledCost, 4);
-    assert.equal(record.creditCost, 4);
-    assert.equal(record.quantitySnapshot.creditRounding, 'ceil');
-    assert.equal(userRepository.findById(userId)?.creditBalance, 6);
+    assert.equal(record.pricingMode, 'per_second');
+    assert.equal(record.creditBaseCost, 60);
+    assert.equal(record.creditBilledCost, 60);
+    assert.equal(record.creditCost, 60);
+    assert.equal(record.quantitySnapshot.seconds, 5);
+    assert.equal(record.quantitySnapshot.resolution, '480p');
+    assert.equal(record.quantitySnapshot.configuredCreditsPerSecond, 12);
+    assert.equal(userRepository.findById(userId)?.creditBalance, 40);
     const ledger = billingRepository.listLedgerEntries({ userId });
     assert.equal(ledger.length, 1);
-    assert.equal(ledger[0].creditDelta, -4);
-    assert.equal(ledger[0].creditBilledCost, 4);
+    assert.equal(ledger[0].creditDelta, -60);
+    assert.equal(ledger[0].creditBilledCost, 60);
   } finally {
     cleanupBillingTestUser(userId);
   }

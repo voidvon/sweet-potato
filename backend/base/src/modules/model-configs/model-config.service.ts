@@ -77,12 +77,8 @@ function normalizeVideoBillingSettings(settings: Record<string, unknown>) {
   return {
     ...settings,
     billing: {
-      multiplier: Math.max(0, normalizeNumber(billing.multiplier, 1)),
-      creditsPer1MTokens: Math.max(
-        0,
-        normalizeNumber(billing.creditsPer1MTokens, normalizeNumber(billing.usdPer1MTokens, 0)),
-      ),
-      priceSource: String(billing.priceSource || 'official-manual').trim() || 'official-manual',
+      priceSource: String(billing.priceSource || 'system-billing-settings').trim()
+        || 'system-billing-settings',
     },
   };
 }
@@ -203,12 +199,8 @@ function assertVideoBillingSettings(config: AiModelConfig) {
   if (!billing) {
     return;
   }
-  if (
-    normalizeNumber(billing.multiplier, 1) < 0
-    || normalizeNumber(billing.creditsPer1MTokens, normalizeNumber(billing.usdPer1MTokens, 0)) < 0
-  ) {
-    throw new Error('视频模型计费配置不能小于 0');
-  }
+  billing.priceSource = String(billing.priceSource || 'system-billing-settings').trim()
+    || 'system-billing-settings';
 }
 
 function assertAudioBillingSettings(config: AiModelConfig) {

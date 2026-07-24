@@ -3,6 +3,7 @@ import { CircleAlert, Clapperboard, Filter, LoaderCircle, RefreshCcw } from 'luc
 import { Button, Dropdown, Modal, message } from 'antd';
 import { useState } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
+import { formatCreditAmount } from '@shared/utils/credits';
 import { resolveAssetUrl } from '../../../../api/request';
 import { InfiniteScroll } from '../../../../components/InfiniteScroll';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
@@ -337,7 +338,7 @@ function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
   if (!Number.isFinite(creditCost) || creditCost < 0 || task.creditCost === null || typeof task.creditCost === 'undefined') {
     return null;
   }
-  const billedCreditCost = Math.ceil(creditCost);
+  const billedCreditCost = formatCreditAmount(creditCost);
   return (
     <span className="video-task-result-credit-cost" title={`消耗 ${billedCreditCost} 积分`}>
       <CreditIcon />
