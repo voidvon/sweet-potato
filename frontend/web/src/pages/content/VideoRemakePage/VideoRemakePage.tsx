@@ -52,6 +52,7 @@ import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import { useWorkspaceHeader } from '../../../layouts/ProtectedLayout';
 import { VideoWorkbenchLayout } from '../../../layouts/VideoWorkbenchLayout';
 import { FloatingComposer } from '../../../components/FloatingComposer';
+import { AppButton } from '@shared/components/AppButton';
 import './VideoRemakePage.scss';
 
 type VideoRemakePageProps = {
@@ -709,9 +710,17 @@ function MessageItem({
                   <em className={`status-${cardVisualStatus(item)}`}>{cardStatusDisplay(item, active)}</em>
                 ) : null}
                 {isLatestFinalVideoCard(item, messages) ? (
-                  <button className="remake-card-action-link" disabled={cardDisabled} onClick={() => void onRegenerateCard(item)} type="button">
+                  <AppButton
+                    className="remake-card-regenerate-button"
+                    disabled={cardDisabled}
+                    icon={<RotateCcw size={13} />}
+                    onClick={() => void onRegenerateCard(item)}
+                    size="small"
+                    tone="brand"
+                    type="primary"
+                  >
                     重新生成视频
-                  </button>
+                  </AppButton>
                 ) : null}
                 {item.status === 'confirmed' && !['uploading', 'video_basic_info', 'expert_analysis', 'generation_progress', 'director_normalize', 'storyboard_script', 'final_video'].includes(item.cardType) ? (
                   <button className="remake-card-edit-link" disabled={cardDisabled} onClick={() => void onEditCard(item)} type="button">

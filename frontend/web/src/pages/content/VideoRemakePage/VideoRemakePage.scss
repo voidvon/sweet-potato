@@ -493,7 +493,6 @@
 }
 
 .remake-card-header span {
-  color: var(--remake-muted);
   font-size: 12px;
 }
 
@@ -558,20 +557,16 @@
   cursor: not-allowed;
 }
 
-.remake-card-action-link {
-  background: var(--color-brand-soft);
-  border: 1px solid var(--color-brand-border);
-  border-radius: 999px;
-  color: var(--remake-blue);
-  cursor: pointer;
+.remake-card-regenerate-button.app-button--brand.ant-btn {
   font-size: 13px;
-  font-weight: 700;
-  padding: 5px 12px;
+  gap: 5px;
+  min-height: 30px;
+  padding-inline: 13px;
 }
 
-.remake-card-action-link:disabled {
-  color: var(--color-neutral-400);
-  cursor: not-allowed;
+.remake-card-regenerate-button.app-button--brand.ant-btn:disabled {
+  box-shadow: none;
+  transform: none;
 }
 
 .remake-card-body {
