@@ -1224,7 +1224,6 @@
 .video-task-epa-pill-line button,
 .video-task-epa-pill {
   align-items: center;
-  background: var(--color-sidebar-hover);
   border: 0;
   border-radius: 999px;
   color: var(--color-neutral-800);
@@ -1462,8 +1461,8 @@
 
 .video-task-epa-locked-note {
   align-items: center;
-  background: var(--color-success-soft);
-  border: 1px solid var(--color-success-soft);
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-hover);
   border-radius: 12px;
   color: var(--color-teal);
   display: flex;
@@ -1481,7 +1480,7 @@
 .video-task-epa-switch-row {
   align-items: center;
   background: var(--color-white);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-neutral-300);
   border-radius: 12px;
   cursor: pointer;
   display: grid;
@@ -1493,8 +1492,8 @@
 }
 
 .video-task-epa-switch-row:hover {
-  background: var(--color-success-soft);
-  border-color: var(--color-success-soft);
+  background: var(--color-brand-soft);
+  border-color: var(--color-neutral-900);
 }
 
 .video-task-epa-switch {
@@ -2057,7 +2056,6 @@
 }
 
 .video-task-epa-stepper-btn:disabled {
-  background: var(--color-sidebar-hover);
   color: var(--color-neutral-300);
   cursor: not-allowed;
 }

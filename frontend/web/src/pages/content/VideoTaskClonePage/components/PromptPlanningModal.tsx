@@ -1603,13 +1603,13 @@ export function PromptPlanningModal({
 
                 {activeStep === 'step3' ? (
                   <>
-                    <button
-                      className="video-task-epa-btn video-task-epa-btn-text"
+                    <Button
+                      className="video-task-epa-btn-text"
                       onClick={() => setViewStep('step2')}
-                      type="button"
+                      type='text'
                     >
                       返回上一步
-                    </button>
+                    </Button>
                     {isManualPresetMissing ? (
                       <span className="video-task-epa-footer-warning">
                         <AlertCircle aria-hidden="true" size={14} />
