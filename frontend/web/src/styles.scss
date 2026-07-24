@@ -148,6 +148,29 @@ body .ant-select-lg .ant-select-content input {
   background-color: var(--color-neutral-200) !important;
 }
 
+// Static confirmation APIs render outside ConfigProvider context. Keep their
+// secondary actions neutral by default and match the global Refresh button states.
+body :is(.ant-modal-confirm-btns, .ant-modal-footer, .ant-popconfirm-buttons)
+  .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:not(.ant-btn-dangerous):not(:disabled):hover,
+body :is(.ant-modal-confirm-btns, .ant-modal-footer, .ant-popconfirm-buttons)
+  .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:not(.ant-btn-dangerous):focus-visible {
+  background: var(--color-white);
+  border-color: var(--color-brand-hover);
+  color: var(--color-brand-hover);
+}
+
+body :is(.ant-modal-confirm-btns, .ant-modal-footer, .ant-popconfirm-buttons)
+  .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:not(.ant-btn-dangerous):focus-visible {
+  box-shadow: 0 0 0 3px rgb(var(--color-brand-rgb) / 0.18);
+}
+
+body :is(.ant-modal-confirm-btns, .ant-modal-footer, .ant-popconfirm-buttons)
+  .ant-btn-default.ant-btn-color-default.ant-btn-variant-outlined:not(.ant-btn-dangerous):not(:disabled):active {
+  background: var(--color-white);
+  border-color: var(--color-brand-active);
+  color: var(--color-brand-active);
+}
+
 // Blur the page behind every Ant Design modal and ease the blur in with the mask.
 .ant-modal-root .ant-modal-mask {
   -webkit-backdrop-filter: blur(10px);
