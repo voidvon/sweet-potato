@@ -1,4 +1,4 @@
-import { Modal } from 'antd';
+import { Button, Modal } from 'antd';
 import {
   AlertCircle,
   Check,
@@ -1539,10 +1539,10 @@ export function PromptPlanningModal({
 
           <footer className="video-task-epa-footer">
               <div className="video-task-epa-footer-left">
-                <button className="video-task-epa-clear" disabled={isBusy} onClick={clearAll} type="button">
+                <Button disabled={isBusy} onClick={clearAll} danger>
                   <Trash2 size={15} />
                   清除
-                </button>
+                </Button>
                 {footerPoints !== null ? (
                   <span className="video-task-epa-points">
                     <Zap size={14} />
@@ -1554,9 +1554,12 @@ export function PromptPlanningModal({
               <div className="video-task-epa-footer-right">
                 {activeStep === 'step1' ? (
                   <>
-                    <button className="video-task-epa-btn video-task-epa-btn-text" onClick={() => setOpen(false)} type="button">
+                    {/* <button className="video-task-epa-btn video-task-epa-btn-text" onClick={() => setOpen(false)} type="button">
                       取消
-                    </button>
+                    </button> */}
+                    <Button className="video-task-epa-btn-text" onClick={() => setOpen(false)} type='text'>
+                      取消
+                    </Button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-accent"
                       disabled={analysisCredits === null || isAnalyzing || isBusy || imageFiles.length === 0}

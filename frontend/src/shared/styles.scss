@@ -25,7 +25,7 @@ body {
   font-weight: 600;
 }
 
-.ant-btn.ant-btn-default {
+.ant-btn.ant-btn-default:not(.ant-btn-dangerous):not(.ant-btn-variant-outlined) {
   color: var(--color-button-text);
 }
 

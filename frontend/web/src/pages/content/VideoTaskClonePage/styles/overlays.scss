@@ -1949,21 +1949,6 @@
   gap: 12px;
 }
 
-.video-task-epa-clear {
-  align-items: center;
-  background: var(--color-white);
-  border: 1px solid var(--color-danger-border);
-  border-radius: 14px;
-  color: var(--color-danger-bright);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 15px;
-  font-weight: 700;
-  gap: 6px;
-  height: 44px;
-  padding: 0 16px;
-  white-space: nowrap;
-}
 
 .video-task-epa-points {
   align-items: center;
@@ -2012,6 +1997,8 @@
 }
 
 .video-task-epa-btn-text {
+  border-radius: 18px;
+  height: 46px;
   background: transparent;
   color: var(--color-neutral-400);
 }
@@ -2329,13 +2316,6 @@
 .video-task-epa-footer {
   min-height: 78px;
   padding: 14px 24px 16px;
-}
-
-.video-task-epa-clear {
-  border-radius: 10px;
-  font-size: 13px;
-  height: 38px;
-  padding: 0 13px;
 }
 
 .video-task-epa-btn {
