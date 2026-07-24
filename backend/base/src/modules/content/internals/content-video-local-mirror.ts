@@ -572,13 +572,16 @@ export function schedulePendingGeneratedVideoMirrors(input: { userId?: string; l
 }
 
 export async function backfillMissingGeneratedVideoCovers(input: { userId?: string; limit?: number } = {}) {
-  const candidates = contentRepository
+  const allCandidates = contentRepository
     .listAssets({ userId: input.userId, resourceType: 'finished_video' })
     .filter((asset) => asset.mimeType.startsWith('video/'))
     .filter((asset) => !String(asset.metadata.coverUrl || '').trim())
+    .filter((asset) => !String(asset.metadata.coverLastAttemptAt || '').trim())
     .filter((asset) => Boolean(asset.filePath) && existsSync(asset.filePath))
-    .filter((asset) => !runningGeneratedVideoCoverAssetIds.has(asset.id))
-    .slice(0, Math.max(1, input.limit || 100));
+    .filter((asset) => !runningGeneratedVideoCoverAssetIds.has(asset.id));
+  const candidates = input.limit === undefined
+    ? allCandidates
+    : allCandidates.slice(0, Math.max(1, input.limit));
   let completed = 0;
   let failed = 0;
   let nextIndex = 0;

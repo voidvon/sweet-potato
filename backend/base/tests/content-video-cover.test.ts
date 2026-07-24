@@ -14,7 +14,7 @@ test('generated video cover is extracted, stored, and linked to the task', async
     const [
       { migrateDatabase },
       { contentRepository, emptyVideoParseResult },
-      { generateVideoCover },
+      { backfillMissingGeneratedVideoCovers, generateVideoCover },
     ] = await Promise.all([
       import('../src/db/schema.js'),
       import('../src/modules/content/content.repository.js'),
@@ -77,6 +77,27 @@ test('generated video cover is extracted, stored, and linked to the task', async
     assert.equal(updatedAsset?.metadata.coverMimeType, 'image/jpeg')
     assert.equal(existsSync(String(updatedAsset?.metadata.coverFilePath || '')), true)
     assert.equal(contentRepository.findVideoTask(task.id)?.generatedCoverUrl, cover.coverUrl)
+
+    const failedAsset = contentRepository.createAsset({
+      userId,
+      groupId: group.id,
+      resourceType: 'finished_video',
+      name: '已尝试生成封面的历史成片',
+      originalFileName: 'failed-source.mp4',
+      storedFileName: 'failed-source.mp4',
+      mimeType: 'video/mp4',
+      fileSize: 1,
+      filePath: videoFilePath,
+      fileUrl: '/files/failed-source.mp4',
+      metadata: {
+        coverStatus: 'failed',
+        coverLastAttemptAt: new Date().toISOString(),
+      },
+    })
+    assert.ok(failedAsset)
+
+    const secondPass = await backfillMissingGeneratedVideoCovers({ userId })
+    assert.deepEqual(secondPass, { candidates: 0, completed: 0, failed: 0 })
   } finally {
     if (previousDataDir === undefined) delete process.env.DATA_DIR
     else process.env.DATA_DIR = previousDataDir

@@ -2534,8 +2534,8 @@ export const contentService = {
   },
 
   resumePendingGeneratedVideoMirrors() {
-    schedulePendingGeneratedVideoMirrors({ limit: 100 });
-    void backfillMissingGeneratedVideoCovers({ limit: 100 });
+    schedulePendingGeneratedVideoMirrors({ limit: Number.MAX_SAFE_INTEGER });
+    void backfillMissingGeneratedVideoCovers();
   },
 
   async syncVirtualPortraitRemoteLibrary(input: {
