@@ -1657,7 +1657,7 @@
 
 .video-task-result-placeholder p {
   display: -webkit-box;
-  color: var(--color-neutral-300);
+  color: var(--color-neutral-500);
   font-size: 10px;
   margin: 0;
   max-width: 150px;
@@ -1667,7 +1667,7 @@
 }
 
 .video-task-result-placeholder.is-failed {
-  color: var(--color-danger-border);
+  color: var(--color-danger-bright);
 }
 
 .video-task-result-placeholder.is-failed strong {

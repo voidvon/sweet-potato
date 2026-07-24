@@ -59,13 +59,12 @@
   align-items: center;
   backdrop-filter: blur(8px);
   background: rgb(var(--color-shadow-rgb) / 0.48);
-  border: 1px solid rgb(var(--color-white-rgb) / 0.16);
+  // border: 1px solid rgb(var(--color-white-rgb) / 0.16);
   border-radius: 9999px;
   box-shadow: 0 4px 14px rgb(var(--color-shadow-rgb) / 0.14);
   color: var(--color-white);
   display: inline-flex;
   font-size: 10px;
-  font-weight: 700;
   gap: 5px;
   left: 6px;
   letter-spacing: 0.01em;
