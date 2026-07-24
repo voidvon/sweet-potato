@@ -45,6 +45,7 @@ function mapWork(row: AdminWorkRow): AdminWork {
     mediaType,
     mimeType: row.mime_type,
     fileUrl: row.file_url,
+    coverUrl: metadataText(metadata, 'coverUrl'),
     fileSize: Number(row.file_size || 0),
     mode: metadataText(metadata, 'mode'),
     modeTitle: metadataText(metadata, 'modeTitle'),

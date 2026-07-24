@@ -48,3 +48,23 @@
 .work-preview-thumbnail:hover .work-preview-thumbnail__play {
   opacity: 0;
 }
+
+.work-preview-modal__content {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 160px;
+  width: 100%;
+}
+
+.work-preview-modal__content img,
+.work-preview-modal__content video {
+  display: block;
+  max-height: 70vh;
+  max-width: 100%;
+}
+
+.work-preview-modal__content video {
+  background: #000000;
+  width: 100%;
+}

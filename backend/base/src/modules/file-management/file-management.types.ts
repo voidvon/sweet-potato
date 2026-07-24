@@ -8,6 +8,7 @@ export type ManagedFile = {
   mimeType: string
   fileSize: number
   fileUrl: string
+  coverUrl: string
   resourceType: string
   assetKind: string
   lifecycleStatus: string

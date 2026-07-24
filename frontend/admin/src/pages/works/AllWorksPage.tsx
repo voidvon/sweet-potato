@@ -1,8 +1,7 @@
-import { EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
-import { Button, Image, Input, Modal, Select, Space, Table, Typography, message } from 'antd'
+import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Input, Modal, Select, Space, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { resolveAssetUrl } from '@shared/api/core/request'
 import { listAdminWorks, type AdminWork } from '../../api/admin-works'
 import { createDiscoverItem, listDiscoverCategories, type DiscoverCategory } from '../../api/discover'
 import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail'
@@ -86,12 +85,10 @@ export function AllWorksPage() {
   const [total, setTotal] = useState(0)
   const [usernameInput, setUsernameInput] = useState('')
   const [username, setUsername] = useState('')
-  const [previewWork, setPreviewWork] = useState<AdminWork | null>(null)
   const [discoverCategories, setDiscoverCategories] = useState<DiscoverCategory[]>([])
   const [discoverWork, setDiscoverWork] = useState<AdminWork | null>(null)
   const [discoverCategoryId, setDiscoverCategoryId] = useState<string>()
   const [addingToDiscover, setAddingToDiscover] = useState(false)
-  const previewVideoRef = useRef<HTMLVideoElement | null>(null)
   const workTable = useTableBodyHeight()
 
   const loadWorks = useCallback(async (nextPage = page, nextUsername = username) => {
@@ -126,15 +123,6 @@ export function AllWorksPage() {
     setUsernameInput('')
     setUsername('')
     void loadWorks(1, '')
-  }
-
-  function closePreview() {
-    const video = previewVideoRef.current
-    if (video) {
-      video.pause()
-      video.currentTime = 0
-    }
-    setPreviewWork(null)
   }
 
   function openDiscoverModal(work: AdminWork) {
@@ -176,9 +164,9 @@ export function AllWorksPage() {
       width: 96,
       render: (_, work) => (
         <WorkPreviewThumbnail
+          coverUrl={work.coverUrl}
           fileUrl={work.fileUrl}
           mediaType={work.mediaType}
-          onPreview={() => setPreviewWork(work)}
           title={work.name}
         />
       ),
@@ -231,17 +219,14 @@ export function AllWorksPage() {
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 220,
+      width: 130,
       render: (_, work) => (
         <Space size={0}>
-          <Button icon={<EyeOutlined />} onClick={() => setPreviewWork(work)} type="link">预览</Button>
           <Button icon={<PlusOutlined />} onClick={() => openDiscoverModal(work)} type="link">添加到发现</Button>
         </Space>
       ),
     },
   ], [])
-
-  const previewUrl = previewWork ? resolveAssetUrl(previewWork.fileUrl) : ''
 
   return (
     <ContentStudioLayout>
@@ -287,20 +272,6 @@ export function AllWorksPage() {
           />
         </div>
       </section>
-
-      <Modal
-        centered
-        destroyOnHidden
-        footer={null}
-        onCancel={closePreview}
-        open={Boolean(previewWork)}
-        title={previewWork?.name || '作品预览'}
-        width={820}
-      >
-        {previewWork?.mediaType === 'image'
-          ? <Image alt={previewWork.name} className="all-works-preview-image" src={previewUrl} />
-          : <video autoPlay className="all-works-preview-video" controls playsInline ref={previewVideoRef} src={previewUrl} />}
-      </Modal>
 
       <Modal
         centered

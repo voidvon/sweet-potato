@@ -1,7 +1,7 @@
 import { request } from '@shared/api/core/request'
 
 export type DiscoverCategory = { id: string; name: string; slug: string; sortOrder: number; status: 'active' | 'disabled' }
-export type DiscoverItem = { id: string; categoryId: string; sourceAssetId: string; title: string; description: string; mediaType: 'image' | 'video'; mimeType: string; fileUrl: string; likeCount: number; viewCount: number; status: 'draft' | 'published' | 'hidden'; sortOrder: number }
+export type DiscoverItem = { id: string; categoryId: string; sourceAssetId: string; title: string; description: string; mediaType: 'image' | 'video'; mimeType: string; fileUrl: string; coverUrl: string; likeCount: number; viewCount: number; status: 'draft' | 'published' | 'hidden'; sortOrder: number }
 export const listDiscoverCategories = () => request<{ items: DiscoverCategory[] }>('/api/admin/discover/categories', { dedupe: false })
 export const createDiscoverCategory = (input: { name: string; slug?: string }) => request<DiscoverCategory>('/api/admin/discover/categories', { method: 'POST', body: JSON.stringify(input) })
 export const updateDiscoverCategory = (id: string, input: Partial<Pick<DiscoverCategory, 'name' | 'slug' | 'sortOrder' | 'status'>>) => request<DiscoverCategory>(`/api/admin/discover/categories/${id}`, { method: 'PATCH', body: JSON.stringify(input) })

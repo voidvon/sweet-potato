@@ -10,6 +10,7 @@ export type AdminWork = {
   mediaType: 'image' | 'video'
   mimeType: string
   fileUrl: string
+  coverUrl: string
   fileSize: number
   mode: string
   modeTitle: string
