@@ -2131,6 +2131,7 @@
 .digital-human-detail-modal .ant-btn-dangerous {
   border-radius: 10px;
   padding-inline: 16px;
+  color: var(--color-danger);
 }
 
 .voice-detail-modal .ant-btn-dangerous:hover,
@@ -2200,7 +2201,6 @@
 
 .asset-library-themed-modal .ant-btn-default:not(.ant-btn-dangerous) {
   border-color: var(--color-rose-200);
-  color: var(--color-plum-800);
 }
 
 .asset-library-themed-modal .ant-btn-default:not(.ant-btn-dangerous):hover,
