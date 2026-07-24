@@ -1,6 +1,6 @@
 import { Button, Dropdown, Modal, Popover, message } from 'antd';
 import { ChevronDown, Copy, Layers3, Library, Maximize, Music2, ScanLine, Upload } from 'lucide-react';
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
@@ -27,6 +27,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
   const [draft, setDraft] = useState(task?.prompt || '');
   const [confirmed, setConfirmed] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const wasOpenRef = useRef(false);
   const promptModified = draft !== task?.prompt;
   const audioFiles = localFiles(state.talkingVideoGenerationMaterials.audio);
   const hasModelImage = localFiles(state.talkingVideoGenerationMaterials.image)
@@ -36,6 +37,15 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
     image: state.talkingVideoGenerationMaterials.image,
     audio: state.talkingVideoGenerationMaterials.audio,
   };
+
+  useEffect(() => {
+    if (state.talkingVideoGenerateModalOpen && !wasOpenRef.current) {
+      setDraft(task?.prompt || '');
+      setConfirmed(false);
+      setPromptExpanded(false);
+    }
+    wasOpenRef.current = state.talkingVideoGenerateModalOpen;
+  }, [state.talkingVideoGenerateModalOpen, task?.prompt]);
 
   if (!task) return null;
 
@@ -142,7 +152,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         </div>
       )}
       onCancel={() => state.setTalkingVideoGenerateModalOpen(false)}
-      open={!promptExpanded}
+      open={state.talkingVideoGenerateModalOpen && !promptExpanded}
       keyboard={!promptExpanded}
       title={(
         <span className="talking-video-modal-heading">

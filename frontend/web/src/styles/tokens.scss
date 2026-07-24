@@ -111,10 +111,11 @@
   --color-surface-muted: var(--color-brand-soft-strong);
   --color-surface-raised: var(--color-neutral-50);
   --color-surface-sunken: var(--color-neutral-100);
+  --color-surface-hover-neutral: #edeef1;
   --color-skeleton-surface: #f3f5f7;
   --color-skeleton-fill: #e9edf1;
   --color-surface-subtle-rgb: 247 254 231;
-  --color-sidebar-hover: var(--color-brand-soft-strong);
+  --color-sidebar-hover: var(--color-neutral-100);
 
   // 通用边框和弱分割线颜色。
   --color-border: var(--color-brand-border);

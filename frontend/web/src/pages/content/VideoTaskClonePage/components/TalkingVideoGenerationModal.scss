@@ -129,7 +129,6 @@
 
 .talking-video-modal-audio > header button {
   align-items: center;
-  border-radius: 999px;
   display: inline-flex;
   font-size: 10px;
   gap: 5px;
@@ -238,7 +237,6 @@
   align-items: center;
   background: var(--color-white);
   border: 1px solid var(--color-neutral-200);
-  border-radius: 50%;
   box-shadow: 0 2px 6px rgb(var(--color-shadow-rgb) / 0.06);
   color: var(--color-neutral-600);
   display: flex;
@@ -268,15 +266,15 @@
 .talking-video-modal-prompt .mention-rich-textarea {
   border: 0;
   border-radius: 0;
-  height: 280px !important;
-  max-height: 280px;
-  min-height: 280px !important;
+  height: 318px !important;
+  max-height: 318px;
+  min-height: 318px !important;
 }
 
 .talking-video-modal-prompt .mention-rich-textarea-editor {
-  height: 280px !important;
-  max-height: 280px;
-  min-height: 280px !important;
+  height: 318px !important;
+  max-height: 318px;
+  min-height: 318px !important;
   overflow-y: auto;
   scrollbar-color: var(--color-neutral-300) transparent;
   scrollbar-width: thin;
@@ -316,7 +314,6 @@
 
 .talking-video-modal-confirmation button {
   align-items: center;
-  border-radius: 8px;
   color: var(--color-white) !important;
   display: inline-flex;
   font-size: 10px;
@@ -362,7 +359,6 @@
 .talking-video-modal-parameters > button,
 .talking-video-modal-parameters .ant-dropdown-trigger {
   align-items: center;
-  border-radius: 8px;
   display: inline-flex;
   font-size: 12px;
   gap: 6px;
@@ -395,7 +391,6 @@
 
 .talking-video-modal-submit {
   align-items: center;
-  border-radius: 9px;
   display: inline-flex;
   font-size: 11px;
   font-weight: 650;

@@ -29,12 +29,18 @@ export type ResultVideoPreview = {
 };
 
 type ResultVideoPreviewModalProps = {
+  initiallyMuted?: boolean;
   onClose: () => void;
   onDelete?: () => Promise<boolean>;
   video: ResultVideoPreview;
 };
 
-export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVideoPreviewModalProps) {
+export function ResultVideoPreviewModal({
+  initiallyMuted = true,
+  onClose,
+  onDelete,
+  video,
+}: ResultVideoPreviewModalProps) {
   const [open, setOpen] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -220,6 +226,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
             />
             <VideoPreviewPlayer
               duration={video.duration}
+              initiallyMuted={initiallyMuted}
               name={video.name}
               paused={Boolean(referenceImage || referenceVideo || playingAudioAssetId)}
               posterUrl={video.posterUrl}

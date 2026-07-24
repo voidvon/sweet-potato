@@ -394,6 +394,7 @@ export function DiscoverPage() {
 
       {previewItem?.mediaType === 'video' ? (
         <ResultVideoPreviewModal
+          initiallyMuted={false}
           onClose={() => setPreviewItem(null)}
           video={{
             completedAt: previewItem.sourceCompletedAt || previewItem.publishedAt || undefined,

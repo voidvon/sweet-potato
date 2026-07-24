@@ -97,22 +97,12 @@
   padding: 10px;
 }
 
-.talking-video-prompt-task.is-active {
-  border-color: var(--color-brand-border);
-}
-
 .talking-video-source-preview {
   aspect-ratio: 16 / 9;
   background: var(--color-neutral-900);
   border-radius: 9px;
   overflow: hidden;
   position: relative;
-}
-
-.talking-video-source-preview video {
-  height: 100%;
-  object-fit: contain;
-  width: 100%;
 }
 
 .talking-video-task-status {
@@ -128,6 +118,7 @@
   position: absolute;
   right: 8px;
   top: 8px;
+  z-index: 30;
 }
 
 .is-spinning {

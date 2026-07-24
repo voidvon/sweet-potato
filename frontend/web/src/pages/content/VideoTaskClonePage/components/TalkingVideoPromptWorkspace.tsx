@@ -6,6 +6,7 @@ import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { TalkingVideoPromptTask } from '../types';
 import { resolveLocalMaterialUrl } from '../materialUrl';
 import { TalkingVideoPanel } from './TalkingVideoPanel';
+import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 import './TalkingVideoPromptWorkspace.scss';
 
 export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState }) {
@@ -115,7 +116,14 @@ function TalkingVideoTaskCard({
   return (
     <article className={`talking-video-prompt-task${active ? ' is-active' : ''}`}>
       <div className="talking-video-source-preview">
-        <video controls playsInline preload="metadata" src={resolveLocalMaterialUrl(task.sourceVideo)} />
+        <VideoPreviewPlayer
+          autoPlay={false}
+          duration={task.sourceVideo.trimDuration || task.sourceVideo.mediaDuration}
+          initiallyMuted={false}
+          name={task.sourceVideo.name}
+          variant="reference"
+          videoUrl={resolveLocalMaterialUrl(task.sourceVideo)}
+        />
         <span className={`talking-video-task-status is-${task.status}`}>
           {running ? <LoaderCircle className="is-spinning" size={14} /> : completed ? <Check size={14} /> : null}
           {statusLabel(task.status)}

@@ -117,8 +117,8 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
         />
       )}
 
-      {state.talkingVideoGenerateModalOpen && state.talkingVideoPromptTask ? (
-        <TalkingVideoGenerationModal state={state} />
+      {state.talkingVideoPromptTask ? (
+        <TalkingVideoGenerationModal key={state.talkingVideoPromptTask.id} state={state} />
       ) : null}
     </div>
   );

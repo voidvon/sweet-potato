@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 type VideoPreviewPlayerProps = {
+  autoPlay?: boolean;
   duration?: number;
+  initiallyMuted?: boolean;
   loopAtEnd?: boolean;
   name: string;
   onDurationChange?: (duration: number) => void;
@@ -21,7 +23,9 @@ type PlayerSize = {
 };
 
 export function VideoPreviewPlayer({
+  autoPlay = true,
   duration: initialDuration = 0,
+  initiallyMuted = true,
   loopAtEnd = false,
   name,
   onDurationChange,
@@ -34,11 +38,11 @@ export function VideoPreviewPlayer({
 }: VideoPreviewPlayerProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(initiallyMuted);
   const [volume, setVolume] = useState(0.72);
   const [duration, setDuration] = useState(initialDuration);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [videoSize, setVideoSize] = useState<PlayerSize>({ height: 9, width: 16 });
   const [availableSize, setAvailableSize] = useState<PlayerSize>({ height: 0, width: 0 });
   const isResult = variant === 'result';
@@ -115,7 +119,12 @@ export function VideoPreviewPlayer({
     }
     element.volume = volume;
     element.currentTime = rangeStart;
-    void element.play().catch(() => setIsPlaying(false));
+    if (autoPlay) {
+      void element.play().catch(() => setIsPlaying(false));
+    } else {
+      element.pause();
+      setIsPlaying(false);
+    }
   };
 
   const syncTime = () => {
@@ -186,7 +195,7 @@ export function VideoPreviewPlayer({
       <video
         ref={videoRef}
         aria-label={name}
-        autoPlay
+        autoPlay={autoPlay}
         className={videoClassName}
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture

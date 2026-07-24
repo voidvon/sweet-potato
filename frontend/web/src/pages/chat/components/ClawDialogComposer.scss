@@ -108,8 +108,7 @@
 
 .claw-reference-empty:hover:not(:disabled),
 .claw-reference-add:hover:not(:disabled) {
-  background: var(--color-border-subtle);
-  box-shadow: 0 7px 13px rgb(var(--color-shadow-rgb) / 0.1);
+  background: var(--color-surface-hover-neutral);
   transform: translateY(-1px);
 }
 
