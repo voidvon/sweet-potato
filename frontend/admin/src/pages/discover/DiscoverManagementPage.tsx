@@ -1,8 +1,7 @@
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TagsOutlined } from '@ant-design/icons'
-import { Button, Image, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { resolveAssetUrl } from '@shared/api/core/request'
 import { listAdminWorks, type AdminWork } from '../../api/admin-works'
 import {
   createDiscoverCategory,
@@ -16,7 +15,7 @@ import {
   type DiscoverCategory,
   type DiscoverItem,
 } from '../../api/discover'
-import { WorkPreviewThumbnail, type WorkPreviewMedia } from '../../components/WorkPreviewThumbnail'
+import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail'
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout'
 import './DiscoverManagementPage.scss'
 
@@ -95,8 +94,6 @@ export function DiscoverManagementPage() {
   const [candidateCategoryId, setCandidateCategoryId] = useState<string>()
   const [addingWorkId, setAddingWorkId] = useState<string>()
   const [updatingItemId, setUpdatingItemId] = useState<string>()
-  const [previewMedia, setPreviewMedia] = useState<WorkPreviewMedia | null>(null)
-  const previewVideoRef = useRef<HTMLVideoElement | null>(null)
   const discoverTable = useTableBodyHeight()
 
   const loadDiscover = useCallback(async () => {
@@ -229,14 +226,6 @@ export function DiscoverManagementPage() {
     }
   }, [categories, loadDiscover])
 
-  const closePreview = useCallback(() => {
-    if (previewVideoRef.current) {
-      previewVideoRef.current.pause()
-      previewVideoRef.current.currentTime = 0
-    }
-    setPreviewMedia(null)
-  }, [])
-
   const addedAssetIds = useMemo(() => new Set(items.map((item) => item.sourceAssetId)), [items])
   const categoryColumns = useMemo<ColumnsType<DiscoverCategory>>(() => [
     {
@@ -298,9 +287,9 @@ export function DiscoverManagementPage() {
       width: 90,
       render: (_, item) => (
         <WorkPreviewThumbnail
+          coverUrl={item.coverUrl}
           fileUrl={item.fileUrl}
           mediaType={item.mediaType}
-          onPreview={() => setPreviewMedia(item)}
           title={item.title}
         />
       ),
@@ -340,9 +329,9 @@ export function DiscoverManagementPage() {
       width: 90,
       render: (_, work) => (
         <WorkPreviewThumbnail
+          coverUrl={work.coverUrl}
           fileUrl={work.fileUrl}
           mediaType={work.mediaType}
-          onPreview={() => setPreviewMedia({ fileUrl: work.fileUrl, mediaType: work.mediaType, title: work.name })}
           title={work.name}
         />
       ),
@@ -403,21 +392,6 @@ export function DiscoverManagementPage() {
         <Table columns={candidateColumns} dataSource={candidateWorks} loading={candidateLoading} pagination={{ current: candidatePage, pageSize: 10, total: candidateTotal, showSizeChanger: false, onChange: (page) => void loadCandidates(page) }} rowKey="id" size="small" />
       </Modal>
 
-      <Modal
-        centered
-        destroyOnHidden
-        footer={null}
-        onCancel={closePreview}
-        open={Boolean(previewMedia)}
-        title={previewMedia?.title || '作品预览'}
-        width={820}
-      >
-        {previewMedia?.mediaType === 'image'
-          ? <Image alt={previewMedia.title} className="discover-management-preview-image" src={resolveAssetUrl(previewMedia.fileUrl)} />
-          : previewMedia
-            ? <video autoPlay className="discover-management-preview-video" controls playsInline ref={previewVideoRef} src={resolveAssetUrl(previewMedia.fileUrl)} />
-            : null}
-      </Modal>
     </ContentStudioLayout>
   )
 }

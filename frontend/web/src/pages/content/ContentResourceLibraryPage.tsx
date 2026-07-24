@@ -513,6 +513,7 @@ export function ContentResourceLibraryPage({
   const [editingGroupName, setEditingGroupName] = useState('');
   const [previewAsset, setPreviewAsset] = useState<ContentAsset | null>(null);
   const [previewImage, setPreviewImage] = useState<ImagePreview | null>(null);
+  const [previewImageOpen, setPreviewImageOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
@@ -916,13 +917,18 @@ export function ContentResourceLibraryPage({
 
   function openAssetPreview(asset: ContentAsset) {
     if (asset.mimeType.startsWith('image/')) {
-      setPreviewImage({
+      openImagePreview({
         name: asset.originalFileName || asset.name,
         src: fileUrl(asset),
       });
       return;
     }
     setPreviewAsset(asset);
+  }
+
+  function openImagePreview(image: ImagePreview) {
+    setPreviewImage(image);
+    setPreviewImageOpen(true);
   }
 
   function resetWorksHeaderFilters() {
@@ -1048,9 +1054,10 @@ export function ContentResourceLibraryPage({
         <AppImage
           alt={previewImage?.name || '图片预览'}
           preview={{
-            visible: Boolean(previewImage),
-            onVisibleChange: (visible) => {
-              if (!visible) {
+            open: previewImageOpen,
+            onOpenChange: setPreviewImageOpen,
+            afterOpenChange: (open) => {
+              if (!open) {
                 setPreviewImage(null);
               }
             },
@@ -1190,7 +1197,7 @@ export function ContentResourceLibraryPage({
             </label>
           ) : null}
           {resourceType === 'product' || singleDefaultGroup ? (
-            <PendingImageUpload files={pendingCreateFiles} onChange={setPendingCreateFiles} onPreviewFile={setPreviewImage} />
+            <PendingImageUpload files={pendingCreateFiles} onChange={setPendingCreateFiles} onPreviewFile={openImagePreview} />
           ) : (
             <>
               <PendingAssetGrid
@@ -1244,7 +1251,7 @@ export function ContentResourceLibraryPage({
               <DetailImageUpload
                 assets={singleLibraryDetailAssets}
                 isUploading={isUploading}
-                onPreviewImage={setPreviewImage}
+                onPreviewImage={openImagePreview}
                 onRemoveAsset={(asset) => void handleDeleteAsset(asset.id)}
                 onUploadFiles={(files) => void (singleDefaultGroup ? handleUploadFilesToSingleLibrary(files) : handleUploadFilesToActiveGroup(files))}
               />
@@ -1293,9 +1300,10 @@ export function ContentResourceLibraryPage({
       <AppImage
         alt={previewImage?.name || '图片预览'}
         preview={{
-          visible: Boolean(previewImage),
-          onVisibleChange: (visible) => {
-            if (!visible) {
+          open: previewImageOpen,
+          onOpenChange: setPreviewImageOpen,
+          afterOpenChange: (open) => {
+            if (!open) {
               setPreviewImage(null);
             }
           },

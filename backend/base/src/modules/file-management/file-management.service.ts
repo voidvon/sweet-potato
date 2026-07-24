@@ -67,6 +67,9 @@ export const fileManagementService = {
       items: result.items.map((file) => ({
         ...file,
         fileUrl: managedFilePublicUrl(file),
+        coverUrl: file.coverUrl
+          ? managedFilePublicUrl({ fileUrl: file.coverUrl, storageProvider: file.coverUrl.startsWith('http') ? 'tos' : 'local' })
+          : '',
       })),
     }
   },

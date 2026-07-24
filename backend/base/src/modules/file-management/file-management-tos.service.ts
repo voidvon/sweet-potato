@@ -155,6 +155,7 @@ export const fileManagementTosService = {
         mimeType: '',
         fileSize: object.size,
         fileUrl: tosPublicUrl(object.key),
+        coverUrl: '',
         resourceType: 'other',
         assetKind: 'storage_object',
         lifecycleStatus: 'permanent',

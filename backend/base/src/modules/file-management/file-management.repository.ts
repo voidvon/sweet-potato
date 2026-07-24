@@ -54,6 +54,7 @@ function mapFile(row: ManagedFileRow): ManagedFile {
     mimeType: row.mime_type,
     fileSize: Number(row.file_size || 0),
     fileUrl: row.file_url,
+    coverUrl: typeof metadata.coverUrl === 'string' ? metadata.coverUrl.trim() : '',
     resourceType: row.resource_type,
     assetKind: row.asset_kind,
     lifecycleStatus: row.lifecycle_status,

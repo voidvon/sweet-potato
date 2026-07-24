@@ -21,6 +21,9 @@ export const adminWorkService = {
       items: result.items.map((work) => ({
         ...work,
         fileUrl: managedFilePublicUrl({ fileUrl: work.fileUrl, storageProvider: work.fileUrl.startsWith('http') ? 'tos' : 'local' }),
+        coverUrl: work.coverUrl
+          ? managedFilePublicUrl({ fileUrl: work.coverUrl, storageProvider: work.coverUrl.startsWith('http') ? 'tos' : 'local' })
+          : '',
       })),
     }
   },

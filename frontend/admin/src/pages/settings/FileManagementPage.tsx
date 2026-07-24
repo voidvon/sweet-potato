@@ -2,7 +2,6 @@ import {
   AudioOutlined,
   DeleteOutlined,
   DownloadOutlined,
-  EyeOutlined,
   FileImageOutlined,
   FileOutlined,
   FileTextOutlined,
@@ -17,11 +16,8 @@ import {
   DatePicker,
   Descriptions,
   Drawer,
-  Empty,
   Form,
-  Image,
   Input,
-  Modal,
   Popconfirm,
   Row,
   Select,
@@ -34,7 +30,7 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '@shared/api/core/request';
 import {
   deleteManagedFile,
@@ -47,7 +43,9 @@ import {
   type ManagedFileSummary,
   type TosStorageSummary,
 } from '../../api/file-management';
+import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import './FileManagementPage.scss';
 
 const { RangePicker } = DatePicker;
 
@@ -117,25 +115,58 @@ function mediaIcon(mediaType: ManagedFileMediaType) {
   return <FileOutlined />;
 }
 
-function FilePreview({ file }: { file: ManagedFile }) {
-  const fileUrl = resolveAssetUrl(file.fileUrl);
-  if (file.mediaType === 'image') {
-    return <Image alt={file.name} src={fileUrl} style={{ maxHeight: 560 }} />;
-  }
-  if (file.mediaType === 'video') {
-    return <video controls src={fileUrl} style={{ display: 'block', maxHeight: 560, maxWidth: '100%', margin: '0 auto' }} />;
-  }
-  if (file.mediaType === 'audio') {
-    return <audio controls src={fileUrl} style={{ width: '100%' }} />;
-  }
-  return (
-    <Empty
-      description="该文件类型暂不支持在线预览"
-      image={<FileOutlined style={{ fontSize: 54 }} />}
-    >
-      <Button href={fileUrl} icon={<DownloadOutlined />} target="_blank">打开文件</Button>
-    </Empty>
-  );
+function useTableBodyHeight() {
+  const viewportElementRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [bodyHeight, setBodyHeight] = useState(1);
+
+  const measure = useCallback(() => {
+    const viewport = viewportElementRef.current;
+    if (!viewport || viewport.clientHeight <= 0) return;
+
+    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
+    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
+    let paginationHeight = 0;
+    if (pagination) {
+      const style = window.getComputedStyle(pagination);
+      paginationHeight = pagination.offsetHeight
+        + Number.parseFloat(style.marginTop || '0')
+        + Number.parseFloat(style.marginBottom || '0');
+    }
+
+    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
+    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+  }, []);
+
+  const scheduleMeasure = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      measure();
+    });
+  }, [measure]);
+
+  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    viewportElementRef.current = viewport;
+    if (!viewport) return;
+    observerRef.current = new ResizeObserver(scheduleMeasure);
+    observerRef.current.observe(viewport);
+    scheduleMeasure();
+  }, [scheduleMeasure]);
+
+  useLayoutEffect(() => {
+    scheduleMeasure();
+  });
+
+  useEffect(() => () => {
+    observerRef.current?.disconnect();
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+  }, []);
+
+  return { bodyHeight, viewportRef };
 }
 
 export function FileManagementPage() {
@@ -150,9 +181,9 @@ export function FileManagementPage() {
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [previewFile, setPreviewFile] = useState<ManagedFile | null>(null);
   const [detailFile, setDetailFile] = useState<ManagedFile | null>(null);
   const [deletingFileId, setDeletingFileId] = useState('');
+  const fileTable = useTableBodyHeight();
 
   const loadFiles = useCallback(async (
     nextPage = page,
@@ -236,7 +267,6 @@ export function FileManagementPage() {
     setDeletingFileId(file.id);
     try {
       await deleteManagedFile(file);
-      if (previewFile?.id === file.id) setPreviewFile(null);
       if (detailFile?.id === file.id) setDetailFile(null);
       message.success('文件已删除');
       await Promise.all([
@@ -257,14 +287,12 @@ export function FileManagementPage() {
       width: 300,
       render: (_, file) => (
         <Space>
-          {file.mediaType === 'image' ? (
-            <Image
-              fallback="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
-              height={42}
-              preview={false}
-              src={resolveAssetUrl(file.fileUrl)}
-              style={{ objectFit: 'cover' }}
-              width={42}
+          {file.mediaType === 'image' || file.mediaType === 'video' ? (
+            <WorkPreviewThumbnail
+              coverUrl={file.coverUrl}
+              fileUrl={file.fileUrl}
+              mediaType={file.mediaType}
+              title={file.name}
             />
           ) : mediaIcon(file.mediaType)}
           <Space direction="vertical" size={0}>
@@ -329,10 +357,9 @@ export function FileManagementPage() {
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 280,
+      width: 220,
       render: (_, file) => (
         <Space size={0}>
-          <Button type="link" icon={<EyeOutlined />} onClick={() => setPreviewFile(file)}>预览</Button>
           <Button type="link" href={resolveAssetUrl(file.fileUrl)} target="_blank" icon={<DownloadOutlined />}>下载</Button>
           <Button type="link" onClick={() => setDetailFile(file)}>详情</Button>
           <Popconfirm
@@ -352,8 +379,8 @@ export function FileManagementPage() {
 
   return (
     <ContentStudioLayout>
-      <section className="settings-page">
-        <Row gutter={[16, 16]}>
+      <section className="settings-page file-management-page">
+        <Row className="file-management-statistics" gutter={[16, 16]}>
           <Col xs={24} md={8}>
             <Card hoverable onClick={() => filterByStorage()}>
               <Statistic title="全部文件" value={summary.totalCount} suffix={`个 / ${formatBytes(summary.totalBytes)}`} />
@@ -377,7 +404,7 @@ export function FileManagementPage() {
           </Col>
         </Row>
 
-        <Card style={{ marginTop: 16 }}>
+        <div className="file-management-toolbar">
           <Form form={form} layout="inline" onFinish={applyFilters}>
             <Form.Item name="search">
               <Input allowClear placeholder="搜索文件名或所属用户" prefix={<SearchOutlined />} style={{ width: 240 }} />
@@ -436,10 +463,22 @@ export function FileManagementPage() {
               </Space>
             </Form.Item>
           </Form>
-        </Card>
+          {tosSummaryError ? (
+            <Tooltip title={tosSummaryError}><Typography.Text type="danger">TOS 容量读取失败</Typography.Text></Tooltip>
+          ) : (
+            <Typography.Text className="file-management-summary" type="secondary">
+              {tosSummaryLoading ? '正在读取存储容量' : `共 ${summary.totalCount} 个文件 / ${formatBytes(summary.totalBytes)}`}
+            </Typography.Text>
+          )}
+        </div>
 
-        <Card style={{ marginTop: 16 }}>
+        <div
+          className="file-management-table-viewport"
+          ref={fileTable.viewportRef}
+          style={{ '--file-management-table-body-height': `${fileTable.bodyHeight}px` } as CSSProperties}
+        >
           <Table<ManagedFile>
+            className="file-management-table"
             columns={columns}
             dataSource={files}
             loading={loading}
@@ -453,20 +492,10 @@ export function FileManagementPage() {
               onChange: (nextPage, nextPageSize) => void loadFiles(nextPage, nextPageSize),
             }}
             rowKey="id"
-            scroll={{ x: 1490 }}
+            scroll={{ x: 1490, y: fileTable.bodyHeight }}
           />
-        </Card>
+        </div>
       </section>
-
-      <Modal
-        footer={previewFile ? <Button href={resolveAssetUrl(previewFile.fileUrl)} icon={<DownloadOutlined />} target="_blank">下载文件</Button> : null}
-        onCancel={() => setPreviewFile(null)}
-        open={Boolean(previewFile)}
-        title={previewFile?.originalFileName || previewFile?.name || '文件预览'}
-        width={820}
-      >
-        {previewFile ? <FilePreview file={previewFile} /> : null}
-      </Modal>
 
       <Drawer onClose={() => setDetailFile(null)} open={Boolean(detailFile)} title="文件详情" width={720}>
         {detailFile ? (

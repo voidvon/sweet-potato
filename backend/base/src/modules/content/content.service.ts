@@ -386,14 +386,18 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset, inpu
     return;
   }
   for (const attachment of sourceMessage.attachments || []) {
-    if (!/^\/files\/input_(?:images|videos|audios)\//u.test(attachment.url)) {
-      continue;
-    }
     const inputAsset = attachment.assetId
       ? contentRepository.findAsset(attachment.assetId)
       : contentRepository
         .listAssets({ userId: finishedAsset.userId })
         .find((asset) => asset.fileUrl === attachment.url);
+    const isLocalInputAttachment = /^\/files\/input_(?:images|videos|audios)\//u.test(attachment.url);
+    if (!inputAsset && !isLocalInputAttachment) {
+      continue;
+    }
+    if (inputAsset && !isTransientInputAsset(inputAsset)) {
+      continue;
+    }
     if (inputAsset && contentRepository.hasAssetReferences(inputAsset.id)) {
       continue;
     }
@@ -413,8 +417,8 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset, inpu
       continue;
     }
     if (inputAsset && isTransientInputAsset(inputAsset)) {
-      contentRepository.deleteAsset(inputAsset.id);
       await deleteStoredAssetFiles(inputAsset);
+      contentRepository.deleteAsset(inputAsset.id);
     } else {
       const filePath = resolveLocalContentFilePathFromUrl(attachment.url);
       if (filePath) {
