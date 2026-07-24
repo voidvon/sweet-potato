@@ -290,6 +290,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     <>
       <nav className="module-nav">
         <Menu
+          classNames={{ popup: 'workspace-sidebar-menu-popup' }}
           items={resolvedSidebarMenuItems as MenuProps['items']}
           mode={!compactSidebar ? 'inline' : 'vertical'}
           onClick={({ key }) => {

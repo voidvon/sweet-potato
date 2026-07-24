@@ -788,13 +788,15 @@
   width: 32px;
 }
 
-.video-task-expand.ant-btn:hover,
-.video-task-expand.ant-btn:focus-visible {
-  background: var(--color-white);
-  border-color: var(--color-neutral-200);
-  box-shadow: 0 3px 10px rgb(var(--color-brand-rgb) / 0.1);
-  color: inherit;
-  transform: translateY(-1px);
+.video-task-prompt-box {
+  .video-task-expand.ant-btn:hover,
+  .video-task-expand.ant-btn:focus-visible {
+    background: var(--color-white);
+    border-color: var(--color-neutral-200);
+    box-shadow: 0 3px 10px rgb(var(--color-brand-rgb) / 0.1);
+    color: inherit;
+    transform: translateY(-1px);
+  }
 }
 
 .video-task-expand.ant-btn:active {

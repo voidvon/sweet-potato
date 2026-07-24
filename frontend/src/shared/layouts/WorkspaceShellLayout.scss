@@ -1,3 +1,5 @@
+$workspace-sidebar-selected-bg: #f2f3f5;
+
 .app-shell {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -585,8 +587,13 @@
 
 .app-shell-compact-sidebar .module-nav .ant-menu-item-selected,
 .app-shell-compact-sidebar .module-nav .ant-menu-submenu-selected > .ant-menu-submenu-title {
-  background: #f2f3f5;
+  background: $workspace-sidebar-selected-bg;
   color: #151515;
+}
+
+.workspace-sidebar-menu-popup .ant-menu-item-selected,
+.workspace-sidebar-menu-popup .ant-menu-item-selected:hover {
+  background: $workspace-sidebar-selected-bg;
 }
 
 .app-shell-compact-sidebar .module-nav .ant-menu-item:hover:not(.ant-menu-item-selected),
