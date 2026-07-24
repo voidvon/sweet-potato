@@ -80,12 +80,12 @@
 }
 
 .video-workbench-list-item:hover {
-  background: var(--color-surface-muted);
-  border-color: var(--color-border);
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
 }
 
 .video-workbench-list-item.active {
-  background: var(--color-brand-soft-strong);
+  background: var(--color-brand-soft);
   border-color: var(--color-brand-border);
 }
 
