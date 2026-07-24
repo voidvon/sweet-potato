@@ -25,6 +25,12 @@
   --color-brand-border: #d9f99d;
   --color-on-brand: var(--color-white);
 
+  // Tabs 使用更柔和的品牌绿，避免高饱和选中态长时间观看产生视觉疲劳。
+  --color-tabs-selected: #78a84a;
+  --color-tabs-hover: #89b95a;
+  --color-tabs-active: #68943e;
+  --color-tabs-ink: #acd27a;
+
   // 次强调色用于需要从主色中跳出的标签、图标和提示。
   --color-accent-2: #f59e0b;
 

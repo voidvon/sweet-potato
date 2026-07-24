@@ -31,6 +31,10 @@ const themeColors = {
   onBrand: resolveCssColor('--color-on-brand'),
   success: resolveCssColor('--color-success'),
   surfaceSubtle: resolveCssColor('--color-surface-subtle'),
+  tabsActive: resolveCssColor('--color-tabs-active'),
+  tabsHover: resolveCssColor('--color-tabs-hover'),
+  tabsInk: resolveCssColor('--color-tabs-ink'),
+  tabsSelected: resolveCssColor('--color-tabs-selected'),
   warning: resolveCssColor('--color-warning'),
 };
 
@@ -85,6 +89,12 @@ createRoot(rootElement).render(
             borderRadiusSM: 14,
             colorBorder: themeColors.controlBorder,
             fontSizeLG: 13,
+          },
+          Tabs: {
+            inkBarColor: themeColors.tabsInk,
+            itemActiveColor: themeColors.tabsActive,
+            itemHoverColor: themeColors.tabsHover,
+            itemSelectedColor: themeColors.tabsSelected,
           },
         },
         token: {
