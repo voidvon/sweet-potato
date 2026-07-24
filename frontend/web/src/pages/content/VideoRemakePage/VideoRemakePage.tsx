@@ -600,13 +600,13 @@ function UserVideoPreview({ src }: { src: string }) {
 function sessionStatusMeta(status: VideoRemakeSession['status']) {
   const map: Record<VideoRemakeSession['status'], { label: string; tone: string }> = {
     created: { label: '待解析', tone: 'neutral' },
-    running: { label: '解析中', tone: 'blue' },
-    waiting_credit: { label: '待充值', tone: 'orange' },
-    waiting_edit: { label: '待生成视频', tone: 'blue' },
-    generating: { label: '视频生成中', tone: 'blue' },
-    completed: { label: '视频生成完成', tone: 'green' },
-    failed: { label: '解析失败', tone: 'red' },
-    cancelled: { label: '已取消', tone: 'gray' },
+    running: { label: '解析中', tone: 'processing' },
+    waiting_credit: { label: '待充值', tone: 'blocked' },
+    waiting_edit: { label: '待生成视频', tone: 'warning' },
+    generating: { label: '视频生成中', tone: 'processing' },
+    completed: { label: '视频生成完成', tone: 'success' },
+    failed: { label: '解析失败', tone: 'danger' },
+    cancelled: { label: '已取消', tone: 'muted' },
   };
   return map[status] || { label: status, tone: 'neutral' };
 }

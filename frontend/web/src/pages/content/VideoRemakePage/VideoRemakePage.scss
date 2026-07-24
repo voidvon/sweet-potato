@@ -1,12 +1,12 @@
 .video-remake-page {
   // 视频复刻的过程与状态沿用早期信息蓝，不跟随全局品牌色切换。
-  --color-brand: var(--color-info);
-  --color-brand-active: var(--color-info-hover);
-  --color-brand-border: var(--color-info-border);
-  --color-brand-hover: var(--color-info-hover);
-  --color-brand-rgb: 22 119 255;
-  --color-brand-soft: var(--color-info-soft);
-  --color-brand-soft-strong: #dceeff;
+  // --color-brand: var(--color-info);
+  // --color-brand-active: var(--color-info-hover);
+  // --color-brand-border: var(--color-info-border);
+  // --color-brand-hover: var(--color-info-hover);
+  // --color-brand-rgb: 22 119 255;
+  // --color-brand-soft: var(--color-info-soft);
+  // --color-brand-soft-strong: #dceeff;
   --color-border: #dceafa;
   --color-border-subtle: #e8eef5;
   --color-surface-subtle: #f5faff;
@@ -19,7 +19,7 @@
   --remake-blue-soft: var(--color-brand-soft-strong);
   --remake-text: var(--color-neutral-900);
   --remake-muted: var(--color-neutral-500);
-  --remake-warn: var(--color-warning-bright);
+  // --remake-warn: var(--color-warning-bright);
   background:
     radial-gradient(circle at top left, rgb(var(--color-brand-rgb) / 0.08), transparent 28%),
     radial-gradient(circle at top right, rgb(var(--color-teal-rgb) / 0.06), transparent 26%),
@@ -27,6 +27,54 @@
   color: var(--remake-text);
   height: 100%;
   overflow: hidden;
+}
+
+// 会话状态使用语义色，不跟随页面品牌色变化。
+.video-remake-page .video-workbench-status {
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+.video-remake-page .video-workbench-status.neutral {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-200);
+  color: var(--color-neutral-600);
+}
+
+.video-remake-page .video-workbench-status.muted {
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-200);
+  color: var(--color-neutral-500);
+}
+
+.video-remake-page .video-workbench-status.warning {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-strong);
+}
+
+.video-remake-page .video-workbench-status.processing {
+  background: var(--color-info-soft);
+  border-color: var(--color-info-border);
+  color: var(--color-info-hover);
+}
+
+.video-remake-page .video-workbench-status.success {
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
+}
+
+.video-remake-page .video-workbench-status.blocked {
+  background: var(--color-orange-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-strong);
+}
+
+.video-remake-page .video-workbench-status.danger {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
 }
 
 .workspace:has(.video-remake-page) {

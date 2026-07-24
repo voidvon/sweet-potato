@@ -33,8 +33,11 @@ export function ViralWorkbenchStartPanel<TMode extends string>({
 }: ViralWorkbenchStartPanelProps<TMode>) {
   return (
     <div className="viral-workbench-start">
-      <div className="viral-workbench-hero">
-        <p>{description}</p>
+      <div
+        aria-label={`${title}：${description}`}
+        className="viral-workbench-hero"
+        role="img"
+      >
         <div className="viral-workbench-feature-row">
           {featureItems.map((item, index) => (
             <span key={index}>{item}</span>
