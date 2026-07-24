@@ -1,4 +1,3 @@
-export type DiscoverStatus = 'draft' | 'published' | 'hidden'
 export type DiscoverMediaType = 'image' | 'video'
 
 export type DiscoverReferenceAsset = {
@@ -39,8 +38,6 @@ export type DiscoverItem = {
   sourceCompletedAt: string | null
   referenceAssets: DiscoverReferenceAsset[]
   aspectRatio: string
-  status: DiscoverStatus
-  sortOrder: number
   publishedAt: string | null
   createdAt: string
   updatedAt: string

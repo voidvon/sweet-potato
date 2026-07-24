@@ -34,8 +34,6 @@ export type DiscoverItem = {
     metadata: Record<string, unknown>
   }>
   aspectRatio: string
-  status: 'published'
-  sortOrder: number
   publishedAt: string | null
 }
 

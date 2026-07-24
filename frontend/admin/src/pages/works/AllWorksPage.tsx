@@ -145,7 +145,6 @@ export function AllWorksPage() {
         categoryId: discoverCategoryId,
         title: discoverWork.name,
         description: discoverWork.description,
-        status: 'published',
       })
       message.success('已添加到发现')
       setDiscoverWork(null)

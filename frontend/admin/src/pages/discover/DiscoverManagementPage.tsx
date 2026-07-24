@@ -1,5 +1,5 @@
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TagsOutlined } from '@ant-design/icons'
-import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, message } from 'antd'
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tooltip, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { listAdminWorks, type AdminWork } from '../../api/admin-works'
@@ -179,7 +179,7 @@ export function DiscoverManagementPage() {
     }
     setAddingWorkId(work.id)
     try {
-      await createDiscoverItem({ sourceAssetId: work.id, categoryId: candidateCategoryId, title: work.name, description: work.description, status: 'published' })
+      await createDiscoverItem({ sourceAssetId: work.id, categoryId: candidateCategoryId, title: work.name, description: work.description })
       message.success('已加入发现')
       await loadDiscover()
     } catch (error) {
@@ -315,7 +315,6 @@ export function DiscoverManagementPage() {
     },
     { title: '浏览量', dataIndex: 'viewCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
     { title: '点赞量', dataIndex: 'likeCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
-    { title: '状态', dataIndex: 'status', width: 110, render: (value: DiscoverItem['status']) => <Tag color={value === 'published' ? 'green' : 'default'}>{value === 'published' ? '已发布' : value === 'hidden' ? '已隐藏' : '草稿'}</Tag> },
     {
       title: '操作',
       width: 100,

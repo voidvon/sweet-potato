@@ -22,7 +22,7 @@ export function createAdminDiscoverRouter() {
   const router = Router()
   router.use(requireAdmin)
   router.get('/categories', (_req, res) => res.json({ items: discoverService.listCategories() }))
-  router.get('/items', (req, res) => res.json({ items: discoverService.listItems(req.query, false) }))
+  router.get('/items', (req, res) => res.json({ items: discoverService.listItems(req.query) }))
   router.post('/categories', (req, res) => { try { res.status(201).json(discoverService.createCategory(req.body || {})) } catch (e) { sendError(res, 400, getErrorMessage(e, '分类创建失败')) } })
   router.patch('/categories/:id', (req, res) => { try { const item = discoverService.updateCategory(req.params.id, req.body || {}); if (!item) return sendError(res, 404, '分类不存在'); return res.json(item) } catch (e) { return sendError(res, 400, getErrorMessage(e, '分类更新失败')) } })
   router.delete('/categories/:id', (req, res) => { try { discoverService.deleteCategory(req.params.id); res.json({ ok: true }) } catch (e) { sendError(res, 400, getErrorMessage(e, '分类删除失败')) } })

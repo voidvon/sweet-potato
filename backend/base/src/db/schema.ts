@@ -488,8 +488,6 @@ export function migrateDatabase() {
       source_completed_at TEXT,
       reference_assets TEXT NOT NULL DEFAULT '[]',
       aspect_ratio TEXT NOT NULL DEFAULT '1 / 1',
-      status TEXT NOT NULL DEFAULT 'draft',
-      sort_order INTEGER NOT NULL DEFAULT 0,
       published_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -746,8 +744,8 @@ export function migrateDatabase() {
     CREATE INDEX IF NOT EXISTS idx_content_assets_resource_updated
     ON content_assets(resource_type, updated_at DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_discover_items_category_status_order
-    ON discover_items(category_id, status, sort_order, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_discover_items_category_published
+    ON discover_items(category_id, published_at DESC, updated_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_discover_items_source_asset
     ON discover_items(source_asset_id);
@@ -795,6 +793,20 @@ export function migrateDatabase() {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_llm_model_pricing_provider_model
     ON llm_model_pricing(provider, model);
   `);
+
+  db.exec('DROP INDEX IF EXISTS idx_discover_items_category_status_order');
+  db.exec('DROP INDEX IF EXISTS idx_discover_items_category_order');
+  if (hasColumn('discover_items', 'status')) {
+    db.exec(`
+      UPDATE discover_items
+      SET published_at = COALESCE(published_at, created_at);
+
+      ALTER TABLE discover_items DROP COLUMN status;
+    `);
+  }
+  if (hasColumn('discover_items', 'sort_order')) {
+    db.exec('ALTER TABLE discover_items DROP COLUMN sort_order');
+  }
 
   addColumnIfMissing('users', 'avatar_url', 'avatar_url TEXT');
   addColumnIfMissing('users', 'role', "role TEXT NOT NULL DEFAULT 'user'");
