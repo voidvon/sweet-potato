@@ -1,4 +1,5 @@
 import { ChevronLeft, Image, Music2, Package, Pause, Play, Trash2, UserRound, ZoomIn } from 'lucide-react';
+import { Button } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { MaterialSlot } from './MaterialSlot';
@@ -334,9 +335,14 @@ export function MaterialPanel({
               <i aria-hidden="true"><Image size={15} /></i>
               <strong>我的作品</strong>
             </span>
-            <button aria-label="收起作品素材库" className="video-task-popover-collapse" onClick={onClosePopovers} type="button">
-              <ChevronLeft size={20} />
-            </button>
+            <Button
+            aria-label="收起音频素材库"
+            className="video-task-popover-collapse"
+            icon={<ChevronLeft size={20} />}
+            onClick={onClosePopovers}
+            shape="circle"
+            type="text"
+          />
           </header>
           <p>点击卡片填入可用素材 ↙</p>
           <div className="video-task-assets-tabs">
