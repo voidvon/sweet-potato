@@ -1657,13 +1657,13 @@ export function PromptPlanningModal({
 
                 {activeStep === 'step4' ? (
                   <>
-                    <button
-                      className="video-task-epa-btn video-task-epa-btn-text"
+                    <Button
+                      className="video-task-epa-btn-text"
                       onClick={() => setViewStep('step3')}
-                      type="button"
+                      type='text'
                     >
                       返回上一步
-                    </button>
+                    </Button>
                     <button
                       className="video-task-epa-btn video-task-epa-btn-secondary"
                       disabled={generationCredits === null || isBusy || !session || session.status === 'generating'}
