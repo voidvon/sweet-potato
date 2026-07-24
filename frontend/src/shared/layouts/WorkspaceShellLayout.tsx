@@ -290,7 +290,6 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     <>
       <nav className="module-nav">
         <Menu
-          classNames={{ popup: 'workspace-sidebar-menu-popup' }}
           items={resolvedSidebarMenuItems as MenuProps['items']}
           mode={!compactSidebar ? 'inline' : 'vertical'}
           onClick={({ key }) => {
@@ -298,6 +297,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
               navigate(key);
             }
           }}
+          rootClassName='module-nav-menu'
           onOpenChange={setOpenKeys}
           selectedKeys={routeState.selectedMenuKey ? [routeState.selectedMenuKey] : []}
           {...(!compactSidebar ? { openKeys } : {})}
