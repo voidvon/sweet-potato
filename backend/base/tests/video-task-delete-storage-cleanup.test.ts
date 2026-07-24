@@ -100,7 +100,10 @@ test('deleting a work removes unshared task uploads and preserves permanent or s
     })
     assert.ok(finishedGroup)
     const finishedFilePath = path.join(tempRoot, 'finished.mp4')
+    const coverFilePath = path.join(process.env.DATA_DIR, 'files', 'generated_images', 'finished-cover.jpg')
+    mkdirSync(path.dirname(coverFilePath), { recursive: true })
     writeFileSync(finishedFilePath, 'finished')
+    writeFileSync(coverFilePath, 'cover')
     const finishedAsset = contentRepository.createAsset({
       userId,
       groupId: finishedGroup.id,
@@ -114,6 +117,10 @@ test('deleting a work removes unshared task uploads and preserves permanent or s
       fileUrl: '/files/finished.mp4',
       metadata: {
         videoTaskId: task.id,
+        coverUrl: '/files/generated_images/finished-cover.jpg',
+        coverFilePath,
+        coverStorageProvider: 'local',
+        coverStorageKey: 'app-files/generated_images/finished-cover.jpg',
         materialContext: { sourceAssetId: historicalUpload.asset.id },
       },
     })
@@ -124,6 +131,7 @@ test('deleting a work removes unshared task uploads and preserves permanent or s
     assert.equal(contentRepository.findVideoTask(task.id), null)
     assert.equal(contentRepository.findAsset(finishedAsset.id), null)
     assert.equal(existsSync(finishedFilePath), false)
+    assert.equal(existsSync(coverFilePath), false)
     assert.equal(contentRepository.findAsset(taskUpload.asset.id), null)
     assert.equal(contentRepository.findAsset(historicalUpload.asset.id), null)
     assert.equal(existsSync(taskUpload.filePath), false)

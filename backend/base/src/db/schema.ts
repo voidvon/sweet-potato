@@ -478,6 +478,7 @@ export function migrateDatabase() {
       media_type TEXT NOT NULL,
       mime_type TEXT NOT NULL,
       file_url TEXT NOT NULL,
+      cover_url TEXT NOT NULL DEFAULT '',
       original_file_name TEXT NOT NULL DEFAULT '',
       file_size INTEGER NOT NULL DEFAULT 0,
       like_count INTEGER NOT NULL DEFAULT 0,
@@ -641,6 +642,7 @@ export function migrateDatabase() {
       selected_voice_id TEXT,
       selected_scene_id TEXT,
       generated_video_url TEXT,
+      generated_cover_url TEXT,
       aspect_ratio TEXT NOT NULL DEFAULT '',
       failure_reason TEXT,
       created_at TEXT NOT NULL,
@@ -930,7 +932,16 @@ export function migrateDatabase() {
   addColumnIfMissing('discover_items', 'source_completed_at', 'source_completed_at TEXT');
   addColumnIfMissing('discover_items', 'reference_assets', "reference_assets TEXT NOT NULL DEFAULT '[]'");
   addColumnIfMissing('discover_items', 'aspect_ratio', "aspect_ratio TEXT NOT NULL DEFAULT '1 / 1'");
+  addColumnIfMissing('discover_items', 'cover_url', "cover_url TEXT NOT NULL DEFAULT ''");
   db.exec(`
+    UPDATE discover_items
+    SET cover_url = COALESCE((
+      SELECT json_extract(asset.metadata, '$.coverUrl')
+      FROM content_assets asset
+      WHERE asset.id = discover_items.source_asset_id
+    ), '')
+    WHERE media_type = 'video' AND TRIM(cover_url) = '';
+
     UPDATE discover_items
     SET aspect_ratio = REPLACE(aspect_ratio, ':', ' / ')
     WHERE aspect_ratio LIKE '%:%';
@@ -1028,6 +1039,7 @@ export function migrateDatabase() {
   addColumnIfMissing('video_generation_tasks', 'selected_voice_id', 'selected_voice_id TEXT');
   addColumnIfMissing('video_generation_tasks', 'selected_scene_id', 'selected_scene_id TEXT');
   addColumnIfMissing('video_generation_tasks', 'generated_video_url', 'generated_video_url TEXT');
+  addColumnIfMissing('video_generation_tasks', 'generated_cover_url', 'generated_cover_url TEXT');
   addColumnIfMissing('video_generation_tasks', 'aspect_ratio', "aspect_ratio TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('video_generation_tasks', 'prompt', "prompt TEXT NOT NULL DEFAULT ''");
   addColumnIfMissing('video_generation_tasks', 'selected_skill_ids', "selected_skill_ids TEXT NOT NULL DEFAULT '[]'");

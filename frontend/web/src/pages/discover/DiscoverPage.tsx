@@ -79,10 +79,12 @@ export function DiscoverPage() {
   const [previewItem, setPreviewItem] = useState<DiscoverItem | null>(null)
   const [measuredRatios, setMeasuredRatios] = useState<Record<string, string>>(readRatioCache)
   const [loadedMediaIds, setLoadedMediaIds] = useState<Set<string>>(() => new Set())
+  const [playingVideoIds, setPlayingVideoIds] = useState<Set<string>>(() => new Set())
   const [columnCount, setColumnCount] = useState(discoverColumnCount)
   const [likedItemIds, setLikedItemIds] = useState<Set<string>>(readLikedItemIds)
   const listRequestIdRef = useRef(0)
   const likedItemIdsRef = useRef(likedItemIds)
+  const videoFrameRequestIdsRef = useRef(new Map<string, number>())
 
   useEffect(() => {
     let active = true
@@ -213,6 +215,40 @@ export function DiscoverPage() {
     })
   }, [])
 
+  const setVideoFrameVisible = useCallback((itemId: string, visible: boolean) => {
+    setPlayingVideoIds((current) => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }, [])
+
+  const handleVideoPlaying = useCallback((itemId: string, video: HTMLVideoElement) => {
+    const previousRequestId = videoFrameRequestIdsRef.current.get(itemId)
+    if (previousRequestId !== undefined && video.cancelVideoFrameCallback) {
+      video.cancelVideoFrameCallback(previousRequestId)
+    }
+    if (!video.requestVideoFrameCallback) return
+    const requestId = video.requestVideoFrameCallback(() => {
+      videoFrameRequestIdsRef.current.delete(itemId)
+      if (!video.paused) setVideoFrameVisible(itemId, true)
+    })
+    videoFrameRequestIdsRef.current.set(itemId, requestId)
+  }, [setVideoFrameVisible])
+
+  const handleVideoLeave = useCallback((itemId: string, video: HTMLVideoElement) => {
+    const requestId = videoFrameRequestIdsRef.current.get(itemId)
+    if (requestId !== undefined && video.cancelVideoFrameCallback) {
+      video.cancelVideoFrameCallback(requestId)
+      videoFrameRequestIdsRef.current.delete(itemId)
+    }
+    setVideoFrameVisible(itemId, false)
+    video.pause()
+    video.currentTime = 0
+  }, [setVideoFrameVisible])
+
   useEffect(() => {
     const updateColumnCount = () => setColumnCount(discoverColumnCount())
     window.addEventListener('resize', updateColumnCount)
@@ -267,6 +303,7 @@ export function DiscoverPage() {
                 <div className="discover-grid-column" key={columnIndex}>
                 {column.map((item) => {
                 const mediaUrl = resolveAssetUrl(item.fileUrl)
+                const posterUrl = item.coverUrl ? resolveAssetUrl(item.coverUrl) : undefined
                 const ratio = item.aspectRatio && item.aspectRatio !== '1 / 1'
                   ? item.aspectRatio
                   : measuredRatios[item.id] || item.aspectRatio || '1 / 1'
@@ -284,7 +321,7 @@ export function DiscoverPage() {
                     role="button"
                     tabIndex={0}
                   >
-                    <div className={`discover-card-media${loadedMediaIds.has(item.id) ? ' is-loaded' : ''}`} style={{ aspectRatio: cssAspectRatio(ratio) }}>
+                    <div className={`discover-card-media${loadedMediaIds.has(item.id) ? ' is-loaded' : ''}${playingVideoIds.has(item.id) ? ' is-video-playing' : ''}`} style={{ aspectRatio: cssAspectRatio(ratio) }}>
                       {item.mediaType === 'video' ? (
                         <video
                           aria-label={item.title || '生成视频'}
@@ -295,9 +332,17 @@ export function DiscoverPage() {
                             rememberMediaSize(item.id, event.currentTarget.videoWidth, event.currentTarget.videoHeight)
                             markMediaLoaded(item.id)
                           }}
-                          onMouseEnter={(event) => { void event.currentTarget.play() }}
-                          onMouseLeave={(event) => { event.currentTarget.pause(); event.currentTarget.currentTime = 0 }}
+                          onMouseEnter={(event) => {
+                            setVideoFrameVisible(item.id, false)
+                            void event.currentTarget.play().catch(() => undefined)
+                          }}
+                          onMouseLeave={(event) => handleVideoLeave(item.id, event.currentTarget)}
+                          onPlaying={(event) => handleVideoPlaying(item.id, event.currentTarget)}
+                          onTimeUpdate={(event) => {
+                            if (event.currentTarget.currentTime > 0) setVideoFrameVisible(item.id, true)
+                          }}
                           playsInline
+                          poster={posterUrl}
                           preload="metadata"
                           src={mediaUrl}
                         />
@@ -313,6 +358,9 @@ export function DiscoverPage() {
                           src={mediaUrl}
                         />
                       )}
+                      {item.mediaType === 'video' && posterUrl ? (
+                        <img aria-hidden="true" alt="" className="discover-card-poster" src={posterUrl} />
+                      ) : null}
                       {item.mediaType === 'video' ? <span className="discover-play"><Play aria-hidden="true" fill="currentColor" size={12} strokeWidth={2} /></span> : null}
                       <div className="discover-card-meta">
                         <span><FireFilled /> {item.viewCount}</span>
@@ -352,6 +400,7 @@ export function DiscoverPage() {
             createdAt: previewItem.sourceCreatedAt || undefined,
             duration: previewItem.duration,
             name: previewItem.title || previewItem.originalFileName || '生成视频',
+            posterUrl: previewItem.coverUrl ? resolveAssetUrl(previewItem.coverUrl) : undefined,
             referenceAssets: previewItem.referenceAssets,
             videoUrl: resolveAssetUrl(previewItem.fileUrl),
           }}

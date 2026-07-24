@@ -29,6 +29,7 @@ export type DiscoverItem = {
   mediaType: DiscoverMediaType
   mimeType: string
   fileUrl: string
+  coverUrl: string
   originalFileName: string
   fileSize: number
   likeCount: number

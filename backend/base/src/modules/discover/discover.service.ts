@@ -52,9 +52,14 @@ function referenceAssetSnapshot(asset: ContentAsset): DiscoverReferenceAsset {
 }
 
 function publicItem(item: DiscoverItem) {
+  const sourceAsset = !item.coverUrl ? contentRepository.findAsset(item.sourceAssetId) : null
+  const coverUrl = item.coverUrl || text(sourceAsset?.metadata.coverUrl)
   return {
     ...item,
     fileUrl: managedFilePublicUrl({ fileUrl: item.fileUrl, storageProvider: item.fileUrl.startsWith('http') ? 'tos' : 'local' }),
+    coverUrl: coverUrl
+      ? managedFilePublicUrl({ fileUrl: coverUrl, storageProvider: coverUrl.startsWith('http') ? 'tos' : 'local' })
+      : '',
     referenceAssets: item.referenceAssets.map((asset) => ({
       ...asset,
       fileUrl: managedFilePublicUrl({ fileUrl: asset.fileUrl, storageProvider: asset.fileUrl.startsWith('http') ? 'tos' : 'local' }),
@@ -87,7 +92,7 @@ export const discoverService = {
     const sourceAssetId = text(input.sourceAssetId); const categoryId = text(input.categoryId); const asset = sourceAssetId ? contentRepository.findAsset(sourceAssetId) : null
     if (!asset || !categoryId || !discoverRepository.findCategory(categoryId)) throw new Error('来源作品或分类不存在')
     const retainedReferenceAssets = referenceAssetIds(asset).map((id) => contentRepository.findAsset(id)).filter((item): item is ContentAsset => Boolean(item && item.userId === asset.userId))
-    const item = discoverRepository.createItem({ categoryId, sourceAssetId, title: text(input.title, asset.name), description: text(input.description, asset.description), mediaType: asset.mimeType.startsWith('image/') ? 'image' : 'video', mimeType: asset.mimeType, fileUrl: asset.fileUrl, originalFileName: asset.originalFileName, fileSize: asset.fileSize, likeCount: nonNegativeCount(asset.metadata.likeCount), viewCount: nonNegativeCount(asset.metadata.viewCount), duration: durationSeconds(asset.metadata.duration), sourceCreatedAt: asset.createdAt, sourceCompletedAt: dateValue(asset.metadata.completedAt) || dateValue(asset.metadata.generatedAt) || asset.updatedAt, referenceAssets: retainedReferenceAssets.map(referenceAssetSnapshot), aspectRatio: aspectRatio(asset), status: status(input.status), sortOrder: Number(input.sortOrder || 0) })
+    const item = discoverRepository.createItem({ categoryId, sourceAssetId, title: text(input.title, asset.name), description: text(input.description, asset.description), mediaType: asset.mimeType.startsWith('image/') ? 'image' : 'video', mimeType: asset.mimeType, fileUrl: asset.fileUrl, coverUrl: text(asset.metadata.coverUrl), originalFileName: asset.originalFileName, fileSize: asset.fileSize, likeCount: nonNegativeCount(asset.metadata.likeCount), viewCount: nonNegativeCount(asset.metadata.viewCount), duration: durationSeconds(asset.metadata.duration), sourceCreatedAt: asset.createdAt, sourceCompletedAt: dateValue(asset.metadata.completedAt) || dateValue(asset.metadata.generatedAt) || asset.updatedAt, referenceAssets: retainedReferenceAssets.map(referenceAssetSnapshot), aspectRatio: aspectRatio(asset), status: status(input.status), sortOrder: Number(input.sortOrder || 0) })
     contentRepository.retainAssetsForReference({ assetIds: [asset.id], userId: asset.userId, referenceType: 'discover_item', referenceId: item.id, role: 'output' })
     contentRepository.retainAssetsForReference({ assetIds: retainedReferenceAssets.map((item) => item.id), userId: asset.userId, referenceType: 'discover_item', referenceId: item.id, role: 'input' })
     return item

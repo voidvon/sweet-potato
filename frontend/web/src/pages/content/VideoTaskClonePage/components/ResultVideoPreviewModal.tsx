@@ -20,6 +20,7 @@ export type ResultVideoPreview = {
   createdAt?: string;
   duration?: number;
   name: string;
+  posterUrl?: string;
   referenceAssetIds?: string[];
   referenceAssets?: ReferenceMaterialPreviewAsset[];
   task?: VideoGenerationTask;
@@ -221,6 +222,7 @@ export function ResultVideoPreviewModal({ onClose, onDelete, video }: ResultVide
               duration={video.duration}
               name={video.name}
               paused={Boolean(referenceImage || referenceVideo || playingAudioAssetId)}
+              posterUrl={video.posterUrl}
               variant="result"
               videoUrl={video.videoUrl}
             />

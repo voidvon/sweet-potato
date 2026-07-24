@@ -8,6 +8,7 @@ type VideoPreviewPlayerProps = {
   name: string;
   onDurationChange?: (duration: number) => void;
   paused?: boolean;
+  posterUrl?: string;
   playbackEnd?: number;
   playbackStart?: number;
   variant: 'reference' | 'result';
@@ -25,6 +26,7 @@ export function VideoPreviewPlayer({
   name,
   onDurationChange,
   paused = false,
+  posterUrl,
   playbackEnd,
   playbackStart = 0,
   variant,
@@ -198,6 +200,7 @@ export function VideoPreviewPlayer({
         onPlay={() => setIsPlaying(true)}
         onTimeUpdate={syncTime}
         playsInline
+        poster={posterUrl}
         preload="auto"
         src={videoUrl}
       />

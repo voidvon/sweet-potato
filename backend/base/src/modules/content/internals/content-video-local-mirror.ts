@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -10,6 +10,7 @@ import { contentRepository } from '../content.repository.js';
 import type { ContentAsset, VideoGenerationResult } from '../content.types.js';
 import {
   contentFilePathForRelativePath,
+  execFileAsync,
   fileUrlForContentRelativePath,
   generatedMediaRelativePath,
 } from './content-common.js';
@@ -29,6 +30,7 @@ const queuedGeneratedVideoMirrorTaskIds = new Set<string>();
 const generatedVideoMirrorQueue: MirrorGeneratedVideoInput[] = [];
 const maxGeneratedVideoMirrorConcurrency = 2;
 let activeGeneratedVideoMirrorCount = 0;
+const runningGeneratedVideoCoverAssetIds = new Set<string>();
 
 function isHttpRemoteUrl(value: string) {
   const trimmed = value.trim();
@@ -73,7 +75,7 @@ function originalVideoFileName(remoteUrl: string, fallback: string) {
 
 function localizeResultUrl(
   value: unknown,
-  input: { remoteVideoUrl: string; localVideoUrl: string; mirroredAt: string },
+  input: { remoteVideoUrl: string; localVideoUrl: string; coverUrl?: string; mirroredAt: string },
 ) {
   if (!isRecord(value)) {
     return value;
@@ -99,11 +101,170 @@ function localizeResultUrl(
     videoUrl: input.localVideoUrl,
     fileUrl: input.localVideoUrl,
     localVideoUrl: input.localVideoUrl,
+    ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
     remoteVideoUrl: typeof value.remoteVideoUrl === 'string' && value.remoteVideoUrl.trim()
       ? value.remoteVideoUrl
       : input.remoteVideoUrl,
     localMirroredAt: input.mirroredAt,
   };
+}
+
+export async function generateVideoCover(input: {
+  assetId: string;
+  taskId: string;
+  videoFilePath: string;
+}) {
+  const storedFileName = `${input.taskId}-${randomUUID()}-cover.jpg`;
+  const storedRelativePath = generatedMediaRelativePath('image', storedFileName);
+  const localCoverUrl = fileUrlForContentRelativePath(storedRelativePath);
+  const coverFilePath = contentFilePathForRelativePath(storedRelativePath);
+  await mkdir(path.dirname(coverFilePath), { recursive: true });
+  contentRepository.updateFinishedVideoAssetFile(input.assetId, {
+    metadata: {
+      ...(contentRepository.findAsset(input.assetId)?.metadata || {}),
+      coverStatus: 'generating',
+      coverLastAttemptAt: new Date().toISOString(),
+    },
+  });
+  let persistedCover: Awaited<ReturnType<typeof fileStorageService.storeLocalFile>> | null = null;
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-i', input.videoFilePath,
+      '-map', '0:V:0',
+      '-vf', "select=eq(n\\,0),scale='min(1280,iw)':-2",
+      '-frames:v', '1',
+      '-q:v', '2',
+      coverFilePath,
+    ], { timeout: 30_000 });
+    const coverFileSize = (await stat(coverFilePath)).size;
+    persistedCover = await fileStorageService.storeLocalFile({
+      key: fileStorageKey(storedRelativePath),
+      filePath: coverFilePath,
+      fileUrl: localCoverUrl,
+      mimeType: 'image/jpeg',
+    });
+    const currentAsset = contentRepository.findAsset(input.assetId);
+    if (!currentAsset) {
+      await fileStorageService.deleteStoredFile({
+        metadata: storageMetadata(persistedCover),
+        filePath: coverFilePath,
+      });
+      return null;
+    }
+    const coverStorage = storageMetadata(persistedCover);
+    const persistedCoverUrl = persistedCover.fileUrl;
+    const generatedAt = new Date().toISOString();
+    const updatedAsset = contentRepository.updateFinishedVideoAssetFile(input.assetId, {
+      metadata: {
+        ...currentAsset.metadata,
+        coverStatus: 'completed',
+        coverUrl: persistedCoverUrl,
+        coverFilePath,
+        coverStoredFileName: storedRelativePath,
+        coverMimeType: 'image/jpeg',
+        coverFileSize,
+        coverGeneratedAt: generatedAt,
+        coverStorageProvider: coverStorage.storageProvider,
+        coverStorageKey: coverStorage.storageKey,
+        coverStorageBucket: coverStorage.storageBucket,
+        coverFailureReason: undefined,
+      },
+    });
+    if (!updatedAsset) {
+      await fileStorageService.deleteStoredFile({
+        metadata: coverStorage,
+        filePath: coverFilePath,
+      });
+      return null;
+    }
+    const currentTask = contentRepository.findVideoTask(input.taskId);
+    if (currentTask) {
+      const taskWithCover = contentRepository.markVideoTaskCoverGenerated(input.taskId, persistedCoverUrl, {
+        updatedAt: currentTask.updatedAt,
+      }) || currentTask;
+      const resultWithCover = isRecord(taskWithCover.editableParseResult.videoGenerationResult)
+        ? { ...taskWithCover.editableParseResult.videoGenerationResult, coverUrl: persistedCoverUrl }
+        : taskWithCover.editableParseResult.videoGenerationResult;
+      const taskWithResult = contentRepository.updateVideoTaskParseResult(input.taskId, {
+        editableParseResult: normalizeParseResult({
+          ...taskWithCover.editableParseResult,
+          videoGenerationResult: resultWithCover,
+        }),
+        selectedDigitalHumanId: taskWithCover.selectedDigitalHumanId,
+        selectedSceneId: taskWithCover.selectedSceneId,
+        selectedVoiceId: taskWithCover.selectedVoiceId,
+        updatedAt: taskWithCover.updatedAt,
+      }) || taskWithCover;
+      const expertContext = isRecord(taskWithResult.expertContext) ? taskWithResult.expertContext : {};
+      const addCover = (value: unknown) => isRecord(value)
+        ? { ...value, coverUrl: persistedCoverUrl }
+        : value;
+      contentRepository.updateVideoTaskContext(input.taskId, {
+        selectedSkillIds: taskWithResult.selectedSkillIds,
+        expertContext: {
+          ...expertContext,
+          videoResult: addCover(expertContext.videoResult),
+          videoGenerationResult: addCover(expertContext.videoGenerationResult),
+          videoGenerationResults: Array.isArray(expertContext.videoGenerationResults)
+            ? expertContext.videoGenerationResults.map(addCover)
+            : expertContext.videoGenerationResults,
+          generatedCoverUrl: persistedCoverUrl,
+          generatedCoverAt: generatedAt,
+        },
+        updatedAt: taskWithResult.updatedAt,
+      });
+    }
+    const previousCoverFilePath = typeof currentAsset.metadata.coverFilePath === 'string'
+      ? currentAsset.metadata.coverFilePath
+      : undefined;
+    const previousCoverStorageKey = typeof currentAsset.metadata.coverStorageKey === 'string'
+      ? currentAsset.metadata.coverStorageKey
+      : '';
+    if (previousCoverFilePath || (previousCoverStorageKey && previousCoverStorageKey !== coverStorage.storageKey)) {
+      await fileStorageService.deleteStoredFile({
+        metadata: {
+          storageProvider: currentAsset.metadata.coverStorageProvider,
+          storageKey: previousCoverStorageKey,
+          storageBucket: currentAsset.metadata.coverStorageBucket,
+        },
+        filePath: previousCoverFilePath,
+      }).catch((error) => {
+        logger.warn('previous generated video cover cleanup failed', {
+          taskId: input.taskId,
+          assetId: input.assetId,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+    return { coverUrl: persistedCoverUrl, generatedAt };
+  } catch (error) {
+    if (persistedCover) {
+      await fileStorageService.deleteStoredFile({
+        metadata: storageMetadata(persistedCover),
+        filePath: coverFilePath,
+      }).catch(() => undefined);
+    } else {
+      await rm(coverFilePath, { force: true }).catch(() => undefined);
+    }
+    const currentAsset = contentRepository.findAsset(input.assetId);
+    if (currentAsset) {
+      contentRepository.updateFinishedVideoAssetFile(input.assetId, {
+        metadata: {
+          ...currentAsset.metadata,
+          coverStatus: 'failed',
+          coverFailureReason: error instanceof Error ? error.message : String(error),
+          coverLastAttemptAt: new Date().toISOString(),
+        },
+      });
+    }
+    logger.warn('generated video cover extraction failed', {
+      taskId: input.taskId,
+      assetId: input.assetId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 function markAssetMirrorStatus(input: {
@@ -232,6 +393,11 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
       originalFileName: originalVideoFileName(remoteVideoUrl, storedFileName),
       fileSize,
     });
+    const cover = await generateVideoCover({
+      assetId: currentAsset.id,
+      taskId: input.taskId,
+      videoFilePath: filePath,
+    });
     const taskBeforeLocalUrlUpdate = contentRepository.findVideoTask(input.taskId);
     const preservedTaskUpdatedAt = taskBeforeLocalUrlUpdate?.updatedAt;
     const latestTask = contentRepository.markVideoTaskGenerated(input.taskId, storedVideoUrl, {
@@ -240,34 +406,39 @@ async function mirrorGeneratedVideoToLocal(input: MirrorGeneratedVideoInput) {
     if (!latestTask || latestTask.userId !== input.userId) {
       return;
     }
-    const currentResult = latestTask.editableParseResult.videoGenerationResult;
+    const latestTaskWithCover = cover
+      ? contentRepository.findVideoTask(input.taskId) || latestTask
+      : latestTask;
+    const currentResult = latestTaskWithCover.editableParseResult.videoGenerationResult;
     const localizedResult = localizeResultUrl(currentResult, {
       remoteVideoUrl,
       localVideoUrl: storedVideoUrl,
+      coverUrl: cover?.coverUrl,
       mirroredAt,
     }) as VideoGenerationResult;
     const taskWithParse = contentRepository.updateVideoTaskParseResult(input.taskId, {
       editableParseResult: normalizeParseResult({
-        ...latestTask.editableParseResult,
+        ...latestTaskWithCover.editableParseResult,
         videoGenerationResult: localizedResult,
       }),
-      selectedDigitalHumanId: latestTask.selectedDigitalHumanId,
-      selectedSceneId: latestTask.selectedSceneId,
-      selectedVoiceId: latestTask.selectedVoiceId,
-      updatedAt: latestTask.updatedAt,
-    }) || latestTask;
+      selectedDigitalHumanId: latestTaskWithCover.selectedDigitalHumanId,
+      selectedSceneId: latestTaskWithCover.selectedSceneId,
+      selectedVoiceId: latestTaskWithCover.selectedVoiceId,
+      updatedAt: latestTaskWithCover.updatedAt,
+    }) || latestTaskWithCover;
     const expertContext = isRecord(taskWithParse.expertContext) ? taskWithParse.expertContext : {};
     contentRepository.updateVideoTaskContext(input.taskId, {
       selectedSkillIds: taskWithParse.selectedSkillIds,
       expertContext: {
         ...expertContext,
-        videoResult: localizeResultUrl(expertContext.videoResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }),
-        videoGenerationResult: localizeResultUrl(expertContext.videoGenerationResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }),
+        videoResult: localizeResultUrl(expertContext.videoResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, coverUrl: cover?.coverUrl, mirroredAt }),
+        videoGenerationResult: localizeResultUrl(expertContext.videoGenerationResult, { remoteVideoUrl, localVideoUrl: storedVideoUrl, coverUrl: cover?.coverUrl, mirroredAt }),
         videoGenerationResults: Array.isArray(expertContext.videoGenerationResults)
-          ? expertContext.videoGenerationResults.map((item) => localizeResultUrl(item, { remoteVideoUrl, localVideoUrl: storedVideoUrl, mirroredAt }))
+          ? expertContext.videoGenerationResults.map((item) => localizeResultUrl(item, { remoteVideoUrl, localVideoUrl: storedVideoUrl, coverUrl: cover?.coverUrl, mirroredAt }))
           : expertContext.videoGenerationResults,
         remoteGeneratedVideoUrl: remoteVideoUrl,
         localGeneratedVideoUrl: storedVideoUrl,
+        ...(cover ? { generatedCoverUrl: cover.coverUrl, generatedCoverAt: cover.generatedAt } : {}),
         generatedVideoMirroredAt: mirroredAt,
         updatedAt: mirroredAt,
       },
@@ -398,4 +569,49 @@ export function schedulePendingGeneratedVideoMirrors(input: { userId?: string; l
     });
   }
   return candidates.length;
+}
+
+export async function backfillMissingGeneratedVideoCovers(input: { userId?: string; limit?: number } = {}) {
+  const candidates = contentRepository
+    .listAssets({ userId: input.userId, resourceType: 'finished_video' })
+    .filter((asset) => asset.mimeType.startsWith('video/'))
+    .filter((asset) => !String(asset.metadata.coverUrl || '').trim())
+    .filter((asset) => Boolean(asset.filePath) && existsSync(asset.filePath))
+    .filter((asset) => !runningGeneratedVideoCoverAssetIds.has(asset.id))
+    .slice(0, Math.max(1, input.limit || 100));
+  let completed = 0;
+  let failed = 0;
+  let nextIndex = 0;
+  const workerCount = Math.min(2, candidates.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < candidates.length) {
+      const asset = candidates[nextIndex];
+      nextIndex += 1;
+      if (!asset) continue;
+      runningGeneratedVideoCoverAssetIds.add(asset.id);
+      try {
+        const taskId = typeof asset.metadata.videoTaskId === 'string' && asset.metadata.videoTaskId.trim()
+          ? asset.metadata.videoTaskId.trim()
+          : asset.id;
+        const cover = await generateVideoCover({
+          assetId: asset.id,
+          taskId,
+          videoFilePath: asset.filePath,
+        });
+        if (cover) completed += 1;
+        else failed += 1;
+      } finally {
+        runningGeneratedVideoCoverAssetIds.delete(asset.id);
+      }
+    }
+  }));
+  if (candidates.length) {
+    logger.info('generated video cover backfill completed', {
+      userId: input.userId,
+      candidates: candidates.length,
+      completed,
+      failed,
+    });
+  }
+  return { candidates: candidates.length, completed, failed };
 }

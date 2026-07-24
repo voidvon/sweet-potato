@@ -71,6 +71,7 @@ type VideoTaskRow = {
   selected_voice_id: string | null;
   selected_scene_id: string | null;
   generated_video_url: string | null;
+  generated_cover_url: string | null;
   aspect_ratio: string;
   credit_cost?: number | null;
   failure_reason: string | null;
@@ -217,6 +218,7 @@ function serializeVideoTask(row: VideoTaskRow): VideoGenerationTask {
     selectedVoiceId: row.selected_voice_id,
     selectedSceneId: row.selected_scene_id,
     generatedVideoUrl: row.generated_video_url,
+    generatedCoverUrl: row.generated_cover_url,
     aspectRatio: row.aspect_ratio,
     creditCost: videoTaskCreditCost(row, expertContext),
     failureReason: row.failure_reason,
@@ -860,6 +862,7 @@ export const contentRepository = {
       UNION ALL SELECT editable_parse_result FROM video_generation_tasks
       UNION ALL SELECT expert_context FROM video_generation_tasks
       UNION ALL SELECT generated_video_url FROM video_generation_tasks
+      UNION ALL SELECT generated_cover_url FROM video_generation_tasks
       UNION ALL SELECT invalid_artifacts FROM video_remake_sessions
       UNION ALL SELECT artifacts FROM video_remake_sessions
       UNION ALL SELECT workflow_state FROM video_remake_sessions
@@ -1098,11 +1101,11 @@ export const contentRepository = {
       INSERT INTO video_generation_tasks (
         id, user_id, source_url, prompt, title, status, raw_parse_result, editable_parse_result,
         selected_skill_ids, expert_context, selected_digital_human_id, selected_voice_id, selected_scene_id,
-        generated_video_url, aspect_ratio, failure_reason, created_at, updated_at
+        generated_video_url, generated_cover_url, aspect_ratio, failure_reason, created_at, updated_at
       )
       VALUES (
         @id, @userId, @sourceUrl, @prompt, @title, 'waiting_edit', @parseResult, @parseResult,
-        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
+        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
       )
     `).run({
       id,
@@ -1131,11 +1134,11 @@ export const contentRepository = {
       INSERT INTO video_generation_tasks (
         id, user_id, source_url, prompt, title, status, raw_parse_result, editable_parse_result,
         selected_skill_ids, expert_context, selected_digital_human_id, selected_voice_id, selected_scene_id,
-        generated_video_url, aspect_ratio, failure_reason, created_at, updated_at
+        generated_video_url, generated_cover_url, aspect_ratio, failure_reason, created_at, updated_at
       )
       VALUES (
         @id, @userId, '', @prompt, @title, 'waiting_edit', @parseResult, @parseResult,
-        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
+        @selectedSkillIds, @expertContext, NULL, NULL, NULL, NULL, NULL, @aspectRatio, NULL, @now, @now
       )
     `).run({
       id,
@@ -1177,6 +1180,7 @@ export const contentRepository = {
           selected_voice_id = NULL,
           selected_scene_id = NULL,
           generated_video_url = NULL,
+          generated_cover_url = NULL,
           aspect_ratio = @aspectRatio,
           failure_reason = NULL,
           updated_at = @updatedAt
@@ -1236,6 +1240,22 @@ export const contentRepository = {
     return this.findVideoTask(id);
   },
 
+  markVideoTaskCoverGenerated(id: string, generatedCoverUrl: string, options: { updatedAt?: string } = {}) {
+    const current = this.findVideoTask(id);
+    const nextGeneratedCoverUrl = generatedCoverUrl.trim();
+    if (!current || !nextGeneratedCoverUrl) {
+      return current;
+    }
+    const updatedAt = options.updatedAt || new Date().toISOString();
+    db.prepare(`
+      UPDATE video_generation_tasks
+      SET generated_cover_url = @generatedCoverUrl,
+          updated_at = @updatedAt
+      WHERE id = @id
+    `).run({ id, generatedCoverUrl: nextGeneratedCoverUrl, updatedAt });
+    return this.findVideoTask(id);
+  },
+
   clearVideoTaskGeneratedResult(id: string) {
     const current = this.findVideoTask(id);
     if (!current) {
@@ -1246,6 +1266,7 @@ export const contentRepository = {
       UPDATE video_generation_tasks
       SET status = 'waiting_edit',
           generated_video_url = NULL,
+          generated_cover_url = NULL,
           failure_reason = NULL,
           updated_at = @updatedAt
       WHERE id = @id
@@ -1258,6 +1279,7 @@ export const contentRepository = {
     db.prepare(`
       UPDATE video_generation_tasks
       SET status = 'generating',
+          generated_cover_url = NULL,
           failure_reason = NULL,
           updated_at = @updatedAt
       WHERE id = @id

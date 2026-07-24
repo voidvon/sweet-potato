@@ -55,6 +55,7 @@ export function toVideoProductionView(task: VideoGenerationTask) {
     editableParseResult: videoGenerationResult ? { videoGenerationResult } : {},
     expertContext: exposedContext(task.expertContext),
     generatedVideoUrl: task.generatedVideoUrl,
+    generatedCoverUrl: task.generatedCoverUrl,
     aspectRatio: task.aspectRatio,
     creditCost: task.creditCost,
     failureReason: task.failureReason,

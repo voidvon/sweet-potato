@@ -17,6 +17,7 @@ export type DiscoverItem = {
   mediaType: 'image' | 'video'
   mimeType: string
   fileUrl: string
+  coverUrl: string
   originalFileName: string
   fileSize: number
   likeCount: number

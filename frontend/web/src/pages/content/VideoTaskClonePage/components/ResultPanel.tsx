@@ -369,7 +369,7 @@ function viewState(task: VideoGenerationTask) {
     && task.expertContext?.currentStep === 'subject_replace_preparing';
   const isPreparing = isDanceRemakePreparing || isSubjectReplacePreparing;
   const videoUrl = resolveTaskMediaUrl(task.generatedVideoUrl || result?.videoUrl);
-  const coverUrl = resolveTaskMediaUrl(result?.coverUrl);
+  const coverUrl = resolveTaskMediaUrl(task.generatedCoverUrl || result?.coverUrl);
   const isOrphanPending = task.status !== 'generating'
     && !videoUrl
     && !String(result?.jobId || '').trim()
@@ -389,6 +389,7 @@ function viewState(task: VideoGenerationTask) {
         name: task.expertContext?.mode === 'subject_replace'
           ? formatMetric(result, task)
           : task.title,
+        posterUrl: coverUrl,
         task,
         taskId: task.id,
         videoUrl,

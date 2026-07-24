@@ -55,7 +55,7 @@ import {
 import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, resolveLocalContentFilePathFromUrl, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
 import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, userFacingVideoGenerationError } from './internals/content-video-generation.js';
-import { mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
+import { backfillMissingGeneratedVideoCovers, mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
 import { assertCreateVideoSourcesDuration } from './internals/content-video-duration.js';
 import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRemovalTasks } from './internals/content-subtitle-removal.js';
@@ -100,13 +100,18 @@ function localAssetFilePaths(asset: ContentAsset) {
   if (asset.filePath) {
     paths.add(asset.filePath);
   }
-  for (const value of [asset.fileUrl, asset.metadata.localVideoUrl]) {
+  for (const value of [asset.fileUrl, asset.metadata.localVideoUrl, asset.metadata.coverUrl, asset.metadata.coverFilePath]) {
     if (typeof value !== 'string') {
       continue;
     }
     const filePath = resolveLocalContentFilePathFromUrl(value);
     if (filePath) {
       paths.add(filePath);
+    } else if (
+      path.isAbsolute(value)
+      && path.resolve(value).startsWith(`${path.resolve(contentFilesDir)}${path.sep}`)
+    ) {
+      paths.add(path.resolve(value));
     }
   }
   return [...paths];
@@ -128,6 +133,20 @@ async function deleteStoredAssetFiles(asset: ContentAsset) {
     });
   }
   await Promise.all(additionalFilePaths.map((filePath) => rm(filePath, { force: true })));
+  await fileStorageService.deleteStoredFile({
+    metadata: {
+      storageProvider: asset.metadata.coverStorageProvider,
+      storageKey: asset.metadata.coverStorageKey,
+      storageBucket: asset.metadata.coverStorageBucket,
+    },
+  }).catch((error) => {
+    logger.warn('stored video cover object delete failed', {
+      assetId: asset.id,
+      storageProvider: asset.metadata.coverStorageProvider,
+      storageKey: asset.metadata.coverStorageKey,
+      error: errorLogContext(error),
+    });
+  });
 }
 
 async function listContentDirectoryFiles(directoryPath: string): Promise<Array<{
@@ -2516,6 +2535,7 @@ export const contentService = {
 
   resumePendingGeneratedVideoMirrors() {
     schedulePendingGeneratedVideoMirrors({ limit: 100 });
+    void backfillMissingGeneratedVideoCovers({ limit: 100 });
   },
 
   async syncVirtualPortraitRemoteLibrary(input: {

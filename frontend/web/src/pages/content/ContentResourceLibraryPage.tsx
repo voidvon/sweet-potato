@@ -273,6 +273,15 @@ function fileUrl(asset: ContentAsset) {
   return `${API_BASE_URL}${asset.fileUrl}`;
 }
 
+function assetMetadataUrl(asset: ContentAsset, key: string) {
+  const value = asset.metadata?.[key];
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
+  }
+  const url = value.trim();
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+}
+
 function formatDate(value: string) {
   return value ? value.slice(0, 10) : '';
 }
@@ -1305,6 +1314,7 @@ function toResultVideoPreview(asset: ContentAsset) {
     createdAt: asset.createdAt,
     duration: 0,
     name: asset.name,
+    posterUrl: assetMetadataUrl(asset, 'coverUrl'),
     referenceAssetIds: materialReferenceAssetIds(asset.metadata.materialContext),
     referenceAssets: materialReferenceAssets(asset.metadata.materialContext),
     taskId: stringMetadataValue(asset, 'videoTaskId'),

@@ -5,6 +5,30 @@
   width: 100%;
 }
 
+.video-asset-cover__poster {
+  display: block;
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 0.16s ease, transform 0.3s ease;
+  width: 100%;
+  z-index: 0;
+}
+
+.video-asset-cover__poster.is-cover {
+  object-fit: cover;
+}
+
+.video-asset-cover__poster.is-contain {
+  background: var(--color-black);
+  object-fit: contain;
+}
+
+.video-asset-cover__poster.is-hidden {
+  opacity: 0;
+}
+
 .video-asset-cover__media.is-cover {
   object-fit: cover;
 }
@@ -19,7 +43,7 @@
   pointer-events: none;
   position: absolute;
   transition: opacity 0.3s ease, transform 0.24s ease;
-  z-index: 1;
+  z-index: 2;
 }
 
 .video-asset-cover__play {

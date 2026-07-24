@@ -20,14 +20,19 @@ type WorksAssetEmptyCardProps = {
   title: string;
 };
 
-function fileUrl(asset: ContentAsset) {
-  if (!asset.fileUrl) {
+function resolvedAssetUrl(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
     return '';
   }
-  if (/^https?:\/\//i.test(asset.fileUrl)) {
-    return asset.fileUrl;
+  const url = value.trim();
+  if (/^https?:\/\//i.test(url)) {
+    return url;
   }
-  return `${API_BASE_URL}${asset.fileUrl}`;
+  return `${API_BASE_URL}${url}`;
+}
+
+function fileUrl(asset: ContentAsset) {
+  return resolvedAssetUrl(asset.fileUrl);
 }
 
 function worksAssetStatus(asset: ContentAsset): WorksAssetStatus {
@@ -87,6 +92,7 @@ function formatDurationLabel(seconds: number) {
 export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps) {
   const status = worksAssetStatus(asset);
   const url = fileUrl(asset);
+  const posterUrl = resolvedAssetUrl(asset.metadata?.coverUrl);
   const isCompleted = status === 'completed' && Boolean(url);
   const isVideo = asset.mimeType.startsWith('video/');
   const videoWorkSource = getVideoWorkSource(asset);
@@ -148,7 +154,9 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
             ? <img alt={asset.name} src={url} />
             : (
               <VideoAssetCover
+                fit="contain"
                 onLoadedMetadata={handleVideoMetadata}
+                poster={posterUrl}
                 source={videoWorkSource}
                 src={url}
               />

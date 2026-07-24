@@ -2,6 +2,13 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-24 视频成片封面
+
+- 完成态 `VideoGenerationTask` 新增 `generatedCoverUrl`，指向后端在成片持久化后通过 ffmpeg 截取第一帧生成的 JPEG 封面。
+- `editableParseResult.videoGenerationResult.coverUrl` 继续保留以兼容现有调用方；封面生成成功后与 `generatedCoverUrl` 指向同一持久化资源。
+- 封面生成失败不改变视频任务的成功状态，调用方应允许 `generatedCoverUrl` 为空。
+- 发现页 `DiscoverItem` 提供 `coverUrl`；发布时保存来源作品的封面快照，历史条目迁移回填，并用于视频卡片及全屏预览的 `poster`。
+
 ## 2026-07-23 发现管理
 
 - `GET /api/admin/discover/categories`、`GET /api/admin/discover/items` 及对应分类/条目的增删改接口仅管理员可访问。

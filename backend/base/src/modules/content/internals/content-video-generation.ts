@@ -28,6 +28,7 @@ import {
 } from './content-common.js';
 import { createPendingFinishedVideoAsset, ensureGeneratedAssetGroup } from './content-image-assets.js';
 import { DEFAULT_VIDEO_PROCESSING_TIMEOUT_MS, defaultVideoPollMaxAttempts } from './content-video-polling.js';
+import { generateVideoCover } from './content-video-local-mirror.js';
 import { updateVideoTaskParseResult } from './content-video-task-runtime.js';
 import { isRecord } from './content-viral-analysis.js';
 import { ViralDirectorStatus, logVideoGenerationFlow, normalizeViralConversationMessages, stringValue } from './content-viral-director.js';
@@ -4003,6 +4004,11 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
     if (!asset) {
       throw new Error('分段合并成片素材创建失败');
     }
+    const cover = await generateVideoCover({
+      assetId: asset.id,
+      taskId: task.id,
+      videoFilePath: merged.filePath,
+    });
     const completedResult: VideoGenerationResult = {
       version: 1,
       taskId: task.id,
@@ -4011,6 +4017,7 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
       model: request.modelId,
       jobId: segmentResults.map((item) => item.jobId).filter(Boolean).join(',') || undefined,
       videoUrl: merged.fileUrl,
+      coverUrl: cover?.coverUrl,
       duration: formatDurationLabel(request.totalSeconds),
       ratio: request.ratio,
       renderMode: 'provider_generation',
@@ -4020,14 +4027,17 @@ export async function resumeSegmentedSeedanceVideoGeneration(task: VideoGenerati
       generatedAt: new Date().toISOString(),
     };
     const generatedTask = contentRepository.markVideoTaskGenerated(task.id, merged.fileUrl) || task;
+    const generatedTaskWithCover = cover
+      ? contentRepository.findVideoTask(task.id) || generatedTask
+      : generatedTask;
     const taskWithResult = updateVideoTaskParseResult(task.id, {
       editableParseResult: {
-        ...generatedTask.editableParseResult,
+        ...generatedTaskWithCover.editableParseResult,
         videoGenerationResult: completedResult,
       },
-      selectedDigitalHumanId: generatedTask.selectedDigitalHumanId,
-      selectedSceneId: generatedTask.selectedSceneId,
-      selectedVoiceId: generatedTask.selectedVoiceId,
+      selectedDigitalHumanId: generatedTaskWithCover.selectedDigitalHumanId,
+      selectedSceneId: generatedTaskWithCover.selectedSceneId,
+      selectedVoiceId: generatedTaskWithCover.selectedVoiceId,
     });
     const completedTask = contentRepository.updateVideoTaskContext(task.id, {
       selectedSkillIds: taskWithResult.selectedSkillIds,

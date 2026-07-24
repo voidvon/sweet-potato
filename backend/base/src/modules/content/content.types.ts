@@ -244,6 +244,7 @@ export type VideoGenerationTask = {
   selectedVoiceId?: string | null;
   selectedSceneId?: string | null;
   generatedVideoUrl?: string | null;
+  generatedCoverUrl?: string | null;
   aspectRatio: string;
   creditCost?: number | null;
   failureReason?: string | null;
