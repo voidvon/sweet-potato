@@ -159,7 +159,7 @@ const ReferenceMention = Mention.extend({
   },
 });
 
-function MentionChipView({ node }: NodeViewProps) {
+function MentionChipView({ editor, getPos, node }: NodeViewProps) {
   const previewUrl = String(node.attrs.previewUrl ?? '');
   const mimeType = String(node.attrs.mimeType ?? '');
   const attachmentId = String(node.attrs.attachmentId ?? '');
@@ -184,6 +184,19 @@ function MentionChipView({ node }: NodeViewProps) {
       data-preview-url={previewUrl || undefined}
       data-attachment-id={attachmentId || undefined}
       data-token={token}
+      onMouseDown={(event: MouseEvent<HTMLSpanElement>) => {
+        if (isPlaceholder || canPreviewImage) {
+          event.preventDefault();
+          event.stopPropagation();
+          const mentionPosition = getPos();
+          if (typeof mentionPosition === 'number') {
+            const maxPosition = Math.max(1, editor.state.doc.content.size - 1);
+            const positionAfterMention = Math.min(mentionPosition + node.nodeSize, maxPosition);
+            editor.commands.setTextSelection(positionAfterMention);
+            editor.view.dom.focus({ preventScroll: true });
+          }
+        }
+      }}
       onClick={(event: MouseEvent<HTMLSpanElement>) => {
         if (isPlaceholder) {
           event.preventDefault();
@@ -355,6 +368,19 @@ function isJsonContentEqual(left: unknown, right: unknown): boolean {
       && isJsonContentEqual(leftRecord[key], rightRecord[key]));
 }
 
+function setContentPreservingSelection(editor: Editor, content: JSONContent) {
+  const { from, to } = editor.state.selection;
+  const wasFocused = editor.isFocused;
+  editor.commands.setContent(content, { emitUpdate: false });
+  if (!wasFocused) {
+    return;
+  }
+  const maxPosition = Math.max(1, editor.state.doc.content.size - 1);
+  const nextFrom = Math.min(Math.max(from, 1), maxPosition);
+  const nextTo = Math.min(Math.max(to, nextFrom), maxPosition);
+  editor.commands.setTextSelection({ from: nextFrom, to: nextTo });
+}
+
 function getActiveFallbackMentionRange(editor: Editor): FallbackMentionRange | null {
   const { from, empty } = editor.state.selection;
   if (!empty) {
@@ -482,7 +508,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   const minHeight = Math.max(minRows, 1) * 25 + 40;
   const optionsRef = useRef(options);
   const onPlaceholderClickRef = useRef(onPlaceholderClick);
-  const lastEmittedValueRef = useRef(value);
+  const pendingLocalValuesRef = useRef<string[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [fallbackMenuOpen, setFallbackMenuOpen] = useState(false);
   const [fallbackMenuStyle, setFallbackMenuStyle] = useState<CSSProperties | undefined>();
@@ -537,7 +563,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       return;
     }
     const activeRange = getActiveFallbackMentionRange(editor);
-    const chain = editor.chain().focus();
+    const chain = editor.chain();
     if (activeRange) {
       chain.deleteRange({ from: activeRange.from, to: activeRange.to });
     }
@@ -554,7 +580,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     if (!(target instanceof HTMLElement)) {
       return;
     }
-    if (target.closest('.mention-rich-textarea-menu')) {
+    if (target.closest('.mention-rich-textarea-menu') || target.closest('.mention-rich-textarea-chip')) {
       return;
     }
     const editorElement = target.closest('.mention-rich-textarea-editor');
@@ -564,7 +590,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       // Text is rendered inside paragraph nodes, so clicking the editor body
       // does not necessarily target the contenteditable root itself. Focus
       // without forcing a position to preserve the user's caret location.
-      editor.commands.focus();
+      editor.commands.focus(undefined, { scrollIntoView: false });
     }
   };
 
@@ -704,7 +730,6 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
             const item = props as unknown as MentionSuggestionItem;
             editor
               .chain()
-              .focus()
               .insertContentAt(range, [mentionContentNode(item)])
               .run();
           },
@@ -781,7 +806,13 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     onUpdate: ({ editor: currentEditor }) => {
       syncFallbackMenuVisibility(currentEditor);
       const nextValue = nodeToPlainText(currentEditor.getJSON());
-      lastEmittedValueRef.current = nextValue;
+      const pendingValues = pendingLocalValuesRef.current;
+      if (pendingValues[pendingValues.length - 1] !== nextValue) {
+        pendingValues.push(nextValue);
+        if (pendingValues.length > 20) {
+          pendingValues.splice(0, pendingValues.length - 20);
+        }
+      }
       onChange(nextValue);
     },
   });
@@ -802,13 +833,24 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     }
     const currentDoc = editor.getJSON();
     const currentValue = nodeToPlainText(currentDoc);
+    const pendingValueIndex = pendingLocalValuesRef.current.lastIndexOf(value);
     if (currentValue !== value) {
-      if (lastEmittedValueRef.current === value) {
+      if (pendingValueIndex >= 0) {
+        // React may commit an older controlled value after TipTap has already
+        // emitted a newer transaction. Ignore that stale local echo instead
+        // of rebuilding the document and moving the caret to the end.
+        pendingLocalValuesRef.current.splice(0, pendingValueIndex + 1);
         return;
       }
       editor.commands.setContent(plainTextToDoc(value, options), { emitUpdate: false });
-      lastEmittedValueRef.current = value;
+      pendingLocalValuesRef.current = [];
       return;
+    }
+
+    if (pendingValueIndex >= 0) {
+      pendingLocalValuesRef.current.splice(0, pendingValueIndex + 1);
+    } else if (pendingLocalValuesRef.current.length > 0) {
+      pendingLocalValuesRef.current = [];
     }
 
     const normalizedDoc = normalizeMentionDoc(currentDoc, options);
@@ -817,7 +859,9 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     }
     const normalizedValue = nodeToPlainText(normalizedDoc);
     if (!isJsonContentEqual(normalizedDoc, currentDoc)) {
-      editor.commands.setContent(normalizedDoc, { emitUpdate: false });
+      // Updating mention preview/placeholder metadata keeps the same text
+      // positions, so preserve the user's active selection across the rebuild.
+      setContentPreservingSelection(editor, normalizedDoc);
     }
     if (normalizedValue !== currentValue) {
       onChange(normalizedValue);
