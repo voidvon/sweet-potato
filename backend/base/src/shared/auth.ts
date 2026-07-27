@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { authTokenExpiresInSeconds, authTokenSecret } from '../config/env.js';
-import type { UserRole } from '../modules/users/user.types.js';
+import { userRepository } from '../modules/users/user.repository.js';
+import type { User, UserRole } from '../modules/users/user.types.js';
 
 type JwtHeader = {
   alg: 'HS256';
@@ -10,6 +11,7 @@ type JwtHeader = {
 export type AuthTokenPayload = {
   sub: string;
   role: UserRole;
+  authVersion: number;
   iat: number;
   exp: number;
 };
@@ -31,7 +33,7 @@ function safeEquals(left: string, right: string) {
   return timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-export function createAuthToken(input: { userId: string; role: UserRole }) {
+export function createAuthToken(input: { userId: string; role: UserRole; authVersion: number }) {
   const header: JwtHeader = { alg: 'HS256', typ: 'JWT' };
   const iat = Math.floor(Date.now() / 1000);
   const expiresIn = Number.isFinite(authTokenExpiresInSeconds) && authTokenExpiresInSeconds > 0
@@ -40,6 +42,7 @@ export function createAuthToken(input: { userId: string; role: UserRole }) {
   const payload: AuthTokenPayload = {
     sub: input.userId,
     role: input.role,
+    authVersion: input.authVersion,
     iat,
     exp: iat + expiresIn,
   };
@@ -68,9 +71,12 @@ export function verifyAuthToken(token: string): AuthTokenPayload | null {
     }
 
     const payload = JSON.parse(base64UrlDecode(encodedPayload)) as Partial<AuthTokenPayload>;
+    const authVersion = payload.authVersion === undefined ? 1 : Number(payload.authVersion);
     if (
       typeof payload.sub !== 'string'
       || (payload.role !== 'admin' && payload.role !== 'user')
+      || !Number.isInteger(authVersion)
+      || authVersion < 1
       || typeof payload.iat !== 'number'
       || typeof payload.exp !== 'number'
     ) {
@@ -84,6 +90,7 @@ export function verifyAuthToken(token: string): AuthTokenPayload | null {
     return {
       sub: payload.sub,
       role: payload.role,
+      authVersion,
       iat: payload.iat,
       exp: payload.exp,
     };
@@ -99,4 +106,22 @@ export function extractBearerToken(value: string | undefined) {
 
   const match = value.match(/^Bearer\s+(.+)$/i);
   return (match ? match[1] : value).trim() || null;
+}
+
+export function resolveAuthenticatedUser(token: string): { payload: AuthTokenPayload; user: User } | null {
+  const payload = verifyAuthToken(token);
+  if (!payload) {
+    return null;
+  }
+
+  const user = userRepository.findById(payload.sub);
+  if (!user) {
+    return null;
+  }
+
+  if (user.authVersion !== payload.authVersion) {
+    return null;
+  }
+
+  return { payload, user };
 }

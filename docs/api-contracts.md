@@ -2,6 +2,13 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-27 权限变更强制重新登录
+
+- `POST /api/auth/login` 与 `POST /api/auth/register` 返回的 Bearer token 现在携带服务端 `auth_version`，后端会在鉴权时校验该版本；当账号权限发生有效变化后，旧 token 会立即失效并返回 `401`。
+- `PATCH /api/users/:id/role-assignment` 只有在目标账号的业务角色集合实际发生变化时，才会 bump `auth_version` 并发送实时通知；重复保存相同角色集合不会触发强制退出。
+- `PUT /api/roles/:id` 只有在角色授权资源集合发生变化时，才会对已分配该角色的账号 bump `auth_version` 并发送实时通知；仅修改角色名称、描述或默认角色标记不会触发强制退出。
+- `GET /api/app/events` 的 `permission-updated` SSE payload 扩展为 `{ type, userId, changedAt, reason, requireRelogin }`，只会发给受影响账号的在线连接；`reason` 取值为 `role-assignment-updated` 或 `role-grants-updated`，当前 `requireRelogin` 恒为 `true`。
+
 ## 2026-07-24 视频成片封面
 
 - 完成态 `VideoGenerationTask` 新增 `generatedCoverUrl`，指向后端在成片持久化后通过 ffmpeg 截取第一帧生成的 JPEG 封面。

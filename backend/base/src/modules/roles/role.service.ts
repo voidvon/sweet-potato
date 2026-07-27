@@ -7,6 +7,7 @@ import { roleRepository } from './role.repository.js';
 import type { CreateAppRoleInput, UpdateAppRoleInput } from './role.types.js';
 import type { User } from '../users/user.types.js';
 import { publishAppEvent } from '../app-events/app.events.js';
+import { userRepository } from '../users/user.repository.js';
 
 function normalizeRoleName(value: unknown) {
   return String(value || '').trim();
@@ -20,6 +21,14 @@ function assertRoleName(name: string) {
   if (name.length < 2) {
     throw new Error('角色名称至少 2 位');
   }
+}
+
+function areSameStringSets(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const rightSet = new Set(right);
+  return left.every((item) => rightSet.has(item));
 }
 
 function slugifyRoleKey(name: string) {
@@ -117,6 +126,9 @@ export function updateAppRole(roleId: string, input: UpdateAppRoleInput) {
   const description = normalizeDescription(input.description);
   const resourceIds = resolveRoleGrantResourceIds(input);
   const isDefault = Boolean(input.isDefault);
+  const currentResourceIds = roleRepository.listResourceIds(roleId);
+  const permissionsChanged = !areSameStringSets(currentResourceIds, resourceIds);
+  const affectedUserIds = permissionsChanged ? roleRepository.listAssignedUserIds(roleId) : [];
 
   assertRoleName(name);
 
@@ -127,6 +139,9 @@ export function updateAppRole(roleId: string, input: UpdateAppRoleInput) {
       description,
     });
     roleRepository.replaceResourceGrants(roleId, resourceIds);
+    if (permissionsChanged && affectedUserIds.length) {
+      userRepository.bumpAuthVersions(affectedUserIds);
+    }
     if (isDefault) {
       roleRepository.setDefaultRole(roleId);
       return;
@@ -135,9 +150,18 @@ export function updateAppRole(roleId: string, input: UpdateAppRoleInput) {
       roleRepository.setDefaultRole(null);
     }
   })();
-  roleRepository.listAssignedUserIds(roleId).forEach((userId) => {
-    publishAppEvent({ type: 'permission-updated', userId });
-  });
+  if (permissionsChanged) {
+    const changedAt = new Date().toISOString();
+    affectedUserIds.forEach((userId) => {
+      publishAppEvent({
+        type: 'permission-updated',
+        userId,
+        changedAt,
+        reason: 'role-grants-updated',
+        requireRelogin: true,
+      });
+    });
+  }
   return roleRepository.findById(roleId);
 }
 

@@ -5,7 +5,7 @@ import type { AiAgent } from '../agents/agent.types.js';
 import { agentRepository } from '../agents/agent.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
-import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
+import { extractBearerToken, resolveAuthenticatedUser } from '../../shared/auth.js';
 import { resolveIncomingClientIp } from '../../shared/client-ip.js';
 import { ipBlacklistService } from '../ip-blacklist/ip-blacklist.service.js';
 import { userRepository } from '../users/user.repository.js';
@@ -860,12 +860,12 @@ function resolveSocketUserId(request: import('node:http').IncomingMessage) {
     return null;
   }
 
-  const payload = verifyAuthToken(token);
-  if (!payload) {
+  const session = resolveAuthenticatedUser(token);
+  if (!session) {
     return null;
   }
 
-  const user = userRepository.findById(payload.sub);
+  const { user } = session;
   if (!user || user.isBlacklisted) {
     return null;
   }

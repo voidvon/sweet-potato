@@ -3,7 +3,7 @@ import { db } from '../../db/database.js';
 import { createAuthToken } from '../../shared/auth.js';
 import { getRegistrationRole, resolveUserPermissions } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
-import type { PublicUser, User, UserRole } from './user.types.js';
+import type { PublicUser, User } from './user.types.js';
 
 export class UserAlreadyExistsError extends Error {
   constructor() {
@@ -16,8 +16,8 @@ export function hashPassword(password: string, salt: string) {
   return createHash('sha256').update(`${salt}:${password}`).digest('hex');
 }
 
-export function createToken(userId: string, role: UserRole) {
-  return createAuthToken({ userId, role });
+export function createToken(user: Pick<User, 'id' | 'role' | 'authVersion'>) {
+  return createAuthToken({ userId: user.id, role: user.role, authVersion: user.authVersion });
 }
 
 export function publicUser(user: User): PublicUser {
@@ -52,6 +52,7 @@ export function createUser(username: string, password: string, displayName: stri
       username: input.username,
       displayName: input.displayName,
       role: firstUser ? 'admin' : 'user',
+      authVersion: 1,
       isBlacklisted: false,
       creditBalance: 0,
       salt,

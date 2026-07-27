@@ -1,8 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
-import { extractBearerToken, verifyAuthToken } from '../../shared/auth.js';
+import { extractBearerToken, resolveAuthenticatedUser } from '../../shared/auth.js';
 import { sendError } from '../../shared/http.js';
 import { resolveClientIp } from '../../shared/client-ip.js';
-import { userRepository } from '../users/user.repository.js';
 import { rateLimitSettingsService, type CompiledRateLimitRule } from './rate-limit-settings.service.js';
 
 type RateLimitAudience = 'authenticated' | 'anonymous';
@@ -23,10 +22,8 @@ function readQueryToken(req: Request) {
 function resolveAudience(req: Request): RateLimitAudience {
   const token = extractBearerToken(req.header('authorization') || undefined) || readQueryToken(req);
   if (!token) return 'anonymous';
-  const payload = verifyAuthToken(token);
-  if (!payload) return 'anonymous';
-  const user = userRepository.findById(payload.sub);
-  if (!user || user.isBlacklisted) return 'anonymous';
+  const session = resolveAuthenticatedUser(token);
+  if (!session || session.user.isBlacklisted) return 'anonymous';
   return 'authenticated';
 }
 

@@ -24,7 +24,7 @@ export function createAuthRouter() {
 
     try {
       const user = createUser(username, password, displayName);
-      res.status(201).json({ user: publicUser(user), token: createToken(user.id, user.role) });
+      res.status(201).json({ user: publicUser(user), token: createToken(user) });
     } catch (error) {
       if (error instanceof UserAlreadyExistsError) {
         sendError(res, 409, error.message);
@@ -56,7 +56,7 @@ export function createAuthRouter() {
         ...user,
         lastLoginAt,
       }),
-      token: createToken(user.id, user.role),
+      token: createToken(user),
     });
   });
 

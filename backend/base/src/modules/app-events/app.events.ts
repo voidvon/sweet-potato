@@ -7,6 +7,9 @@ type AppRealtimeEvent = {
 
 export type AppPermissionUpdatedEvent = AppRealtimeEvent & {
   type: 'permission-updated';
+  changedAt: string;
+  reason: 'role-assignment-updated' | 'role-grants-updated';
+  requireRelogin: true;
 };
 
 const clientsByUserId = new Map<string, Set<Response>>();

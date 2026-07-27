@@ -1,10 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
+import { db } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { adjustUserCredits } from '../billing/billing.service.js';
 import { resolveUserPermissions } from '../roles/role.service.js';
 import { ensureRoleAssignable } from '../roles/role.service.js';
+import { roleRepository } from '../roles/role.repository.js';
 import { userRepository } from './user.repository.js';
 import { hashPassword, publicUser } from './user.service.js';
 import type { ManagedUser, ManagedUserSortBy, ManagedUserSortOrder, User } from './user.types.js';
@@ -44,6 +46,14 @@ function normalizeRoleIds(value: unknown) {
     return [];
   }
   return Array.from(new Set(value.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])));
+}
+
+function areSameStringSets(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const rightSet = new Set(right);
+  return left.every((item) => rightSet.has(item));
 }
 
 export function createUserRouter() {
@@ -263,6 +273,9 @@ export function createUserRouter() {
     }
 
     const nextRoleIds = normalizeRoleIds(req.body.roleIds);
+    const currentRoleIds = Array.from(new Set(user.roleIds || []));
+    const currentPermissions = resolveUserPermissions(user);
+    const nextPermissions = roleRepository.listPermissionCodesByRoleIds(nextRoleIds);
 
     try {
       nextRoleIds.forEach((roleId) => ensureRoleAssignable(roleId));
@@ -271,13 +284,35 @@ export function createUserRouter() {
       return;
     }
 
-    userRepository.updateRoleAssignments(user.id, nextRoleIds);
-    const updated = userRepository.findById(user.id);
+    const assignmentsChanged = !areSameStringSets(currentRoleIds, nextRoleIds);
+    const permissionsChanged = !areSameStringSets(currentPermissions, nextPermissions);
+
+    if (!assignmentsChanged) {
+      res.json({ user: serializeManagedUser(user) });
+      return;
+    }
+
+    const changedAt = new Date().toISOString();
+    const updated = db.transaction(() => {
+      userRepository.replaceRoleAssignments(user.id, nextRoleIds);
+      if (permissionsChanged) {
+        userRepository.bumpAuthVersion(user.id);
+      }
+      return userRepository.findById(user.id);
+    })();
     if (!updated) {
       sendError(res, 404, '用户不存在');
       return;
     }
-    publishAppEvent({ type: 'permission-updated', userId: updated.id });
+    if (permissionsChanged) {
+      publishAppEvent({
+        type: 'permission-updated',
+        userId: updated.id,
+        changedAt,
+        reason: 'role-assignment-updated',
+        requireRelogin: true,
+      });
+    }
     res.json({ user: serializeManagedUser(updated) });
   });
 

@@ -10,6 +10,7 @@ type UserRow = {
   displayName: string;
   avatarUrl?: string | null;
   role: UserRole;
+  authVersion: number;
   passwordHash: string;
   salt: string;
   createdAt: string;
@@ -36,6 +37,7 @@ const userSelect = `
     display_name as displayName,
     avatar_url as avatarUrl,
     role,
+    auth_version as authVersion,
     is_blacklisted as isBlacklisted,
     credit_balance as creditBalance,
     password_hash as passwordHash,
@@ -156,8 +158,8 @@ export const userRepository = {
 
   create(user: User) {
     const insertUserQuery = db.prepare(`
-      INSERT INTO users (id, username, display_name, role, role_id, is_blacklisted, credit_balance, password_hash, salt, created_at, last_login_at)
-      VALUES (@id, @username, @displayName, @role, @roleId, @isBlacklisted, @creditBalance, @passwordHash, @salt, @createdAt, @lastLoginAt)
+      INSERT INTO users (id, username, display_name, role, auth_version, role_id, is_blacklisted, credit_balance, password_hash, salt, created_at, last_login_at)
+      VALUES (@id, @username, @displayName, @role, @authVersion, @roleId, @isBlacklisted, @creditBalance, @passwordHash, @salt, @createdAt, @lastLoginAt)
     `);
 
     insertUserQuery.run({
@@ -202,18 +204,42 @@ export const userRepository = {
 
   updateRoleAssignments(id: string, roleIds: string[]) {
     const uniqueRoleIds = Array.from(new Set(roleIds.filter(Boolean)));
-    const transaction = db.transaction((userId: string, nextRoleIds: string[]) => {
-      db.prepare('DELETE FROM user_role_assignments WHERE user_id = ?').run(userId);
-      const insert = db.prepare(`
-        INSERT INTO user_role_assignments (user_id, role_id, created_at)
-        VALUES (@userId, @roleId, @createdAt)
-      `);
-      const createdAt = new Date().toISOString();
-      nextRoleIds.forEach((roleId) => {
-        insert.run({ userId, roleId, createdAt });
-      });
+    this.replaceRoleAssignments(id, uniqueRoleIds);
+  },
+
+  replaceRoleAssignments(id: string, roleIds: string[]) {
+    const uniqueRoleIds = Array.from(new Set(roleIds.filter(Boolean)));
+    db.prepare('DELETE FROM user_role_assignments WHERE user_id = ?').run(id);
+    const insert = db.prepare(`
+      INSERT INTO user_role_assignments (user_id, role_id, created_at)
+      VALUES (@userId, @roleId, @createdAt)
+    `);
+    const createdAt = new Date().toISOString();
+    uniqueRoleIds.forEach((roleId) => {
+      insert.run({ userId: id, roleId, createdAt });
     });
-    transaction(id, uniqueRoleIds);
+  },
+
+  bumpAuthVersion(id: string) {
+    db.prepare(`
+      UPDATE users
+      SET auth_version = auth_version + 1
+      WHERE id = @id
+    `).run({ id });
+  },
+
+  bumpAuthVersions(userIds: string[]) {
+    const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
+    if (!uniqueUserIds.length) {
+      return;
+    }
+    const placeholders = uniqueUserIds.map((_, index) => `@userId${index}`).join(', ');
+    const params = Object.fromEntries(uniqueUserIds.map((userId, index) => [`userId${index}`, userId]));
+    db.prepare(`
+      UPDATE users
+      SET auth_version = auth_version + 1
+      WHERE id IN (${placeholders})
+    `).run(params);
   },
 
   updateCreditBalance(id: string, creditBalance: number) {

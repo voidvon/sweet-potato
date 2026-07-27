@@ -31,7 +31,7 @@ test('talking video resume stream returns 410 when the backend registry no longe
     migrateDatabase();
     const user = createUser(`talking-video-owner-${randomBytes(4).toString('hex')}`, 'password123', 'Talking Video Owner');
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', user.id);
-    const token = createToken(user.id, user.role);
+    const token = createToken({ ...user, role: 'admin' });
 
     appServer = createApp().listen(0, '127.0.0.1');
     await once(appServer, 'listening');
@@ -80,7 +80,7 @@ test('talking video resume stream preserves tasks that still exist in the backen
     migrateDatabase();
     const user = createUser(`talking-video-owner-${randomBytes(4).toString('hex')}`, 'password123', 'Talking Video Owner');
     db.prepare('UPDATE users SET role = ? WHERE id = ?').run('admin', user.id);
-    const token = createToken(user.id, user.role);
+    const token = createToken({ ...user, role: 'admin' });
     const taskId = `talking-video-existing-${randomBytes(4).toString('hex')}`;
 
     startTalkingVideoTask({
@@ -171,8 +171,8 @@ test('talking video history import and query persist the latest tasks per user',
   const user = createUser(`talking-history-${suffix}`, 'password123', 'Talking History Owner');
   const otherUser = createUser(`talking-history-other-${suffix}`, 'password123', 'Other Owner');
   db.prepare('UPDATE users SET role = ? WHERE id IN (?, ?)').run('admin', user.id, otherUser.id);
-  const token = createToken(user.id, 'admin');
-  const otherToken = createToken(otherUser.id, 'admin');
+  const token = createToken({ ...user, role: 'admin' });
+  const otherToken = createToken({ ...otherUser, role: 'admin' });
   const group = contentRepository.createGroup({
     userId: user.id,
     resourceType: 'other',

@@ -99,6 +99,7 @@ export function migrateDatabase() {
       username TEXT NOT NULL UNIQUE,
       display_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
+      auth_version INTEGER NOT NULL DEFAULT 1,
       role_id TEXT,
       is_blacklisted INTEGER NOT NULL DEFAULT 0,
       credit_balance REAL NOT NULL DEFAULT 0,
@@ -810,6 +811,7 @@ export function migrateDatabase() {
 
   addColumnIfMissing('users', 'avatar_url', 'avatar_url TEXT');
   addColumnIfMissing('users', 'role', "role TEXT NOT NULL DEFAULT 'user'");
+  addColumnIfMissing('users', 'auth_version', 'auth_version INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing('users', 'role_id', 'role_id TEXT');
   addColumnIfMissing('users', 'is_blacklisted', 'is_blacklisted INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing('users', 'credit_balance', 'credit_balance REAL NOT NULL DEFAULT 0');

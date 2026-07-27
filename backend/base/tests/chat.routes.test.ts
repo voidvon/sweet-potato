@@ -32,8 +32,8 @@ test('chat conversation detail returns conversation and messages for owner only'
 
     const owner = createUser(`owner-${randomBytes(4).toString('hex')}`, 'password123', 'Owner');
     const stranger = createUser(`stranger-${randomBytes(4).toString('hex')}`, 'password123', 'Stranger');
-    const ownerToken = createToken(owner.id, owner.role);
-    const strangerToken = createToken(stranger.id, stranger.role);
+    const ownerToken = createToken(owner);
+    const strangerToken = createToken(stranger);
 
     const now = new Date().toISOString();
     chatRepository.createConversation({

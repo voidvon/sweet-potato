@@ -32,6 +32,9 @@ export type AppCreditBalanceUpdatedDetail = {
 
 export type AppPermissionUpdatedDetail = {
   userId: string;
+  changedAt?: string;
+  reason?: 'role-assignment-updated' | 'role-grants-updated';
+  requireRelogin?: boolean;
 };
 
 export const appRealtimeEventNames = {
@@ -44,6 +47,7 @@ type AppRealtimeEventsProviderProps = {
   currentUser: User | null;
   children: ReactNode;
   onCreditBalanceUpdated: (userId: string, creditBalance: number) => void;
+  onPermissionUpdated: (detail: AppPermissionUpdatedDetail) => void;
   onUserUpdated: (user: User) => void;
 };
 
@@ -51,7 +55,13 @@ function dispatchAppEvent<T>(name: string, detail: T) {
   window.dispatchEvent(new CustomEvent<T>(name, { detail }));
 }
 
-export function AppRealtimeEventsProvider({ currentUser, children, onCreditBalanceUpdated, onUserUpdated }: AppRealtimeEventsProviderProps) {
+export function AppRealtimeEventsProvider({
+  currentUser,
+  children,
+  onCreditBalanceUpdated,
+  onPermissionUpdated,
+  onUserUpdated,
+}: AppRealtimeEventsProviderProps) {
   const currentUserId = currentUser?.id;
 
   useEffect(() => {
@@ -104,12 +114,8 @@ export function AppRealtimeEventsProvider({ currentUser, children, onCreditBalan
       if (detail.userId !== currentUserId) {
         return;
       }
-      void getCurrentUser().then(({ user }) => {
-        if (user.id === currentUserId) {
-          onUserUpdated(user);
-          dispatchAppEvent(appRealtimeEventNames.permissionUpdated, detail);
-        }
-      }).catch(() => undefined);
+      dispatchAppEvent(appRealtimeEventNames.permissionUpdated, detail);
+      onPermissionUpdated(detail);
     };
 
     source.addEventListener('open', handleOpen);
@@ -123,7 +129,7 @@ export function AppRealtimeEventsProvider({ currentUser, children, onCreditBalan
       source.removeEventListener('permission-updated', handlePermissionUpdated);
       source.close();
     };
-  }, [currentUserId, onCreditBalanceUpdated, onUserUpdated]);
+  }, [currentUserId, onCreditBalanceUpdated, onPermissionUpdated, onUserUpdated]);
 
   return children;
 }

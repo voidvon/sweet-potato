@@ -21,6 +21,7 @@ export type User = {
   displayName: string;
   avatarUrl?: string | null;
   role: UserRole;
+  authVersion: number;
   roleIds?: string[];
   assignedRoles?: AssignedRole[];
   permissions?: string[];

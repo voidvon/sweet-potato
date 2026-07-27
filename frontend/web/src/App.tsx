@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Spin } from 'antd';
+import { Button, Modal, Spin } from 'antd';
 import { getCurrentUser } from '@shared/api/user';
-import { getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
-import { AppRealtimeEventsProvider } from './events/appRealtimeEvents';
+import { getLoginRoute, getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
+import { AppRealtimeEventsProvider, type AppPermissionUpdatedDetail } from './events/appRealtimeEvents';
 import { AppRoutes } from './routes/AppRoutes';
 import type { AuthSession, User } from '@shared/types';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
+  const [permissionNotice, setPermissionNotice] = useState<AppPermissionUpdatedDetail | null>(null);
   const [sessionHydrated, setSessionHydrated] = useState(() => !getStoredToken());
 
   useEffect(() => {
@@ -75,6 +76,26 @@ function App() {
     });
   }, []);
 
+  const handlePermissionUpdated = useCallback((detail: AppPermissionUpdatedDetail) => {
+    setPermissionNotice((current) => {
+      if (!current) {
+        return detail;
+      }
+      if (!detail.changedAt || !current.changedAt) {
+        return detail;
+      }
+      return detail.changedAt >= current.changedAt ? detail : current;
+    });
+  }, []);
+
+  const handleAcknowledgePermissionNotice = useCallback(() => {
+    removeStoredUser();
+    setPermissionNotice(null);
+    setCurrentUser(null);
+    setSessionHydrated(true);
+    window.location.replace(getLoginRoute());
+  }, []);
+
   if (!sessionHydrated) {
     return (
       <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -87,8 +108,24 @@ function App() {
     <AppRealtimeEventsProvider
       currentUser={currentUser}
       onCreditBalanceUpdated={handleCreditBalanceUpdated}
+      onPermissionUpdated={handlePermissionUpdated}
       onUserUpdated={handleUserUpdated}
     >
+      <Modal
+        cancelButtonProps={{ style: { display: 'none' } }}
+        closable={false}
+        footer={(
+          <Button onClick={handleAcknowledgePermissionNotice} type="primary">
+            知道了
+          </Button>
+        )}
+        keyboard={false}
+        maskClosable={false}
+        open={Boolean(permissionNotice)}
+        title="账号权限已变更"
+      >
+        当前账号权限已变更，需要重新登录后继续使用。
+      </Modal>
       <AppRoutes
         key={currentUser?.id || 'anonymous'}
         currentUser={currentUser}

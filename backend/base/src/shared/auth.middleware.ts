@@ -1,9 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { resolveUserPermissions } from '../modules/roles/role.service.js';
-import { userRepository } from '../modules/users/user.repository.js';
 import { findResourceByPermissionCode, findResourceByResourceKey } from './resource-permission.js';
 import { sendError } from './http.js';
-import { extractBearerToken, verifyAuthToken } from './auth.js';
+import { extractBearerToken, resolveAuthenticatedUser } from './auth.js';
 
 const publicApiPaths = new Set([
   '/api/auth/register',
@@ -35,17 +34,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
-  const payload = verifyAuthToken(token);
-  if (!payload) {
-    sendError(res, 401, '登录令牌无效或已过期');
+  const session = resolveAuthenticatedUser(token);
+  if (!session) {
+    sendError(res, 401, '登录状态已失效，请重新登录');
     return;
   }
 
-  const user = userRepository.findById(payload.sub);
-  if (!user) {
-    sendError(res, 401, '用户不存在');
-    return;
-  }
+  const { user } = session;
 
   if (user.isBlacklisted) {
     sendError(res, 403, '账号已被拉黑，请联系管理员');
