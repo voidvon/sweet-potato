@@ -475,6 +475,8 @@ export function UserManagementPage() {
     },
     {
       title: '操作',
+      key: 'actions',
+      fixed: 'right',
       width: 120,
       render: (_value, record) => {
         const actionDisabled = updatingUserId === record.id;

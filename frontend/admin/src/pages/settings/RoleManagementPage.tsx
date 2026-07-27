@@ -410,6 +410,8 @@ export function RoleManagementPage() {
     },
     {
       title: '操作',
+      key: 'actions',
+      fixed: 'right',
       width: 220,
       render: (_value, record) => {
         const hasAssignedUsers = (record.assignedUserCount ?? 0) > 0;
