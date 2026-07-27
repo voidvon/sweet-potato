@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-27T10:07:00.000Z",
+  "generatedAt": "2026-07-27T12:30:00.000Z",
   "scope": "frontend/admin/src/**/*.{tsx,scss}",
   "files": {
     "frontend/admin/src/App.tsx": 127,
@@ -36,7 +36,12 @@
     "frontend/admin/src/pages/settings/TemporaryAssetCleanupPage.scss": 134,
     "frontend/admin/src/pages/settings/TemporaryAssetCleanupPage.tsx": 699,
     "frontend/admin/src/pages/settings/UserManagementPage.scss": 28,
-    "frontend/admin/src/pages/settings/UserManagementPage.tsx": 918,
+    "frontend/admin/src/pages/settings/UserManagementPage.tsx": 487,
+    "frontend/admin/src/pages/settings/user-management/UserCreditModal.tsx": 57,
+    "frontend/admin/src/pages/settings/user-management/UserDetailModal.tsx": 48,
+    "frontend/admin/src/pages/settings/user-management/UserDetailTabs.tsx": 244,
+    "frontend/admin/src/pages/settings/user-management/UserPasswordModal.tsx": 47,
+    "frontend/admin/src/pages/settings/user-management/UserRoleModal.tsx": 56,
     "frontend/admin/src/pages/works/AllWorksPage.scss": 49,
     "frontend/admin/src/pages/works/AllWorksPage.tsx": 299,
     "frontend/admin/src/routes/AppRoutes.tsx": 30,
