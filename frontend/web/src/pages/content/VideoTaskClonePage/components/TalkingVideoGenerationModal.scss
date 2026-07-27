@@ -169,18 +169,20 @@
   font-size: 10px;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-stack-wrapper,
-.talking-video-modal-audio-content.is-filled .video-task-stack-item.is-audio,
-.talking-video-modal-audio-content.is-filled .video-task-audio-preview-inner {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack-anchor,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__item.is-audio,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio {
   width: 100% !important;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-stack-wrapper,
-.talking-video-modal-audio-content.is-filled .video-task-stack-item.is-audio {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack-anchor,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__item.is-audio {
   height: 80px;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-audio-preview-inner {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio {
   align-items: center;
   flex-direction: row;
   gap: 10px;
@@ -189,12 +191,12 @@
   padding: 0 42px 0 14px;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-audio-play,
-.talking-video-modal-audio-content.is-filled .video-task-audio-duration {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio-play,
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio-duration {
   flex: 0 0 auto;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-audio-name {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio-name {
   display: block;
   flex: 1 1 auto;
   max-width: none;
@@ -207,7 +209,7 @@
   -webkit-line-clamp: unset;
 }
 
-.talking-video-modal-audio-content.is-filled .video-task-audio-duration {
+.talking-video-modal-audio-content.is-filled .media-attachment-stack__audio-duration {
   margin-left: auto;
 }
 

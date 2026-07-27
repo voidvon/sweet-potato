@@ -9,7 +9,7 @@ import type {
 } from '../types';
 import { ImageMaterialStack } from './ImageMaterialStack';
 import { AnimatedUploadPlus } from './AnimatedUploadPlus';
-import type { MediaSlotItem } from './MediaSlotStack';
+import type { MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import { resolveLocalMaterialUrl } from '../materialUrl';
@@ -160,9 +160,9 @@ function TalkingVideoImageSlot({
     caption: `图·${index + 1}`,
     id: file.id,
     src: resolveLocalMaterialUrl(file),
-    title: file.name,
+    name: file.name,
     type: 'image' as const,
-  })) satisfies MediaSlotItem[];
+  })) satisfies MediaAttachmentItem[];
 
   const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFiles = event.target.files ? Array.from(event.target.files) : [];

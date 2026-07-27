@@ -167,7 +167,8 @@
   color: var(--color-brand);
 }
 
-.talking-video-image-slot-main .video-task-stack-wrapper {
+.talking-video-image-slot-main .media-attachment-stack-anchor,
+.talking-video-image-slot-main .media-attachment-stack {
   flex: 0 0 auto;
   max-width: 100%;
   width: 80px !important;

@@ -4,7 +4,7 @@ import { ArrowRightLeft, Plus, X } from 'lucide-react';
 import { Fragment, useState } from 'react';
 import type { ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
-import { ImageAttachmentStack } from './ImageAttachmentStack';
+import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
 
 export type ClawReferenceGroupConfig = {
   key: string;
@@ -117,27 +117,38 @@ export function ClawReferenceGroups({
               ) : null}
               {hasAttachments ? (
                 <>
-                  <ImageAttachmentStack
-                    attachments={groupAttachments}
-                    onPreview={(_attachment, index) => setPreviewImageGroup({
+                  <MediaAttachmentStack
+                    collapsedActionVisibility="top"
+                    collapsedCaptionVisibility="top"
+                    items={groupAttachments.map((attachment, index) => ({
+                      caption: `图${startIndex + index}`,
+                      id: attachment.id,
+                      name: attachment.name,
+                      previewSrc: resolveAssetUrl(attachment.url),
+                      src: resolveAssetUrl(attachment.previewUrl || attachment.url),
+                      status: attachment.uploadStatus,
+                      type: 'image',
+                    }))}
+                    layout="rotated"
+                    maxCollapsedVisible={5}
+                    onPreview={(_item, index) => setPreviewImageGroup({
                       current: index,
                       images: groupAttachments,
                       open: true,
                     })}
-                    renderTopAction={readonly || !onRemoveAttachment ? undefined : (attachment) => (
+                    renderAction={readonly || !onRemoveAttachment ? undefined : (item) => (
                       <button
-                        aria-label={`移除 ${attachment.name}`}
+                        aria-label={`移除 ${item.name}`}
                         className="claw-reference-remove"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onRemoveAttachment(attachment.id);
+                          onRemoveAttachment(item.id);
                         }}
                         type="button"
                       >
                         <X size={10} />
                       </button>
                     )}
-                    startIndex={startIndex}
                   />
                   {!uploadDisabled && !readonly ? (
                     <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>

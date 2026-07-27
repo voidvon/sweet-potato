@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { AudioMaterialStack } from './AudioMaterialStack';
 import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import { ImageMaterialStack } from './ImageMaterialStack';
-import { type MediaSlotItem } from './MediaSlotStack';
+import { type MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { VideoMaterialSlot } from './VideoMaterialSlot';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue, UploadAnchor } from '../types';
 
@@ -181,13 +181,15 @@ function getStackWidth(count: number) {
   return 80 + Math.max(count - 1, 0) * 7;
 }
 
-function getImageItems(count: number, selected: SelectedMaterialValue): MediaSlotItem[] {
+function getImageItems(count: number, selected: SelectedMaterialValue): MediaAttachmentItem[] {
   if (Array.isArray(selected)) {
     return selected.slice(0, count).map((file, index) => ({
       background: `url("${file.url}") center / cover no-repeat`,
       caption: `图·${index + 1}`,
       id: file.id,
-      title: file.name || `参考图 ${index + 1}`,
+      name: file.name || `参考图 ${index + 1}`,
+      previewSrc: file.url,
+      src: file.url,
       type: 'image',
     }));
   }
@@ -196,12 +198,12 @@ function getImageItems(count: number, selected: SelectedMaterialValue): MediaSlo
     background,
     caption: `图·${index + 1}`,
     id: `image-${index + 1}`,
-    title: `参考图 ${index + 1}`,
+    name: `参考图 ${index + 1}`,
     type: 'image',
   }));
 }
 
-function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlotItem[] {
+function getAudioItems(count: number, selected: SelectedMaterialValue): MediaAttachmentItem[] {
   if (Array.isArray(selected)) {
     return selected.slice(0, count).map((file, index) => ({
       background: 'var(--color-warning-soft)',
@@ -209,7 +211,7 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlo
       detail: formatDuration(getAudioDuration(file)),
       id: file.id,
       src: file.url,
-      title: file.name || `参考音频 ${index + 1}`,
+      name: file.name || `参考音频 ${index + 1}`,
       type: 'audio',
     }));
   }
@@ -220,7 +222,7 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaSlo
     caption: `音·${index + 1}`,
     detail: '7s',
     id: `audio-${index + 1}`,
-    title: getAudioName(name, index),
+    name: getAudioName(name, index),
     type: 'audio',
   }));
 }

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { MediaSlotStack, type MediaSlotItem } from './MediaSlotStack';
+import { MediaAttachmentStack, type MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 
 type AudioMaterialStackProps = {
   disablePopover?: boolean;
-  items: MediaSlotItem[];
-  onRemove: (item: MediaSlotItem) => void;
-  renderAudioTitle?: (item: MediaSlotItem, index: number) => string;
+  items: MediaAttachmentItem[];
+  onRemove: (item: MediaAttachmentItem) => void;
+  renderAudioTitle?: (item: MediaAttachmentItem, index: number) => string;
 };
 
 export function AudioMaterialStack({ disablePopover, items, onRemove, renderAudioTitle }: AudioMaterialStackProps) {
@@ -23,13 +23,13 @@ export function AudioMaterialStack({ disablePopover, items, onRemove, renderAudi
     setPlayingId(null);
   }, [items, playingId]);
 
-  const removeAudio = (item: MediaSlotItem) => {
+  const removeAudio = (item: MediaAttachmentItem) => {
     audioRef.current?.pause();
     setPlayingId(null);
     onRemove(item);
   };
 
-  const togglePlayback = (item: MediaSlotItem) => {
+  const togglePlayback = (item: MediaAttachmentItem) => {
     if (!item.src) return;
 
     if (!audioRef.current) {
@@ -51,11 +51,12 @@ export function AudioMaterialStack({ disablePopover, items, onRemove, renderAudi
   };
 
   return (
-    <MediaSlotStack
+    <MediaAttachmentStack
       activeItemId={playingId}
-      disablePopover={disablePopover}
+      expandOnHover={!disablePopover}
       items={items}
-      keepPopoverOnPreview
+      keepExpandedOnPreview
+      layout="offset"
       onPreview={togglePlayback}
       onRemove={removeAudio}
       renderAudioTitle={renderAudioTitle}
