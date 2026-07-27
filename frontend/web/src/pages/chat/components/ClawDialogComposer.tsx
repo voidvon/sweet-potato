@@ -1,4 +1,4 @@
-import { Button, Dropdown, Popover } from 'antd';
+import { Button, Dropdown, Popover, message } from 'antd';
 import {
   ArrowRight,
   Brush,
@@ -646,9 +646,13 @@ export function ClawDialogComposer({
         if (!ignore) {
           setImageConfigs(configs);
         }
-      } catch {
+      } catch (error) {
         if (!ignore) {
           setImageConfigs([]);
+          message.error({
+            content: error instanceof Error ? error.message : '图片模型配置加载失败',
+            key: 'image-model-config-load-error',
+          });
         }
       }
     }
