@@ -17,7 +17,9 @@ type ClawReferenceGroupsProps = {
   className?: string;
   groups: ClawReferenceGroupConfig[];
   groupedAttachments: Record<string, ChatAttachment[]>;
+  highlightedGroupIndex?: number | null;
   onAddFiles?: (group: ClawReferenceGroupConfig, files: File[]) => Promise<ChatAttachment[]>;
+  onGroupHoverChange?: (groupIndex: number | null) => void;
   onRemoveAttachment?: (attachmentId: string) => void;
   readonly?: boolean;
 };
@@ -28,7 +30,9 @@ export function ClawReferenceGroups({
   className,
   groups,
   groupedAttachments,
+  highlightedGroupIndex = null,
   onAddFiles,
+  onGroupHoverChange,
   onRemoveAttachment,
   readonly = false,
 }: ClawReferenceGroupsProps) {
@@ -95,7 +99,11 @@ export function ClawReferenceGroups({
                 <ArrowRightLeft size={18} strokeWidth={1.8} />
               </span>
             ) : null}
-            <div className={`claw-reference-group${hasAttachments ? ' has-attachments' : ''}`}>
+            <div
+              className={`claw-reference-group${hasAttachments ? ' has-attachments' : ''}${highlightedGroupIndex === groupIndex ? ' is-linked-hover' : ''}`}
+              onMouseEnter={() => onGroupHoverChange?.(groupIndex)}
+              onMouseLeave={() => onGroupHoverChange?.(null)}
+            >
               {!hasAttachments && !readonly ? (
                 <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
                   <button className="claw-reference-empty" disabled={uploadDisabled} type="button">

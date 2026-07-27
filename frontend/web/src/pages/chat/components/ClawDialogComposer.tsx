@@ -100,6 +100,32 @@ const defaultModeOutputConfig: ClawModeOutputConfig = {
   defaultOutputCount: 1,
   defaultResolution: '2K',
 };
+
+function renderPromptHint(
+  promptHint: string,
+  hoveredReferenceGroupIndex: number | null,
+  onReferenceHoverChange: (groupIndex: number | null) => void,
+) {
+  return promptHint.split(/(图\d+)/g).map((part, index) => {
+    const imageMatch = /^图(\d+)$/.exec(part);
+    if (!imageMatch) {
+      return part;
+    }
+
+    const groupIndex = Number(imageMatch[1]) - 1;
+    return (
+      <span
+        className={`claw-dialog-hint-image${hoveredReferenceGroupIndex === groupIndex ? ' is-linked-hover' : ''}`}
+        key={`${part}-${index}`}
+        onMouseEnter={() => onReferenceHoverChange(groupIndex)}
+        onMouseLeave={() => onReferenceHoverChange(null)}
+      >
+        {part}
+      </span>
+    );
+  });
+}
+
 const backgroundOptions: Array<{ description: string; key: ClawBackgroundKey; label: string }> = [
   { key: 'transparent', label: '透明背景', description: '保留 alpha 通道，适合继续合成和入库。' },
   { key: 'white', label: '白底', description: '适合电商主图、目录图和快审稿。' },
@@ -494,6 +520,7 @@ export function ClawDialogComposer({
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
   const [selectedOutputCount, setSelectedOutputCount] = useState(1);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
+  const [hoveredReferenceGroupIndex, setHoveredReferenceGroupIndex] = useState<number | null>(null);
   const textareaRef = useRef<MentionRichTextareaRef | null>(null);
   const hasPrompt = Boolean(input.trim());
   const selectedMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
@@ -853,6 +880,16 @@ export function ClawDialogComposer({
 
   return (
     <section className="claw-dialog-composer" aria-label="对话生图输入框">
+      {showHeading ? (
+        <div className="claw-dialog-intro">
+          <span className="claw-dialog-intro-brand">
+            <span className="claw-dialog-intro-dot" aria-hidden="true" />
+            萌猫 AI
+          </span>
+          <span className="claw-dialog-intro-title">把商品图变成上新视觉</span>
+        </div>
+      ) : null}
+
       <div className="claw-dialog-card">
         {showHeading ? (
           <header className="claw-dialog-heading">
@@ -861,14 +898,22 @@ export function ClawDialogComposer({
         ) : null}
 
         {selectedMode.promptHint ? (
-          <div className="claw-dialog-hint">{selectedMode.promptHint}</div>
+          <div className="claw-dialog-hint">
+            {renderPromptHint(
+              selectedMode.promptHint,
+              hoveredReferenceGroupIndex,
+              setHoveredReferenceGroupIndex,
+            )}
+          </div>
         ) : null}
 
         <div className="claw-dialog-input-zone">
           <ClawReferenceGroups
             groupedAttachments={groupedAttachments}
             groups={selectedMode.referenceGroups}
+            highlightedGroupIndex={hoveredReferenceGroupIndex}
             onAddFiles={handleAddReferenceFiles}
+            onGroupHoverChange={setHoveredReferenceGroupIndex}
             onRemoveAttachment={handleRemoveReference}
           />
 
