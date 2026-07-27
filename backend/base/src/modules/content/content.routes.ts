@@ -287,7 +287,7 @@ export function createContentRouter() {
     registerContentEventClient(userId, res);
   });
 
-  router.get('/temporary-assets/cleanup-candidates', requireAdmin, (req, res) => {
+  router.get('/temporary-assets/cleanup-candidates', requirePermission('admin.route.system.temporary_assets.view'), (req, res) => {
     try {
       res.json(contentService.listTemporaryAssetCleanupCandidates({
         page: req.query.page,
@@ -298,11 +298,11 @@ export function createContentRouter() {
     }
   });
 
-  router.get('/temporary-assets/settings', requireAdmin, (_req, res) => {
+  router.get('/temporary-assets/settings', requirePermission('admin.route.system.temporary_assets.view'), (_req, res) => {
     res.json(contentService.getTemporaryAssetCleanupSettings());
   });
 
-  router.put('/temporary-assets/settings', requireAdmin, (req, res) => {
+  router.put('/temporary-assets/settings', requirePermission('admin.route.system.temporary_assets.view'), (req, res) => {
     try {
       res.json(contentService.updateTemporaryAssetCleanupSettings(req.body || {}));
     } catch (error) {
@@ -310,7 +310,7 @@ export function createContentRouter() {
     }
   });
 
-  router.get('/temporary-assets/disk-space', requireAdmin, (_req, res) => {
+  router.get('/temporary-assets/disk-space', requirePermission('admin.route.system.temporary_assets.view'), (_req, res) => {
     void statfs(contentFilesDir, { bigint: true })
       .then((fileSystem) => {
         res.json({ availableBytes: Number(fileSystem.bavail * fileSystem.bsize) });
@@ -318,7 +318,7 @@ export function createContentRouter() {
       .catch((error) => sendError(res, 500, getErrorMessage(error, '磁盘剩余空间获取失败')));
   });
 
-  router.get('/temporary-assets/cleanup-logs', requireAdmin, (_req, res) => {
+  router.get('/temporary-assets/cleanup-logs', requirePermission('admin.route.system.temporary_assets.view'), (_req, res) => {
     try {
       res.json(contentService.listTemporaryAssetCleanupLogs());
     } catch (error) {
@@ -326,13 +326,13 @@ export function createContentRouter() {
     }
   });
 
-  router.get('/temporary-assets/orphan-files', requireAdmin, (_req, res) => {
+  router.get('/temporary-assets/orphan-files', requirePermission('admin.route.system.temporary_assets.view'), (_req, res) => {
     void contentService.inspectOrphanContentFiles()
       .then((result) => res.json(result))
       .catch((error) => sendError(res, 500, getErrorMessage(error, '孤立文件检查失败')));
   });
 
-  router.post('/temporary-assets/orphan-files/delete', requireAdmin, (req, res) => {
+  router.post('/temporary-assets/orphan-files/delete', requirePermission('admin.route.system.temporary_assets.view'), (req, res) => {
     const relativePaths = Array.isArray(req.body?.relativePaths)
       ? req.body.relativePaths.filter((relativePath: unknown): relativePath is string => typeof relativePath === 'string')
       : [];
@@ -341,7 +341,7 @@ export function createContentRouter() {
       .catch((error) => sendError(res, 400, getErrorMessage(error, '孤立文件删除失败')));
   });
 
-  router.post('/temporary-assets/cleanup-selected', requireAdmin, (req, res) => {
+  router.post('/temporary-assets/cleanup-selected', requirePermission('admin.route.system.temporary_assets.view'), (req, res) => {
     const assetIds = Array.isArray(req.body?.assetIds)
       ? req.body.assetIds.filter((assetId: unknown): assetId is string => typeof assetId === 'string')
       : [];
@@ -350,7 +350,7 @@ export function createContentRouter() {
       .catch((error) => sendError(res, 400, getErrorMessage(error, '临时素材删除失败')));
   });
 
-  router.post('/temporary-assets/cleanup', requireAdmin, (_req, res) => {
+  router.post('/temporary-assets/cleanup', requirePermission('admin.route.system.temporary_assets.view'), (_req, res) => {
     void contentService.cleanupExpiredTemporaryAssets('manual')
       .then((result) => res.json(result))
       .catch((error) => sendError(res, 400, getErrorMessage(error, '临时素材清理失败')));

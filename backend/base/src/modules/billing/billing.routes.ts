@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import {
   getBillingSettings,
@@ -42,7 +42,7 @@ export function createBillingRouter() {
     sendError(res, 403, '当前账户无权访问业务消费明细');
   });
 
-  router.use(requireAdmin);
+  router.use(requirePermission('admin.route.system.billing.view'));
 
   router.get('/settings', (_req, res) => {
     const settings = getBillingSettings();

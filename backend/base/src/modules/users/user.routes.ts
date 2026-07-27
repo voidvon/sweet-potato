@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Router } from 'express';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { adjustUserCredits } from '../billing/billing.service.js';
 import { resolveUserPermissions } from '../roles/role.service.js';
@@ -8,6 +8,7 @@ import { ensureRoleAssignable } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
 import { hashPassword, publicUser } from './user.service.js';
 import type { ManagedUser, ManagedUserSortBy, ManagedUserSortOrder, User } from './user.types.js';
+import { publishAppEvent } from '../app-events/app.events.js';
 
 const managedUserSortFields = new Set<ManagedUserSortBy>([
   'creditBalance',
@@ -48,7 +49,7 @@ function normalizeRoleIds(value: unknown) {
 export function createUserRouter() {
   const router = Router();
 
-  router.get('/', requireAdmin, (req, res) => {
+  router.get('/', requirePermission('admin.route.users.accounts.view'), (req, res) => {
     const username = typeof req.query.username === 'string' ? req.query.username.trim() : undefined;
     const requestedSortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : '';
     const requestedSortOrder = req.query.sortOrder;
@@ -137,7 +138,7 @@ export function createUserRouter() {
     res.json({ ok: true });
   });
 
-  router.put('/:id/admin-password', requireAdmin, (req, res) => {
+  router.put('/:id/admin-password', requirePermission('admin.route.users.accounts.view'), (req, res) => {
     const user = userRepository.findById(String(req.params.id || ''));
     if (!user) {
       sendError(res, 404, '用户不存在');
@@ -163,7 +164,7 @@ export function createUserRouter() {
     res.json({ ok: true });
   });
 
-  router.patch('/:id/credits', requireAdmin, (req, res) => {
+  router.patch('/:id/credits', requirePermission('admin.route.users.accounts.view'), (req, res) => {
     const targetUserId = String(req.params.id || '');
     const user = userRepository.findById(targetUserId);
     if (!user) {
@@ -207,7 +208,7 @@ export function createUserRouter() {
     });
   });
 
-  router.patch('/:id/blacklist', requireAdmin, (req, res) => {
+  router.patch('/:id/blacklist', requirePermission('admin.route.users.accounts.view'), (req, res) => {
     const currentUser = req.auth;
     const targetUserId = String(req.params.id || '');
     const user = userRepository.findById(targetUserId);
@@ -248,7 +249,7 @@ export function createUserRouter() {
     });
   });
 
-  router.patch('/:id/role-assignment', requireAdmin, (req, res) => {
+  router.patch('/:id/role-assignment', requirePermission('admin.route.users.accounts.view'), (req, res) => {
     const targetUserId = String(req.params.id || '');
     const user = userRepository.findById(targetUserId);
     if (!user) {
@@ -276,6 +277,7 @@ export function createUserRouter() {
       sendError(res, 404, '用户不存在');
       return;
     }
+    publishAppEvent({ type: 'permission-updated', userId: updated.id });
     res.json({ user: serializeManagedUser(updated) });
   });
 

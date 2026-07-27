@@ -210,6 +210,15 @@ export const roleRepository = {
     return Number(result?.count || 0);
   },
 
+  listAssignedUserIds(roleId: string) {
+    const rows = db.prepare(`
+      SELECT id as user_id FROM users WHERE role_id = ?
+      UNION
+      SELECT user_id FROM user_role_assignments WHERE role_id = ?
+    `).all(roleId, roleId) as Array<{ user_id: string }>;
+    return rows.map((row) => row.user_id).filter(Boolean);
+  },
+
   findAssignedRoleSummary(roleId: string | null | undefined) {
     if (!roleId) {
       return null;

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import { listRoleAssignableResourceTree } from '../route-resources/route-resource.service.js';
 import {
@@ -12,7 +12,7 @@ import {
 export function createRoleRouter() {
   const router = Router();
 
-  router.use(requireAdmin);
+  router.use(requirePermission('admin.route.users.roles.view'));
 
   router.get('/resource-tree', (req, res) => {
     const platform = typeof req.query.platform === 'string' ? req.query.platform : undefined;

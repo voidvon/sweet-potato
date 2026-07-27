@@ -6,6 +6,7 @@ import { listAllProtectedPermissionCodes } from '../../shared/resource-permissio
 import { roleRepository } from './role.repository.js';
 import type { CreateAppRoleInput, UpdateAppRoleInput } from './role.types.js';
 import type { User } from '../users/user.types.js';
+import { publishAppEvent } from '../app-events/app.events.js';
 
 function normalizeRoleName(value: unknown) {
   return String(value || '').trim();
@@ -134,6 +135,9 @@ export function updateAppRole(roleId: string, input: UpdateAppRoleInput) {
       roleRepository.setDefaultRole(null);
     }
   })();
+  roleRepository.listAssignedUserIds(roleId).forEach((userId) => {
+    publishAppEvent({ type: 'permission-updated', userId });
+  });
   return roleRepository.findById(roleId);
 }
 

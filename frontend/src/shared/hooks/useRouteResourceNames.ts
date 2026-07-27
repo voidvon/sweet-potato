@@ -8,6 +8,7 @@ export type RouteResourceDisplayInfo = {
   orderIndex: number;
   parentId: string | null;
   resourceKey: string;
+  permissionCode: string;
   sortOrder: number;
 };
 
@@ -64,6 +65,7 @@ export function useRouteResourceInfoMap(platform: RouteResourcePlatform) {
           orderIndex,
           parentId: resource.parentId || null,
           resourceKey: resource.resourceKey,
+          permissionCode: resource.permissionCode,
           sortOrder: Number(resource.sortOrder || 0),
         }] as const),
     );
