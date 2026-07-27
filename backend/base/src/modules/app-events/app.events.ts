@@ -5,6 +5,10 @@ type AppRealtimeEvent = {
   userId: string;
 };
 
+export type AppPermissionUpdatedEvent = AppRealtimeEvent & {
+  type: 'permission-updated';
+};
+
 const clientsByUserId = new Map<string, Set<Response>>();
 
 function writeEvent<Event extends AppRealtimeEvent>(client: Response, event: Event) {

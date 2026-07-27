@@ -2,7 +2,7 @@ import { WorkspaceShellLayout, useWorkspaceHeader } from '@shared/layouts/Worksp
 import sidebarLogo from '@shared/assets/sidebar-logo.png';
 import { useRouteResourceInfoMap } from '@shared/hooks/useRouteResourceNames';
 import { routePaths } from '../routes/paths';
-import { buildSidebarMenuItems, getWorkspaceLayoutState } from '../routes/routeConfig';
+import { buildSidebarMenuItems, getDefaultAppPath, getWorkspaceLayoutState } from '../routes/routeConfig';
 import type { User } from '../types';
 
 type AdminProtectedLayoutProps = {
@@ -22,7 +22,7 @@ export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLa
       appSubtitle="后台管理"
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}
-      defaultPath={routePaths.defaultLanding}
+      defaultPath={getDefaultAppPath(currentUser)}
       getWorkspaceLayoutState={(user, pathname, matches) => getWorkspaceLayoutState(user, pathname, matches, routeResourceInfoMap)}
       loginPath={routePaths.login}
       onLogout={onLogout}

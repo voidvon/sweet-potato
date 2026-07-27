@@ -22,19 +22,19 @@ function App() {
     async function refreshCurrentUser() {
       try {
         const result = await getCurrentUser();
-        if (cancelled) {
+        if (cancelled || getStoredToken() !== token) {
           return;
         }
         storeUser(result.user);
         setCurrentUser(result.user);
       } catch {
-        if (cancelled) {
+        if (cancelled || getStoredToken() !== token) {
           return;
         }
         removeStoredUser();
         setCurrentUser(null);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && getStoredToken() === token) {
           setSessionHydrated(true);
         }
       }
@@ -59,14 +59,14 @@ function App() {
     setSessionHydrated(true);
   }
 
-  function handleUserUpdated(user: User) {
+  const handleUserUpdated = useCallback((user: User) => {
     storeUser(user);
     setCurrentUser(user);
-  }
+  }, []);
 
-  const handleCreditBalanceUpdated = useCallback((creditBalance: number) => {
+  const handleCreditBalanceUpdated = useCallback((userId: string, creditBalance: number) => {
     setCurrentUser((user) => {
-      if (!user || user.creditBalance === creditBalance) {
+      if (!user || user.id !== userId || user.creditBalance === creditBalance) {
         return user;
       }
       const nextUser = { ...user, creditBalance };
@@ -87,8 +87,10 @@ function App() {
     <AppRealtimeEventsProvider
       currentUser={currentUser}
       onCreditBalanceUpdated={handleCreditBalanceUpdated}
+      onUserUpdated={handleUserUpdated}
     >
       <AppRoutes
+        key={currentUser?.id || 'anonymous'}
         currentUser={currentUser}
         onAuthed={handleAuthed}
         onLogout={handleLogout}

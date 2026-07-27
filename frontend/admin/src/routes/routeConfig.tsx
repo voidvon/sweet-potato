@@ -304,12 +304,50 @@ function resolveRouteTitle(title: RouteTitle | undefined, pathname: string) {
   return typeof title === 'function' ? title(pathname) : title;
 }
 
+const routePermissionCodes: Record<string, string> = {
+  'admin.system.route_resources': 'admin.route.system.route_resources.view',
+  'admin.users.roles': 'admin.route.users.roles.view',
+  'admin.users.accounts': 'admin.route.users.accounts.view',
+  'admin.all_works': 'admin.route.all_works.view',
+  'admin.discover': 'admin.route.discover.view',
+  'admin.system.billing': 'admin.route.system.billing.view',
+  'admin.system.models': 'admin.route.system.models.view',
+  'admin.system.file_management': 'admin.route.system.file_management.view',
+  'admin.system.temporary_assets': 'admin.route.system.temporary_assets.view',
+  'admin.system.settings': 'admin.route.system.settings.view',
+  'admin.system.access_logs': 'admin.route.system.access_logs.view',
+};
+
+function hasRouteGrant(currentUser: User, route: WorkspacePageDefinition) {
+  if (currentUser.role === 'admin' || !route.routeResourceKey) {
+    return true;
+  }
+  const grants = new Set([
+    ...(currentUser.permissions || []),
+    ...(currentUser.permissionCodes || []),
+    ...(currentUser.resourceKeys || []),
+    ...(currentUser.resourceIds || []),
+    ...(currentUser.assignedRoles || []).flatMap((role) => [
+      ...(role.permissions || []),
+      ...(role.permissionCodes || []),
+      ...(role.resourceKeys || []),
+      ...(role.resourceIds || []),
+    ]),
+  ]);
+  return grants.has(route.routeResourceKey) || Boolean(routePermissionCodes[route.routeResourceKey] && grants.has(routePermissionCodes[route.routeResourceKey]));
+}
+
 function isVisibleWorkspacePage(route: WorkspacePageDefinition, currentUser: User) {
-  return route.visible ? route.visible(currentUser) : true;
+  return hasRouteGrant(currentUser, route) && (currentUser.role !== 'admin' || !route.visible || route.visible(currentUser));
 }
 
 function getVisibleWorkspacePages(currentUser: User) {
   return workspacePageDefinitions.filter((route) => isVisibleWorkspacePage(route, currentUser));
+}
+
+export function getDefaultAppPath(currentUser: User) {
+  return getVisibleWorkspacePages(currentUser).find((route) => route.key !== 'account')?.fullPath
+    || routePaths.account;
 }
 
 function resolveResourceInfo(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
@@ -360,13 +398,13 @@ export function createAppRouteObjects({
       {
         id: 'app-index',
         index: true,
-        element: <Navigate to={routePaths.defaultLanding} replace />,
+        element: <Navigate to={getDefaultAppPath(currentUser)} replace />,
       },
       ...createProtectedRouteObjects(currentUser, { onLogout, onUserUpdated }),
       {
         id: 'app-fallback',
         path: '*',
-        element: <Navigate to={routePaths.defaultLanding} replace />,
+      element: <Navigate to={getDefaultAppPath(currentUser)} replace />,
       },
     ]
     : [];
@@ -376,7 +414,7 @@ export function createAppRouteObjects({
       id: 'login',
       path: routePaths.login,
       element: currentUser ? (
-        <Navigate to={routePaths.defaultLanding} replace />
+        <Navigate to={getDefaultAppPath(currentUser)} replace />
       ) : (
         <AuthRouteFrame>
           <AuthPage onAuthed={onAuthed} />
@@ -396,7 +434,7 @@ export function createAppRouteObjects({
     {
       id: 'root-fallback',
       path: '*',
-      element: <Navigate to={currentUser ? routePaths.defaultLanding : routePaths.login} replace />,
+      element: <Navigate to={currentUser ? getDefaultAppPath(currentUser) : routePaths.login} replace />,
     },
   ];
 }

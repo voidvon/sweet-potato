@@ -8,6 +8,7 @@ import { ensureRoleAssignable } from '../roles/role.service.js';
 import { userRepository } from './user.repository.js';
 import { hashPassword, publicUser } from './user.service.js';
 import type { ManagedUser, ManagedUserSortBy, ManagedUserSortOrder, User } from './user.types.js';
+import { publishAppEvent } from '../app-events/app.events.js';
 
 const managedUserSortFields = new Set<ManagedUserSortBy>([
   'creditBalance',
@@ -276,6 +277,7 @@ export function createUserRouter() {
       sendError(res, 404, '用户不存在');
       return;
     }
+    publishAppEvent({ type: 'permission-updated', userId: updated.id });
     res.json({ user: serializeManagedUser(updated) });
   });
 
