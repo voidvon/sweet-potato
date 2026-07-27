@@ -18,14 +18,14 @@ import { buildSidebarMenuItems, getDefaultAppPath, getWorkspaceLayoutState } fro
 import type { User } from '../types';
 
 type ProtectedLayoutProps = {
-  currentUser: User;
+  currentUser: User | null;
   onLogout: () => void;
 };
 
 export { useWorkspaceHeader };
 
 export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps) {
-  const defaultPath = getDefaultAppPath(currentUser);
+  const defaultPath = currentUser ? getDefaultAppPath(currentUser) : routePaths.discover;
   const routeResourceInfoMap = useRouteResourceInfoMap('web');
   const mobileBottomNavItems: WorkspaceBottomNavItem[] = [
     { key: routePaths.defaultModule, label: '图片创作', icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
@@ -45,9 +45,21 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
       compactSidebar
       currentUser={currentUser}
       defaultPath={defaultPath}
-      getWorkspaceLayoutState={(user, pathname, matches) => getWorkspaceLayoutState(user, pathname, matches, routeResourceInfoMap)}
+      getWorkspaceLayoutState={(user, pathname, matches) => user
+        ? getWorkspaceLayoutState(user, pathname, matches, routeResourceInfoMap)
+        : {
+          activeOpenKeys: [],
+          currentMenuTitle: '发现',
+          defaultOpenKeys: [],
+          hideWorkspaceHeader: false,
+          isChatPage: false,
+          isContentStudioPage: false,
+          isContentStudioVideoCreatePage: false,
+          isImmersivePage: false,
+          selectedMenuKey: pathname === routePaths.discover ? routePaths.discover : null,
+        }}
       loginPath={routePaths.login}
-      mobileBottomNavItems={mobileBottomNavItems}
+      mobileBottomNavItems={currentUser ? mobileBottomNavItems : []}
       onLogout={onLogout}
       showGlobalActions
       sidebarMenuItems={buildSidebarMenuItems(currentUser, routeResourceInfoMap)}

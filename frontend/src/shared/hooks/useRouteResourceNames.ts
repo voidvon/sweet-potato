@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPublicRouteResourceTree } from '../api/route-resource';
-import type { ManagedRouteResource, RouteResourcePlatform } from '../types';
+import type { ManagedRouteResource, RouteResourcePlatform, RouteResourceVisibilityMode } from '../types';
 
 export type RouteResourceDisplayInfo = {
   id: string;
@@ -9,6 +9,7 @@ export type RouteResourceDisplayInfo = {
   parentId: string | null;
   resourceKey: string;
   permissionCode: string;
+  visibilityMode: RouteResourceVisibilityMode;
   sortOrder: number;
 };
 
@@ -66,6 +67,7 @@ export function useRouteResourceInfoMap(platform: RouteResourcePlatform) {
           parentId: resource.parentId || null,
           resourceKey: resource.resourceKey,
           permissionCode: resource.permissionCode,
+          visibilityMode: resource.visibilityMode || 'permission',
           sortOrder: Number(resource.sortOrder || 0),
         }] as const),
     );

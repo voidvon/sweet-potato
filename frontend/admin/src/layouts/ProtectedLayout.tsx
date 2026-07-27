@@ -23,7 +23,7 @@ export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLa
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}
       defaultPath={getDefaultAppPath(currentUser)}
-      getWorkspaceLayoutState={(user, pathname, matches) => getWorkspaceLayoutState(user, pathname, matches, routeResourceInfoMap)}
+      getWorkspaceLayoutState={(user, pathname, matches) => getWorkspaceLayoutState(user || currentUser, pathname, matches, routeResourceInfoMap)}
       loginPath={routePaths.login}
       onLogout={onLogout}
       sidebarMenuItems={buildSidebarMenuItems(currentUser, routeResourceInfoMap)}

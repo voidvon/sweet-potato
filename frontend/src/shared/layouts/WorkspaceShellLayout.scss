@@ -315,6 +315,18 @@
   border-color: #d9d9d9;
 }
 
+.workspace-login-action {
+  background: var(--color-brand-active, #65a30d);
+  border-color: var(--color-brand-active, #65a30d);
+  color: #ffffff;
+  min-width: 72px;
+}
+
+.workspace-login-action:hover {
+  background: var(--color-brand-hover, #4d7c0f);
+  border-color: var(--color-brand-hover, #4d7c0f);
+}
+
 .workspace-credit-actions {
   background: #ffffff;
   border: 1px solid #e7e7e7;

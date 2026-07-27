@@ -29,6 +29,7 @@ import type {
   RouteResourceMutationPayload,
   RouteResourcePlatform,
   RouteResourceType,
+  RouteResourceVisibilityMode,
 } from '../../types';
 import './RouteResourceManagementPage.scss';
 
@@ -45,6 +46,7 @@ type RouteResourceFormValues = {
   platform: RouteResourcePlatform;
   path?: string;
   permissionCode: string;
+  visibilityMode: RouteResourceVisibilityMode;
   status?: boolean;
   sortOrder?: number;
 };
@@ -62,6 +64,11 @@ const resourceTypeOptions: Array<{ label: string; value: RouteResourceType }> = 
 const platformOptions: Array<{ label: string; value: RouteResourcePlatform }> = [
   { label: 'Web', value: 'web' },
   { label: 'Admin', value: 'admin' },
+];
+
+const visibilityModeOptions: Array<{ label: string; value: RouteResourceVisibilityMode }> = [
+  { label: '有权限时显示', value: 'permission' },
+  { label: '始终显示', value: 'always' },
 ];
 
 const platformTabs = platformOptions.map((item) => ({
@@ -121,6 +128,7 @@ function normalizeRouteResource(raw: unknown, depth = 0): RouteResourceRecord | 
     resourceType: (normalizeText(record.resourceType ?? record.resource_type) || 'menu') as RouteResourceType,
     platform: (normalizeText(record.platform) || 'web') as RouteResourcePlatform,
     permissionCode: normalizeText(record.permissionCode ?? record.permission_code),
+    visibilityMode: normalizeText(record.visibilityMode ?? record.visibility_mode) === 'always' ? 'always' : 'permission',
     path: normalizeText(record.path),
     status: normalizeBoolean(record.status, true),
     sortOrder: typeof record.sortOrder === 'number'
@@ -177,6 +185,7 @@ function buildMutationPayload(values: RouteResourceFormValues): RouteResourceMut
     platform: values.platform,
     path: values.path?.trim() || '',
     permissionCode: values.permissionCode.trim(),
+    visibilityMode: values.visibilityMode,
     status: Boolean(values.status),
     sortOrder: Number(values.sortOrder || 0),
   };
@@ -265,6 +274,7 @@ export function RouteResourceManagementPage() {
       platform: parent?.platform || activePlatform,
       path: '',
       permissionCode: '',
+      visibilityMode: 'permission',
       status: true,
       sortOrder: 0,
     });
@@ -280,6 +290,7 @@ export function RouteResourceManagementPage() {
       platform: record.platform,
       path: record.path || '',
       permissionCode: record.permissionCode,
+      visibilityMode: record.visibilityMode || 'permission',
       status: record.status ?? true,
       sortOrder: record.sortOrder ?? 0,
     });
@@ -316,6 +327,7 @@ export function RouteResourceManagementPage() {
         platform: record.platform,
         path: record.path || '',
         permissionCode: record.permissionCode,
+        visibilityMode: record.visibilityMode || 'permission',
         status: nextValue,
         sortOrder: record.sortOrder ?? 0,
       });
@@ -384,6 +396,14 @@ export function RouteResourceManagementPage() {
       dataIndex: 'permissionCode',
       width: 260,
       render: (value: string) => <Tag>{value || '未配置'}</Tag>,
+    },
+    {
+      title: '菜单可见性',
+      dataIndex: 'visibilityMode',
+      width: 130,
+      render: (value: RouteResourceVisibilityMode) => value === 'always'
+        ? <Tag color="green">始终显示</Tag>
+        : <Tag>按权限显示</Tag>,
     },
     {
       title: '排序',
@@ -573,6 +593,15 @@ export function RouteResourceManagementPage() {
 
             <Form.Item label="权限编码" name="permissionCode" rules={[{ required: true, message: '请输入权限编码' }]}>
               <Input maxLength={160} placeholder="例如：admin.route.system.route_resources.view" />
+            </Form.Item>
+
+            <Form.Item
+              label="菜单可见性"
+              name="visibilityMode"
+              tooltip="始终显示仅影响菜单入口，页面和接口仍按权限编码校验"
+              rules={[{ required: true, message: '请选择菜单可见性' }]}
+            >
+              <Select options={visibilityModeOptions} />
             </Form.Item>
 
             <Form.Item label="排序" name="sortOrder">

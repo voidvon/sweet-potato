@@ -57,9 +57,9 @@ type WorkspaceShellLayoutProps<User extends ShellUser> = {
   appName?: string;
   appSubtitle?: string;
   brandLogoSrc: string;
-  currentUser: User;
+  currentUser: User | null;
   defaultPath: string;
-  getWorkspaceLayoutState: (currentUser: User, pathname: string, matches: UIMatch[]) => WorkspaceRouteState;
+  getWorkspaceLayoutState: (currentUser: User | null, pathname: string, matches: UIMatch[]) => WorkspaceRouteState;
   loginPath: string;
   onLogout: () => void;
   sidebarMenuItems: WorkspaceMenuItem[];
@@ -218,7 +218,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       className={className}
       icon={<UserOutlined />}
       size={size}
-      src={currentUser.avatarUrl}
+      src={currentUser?.avatarUrl}
     />
   );
 
@@ -236,53 +236,65 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       aria-label="全局操作"
       className={`workspace-global-actions${floating ? ' workspace-global-actions-floating' : ''}`}
     >
-      {SHOW_TUTORIAL_ACTION ? (
+      {!currentUser ? (
         <button
-          className="workspace-global-action workspace-global-action-secondary"
-          onClick={() => message.info('教程内容正在完善，敬请期待')}
+          className="workspace-global-action workspace-login-action"
+          onClick={() => navigate(loginPath)}
           type="button"
         >
-          <QuestionCircleOutlined />
-          <span>教程</span>
+          <span>登录</span>
         </button>
-      ) : null}
-      <div className="workspace-credit-actions">
-        <button
-          className="workspace-credit-action workspace-credit-balance"
-          onClick={() => navigate(`${accountPath}?tab=ledger`)}
-          type="button"
-        >
-          <CreditIcon />
-          <span className="workspace-credit-label">总积分</span>
-          <strong>{formatIntegerCreditAmount(currentUser.creditBalance || 0)}</strong>
-        </button>
-        <button
-          className="workspace-credit-action workspace-recharge-label"
-          onClick={() => message.info('如需充值，请联系管理员')}
-          type="button"
-        >
-          <PlusCircleOutlined />
-          <span>充值</span>
-        </button>
-      </div>
-      <button
-        className="workspace-global-action workspace-global-action-secondary workspace-invite-action"
-        onClick={() => void handleInvite()}
-        type="button"
-      >
-        <UserAddOutlined />
-        <span>邀请好友</span>
-      </button>
-      <Dropdown
-        classNames={{ root: 'settings-dropdown-overlay' }}
-        menu={{ items: settingsItems, onClick: handleSettingsClick }}
-        placement="bottomRight"
-        trigger={['click']}
-      >
-        <button aria-label="打开账户菜单" className="workspace-account-trigger" type="button">
-          {renderAccountAvatar('workspace-account-avatar', 36)}
-        </button>
-      </Dropdown>
+      ) : (
+        <>
+          {SHOW_TUTORIAL_ACTION ? (
+            <button
+              className="workspace-global-action workspace-global-action-secondary"
+              onClick={() => message.info('教程内容正在完善，敬请期待')}
+              type="button"
+            >
+              <QuestionCircleOutlined />
+              <span>教程</span>
+            </button>
+          ) : null}
+          <div className="workspace-credit-actions">
+            <button
+              className="workspace-credit-action workspace-credit-balance"
+              onClick={() => navigate(`${accountPath}?tab=ledger`)}
+              type="button"
+            >
+              <CreditIcon />
+              <span className="workspace-credit-label">总积分</span>
+              <strong>{formatIntegerCreditAmount(currentUser.creditBalance || 0)}</strong>
+            </button>
+            <button
+              className="workspace-credit-action workspace-recharge-label"
+              onClick={() => message.info('如需充值，请联系管理员')}
+              type="button"
+            >
+              <PlusCircleOutlined />
+              <span>充值</span>
+            </button>
+          </div>
+          <button
+            className="workspace-global-action workspace-global-action-secondary workspace-invite-action"
+            onClick={() => void handleInvite()}
+            type="button"
+          >
+            <UserAddOutlined />
+            <span>邀请好友</span>
+          </button>
+          <Dropdown
+            classNames={{ root: 'settings-dropdown-overlay' }}
+            menu={{ items: settingsItems, onClick: handleSettingsClick }}
+            placement="bottomRight"
+            trigger={['click']}
+          >
+            <button aria-label="打开账户菜单" className="workspace-account-trigger" type="button">
+              {renderAccountAvatar('workspace-account-avatar', 36)}
+            </button>
+          </Dropdown>
+        </>
+      )}
     </div>
   );
 
@@ -304,46 +316,48 @@ export function WorkspaceShellLayout<User extends ShellUser>({
         />
       </nav>
 
-      <Dropdown
-        classNames={{ root: 'settings-dropdown-overlay' }}
-        menu={{ items: settingsItems, onClick: handleSettingsClick }}
-        popupRender={(menu) => (
-          <div className="settings-dropdown-panel">
-            <div className="settings-dropdown-user">
-              {renderAccountAvatar('settings-dropdown-avatar', 36)}
-              <div className="settings-dropdown-user-copy">
-                <strong title={currentUser.displayName || currentUser.username}>
-                  {currentUser.displayName || currentUser.username}
-                </strong>
-                {currentUser.displayName ? (
-                  <span title={currentUser.username}>{currentUser.username}</span>
-                ) : null}
+      {currentUser ? (
+        <Dropdown
+          classNames={{ root: 'settings-dropdown-overlay' }}
+          menu={{ items: settingsItems, onClick: handleSettingsClick }}
+          popupRender={(menu) => (
+            <div className="settings-dropdown-panel">
+              <div className="settings-dropdown-user">
+                {renderAccountAvatar('settings-dropdown-avatar', 36)}
+                <div className="settings-dropdown-user-copy">
+                  <strong title={currentUser.displayName || currentUser.username}>
+                    {currentUser.displayName || currentUser.username}
+                  </strong>
+                  {currentUser.displayName ? (
+                    <span title={currentUser.username}>{currentUser.username}</span>
+                  ) : null}
+                </div>
               </div>
+              <div className="settings-dropdown-divider" />
+              {menu}
             </div>
-            <div className="settings-dropdown-divider" />
-            {menu}
-          </div>
-        )}
-        styles={{ root: { minWidth: 184 } }}
-        placement="top"
-        trigger={['click']}
-      >
-        <button className="settings-trigger" type="button">
-          <span className="settings-avatar-hit">
-            {renderAccountAvatar('settings-avatar', 34)}
-          </span>
-          <div>
-            <strong>{currentUser.displayName || currentUser.username}</strong>
-            <span>{accountLabel}</span>
-          </div>
-          <span className="settings-icon-hit">
-            <span className="sidebar-settings-icon">
-              <SettingOutlined />
+          )}
+          styles={{ root: { minWidth: 184 } }}
+          placement="top"
+          trigger={['click']}
+        >
+          <button className="settings-trigger" type="button">
+            <span className="settings-avatar-hit">
+              {renderAccountAvatar('settings-avatar', 34)}
             </span>
-          </span>
-          <span className="settings-mobile-label">设置与支持</span>
-        </button>
-      </Dropdown>
+            <div>
+              <strong>{currentUser.displayName || currentUser.username}</strong>
+              <span>{accountLabel}</span>
+            </div>
+            <span className="settings-icon-hit">
+              <span className="sidebar-settings-icon">
+                <SettingOutlined />
+              </span>
+            </span>
+            <span className="settings-mobile-label">设置与支持</span>
+          </button>
+        </Dropdown>
+      ) : null}
     </>
   );
 

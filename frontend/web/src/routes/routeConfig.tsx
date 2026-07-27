@@ -1,4 +1,4 @@
-import { Suspense, lazy, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import {
   AudioFilled,
   AudioOutlined,
@@ -30,6 +30,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
+import { getPublicRouteResourceTree } from '@shared/api/route-resource';
 import {
   ChatRouteFallback,
   ContentStudioRouteFallback,
@@ -110,6 +111,7 @@ export type AppRouteObject = RouteObject & {
 };
 
 type WorkspacePageDefinition = {
+  anonymousElement?: () => ReactNode;
   key: string;
   path: string;
   fullPath: string;
@@ -343,8 +345,14 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     key: 'discover',
     path: 'discover',
     fullPath: routePaths.discover,
+    anonymousElement: () => withSuspense(<DiscoverPage />),
     element: () => withSuspense(<DiscoverPage />),
-    routeResource: { protected: false, resourceType: 'menu' },
+    routeResource: {
+      permissionCode: 'web.route.discover.view',
+      protected: true,
+      resourceKey: 'web.discover',
+      resourceType: 'menu',
+    },
     handle: {
       title: '发现',
       sidebar: { icon: <CompassOutlined />, selectedIcon: <CompassFilled />, sortOrder: -10 },
@@ -354,6 +362,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     key: 'image-creation',
     path: 'image',
     fullPath: routePaths.defaultModule,
+    anonymousElement: () => withChatSuspense(<ChatPage />),
     element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
     handle: {
@@ -638,6 +647,19 @@ function getVisibleWorkspacePages(currentUser: User) {
   return workspacePageDefinitions.filter((route) => isVisibleWorkspacePage(route, currentUser));
 }
 
+function isWorkspacePageMenuVisible(
+  route: WorkspacePageDefinition,
+  currentUser: User | null,
+  resourceInfoMap?: Map<string, RouteResourceDisplayInfo>,
+) {
+  return Boolean(currentUser && isVisibleWorkspacePage(route, currentUser))
+    || resolveResourceInfo(route, resourceInfoMap)?.visibilityMode === 'always';
+}
+
+function getMenuVisibleWorkspacePages(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return workspacePageDefinitions.filter((route) => isWorkspacePageMenuVisible(route, currentUser, resourceInfoMap));
+}
+
 function resolveResourceInfo(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   return route.routeResource?.resourceKey ? resourceInfoMap?.get(route.routeResource.resourceKey) : undefined;
 }
@@ -749,8 +771,8 @@ function getFirstPermittedBusinessRoute(currentUser: User) {
   return route?.fullPath || null;
 }
 
-function resolveDefaultAppPath(_currentUser: User) {
-  return routePaths.discover;
+function resolveDefaultAppPath(currentUser: User) {
+  return getFirstPermittedBusinessRoute(currentUser) || routePaths.noPermission;
 }
 
 function getPermissionState(currentUser: User): PermissionState {
@@ -758,7 +780,7 @@ function getPermissionState(currentUser: User): PermissionState {
 
   return {
     canAccessAccount: true,
-    defaultAppPath: routePaths.discover,
+    defaultAppPath: resolveDefaultAppPath(currentUser),
     hasAnyBusinessAccess: Boolean(firstPermittedBusinessPath),
   };
 }
@@ -771,16 +793,76 @@ function resolveUnauthorizedRedirectPath(state: PermissionState) {
   return routePaths.noPermission;
 }
 
-function ProtectedRouteGate({
+function hasAlwaysVisibleResource(raw: unknown, resourceKey: string): boolean {
+  const source = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object'
+      ? (
+        (raw as { items?: unknown[] }).items
+        || (raw as { tree?: unknown[] }).tree
+        || (raw as { data?: unknown[] }).data
+        || []
+      )
+      : [];
+
+  return source.some((item) => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+    const resource = item as { children?: unknown[]; resourceKey?: string; visibilityMode?: string };
+    return (resource.resourceKey === resourceKey && resource.visibilityMode === 'always')
+      || hasAlwaysVisibleResource(resource.children || [], resourceKey);
+  });
+}
+
+function ConfigurableRouteGate({
   children,
   fallbackPath,
   isAllowed,
+  resourceKey,
 }: {
   children: ReactNode;
   fallbackPath: string;
   isAllowed: boolean;
+  resourceKey?: string;
 }) {
-  if (!isAllowed) {
+  const [configuredAccess, setConfiguredAccess] = useState<'loading' | 'allowed' | 'denied'>(
+    isAllowed ? 'allowed' : resourceKey ? 'loading' : 'denied',
+  );
+
+  useEffect(() => {
+    if (isAllowed) {
+      setConfiguredAccess('allowed');
+      return;
+    }
+    if (!resourceKey) {
+      setConfiguredAccess('denied');
+      return;
+    }
+
+    let cancelled = false;
+    setConfiguredAccess('loading');
+    getPublicRouteResourceTree({ platform: 'web' })
+      .then((response) => {
+        if (!cancelled) {
+          setConfiguredAccess(hasAlwaysVisibleResource(response, resourceKey) ? 'allowed' : 'denied');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConfiguredAccess('denied');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAllowed, resourceKey]);
+
+  if (configuredAccess === 'loading') {
+    return <WorkspaceRouteFallback />;
+  }
+  if (configuredAccess === 'denied') {
     return <Navigate to={fallbackPath} replace />;
   }
 
@@ -795,12 +877,13 @@ function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRoute
     id: route.key,
     path: route.path,
     element: (
-      <ProtectedRouteGate
+      <ConfigurableRouteGate
         fallbackPath={unauthorizedRedirectPath}
         isAllowed={route.key === 'account' || isVisibleWorkspacePage(route, currentUser)}
+        resourceKey={route.routeResource?.resourceKey}
       >
         {route.element(currentUser, handlers)}
-      </ProtectedRouteGate>
+      </ConfigurableRouteGate>
     ),
     handle: route.handle,
   }));
@@ -836,9 +919,43 @@ export function createAppRouteObjects({
         element: <Navigate to={unauthorizedRedirectPath} replace />,
       },
     ]
-    : [];
+    : [
+      {
+        id: 'app-index',
+        index: true,
+        element: <Navigate to={routePaths.discover} replace />,
+      },
+      ...workspacePageDefinitions.flatMap((route) => (
+        route.anonymousElement && route.routeResource?.resourceKey
+          ? [{
+            id: route.key,
+            path: route.path,
+            element: (
+              <ConfigurableRouteGate
+                fallbackPath={routePaths.login}
+                isAllowed={false}
+                resourceKey={route.routeResource.resourceKey}
+              >
+                {route.anonymousElement()}
+              </ConfigurableRouteGate>
+            ),
+            handle: route.handle,
+          }]
+          : []
+      )),
+      {
+        id: 'app-fallback',
+        path: '*',
+        element: <Navigate to={routePaths.login} replace />,
+      },
+    ];
 
   return [
+    {
+      id: 'root',
+      path: '/',
+      element: <Navigate to={routePaths.discover} replace />,
+    },
     {
       id: 'login',
       path: routePaths.login,
@@ -853,11 +970,7 @@ export function createAppRouteObjects({
     {
       id: 'app',
       path: routePaths.appRoot,
-      element: currentUser ? (
-        <ProtectedLayout currentUser={currentUser} onLogout={onLogout} />
-      ) : (
-        <Navigate to={routePaths.login} replace />
-      ),
+      element: <ProtectedLayout currentUser={currentUser} onLogout={onLogout} />,
       children: protectedChildren,
     },
     {
@@ -890,8 +1003,8 @@ export function getContentNavigationRoutes(currentUser: User): ContentNavigation
     }));
 }
 
-function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
-  const sidebarRoutes = getVisibleWorkspacePages(currentUser)
+function buildSidebarNavigation(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  const sidebarRoutes = getMenuVisibleWorkspacePages(currentUser, resourceInfoMap)
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
   const groups = new Map<string, SidebarNavigationGroup>();
 
@@ -926,8 +1039,8 @@ function buildSidebarNavigation(currentUser: User, resourceInfoMap?: Map<string,
     .sort((left, right) => left.sortOrder - right.sortOrder || left.orderIndex - right.orderIndex);
 }
 
-function buildTopLevelSidebarRoutes(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
-  return getVisibleWorkspacePages(currentUser)
+function buildTopLevelSidebarRoutes(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  return getMenuVisibleWorkspacePages(currentUser, resourceInfoMap)
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar))
     .filter((route) => resolveRouteSidebarGroup(route, resourceInfoMap) === null)
     .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
@@ -941,11 +1054,14 @@ function buildTopLevelSidebarRoutes(currentUser: User, resourceInfoMap?: Map<str
     }));
 }
 
-export function buildSidebarMenuItems(currentUser: User, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
+export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
   const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
   const sidebarItems: SortableWorkspaceMenuItem[] = [];
 
-  if (hasRouteGrant(currentUser, chatRouteGrant)) {
+  if (
+    (currentUser && hasRouteGrant(currentUser, chatRouteGrant))
+    || resourceInfoMap?.get(chatRouteGrant.resourceKey || '')?.visibilityMode === 'always'
+  ) {
     sidebarItems.push({
       key: routePaths.defaultModule,
       icon: <PictureOutlined />,

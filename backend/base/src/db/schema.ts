@@ -162,6 +162,7 @@ export function migrateDatabase() {
       platform TEXT NOT NULL,
       path TEXT NOT NULL DEFAULT '',
       permission_code TEXT NOT NULL UNIQUE,
+      visibility_mode TEXT NOT NULL DEFAULT 'permission',
       status INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER NOT NULL DEFAULT 0,
       is_system INTEGER NOT NULL DEFAULT 0,
@@ -810,6 +811,7 @@ export function migrateDatabase() {
   }
 
   addColumnIfMissing('users', 'avatar_url', 'avatar_url TEXT');
+  addColumnIfMissing('route_resources', 'visibility_mode', "visibility_mode TEXT NOT NULL DEFAULT 'permission'");
   addColumnIfMissing('users', 'role', "role TEXT NOT NULL DEFAULT 'user'");
   addColumnIfMissing('users', 'auth_version', 'auth_version INTEGER NOT NULL DEFAULT 1');
   addColumnIfMissing('users', 'role_id', 'role_id TEXT');
@@ -1218,11 +1220,11 @@ export function migrateDatabase() {
   const upsertRouteResource = db.prepare(`
     INSERT INTO route_resources (
       id, parent_id, name, resource_key, resource_type, platform, path, permission_code,
-      status, sort_order, is_system, created_at, updated_at
+      visibility_mode, status, sort_order, is_system, created_at, updated_at
     )
     VALUES (
       @id, @parentId, @name, @resourceKey, @resourceType, @platform, @path, @permissionCode,
-      @status, @sortOrder, @isSystem, @createdAt, @updatedAt
+      @visibilityMode, @status, @sortOrder, @isSystem, @createdAt, @updatedAt
     )
     ON CONFLICT(id) DO NOTHING
   `);
@@ -1236,6 +1238,7 @@ export function migrateDatabase() {
       platform: resource.platform,
       path: resource.path || '',
       permissionCode: resource.permissionCode,
+      visibilityMode: resource.visibilityMode || 'permission',
       status: resource.status === false ? 0 : 1,
       sortOrder: Number(resource.sortOrder || 0),
       isSystem: resource.isSystem ? 1 : 0,

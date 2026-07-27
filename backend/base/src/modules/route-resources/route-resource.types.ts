@@ -2,6 +2,8 @@ export type RouteResourceType = 'directory' | 'menu';
 
 export type RouteResourcePlatform = 'web' | 'admin';
 
+export type RouteResourceVisibilityMode = 'permission' | 'always';
+
 export type RouteResource = {
   id: string;
   parentId: string | null;
@@ -11,6 +13,7 @@ export type RouteResource = {
   platform: RouteResourcePlatform;
   path: string;
   permissionCode: string;
+  visibilityMode: RouteResourceVisibilityMode;
   status: boolean;
   sortOrder: number;
   isSystem: boolean;
@@ -39,6 +42,7 @@ export type RouteResourceInput = {
   platform: RouteResourcePlatform;
   path?: string;
   permissionCode: string;
+  visibilityMode?: RouteResourceVisibilityMode;
   status?: boolean;
   sortOrder?: number;
   isSystem?: boolean;

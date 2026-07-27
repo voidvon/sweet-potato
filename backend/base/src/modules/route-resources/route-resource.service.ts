@@ -32,6 +32,7 @@ type NormalizedRouteResourceInput = {
   platform: RouteResource['platform'];
   path: string;
   permissionCode: string;
+  visibilityMode: RouteResource['visibilityMode'];
   status: boolean;
   sortOrder: number;
   isSystem: boolean;
@@ -41,6 +42,10 @@ function assertRequired(value: string, label: string) {
   if (!value) {
     throw new Error(`${label}不能为空`);
   }
+}
+
+function normalizeVisibilityMode(value: unknown, fallback: RouteResource['visibilityMode']) {
+  return value === 'always' || value === 'permission' ? value : fallback;
 }
 
 function assertParentValid(parentId: string | null | undefined, currentId?: string) {
@@ -86,6 +91,7 @@ function normalizeInput(input: RouteResourceInput | RouteResourceUpdateInput, cu
     platform,
     path: normalizeString(input.path ?? current?.path),
     permissionCode: normalizeString(input.permissionCode ?? current?.permissionCode),
+    visibilityMode: normalizeVisibilityMode(input.visibilityMode, current?.visibilityMode ?? 'permission'),
     status: normalizeBoolean(input.status, current?.status ?? true),
     sortOrder: normalizeNumber(input.sortOrder, current?.sortOrder ?? 0),
     isSystem: normalizeBoolean(input.isSystem, current?.isSystem ?? false),

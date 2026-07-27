@@ -62,11 +62,28 @@ const webRouteMetaByPermission = {
   path: string;
 }>>;
 
-export const defaultRoleResourceIds = permissionCatalog
-  .filter((entry) => routeResourcePermissionKeys.has(entry.key))
-  .map((entry) => `rr-${entry.key}`);
+export const defaultRoleResourceIds = [
+  'rr-web-discover',
+  ...permissionCatalog
+    .filter((entry) => routeResourcePermissionKeys.has(entry.key))
+    .map((entry) => `rr-${entry.key}`),
+];
 
 export const seededRouteResources: SeedRouteResource[] = [
+  {
+    id: 'rr-web-discover',
+    name: '发现',
+    resourceKey: 'web.discover',
+    resourceType: 'menu',
+    platform: 'web',
+    path: '/app/discover',
+    permissionCode: 'web.route.discover.view',
+    visibilityMode: 'always',
+    status: true,
+    sortOrder: 0,
+    isSystem: true,
+    grantToDefaultRole: true,
+  },
   {
     id: 'rr-web-root-content',
     name: '素材',

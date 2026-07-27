@@ -7,9 +7,14 @@ import { extractBearerToken, resolveAuthenticatedUser } from './auth.js';
 const publicApiPaths = new Set([
   '/api/auth/register',
   '/api/auth/login',
+  '/api/route-resources/public-tree',
   '/api/content/real-person/callback',
   '/api/video-source/preview',
 ]);
+
+const publicApiPrefixes = [
+  '/api/discover/',
+];
 
 function readQueryToken(req: Request) {
   const token = req.query.token;
@@ -23,7 +28,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   const pathname = req.originalUrl.split('?')[0];
-  if (publicApiPaths.has(pathname)) {
+  if (publicApiPaths.has(pathname) || publicApiPrefixes.some((prefix) => pathname.startsWith(prefix))) {
     next();
     return;
   }

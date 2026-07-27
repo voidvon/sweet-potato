@@ -17,6 +17,7 @@ type RouteResourceRow = {
   platform: RouteResource['platform'];
   path: string;
   permission_code: string;
+  visibility_mode: RouteResource['visibilityMode'];
   status: number;
   sort_order: number;
   is_system: number;
@@ -43,6 +44,7 @@ function serializeRouteResource(row: RouteResourceRow): RouteResource {
     platform: row.platform,
     path: row.path || '',
     permissionCode: row.permission_code,
+    visibilityMode: row.visibility_mode || 'permission',
     status: Boolean(row.status),
     sortOrder: Number(row.sort_order || 0),
     isSystem: Boolean(row.is_system),
@@ -142,11 +144,11 @@ export const routeResourceRepository = {
     db.prepare(`
       INSERT INTO route_resources (
         id, parent_id, name, resource_key, resource_type, platform, path, permission_code,
-        status, sort_order, is_system, created_at, updated_at
+        visibility_mode, status, sort_order, is_system, created_at, updated_at
       )
       VALUES (
         @id, @parentId, @name, @resourceKey, @resourceType, @platform, @path, @permissionCode,
-        @status, @sortOrder, @isSystem, @createdAt, @updatedAt
+        @visibilityMode, @status, @sortOrder, @isSystem, @createdAt, @updatedAt
       )
     `).run({
       id,
@@ -157,6 +159,7 @@ export const routeResourceRepository = {
       platform: input.platform,
       path: input.path || '',
       permissionCode: input.permissionCode,
+      visibilityMode: input.visibilityMode || 'permission',
       status: input.status === false ? 0 : 1,
       sortOrder: Number(input.sortOrder || 0),
       isSystem: input.isSystem ? 1 : 0,
@@ -176,6 +179,7 @@ export const routeResourceRepository = {
       ...input,
       parentId: input.parentId === undefined ? current.parentId : (input.parentId || null),
       path: input.path === undefined ? current.path : input.path,
+      visibilityMode: input.visibilityMode === undefined ? current.visibilityMode : input.visibilityMode,
       status: input.status === undefined ? current.status : input.status,
       sortOrder: input.sortOrder === undefined ? current.sortOrder : input.sortOrder,
       isSystem: input.isSystem === undefined ? current.isSystem : input.isSystem,
@@ -189,6 +193,7 @@ export const routeResourceRepository = {
           platform = @platform,
           path = @path,
           permission_code = @permissionCode,
+          visibility_mode = @visibilityMode,
           status = @status,
           sort_order = @sortOrder,
           is_system = @isSystem,
@@ -203,6 +208,7 @@ export const routeResourceRepository = {
       platform: next.platform,
       path: next.path || '',
       permissionCode: next.permissionCode,
+      visibilityMode: next.visibilityMode,
       status: next.status ? 1 : 0,
       sortOrder: Number(next.sortOrder || 0),
       isSystem: next.isSystem ? 1 : 0,
