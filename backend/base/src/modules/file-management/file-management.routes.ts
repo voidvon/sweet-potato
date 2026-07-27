@@ -1,12 +1,12 @@
 import { Router } from 'express'
-import { requireAdmin } from '../../shared/auth.middleware.js'
+import { requirePermission } from '../../shared/auth.middleware.js'
 import { getErrorMessage, sendError } from '../../shared/http.js'
 import { fileManagementService } from './file-management.service.js'
 import { fileManagementTosService } from './file-management-tos.service.js'
 
 export function createFileManagementRouter() {
   const router = Router()
-  router.use(requireAdmin)
+  router.use(requirePermission('admin.route.system.file_management.view'))
 
   router.get('/tos-summary', (_req, res) => {
     void fileManagementTosService.getSummary()

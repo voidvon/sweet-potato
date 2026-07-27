@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getErrorMessage, sendError } from '../../shared/http.js';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { listAudioModelProviders } from '../audio-models/audio-model.registry.js';
 import { listImageModelProviders } from '../image-models/image-model.registry.js';
 import { listVideoModelProviders } from '../video-models/video-model.registry.js';
@@ -22,7 +22,7 @@ import {
 export function createModelConfigRouter() {
   const router = Router();
 
-  router.use(requireAdmin);
+  router.use(requirePermission('admin.route.system.models.view'));
 
   router.get('/ai-model-config', (_req, res) => {
     const configs = modelConfigRepository.list('llm').map(serializeModelConfig);

@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { batchRequestSettingsService } from './batch-request-settings.service.js';
 
 export function createBatchRequestSettingsRouter() {
   const router = Router();
-  router.use(requireAdmin);
+  router.use(requirePermission('admin.route.system.settings.view'));
 
   router.get('/', (_req, res) => {
     res.json(batchRequestSettingsService.getSettings());

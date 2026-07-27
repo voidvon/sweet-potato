@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAdmin } from '../../shared/auth.middleware.js'
+import { requirePermission } from '../../shared/auth.middleware.js'
 import { getErrorMessage, sendError } from '../../shared/http.js'
 import { discoverService } from './discover.service.js'
 
@@ -20,7 +20,7 @@ export function createDiscoverRouter() {
 
 export function createAdminDiscoverRouter() {
   const router = Router()
-  router.use(requireAdmin)
+  router.use(requirePermission('admin.route.discover.view'))
   router.get('/categories', (_req, res) => res.json({ items: discoverService.listCategories() }))
   router.get('/items', (req, res) => res.json({ items: discoverService.listItems(req.query) }))
   router.post('/categories', (req, res) => { try { res.status(201).json(discoverService.createCategory(req.body || {})) } catch (e) { sendError(res, 400, getErrorMessage(e, '分类创建失败')) } })

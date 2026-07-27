@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../../shared/auth.middleware.js';
+import { requirePermission } from '../../shared/auth.middleware.js';
 import { getErrorMessage, sendError } from '../../shared/http.js';
 import {
   createRouteResource,
@@ -22,7 +22,7 @@ export function createRouteResourceRouter() {
     }));
   });
 
-  router.use(requireAdmin);
+  router.use(requirePermission('admin.route.system.route_resources.view'));
 
   router.get('/', (req, res) => {
     const platform = typeof req.query.platform === 'string' ? req.query.platform : undefined;
