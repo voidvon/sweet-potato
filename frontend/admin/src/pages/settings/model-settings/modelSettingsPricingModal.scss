@@ -1,0 +1,38 @@
+.llm-pricing-modal-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 80vh;
+}
+
+.llm-pricing-management-modal .ant-modal-body,
+.llm-pricing-management-modal .ant-table-wrapper,
+.llm-pricing-management-modal .ant-spin-nested-loading,
+.llm-pricing-management-modal .ant-spin-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-table,
+.llm-pricing-management-modal .ant-table-container {
+  min-width: 0;
+}
+
+.llm-pricing-management-modal .ant-table-wrapper {
+  width: 100%;
+}
+
+.llm-pricing-management-modal .ant-table-body {
+  overflow: auto !important;
+}
