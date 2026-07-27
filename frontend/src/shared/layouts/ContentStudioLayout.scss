@@ -80,6 +80,42 @@
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.content-studio-layout .settings-page {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.settings-page,
+.settings-section .ant-table-content,
+.settings-section .ant-table-body {
+  scrollbar-color: rgba(102, 112, 133, 0.42) transparent;
+  scrollbar-width: thin;
+}
+
+.settings-page::-webkit-scrollbar,
+.settings-section .ant-table-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-section .ant-table-content::-webkit-scrollbar,
+.settings-section .ant-table-body::-webkit-scrollbar {
+  height: 8px;
+}
+
+.settings-page::-webkit-scrollbar-track,
+.settings-section .ant-table-content::-webkit-scrollbar-track,
+.settings-section .ant-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-page::-webkit-scrollbar-thumb,
+.settings-section .ant-table-content::-webkit-scrollbar-thumb,
+.settings-section .ant-table-body::-webkit-scrollbar-thumb {
+  background: rgba(102, 112, 133, 0.42);
+  border-radius: 4px;
 }
 
 .settings-header {
@@ -118,6 +154,33 @@
 .settings-section {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+
+.settings-page > *,
+.settings-section > * {
+  min-width: 0;
+}
+
+.settings-page [class$='-table-viewport'] {
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.settings-section > .ant-table-wrapper {
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-section .ant-table-wrapper {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.settings-section .ant-table-content,
+.settings-section .ant-table-body {
+  scrollbar-gutter: stable;
 }
 
 .settings-section-actions {
