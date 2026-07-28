@@ -1,8 +1,7 @@
-import { Play, X } from 'lucide-react';
 import { useState } from 'react';
 import { deleteReferenceVideo, trimReferenceVideo } from '../../../../api/content';
 import { resolveAssetUrl } from '../../../../api/request';
-import { materialIcon } from './materialIcon';
+import { MediaAttachmentStack } from '../../../../components/MediaAttachmentStack';
 import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type RemoteTrimSelection, type TrimSelection } from './TrimReferenceVideoModal';
@@ -67,39 +66,18 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
 
   return (
     <>
-      <div className="video-task-stack-wrapper">
-        <div
-          aria-label="预览 参考视频"
-          className="video-task-video-preview-card"
-          onClick={() => video && setPreviewVideo(video)}
-          onKeyDown={(event) => {
-            if (!video || (event.key !== 'Enter' && event.key !== ' ')) return;
-            event.preventDefault();
-            setPreviewVideo(video);
-          }}
-          role="button"
-          tabIndex={0}
-        >
-          {file ? <video muted playsInline preload="metadata" src={file.url} /> : materialIcon('video')}
-          {file && (
-            <span className="video-task-reference-play">
-              <Play size={14} fill="currentColor" />
-            </span>
-          )}
-          <span className="video-task-video-preview-name">{name}</span>
-          <button
-            aria-label="删除 参考视频"
-            className="video-task-slot-delete"
-            onClick={(event) => {
-              event.stopPropagation();
-              clearVideo();
-            }}
-            type="button"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      </div>
+      <MediaAttachmentStack
+        items={[{
+          caption: name,
+          id: file?.id ?? 'reference-video',
+          name,
+          src: file?.url,
+          type: 'video',
+        }]}
+        layout="offset"
+        onPreview={video ? () => setPreviewVideo(video) : undefined}
+        onRemove={clearVideo}
+      />
 
       {pendingTrim?.file ? (
         <TrimReferenceVideoModal

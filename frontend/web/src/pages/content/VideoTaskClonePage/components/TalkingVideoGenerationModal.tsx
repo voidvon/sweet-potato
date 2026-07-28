@@ -7,7 +7,7 @@ import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue } from '../types';
 import { AudioMaterialStack } from './AudioMaterialStack';
 import { AudioAssetLibraryPanel } from './AudioAssetLibraryList';
-import type { MediaSlotItem } from './MediaSlotStack';
+import type { MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { PromptMentionEditor } from './PromptMentionEditor';
 import { PromptModal } from './PromptModal';
 import { TalkingVideoImageMaterials } from './TalkingVideoPanel';
@@ -235,13 +235,13 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const audioFiles = localFiles(state.talkingVideoGenerationMaterials.audio);
   const selectedAudio = audioFiles[0];
-  const audioItems = useMemo(() => audioFiles.map((file): MediaSlotItem => ({
+  const audioItems = useMemo(() => audioFiles.map((file): MediaAttachmentItem => ({
     background: 'var(--color-surface-muted)',
     caption: '口播',
     detail: file.audioDuration ? `${Math.round(file.audioDuration)}s` : '音频',
     id: file.id,
     src: resolveLocalMaterialUrl(file),
-    title: file.name,
+    name: file.name,
     type: 'audio',
   })), [audioFiles]);
 

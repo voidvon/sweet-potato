@@ -129,7 +129,7 @@
   box-shadow: 0 0 0 2px var(--color-neutral-400);
 }
 
-.claw-reference-group.is-linked-hover {
+.claw-reference-group:not(.has-attachments).is-linked-hover {
   box-shadow: 0 0 0 2px var(--color-neutral-400);
 }
 
@@ -199,7 +199,7 @@
   line-height: 1;
 }
 
-.image-attachment-stack-frame .claw-reference-remove {
+.media-attachment-stack__item .claw-reference-remove {
   align-items: center;
   background: rgb(var(--color-shadow-rgb) / 0.74);
   border: 0;
@@ -219,7 +219,7 @@
   z-index: 4;
 }
 
-.image-attachment-stack-item:hover .claw-reference-remove {
+.media-attachment-stack__item:hover .claw-reference-remove {
   opacity: 1;
 }
 

@@ -10,7 +10,7 @@ import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
-import { ImageAttachmentStack } from './ImageAttachmentStack';
+import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import './ChatMessageList.scss';
 
@@ -230,9 +230,20 @@ export function ChatMessageList({
 
   function renderUserImageStack(imageAttachments: ChatAttachment[]) {
     return (
-      <ImageAttachmentStack
-        attachments={imageAttachments}
-        onPreview={(_attachment, index) => setPreviewImageGroup({
+      <MediaAttachmentStack
+        collapsedCaptionVisibility="top"
+        items={imageAttachments.map((attachment, index) => ({
+          caption: `图${index + 1}`,
+          id: attachment.id,
+          name: attachment.name,
+          previewSrc: resolveAssetUrl(attachment.url),
+          src: resolveAssetUrl(attachment.previewUrl || attachment.url),
+          status: attachment.uploadStatus,
+          type: 'image',
+        }))}
+        layout="rotated"
+        maxCollapsedVisible={5}
+        onPreview={(_item, index) => setPreviewImageGroup({
           current: index,
           images: imageAttachments,
           open: true,
