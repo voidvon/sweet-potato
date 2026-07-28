@@ -30,13 +30,13 @@ configure_runtime_ports() {
   case "$PACKAGE_ENV" in
     production)
       WEB_HOST_PORT="${WEB_HOST_PORT:-5689}"
-      BASE_HOST_PORT="${BASE_HOST_PORT:-7072}"
-      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-7073}"
+      BASE_HOST_PORT="${BASE_HOST_PORT:-5672}"
+      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-5673}"
       ;;
     test)
       WEB_HOST_PORT="${WEB_HOST_PORT:-5690}"
-      BASE_HOST_PORT="${BASE_HOST_PORT:-7172}"
-      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-7173}"
+      BASE_HOST_PORT="${BASE_HOST_PORT:-5772}"
+      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-5773}"
       ;;
     *)
       echo "Unsupported package environment for ports: $PACKAGE_ENV" >&2
