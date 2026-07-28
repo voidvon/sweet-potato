@@ -186,7 +186,7 @@ select_package_environment() {
   case "${choice:-1}" in
     1|production|prod)
       PACKAGE_ENV="production"
-      VITE_API_BASE_URL="/api/base"
+      VITE_API_BASE_URL=""
       WEB_ASSET_BASE="/"
       WEB_ROUTER_BASENAME=""
       ADMIN_ASSET_BASE="/admin/"
