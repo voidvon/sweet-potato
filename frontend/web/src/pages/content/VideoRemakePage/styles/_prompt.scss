@@ -1,0 +1,64 @@
+.remake-seedance-overview {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.remake-seedance-overview p {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--remake-border);
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.remake-seedance-overview span {
+  color: var(--remake-muted);
+  font-size: 12px;
+}
+
+.remake-seedance-overview strong {
+  color: var(--remake-text);
+  font-size: 14px;
+}
+
+.remake-prompt-editor,
+.remake-prompt-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.remake-prompt-editor label {
+  color: var(--remake-muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.remake-prompt-editor .ant-input {
+  border-color: var(--color-brand-border);
+  border-radius: 12px;
+  color: var(--color-neutral-800);
+  font-size: 14px;
+  line-height: 1.78;
+  padding: 12px 14px;
+}
+
+.remake-prompt-editor .ant-input:focus,
+.remake-prompt-editor .ant-input-focused {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px rgb(var(--color-brand-rgb) / 0.12);
+}
+
+.remake-segment-prompt-editor .mention-rich-textarea {
+  min-height: 320px;
+}
+
+.remake-prompt-preview {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-100);
+  border-radius: 12px;
+  padding: 10px 12px;
+}

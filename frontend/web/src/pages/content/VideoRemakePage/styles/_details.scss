@@ -1,0 +1,93 @@
+@media (prefers-reduced-motion: reduce) {
+  .remake-expert-progress-item.is-running .remake-expert-progress-dot,
+  .remake-progress-track i.is-running::after {
+    animation: none;
+  }
+}
+
+.remake-video-basic ul {
+  display: grid;
+  gap: 12px;
+  list-style: disc;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.remake-video-basic li {
+  color: var(--remake-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.remake-video-basic li span {
+  font-weight: 600;
+}
+
+.remake-video-basic li strong {
+  font-weight: 500;
+}
+
+.remake-expert-details {
+  display: grid;
+  gap: 12px;
+}
+
+.remake-expert-detail {
+  background: var(--color-neutral-25);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.remake-expert-detail > strong {
+  color: var(--remake-text);
+  font-size: 14px;
+}
+
+.remake-expert-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.remake-expert-row span {
+  color: var(--remake-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remake-expert-row p,
+.remake-expert-detail > p {
+  color: var(--color-neutral-700);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.remake-expert-field-list {
+  display: grid;
+  gap: 8px;
+}
+
+.remake-expert-field-list p {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-100);
+  border-radius: 10px;
+  color: var(--color-neutral-700);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+  white-space: pre-wrap;
+}
+
+.remake-expert-field-list b {
+  color: var(--remake-text);
+  font-weight: 700;
+}

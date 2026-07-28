@@ -1,0 +1,119 @@
+.remake-card-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.remake-card-fields.three {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.remake-card-fields.two {
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+
+.remake-card-fields > label {
+  color: var(--remake-text);
+  display: grid;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 7px;
+  min-width: 0;
+}
+
+.remake-card-fields .ant-input,
+.remake-card-fields .ant-input-number,
+.remake-card-fields .ant-select,
+.remake-card-fields textarea.ant-input {
+  font-weight: 400;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.remake-card-fields .ant-input-number {
+  width: 100%;
+}
+.remake-card-form {
+  display: grid;
+}
+
+.remake-card-fields .app-form-item .ant-form-item-label > label {
+  color: var(--remake-text);
+}
+
+.remake-radio-field {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+
+.remake-radio-field .ant-form-item-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.remake-radio-field .ant-form-item-label {
+  padding: 0;
+}
+
+.remake-radio-field .ant-form-item-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.remake-radio-field .ant-radio-group {
+  align-items: center;
+  display: flex;
+  gap: 12px 28px;
+}
+
+.remake-radio-field .ant-radio-wrapper {
+  display: flex;
+  align-items: center;
+  color: var(--color-neutral-700);
+  font-size: 13px;
+  margin-inline-end: 0;
+}
+
+.remake-card-tabs {
+  margin-bottom: -2px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.remake-card-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
+.remake-card-tabs .ant-tabs-nav-wrap {
+  // overflow-x: auto !important;
+  overflow-y: hidden;
+}
+
+.remake-card-tabs .ant-tabs-nav-list {
+  min-width: max-content;
+}
+
+.remake-current-line {
+  align-items: center;
+  color: var(--color-neutral-700);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.remake-card-actions-inline {
+  display: flex;
+  justify-content: flex-end;
+}
+.remake-static-text {
+  color: var(--color-neutral-700);
+  display: inline-block;
+  line-height: 32px;
+  min-height: 32px;
+}
