@@ -543,12 +543,28 @@ function actorHasPermission(actor: { role: UserRole; permissions?: readonly stri
   return Boolean(actor.permissions?.includes(permissionKey));
 }
 
+function actorHasReadPermissionForResourceType(
+  actor: { role: UserRole; permissions?: readonly string[] },
+  resourceType: ContentResourceType,
+) {
+  if (actorHasPermission(actor, permissionForContentResourceType(resourceType))) {
+    return true;
+  }
+
+  // The video creation workflow reads the user's completed videos as reusable references.
+  return resourceType === 'finished_video'
+    && actorHasPermission(actor, 'web.module.content.create_video');
+}
+
 function assertActorPermissionForResourceType(
   actor: { userId: string; role: UserRole; permissions?: readonly string[] },
   resourceType: ContentResourceType,
+  options: { readOnly?: boolean } = {},
 ) {
-  const permissionKey = permissionForContentResourceType(resourceType);
-  if (!actorHasPermission(actor, permissionKey)) {
+  const hasPermission = options.readOnly
+    ? actorHasReadPermissionForResourceType(actor, resourceType)
+    : actorHasPermission(actor, permissionForContentResourceType(resourceType));
+  if (!hasPermission) {
     throw new Error('当前账号无权访问该功能');
   }
 }
@@ -571,7 +587,7 @@ function filterAssetsByPermissions(
     return assets;
   }
 
-  return assets.filter((asset) => actorHasPermission(actor, permissionForContentResourceType(asset.resourceType)));
+  return assets.filter((asset) => actorHasReadPermissionForResourceType(actor, asset.resourceType));
 }
 
 function filterGroupsByPermissions(
@@ -1848,7 +1864,7 @@ export const contentService = {
         throw new Error('素材类型不存在');
       }
       resourceType = input.resourceType;
-      assertActorPermissionForResourceType(input.actor, resourceType);
+      assertActorPermissionForResourceType(input.actor, resourceType, { readOnly: true });
     }
     const group = input.groupId ? contentRepository.findGroup(input.groupId) : null;
     if (group) {
