@@ -4,11 +4,15 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const ROOT_DIR = path.resolve(__dirname, '..')
-const DEFAULT_TARGET_DIR = path.join(ROOT_DIR, 'frontend', 'admin', 'src')
+const DEFAULT_TARGET_DIRS = Object.freeze([
+  path.join(ROOT_DIR, 'frontend', 'admin', 'src'),
+  path.join(ROOT_DIR, 'frontend', 'web', 'src'),
+])
 const DEFAULT_BASELINE_PATH = path.join(__dirname, 'file-size-baseline.json')
 
 const THRESHOLDS = Object.freeze({
   tsx: Object.freeze({ warn: 300, fail: 500 }),
+  css: Object.freeze({ warn: 90, fail: 140 }),
   scss: Object.freeze({ warn: 90, fail: 140 }),
 })
 
@@ -110,22 +114,23 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
     const { fail, warn } = metric.threshold
     const baselineLineCount = baselineFiles[metric.relativePath]
 
+    if (typeof baselineLineCount === 'number' && metric.lineCount > baselineLineCount) {
+      errors.push(
+        `${metric.relativePath}: ${metric.lineCount} lines exceeds baseline ${baselineLineCount}`,
+      )
+      results.push({ ...metric, baselineLineCount, status: 'error' })
+      continue
+    }
+
     if (metric.lineCount > fail) {
-      if (typeof baselineLineCount === 'number' && metric.lineCount <= baselineLineCount) {
+      if (typeof baselineLineCount === 'number') {
         warnings.push(
           `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} but is grandfathered at baseline ${baselineLineCount}`,
         )
         results.push({ ...metric, baselineLineCount, status: 'grandfathered' })
         continue
       }
-
-      if (typeof baselineLineCount === 'number') {
-        errors.push(
-          `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} and baseline ${baselineLineCount}`,
-        )
-      } else {
-        errors.push(`${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without baseline`)
-      }
+      errors.push(`${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without baseline`)
       results.push({ ...metric, baselineLineCount, status: 'error' })
       continue
     }
@@ -145,10 +150,12 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
 function runFileSizeCheck(options = {}) {
   const fsImpl = options.fsImpl || fs
   const rootDir = options.rootDir || ROOT_DIR
-  const targetDir = options.targetDir || DEFAULT_TARGET_DIR
+  const targetDirs = options.targetDirs || (options.targetDir ? [options.targetDir] : DEFAULT_TARGET_DIRS)
   const baselinePath = options.baselinePath || DEFAULT_BASELINE_PATH
   const baseline = loadBaseline(baselinePath, fsImpl)
-  const fileMetrics = collectFileMetrics(targetDir, { fsImpl, rootDir })
+  const fileMetrics = targetDirs
+    .flatMap((targetDir) => collectFileMetrics(targetDir, { fsImpl, rootDir }))
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
   const evaluation = evaluateFileSizeMetrics(fileMetrics, baseline.files)
 
   return {
@@ -176,7 +183,7 @@ function printReport(result) {
 
   const oversizedCount = result.results.filter((item) => item.status === 'grandfathered').length
   console.log(
-    `Checked ${result.fileMetrics.length} admin TSX/SCSS files`
+    `Checked ${result.fileMetrics.length} Admin/Web TSX/CSS/SCSS files`
     + `${oversizedCount > 0 ? ` (${oversizedCount} grandfathered)` : ''}`,
   )
   return true
