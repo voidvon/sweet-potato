@@ -1,36 +1,8 @@
-import {
-  AudioOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  FileImageOutlined,
-  FileOutlined,
-  FileTextOutlined,
-  ReloadOutlined,
-  SearchOutlined,
-  VideoCameraOutlined,
-} from '@ant-design/icons';
-import {
-  Button,
-  Card,
-  Col,
-  DatePicker,
-  Descriptions,
-  Drawer,
-  Form,
-  Input,
-  Popconfirm,
-  Row,
-  Select,
-  Space,
-  Statistic,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-  message,
-} from 'antd';
+import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Button, Form, Popconfirm, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { resolveAssetUrl } from '@shared/api/core/request';
 import {
   deleteManagedFile,
@@ -39,29 +11,23 @@ import {
   listTosObjects,
   type ManagedFile,
   type ManagedFileListFilters,
-  type ManagedFileMediaType,
   type ManagedFileSummary,
   type TosStorageSummary,
 } from '../../api/file-management';
 import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail';
+import { useTableBodyHeight } from '../../hooks/useTableBodyHeight';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import { FileManagementFilters, type FileFilterForm } from './file-management/FileManagementFilters';
+import { FileManagementSummaryCards } from './file-management/FileManagementSummaryCards';
+import { ManagedFileDetailDrawer } from './file-management/ManagedFileDetailDrawer';
+import {
+  formatBytes,
+  formatDateTime,
+  lifecycleLabels,
+  mediaIcon,
+  resourceTypeLabels,
+} from './file-management/fileManagementFormatters';
 import './FileManagementPage.scss';
-
-const { RangePicker } = DatePicker;
-
-type DateValue = {
-  startOf: (unit: 'day') => DateValue;
-  endOf: (unit: 'day') => DateValue;
-  toISOString: () => string;
-};
-
-type FilterForm = {
-  search?: string;
-  storageProvider?: ManagedFileListFilters['storageProvider'];
-  mediaType?: ManagedFileListFilters['mediaType'];
-  lifecycleStatus?: ManagedFileListFilters['lifecycleStatus'];
-  createdAt?: [DateValue, DateValue];
-};
 
 const emptySummary: ManagedFileSummary = {
   totalCount: 0,
@@ -72,105 +38,8 @@ const emptySummary: ManagedFileSummary = {
   tosBytes: 0,
 };
 
-const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false,
-});
-
-const resourceTypeLabels: Record<string, string> = {
-  digital_human: '数字人',
-  virtual_portrait: '形象素材',
-  voice: '音色',
-  scene: '场景',
-  product: '商品',
-  finished_video: '成片',
-  real_person: '真人素材',
-  other: '其他',
-};
-
-const lifecycleLabels: Record<string, { color: string; label: string }> = {
-  temporary: { color: 'gold', label: '临时' },
-  retained: { color: 'blue', label: '已引用' },
-  permanent: { color: 'green', label: '永久' },
-};
-
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** unitIndex;
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
-}
-
-function mediaIcon(mediaType: ManagedFileMediaType) {
-  if (mediaType === 'image') return <FileImageOutlined />;
-  if (mediaType === 'video') return <VideoCameraOutlined />;
-  if (mediaType === 'audio') return <AudioOutlined />;
-  if (mediaType === 'document') return <FileTextOutlined />;
-  return <FileOutlined />;
-}
-
-function useTableBodyHeight() {
-  const viewportElementRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<ResizeObserver | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const [bodyHeight, setBodyHeight] = useState(1);
-
-  const measure = useCallback(() => {
-    const viewport = viewportElementRef.current;
-    if (!viewport || viewport.clientHeight <= 0) return;
-
-    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
-    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
-    let paginationHeight = 0;
-    if (pagination) {
-      const style = window.getComputedStyle(pagination);
-      paginationHeight = pagination.offsetHeight
-        + Number.parseFloat(style.marginTop || '0')
-        + Number.parseFloat(style.marginBottom || '0');
-    }
-
-    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
-    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
-  }, []);
-
-  const scheduleMeasure = useCallback(() => {
-    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = requestAnimationFrame(() => {
-      animationFrameRef.current = null;
-      measure();
-    });
-  }, [measure]);
-
-  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
-    observerRef.current?.disconnect();
-    observerRef.current = null;
-    viewportElementRef.current = viewport;
-    if (!viewport) return;
-    observerRef.current = new ResizeObserver(scheduleMeasure);
-    observerRef.current.observe(viewport);
-    scheduleMeasure();
-  }, [scheduleMeasure]);
-
-  useLayoutEffect(() => {
-    scheduleMeasure();
-  });
-
-  useEffect(() => () => {
-    observerRef.current?.disconnect();
-    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-  }, []);
-
-  return { bodyHeight, viewportRef };
-}
-
 export function FileManagementPage() {
-  const [form] = Form.useForm<FilterForm>();
+  const [form] = Form.useForm<FileFilterForm>();
   const [files, setFiles] = useState<ManagedFile[]>([]);
   const [recordSummary, setRecordSummary] = useState<ManagedFileSummary>(emptySummary);
   const [tosStorageSummary, setTosStorageSummary] = useState<TosStorageSummary | null>(null);
@@ -220,24 +89,21 @@ export function FileManagementPage() {
     }
   }, []);
 
-  const summary = useMemo<ManagedFileSummary>(() => {
-    if (!tosStorageSummary) return recordSummary;
-    return {
-      totalCount: recordSummary.localCount + tosStorageSummary.objectCount,
-      totalBytes: recordSummary.localBytes + tosStorageSummary.totalBytes,
-      localCount: recordSummary.localCount,
-      localBytes: recordSummary.localBytes,
-      tosCount: tosStorageSummary.objectCount,
-      tosBytes: tosStorageSummary.totalBytes,
-    };
-  }, [recordSummary, tosStorageSummary]);
+  const summary = useMemo<ManagedFileSummary>(() => tosStorageSummary ? {
+    totalCount: recordSummary.localCount + tosStorageSummary.objectCount,
+    totalBytes: recordSummary.localBytes + tosStorageSummary.totalBytes,
+    localCount: recordSummary.localCount,
+    localBytes: recordSummary.localBytes,
+    tosCount: tosStorageSummary.objectCount,
+    tosBytes: tosStorageSummary.totalBytes,
+  } : recordSummary, [recordSummary, tosStorageSummary]);
 
   useEffect(() => {
     void loadFiles(1, 20, {});
     void loadTosSummary();
   }, []);
 
-  function applyFilters(values: FilterForm) {
+  function applyFilters(values: FileFilterForm) {
     const nextFilters: ManagedFileListFilters = {
       search: values.search?.trim() || undefined,
       storageProvider: values.storageProvider,
@@ -257,8 +123,7 @@ export function FileManagementPage() {
   }
 
   function filterByStorage(storageProvider?: 'local' | 'tos') {
-    const currentValues = form.getFieldsValue();
-    const nextValues = { ...currentValues, storageProvider };
+    const nextValues = { ...form.getFieldsValue(), storageProvider };
     form.setFieldsValue(nextValues);
     applyFilters(nextValues);
   }
@@ -280,7 +145,7 @@ export function FileManagementPage() {
     }
   }
 
-  const columns = useMemo<ColumnsType<ManagedFile>>(() => [
+  const columns: ColumnsType<ManagedFile> = [
     {
       title: '文件',
       key: 'file',
@@ -288,12 +153,7 @@ export function FileManagementPage() {
       render: (_, file) => (
         <Space>
           {file.mediaType === 'image' || file.mediaType === 'video' ? (
-            <WorkPreviewThumbnail
-              coverUrl={file.coverUrl}
-              fileUrl={file.fileUrl}
-              mediaType={file.mediaType}
-              title={file.name}
-            />
+            <WorkPreviewThumbnail coverUrl={file.coverUrl} fileUrl={file.fileUrl} mediaType={file.mediaType} title={file.name} />
           ) : mediaIcon(file.mediaType)}
           <Space direction="vertical" size={0}>
             <Tooltip title={file.originalFileName || file.name}>
@@ -304,27 +164,14 @@ export function FileManagementPage() {
         </Space>
       ),
     },
-    {
-      title: '业务来源',
-      dataIndex: 'resourceType',
-      width: 120,
-      render: (value: string) => resourceTypeLabels[value] || value || '-',
-    },
+    { title: '业务来源', dataIndex: 'resourceType', width: 120, render: (value: string) => resourceTypeLabels[value] || value || '-' },
     {
       title: '存储位置',
       dataIndex: 'storageProvider',
       width: 110,
-      render: (value: ManagedFile['storageProvider']) => (
-        <Tag color={value === 'tos' ? 'blue' : 'default'}>{value === 'tos' ? 'TOS' : '本地'}</Tag>
-      ),
+      render: (value: ManagedFile['storageProvider']) => <Tag color={value === 'tos' ? 'blue' : 'default'}>{value === 'tos' ? 'TOS' : '本地'}</Tag>,
     },
-    {
-      title: '文件大小',
-      dataIndex: 'fileSize',
-      width: 110,
-      align: 'right',
-      render: (value: number) => formatBytes(value),
-    },
+    { title: '文件大小', dataIndex: 'fileSize', width: 110, align: 'right', render: formatBytes },
     {
       title: '状态',
       dataIndex: 'lifecycleStatus',
@@ -334,25 +181,9 @@ export function FileManagementPage() {
         return <Tag color={meta.color}>{meta.label}</Tag>;
       },
     },
-    {
-      title: '引用',
-      dataIndex: 'referenceCount',
-      width: 80,
-      align: 'right',
-      render: (value: number) => value ? `${value} 处` : '-',
-    },
-    {
-      title: '所属用户',
-      dataIndex: 'username',
-      width: 130,
-      render: (value: string) => value || '-',
-    },
-    {
-      title: '上传时间',
-      dataIndex: 'createdAt',
-      width: 180,
-      render: (value: string) => dateTimeFormatter.format(new Date(value)),
-    },
+    { title: '引用', dataIndex: 'referenceCount', width: 80, align: 'right', render: (value: number) => value ? `${value} 处` : '-' },
+    { title: '所属用户', dataIndex: 'username', width: 130, render: (value: string) => value || '-' },
+    { title: '上传时间', dataIndex: 'createdAt', width: 180, render: formatDateTime },
     {
       title: '操作',
       key: 'actions',
@@ -367,7 +198,7 @@ export function FileManagementPage() {
             description="删除后无法恢复，确定要删除这个文件吗？"
             okButtonProps={{ danger: true, loading: deletingFileId === file.id }}
             okText="确认删除"
-            onConfirm={() => handleDelete(file)}
+            onConfirm={() => void handleDelete(file)}
             title="二次确认"
           >
             <Button danger type="link" icon={<DeleteOutlined />} loading={deletingFileId === file.id}>删除</Button>
@@ -375,103 +206,28 @@ export function FileManagementPage() {
         </Space>
       ),
     },
-  ], []);
+  ];
 
   return (
     <ContentStudioLayout>
       <section className="settings-page file-management-page">
-        <Row className="file-management-statistics" gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <Card hoverable onClick={() => filterByStorage()}>
-              <Statistic title="全部文件" value={summary.totalCount} suffix={`个 / ${formatBytes(summary.totalBytes)}`} />
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card hoverable onClick={() => filterByStorage('local')}>
-              <Statistic title="本地存储" value={summary.localCount} suffix={`个 / ${formatBytes(summary.localBytes)}`} />
-            </Card>
-          </Col>
-          <Col xs={24} md={8}>
-            <Card hoverable onClick={() => filterByStorage('tos')}>
-              <Statistic
-                loading={tosSummaryLoading}
-                title={tosStorageSummary ? `TOS 对象存储（${tosStorageSummary.bucket}）` : 'TOS 对象存储'}
-                value={tosSummaryError ? '-' : summary.tosCount}
-                suffix={tosSummaryError ? undefined : `个 / ${formatBytes(summary.tosBytes)}`}
-              />
-              {tosSummaryError ? <Tooltip title={tosSummaryError}><Typography.Text type="danger">容量读取失败，请检查 TOS 配置</Typography.Text></Tooltip> : null}
-            </Card>
-          </Col>
-        </Row>
-
-        <div className="file-management-toolbar">
-          <Form form={form} layout="inline" onFinish={applyFilters}>
-            <Form.Item name="search">
-              <Input allowClear placeholder="搜索文件名或所属用户" prefix={<SearchOutlined />} style={{ width: 240 }} />
-            </Form.Item>
-            <Form.Item name="storageProvider">
-              <Select
-                allowClear
-                options={[{ label: '本地存储', value: 'local' }, { label: 'TOS 对象存储', value: 'tos' }]}
-                placeholder="存储位置"
-                style={{ width: 150 }}
-              />
-            </Form.Item>
-            <Form.Item name="mediaType">
-              <Select
-                allowClear
-                options={[
-                  { label: '图片', value: 'image' },
-                  { label: '视频', value: 'video' },
-                  { label: '音频', value: 'audio' },
-                  { label: '文档', value: 'document' },
-                  { label: '其他', value: 'other' },
-                ]}
-                placeholder="文件类型"
-                style={{ width: 130 }}
-              />
-            </Form.Item>
-            <Form.Item name="lifecycleStatus">
-              <Select
-                allowClear
-                options={[
-                  { label: '临时', value: 'temporary' },
-                  { label: '已引用', value: 'retained' },
-                  { label: '永久', value: 'permanent' },
-                ]}
-                placeholder="文件状态"
-                style={{ width: 130 }}
-              />
-            </Form.Item>
-            <Form.Item name="createdAt">
-              <RangePicker placeholder={['开始日期', '结束日期']} />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button htmlType="submit" icon={<SearchOutlined />} loading={loading} type="primary">查询</Button>
-                <Button onClick={resetFilters}>重置</Button>
-                <Button
-                  icon={<ReloadOutlined />}
-                  loading={loading || tosSummaryLoading}
-                  onClick={() => {
-                    void loadFiles();
-                    void loadTosSummary();
-                  }}
-                >
-                  刷新
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-          {tosSummaryError ? (
-            <Tooltip title={tosSummaryError}><Typography.Text type="danger">TOS 容量读取失败</Typography.Text></Tooltip>
-          ) : (
-            <Typography.Text className="file-management-summary" type="secondary">
-              {tosSummaryLoading ? '正在读取存储容量' : `共 ${summary.totalCount} 个文件 / ${formatBytes(summary.totalBytes)}`}
-            </Typography.Text>
-          )}
-        </div>
-
+        <FileManagementSummaryCards
+          onStorageFilter={filterByStorage}
+          summary={summary}
+          tosStorageSummary={tosStorageSummary}
+          tosSummaryError={tosSummaryError}
+          tosSummaryLoading={tosSummaryLoading}
+        />
+        <FileManagementFilters
+          form={form}
+          loading={loading}
+          onApply={applyFilters}
+          onRefresh={() => { void loadFiles(); void loadTosSummary(); }}
+          onReset={resetFilters}
+          summaryText={`共 ${summary.totalCount} 个文件 / ${formatBytes(summary.totalBytes)}`}
+          tosSummaryError={tosSummaryError}
+          tosSummaryLoading={tosSummaryLoading}
+        />
         <div
           className="file-management-table-viewport"
           ref={fileTable.viewportRef}
@@ -496,25 +252,7 @@ export function FileManagementPage() {
           />
         </div>
       </section>
-
-      <Drawer onClose={() => setDetailFile(null)} open={Boolean(detailFile)} title="文件详情" width={720}>
-        {detailFile ? (
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="文件名">{detailFile.originalFileName || detailFile.name}</Descriptions.Item>
-            <Descriptions.Item label="文件 ID"><Typography.Text copyable>{detailFile.id}</Typography.Text></Descriptions.Item>
-            <Descriptions.Item label="存储位置">{detailFile.storageProvider === 'tos' ? 'TOS 对象存储' : '本地存储'}</Descriptions.Item>
-            {detailFile.storageBucket ? <Descriptions.Item label="存储桶">{detailFile.storageBucket}</Descriptions.Item> : null}
-            <Descriptions.Item label="存储 Key"><Typography.Text copyable>{detailFile.storageKey || '-'}</Typography.Text></Descriptions.Item>
-            <Descriptions.Item label="文件类型">{detailFile.mimeType || '未知'}</Descriptions.Item>
-            <Descriptions.Item label="文件大小">{formatBytes(detailFile.fileSize)}</Descriptions.Item>
-            <Descriptions.Item label="业务来源">{resourceTypeLabels[detailFile.resourceType] || detailFile.resourceType}</Descriptions.Item>
-            <Descriptions.Item label="所属用户">{detailFile.username || '-'}</Descriptions.Item>
-            <Descriptions.Item label="引用数量">{detailFile.referenceCount}</Descriptions.Item>
-            <Descriptions.Item label="上传时间">{dateTimeFormatter.format(new Date(detailFile.createdAt))}</Descriptions.Item>
-            <Descriptions.Item label="文件地址"><Typography.Text copyable ellipsis>{resolveAssetUrl(detailFile.fileUrl)}</Typography.Text></Descriptions.Item>
-          </Descriptions>
-        ) : null}
-      </Drawer>
+      <ManagedFileDetailDrawer file={detailFile} onClose={() => setDetailFile(null)} />
     </ContentStudioLayout>
   );
 }
