@@ -151,6 +151,10 @@
   --color-danger-soft: #fff1f1;
   --color-danger-border: #fecaca;
 
+  // Beta 功能标识使用独立色值，避免与成功状态或品牌主操作混淆。
+  --color-beta-tag-bg: #e6f3d6;
+  --color-beta-tag-text: #1f3a12;
+
   // 透明色统一由 RGB 通道 token 组合，避免各页面维护相近但不一致的遮罩色。
   --color-white-rgb: 255 255 255;
   --color-black-rgb: 0 0 0;

@@ -77,6 +77,7 @@ export function DiscoverPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [previewItem, setPreviewItem] = useState<DiscoverItem | null>(null)
+  const [previewImageOpen, setPreviewImageOpen] = useState(false)
   const [measuredRatios, setMeasuredRatios] = useState<Record<string, string>>(readRatioCache)
   const [loadedMediaIds, setLoadedMediaIds] = useState<Set<string>>(() => new Set())
   const [playingVideoIds, setPlayingVideoIds] = useState<Set<string>>(() => new Set())
@@ -159,6 +160,7 @@ export function DiscoverPage() {
 
   const openPreview = useCallback((item: DiscoverItem) => {
     setPreviewItem(item)
+    setPreviewImageOpen(item.mediaType === 'image')
     void viewDiscoverItem(item.id)
       .then((counts) => updateItemCounts(item.id, counts))
       .catch(() => message.error('浏览量更新失败'))
@@ -411,9 +413,12 @@ export function DiscoverPage() {
       <AppImage
         alt={previewItem?.title || previewItem?.originalFileName || '图片预览'}
         preview={{
-          visible: previewItem?.mediaType === 'image',
-          onVisibleChange: (visible) => {
-            if (!visible) setPreviewItem(null)
+          open: previewImageOpen,
+          onOpenChange: setPreviewImageOpen,
+          afterOpenChange: (open) => {
+            if (!open) {
+              setPreviewItem((current) => current?.mediaType === 'image' ? null : current)
+            }
           },
         }}
         src={previewItem?.mediaType === 'image' ? resolveAssetUrl(previewItem.fileUrl) : undefined}

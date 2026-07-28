@@ -86,6 +86,11 @@
   color: #0958d9;
 }
 
+.route-tag-beta {
+  background: var(--color-beta-tag-bg);
+  color: var(--color-beta-tag-text);
+}
+
 .settings-trigger {
   align-items: center;
   background: transparent;
@@ -589,6 +594,25 @@
 
 .app-shell-compact-sidebar .desktop-sidebar .module-nav .ant-menu-item-icon + .ant-menu-title-content {
   margin-inline-start: 0 !important;
+}
+
+.app-shell-compact-sidebar .module-nav .ant-menu-item:has(.route-tag-beta) {
+  overflow: visible;
+  position: relative;
+}
+
+.app-shell-compact-sidebar .module-nav .ant-menu-item:has(.route-tag-beta) .ant-menu-title-content,
+.app-shell-compact-sidebar .module-nav .ant-menu-item:has(.route-tag-beta) .menu-item-label {
+  overflow: visible;
+}
+
+.app-shell-compact-sidebar .module-nav .route-tag-beta {
+  font-size: 8.8px;
+  font-weight: 700;
+  padding: 2px 5px;
+  position: absolute;
+  right: 1px;
+  top: 1px;
 }
 
 .app-shell-compact-sidebar .module-nav .ant-menu-submenu-arrow {
