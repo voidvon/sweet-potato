@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
+  ConfigProvider,
   Dropdown,
   Empty,
   Flex,
@@ -583,7 +584,7 @@ export function BatchGenerationPage() {
       width: field.valueType === 'asset-list' || field.valueType === 'asset' ? 220 : 300,
     }));
     return [
-      { key: 'index', render: (_value, _row, index) => index + 1, title: '#', width: 58 },
+      { fixed: 'left', key: 'index', render: (_value, _row, index) => index + 1, title: '#', width: 48 },
       ...businessColumns,
       {
         key: 'status',
@@ -704,16 +705,19 @@ export function BatchGenerationPage() {
 
       <div className="sheet-table-area">
         <section className="sheet-grid" aria-label="批量生成表格">
-          <Table
-            columns={columns}
-            dataSource={rows}
-            loading={loading}
-            locale={{ emptyText: <Empty description="暂无表格行" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-            pagination={false}
-            rowKey="id"
-            rowSelection={{ onChange: (keys) => setSelectedRowIds(keys as string[]), selectedRowKeys: selectedRowIds }}
-            scroll={{ x: 'max-content', y: 'calc(100vh - 330px)' }}
-          />
+          <ConfigProvider theme={{ components: { Table: { headerBorderRadius: 0 } } }}>
+            <Table
+              bordered
+              columns={columns}
+              dataSource={rows}
+              loading={loading}
+              locale={{ emptyText: <Empty description="暂无表格行" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+              pagination={false}
+              rowKey="id"
+              rowSelection={{ columnWidth: 40, fixed: 'left', onChange: (keys) => setSelectedRowIds(keys as string[]), selectedRowKeys: selectedRowIds }}
+              scroll={{ x: 'max-content', y: 'calc(100vh - 330px)' }}
+            />
+          </ConfigProvider>
         </section>
         <section className="sheet-add-row"><Button disabled={rows.length >= MAX_ROWS} icon={<Plus size={20} />} onClick={() => void addRow()} type="dashed">新增一行</Button></section>
       </div>

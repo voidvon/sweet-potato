@@ -96,6 +96,8 @@ createRoot(rootElement).render(
             cellPaddingBlock: 13,
             cellPaddingBlockMD: 13,
             cellPaddingBlockSM: 13,
+            fontSize: 13,
+            headerColor: themeColors.neutral500,
           },
           Tabs: {
             inkBarColor: themeColors.tabsInk,
