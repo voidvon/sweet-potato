@@ -4,6 +4,7 @@ import path from 'node:path';
 import { dataDir } from './db/database.js';
 import { migrateDatabase } from './db/schema.js';
 import { createAdminWorkRouter } from './modules/admin-works/admin-work.routes.js';
+import { createBatchGenerationRouter } from './modules/batch-generation/batch-generation.routes.js';
 import { createBatchRequestSettingsRouter } from './modules/batch-request-settings/batch-request-settings.routes.js';
 import { batchRequestSettingsMiddleware } from './modules/batch-request-settings/batch-request-settings.middleware.js';
 import { createAppEventsRouter } from './modules/app-events/app-events.routes.js';
@@ -12,6 +13,7 @@ import { createBillingRouter } from './modules/billing/billing.routes.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
 import { createContentRouter } from './modules/content/content.routes.js';
 import { createContentPlanningRouter } from './modules/content-planning/content-planning.routes.js';
+import { initializeCreativeCapabilityExecutors } from './modules/creative-capabilities/creative-capability.bootstrap.js';
 import { createGenerationRouter } from './modules/generation/generation.routes.js';
 import { createAdminDiscoverRouter, createDiscoverRouter } from './modules/discover/discover.routes.js';
 import { createFileStorageSettingsRouter } from './modules/file-storage-settings/file-storage-settings.routes.js';
@@ -38,6 +40,7 @@ const filesStaticMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 
 export function createApp() {
   migrateDatabase();
+  initializeCreativeCapabilityExecutors();
 
   const app = express();
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
@@ -67,6 +70,7 @@ export function createApp() {
   app.use('/api/route-resources', createRouteResourceRouter());
   app.use('/api/chat', createChatRouter());
   app.use('/api/generation', createGenerationRouter());
+  app.use('/api/batch-generation', createBatchGenerationRouter());
   app.use('/api/content', createContentRouter());
   app.use('/api/content-planning', createContentPlanningRouter());
   app.use('/api/video-remake', createVideoRemakeRouter());

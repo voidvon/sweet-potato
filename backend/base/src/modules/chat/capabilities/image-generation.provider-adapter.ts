@@ -30,6 +30,7 @@ export type ImageGenerationProviderRequest = {
   referenceAssets: ImageGenerationReferenceAsset[];
   referenceDecision?: string;
   sourceIdPrefix: string;
+  sourceType: string;
   userId: string;
 };
 
@@ -188,7 +189,7 @@ async function generateWithCompatibleImageApi(input: ImageGenerationProviderRequ
         size: input.outputSize,
         billingContext: {
           userId: input.userId,
-          sourceType: 'chat_image_generation',
+          sourceType: input.sourceType,
           sourceId: `${input.sourceIdPrefix}-${index + 1}`,
         },
       })
@@ -201,7 +202,7 @@ async function generateWithCompatibleImageApi(input: ImageGenerationProviderRequ
         size: input.outputSize,
         billingContext: {
           userId: input.userId,
-          sourceType: 'chat_image_generation',
+          sourceType: input.sourceType,
           sourceId: `${input.sourceIdPrefix}-${index + 1}`,
         },
       })
@@ -260,7 +261,7 @@ async function generateWithVolcengineSeedreamApi(input: ImageGenerationProviderR
       recordImageGenerationUsage({
         userId: input.userId,
         modelConfig: input.modelConfig,
-        sourceType: 'chat_image_generation',
+        sourceType: input.sourceType,
         sourceId: `${input.sourceIdPrefix}-${index + 1}`,
         requestSnapshot: {
           adapter: 'volcengine-seedream',
@@ -299,7 +300,7 @@ async function generateWithVolcengineSeedreamApi(input: ImageGenerationProviderR
         size: input.outputSize,
         billingContext: {
           userId: input.userId,
-          sourceType: 'chat_image_generation',
+          sourceType: input.sourceType,
           sourceId: `${input.sourceIdPrefix}-${index + 1}`,
         },
       })
@@ -312,7 +313,7 @@ async function generateWithVolcengineSeedreamApi(input: ImageGenerationProviderR
         size: input.outputSize,
         billingContext: {
           userId: input.userId,
-          sourceType: 'chat_image_generation',
+          sourceType: input.sourceType,
           sourceId: `${input.sourceIdPrefix}-${index + 1}`,
         },
       })
@@ -403,7 +404,7 @@ const image2ProviderAdapter: ImageGenerationProviderAdapter = {
       recordImageGenerationUsage({
         userId: input.userId,
         modelConfig: input.modelConfig,
-        sourceType: 'chat_image_generation',
+        sourceType: input.sourceType,
         sourceId,
         requestSnapshot: {
           adapter: 'image2',
@@ -560,7 +561,7 @@ const geminiProviderAdapter: ImageGenerationProviderAdapter = {
       recordImageGenerationUsage({
         userId: input.userId,
         modelConfig: input.modelConfig,
-        sourceType: 'chat_image_generation',
+        sourceType: input.sourceType,
         sourceId,
         requestSnapshot: {
           adapter: 'gemini',

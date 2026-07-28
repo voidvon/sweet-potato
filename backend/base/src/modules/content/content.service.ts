@@ -2974,7 +2974,7 @@ export const contentService = {
     const precreatedTaskId = String(payload.precreatedTaskId || '').trim();
     const retryTaskId = String(payload.retryTaskId || '').trim();
     const userPrompt = String(payload.prompt || '').trim();
-    const resolvedConfig = resolveDefaultVideoModel(payload.videoModelProviderId);
+    const resolvedConfig = resolveDefaultVideoModel(payload.videoModelProviderId, payload.videoModelConfigId);
     const resolvedProvider = resolveConfiguredVideoProvider(resolvedConfig);
     const resolvedModelOption = resolveConfiguredVideoOption(resolvedProvider, resolvedConfig, payload.videoModelId);
     const quality = payload.quality || '标清 (720p)';
@@ -3030,6 +3030,7 @@ export const contentService = {
         version: 1,
         taskId: '',
         status: 'pending',
+        sourceType: String(payload.billingSourceType || 'video_generation').trim() || 'video_generation',
         duration,
         ratio,
         renderMode: 'provider_generation',
@@ -3064,11 +3065,12 @@ export const contentService = {
           modelName: resolvedModelOption.name,
           resolution: quality,
         });
-        const billingSourceId = `video-generation:${randomUUID()}`;
+        const billingSourceType = String(payload.billingSourceType || 'video_generation').trim() || 'video_generation';
+        const billingSourceId = String(payload.billingSourceId || `video-generation:${randomUUID()}`).trim();
         const reservation = reserveFixedBillableUsage({
           userId: payload.userId,
           category: 'video_generation',
-          sourceType: 'video_generation',
+          sourceType: billingSourceType,
           sourceId: billingSourceId,
           sessionId: billingSourceId,
           credits: price.credits,
@@ -3100,6 +3102,7 @@ export const contentService = {
         ratio,
         duration,
         videoModelProviderId: payload.videoModelProviderId || '',
+        videoModelConfigId: payload.videoModelConfigId || '',
         videoModelId: payload.videoModelId || '',
         referenceImageGroupId: payload.referenceImageGroupId || '',
         referenceVideoGroupId: payload.referenceVideoGroupId || '',
@@ -3113,6 +3116,7 @@ export const contentService = {
         subjectReplaceRemoteVideo: payload.subjectReplaceRemoteVideo || null,
         generateAudio: payload.generateAudio !== false,
         skipVideoBilling: payload.skipVideoBilling === true,
+        billingSourceType: String(payload.billingSourceType || 'video_generation').trim() || 'video_generation',
         videoBillingReservationId,
         userPrompt,
       };
@@ -3449,7 +3453,7 @@ export const contentService = {
         providerResult,
         duration,
         ratio,
-        sourceType: 'video_generation',
+        sourceType: String(taskContext.billingSourceType || 'video_generation').trim() || 'video_generation',
         audioSource: audioUrl ? 'confirmed_audio' : 'silent_fallback',
         usedReplicationPlan: replicationPlan,
       });
@@ -3531,7 +3535,7 @@ export const contentService = {
       version: 1,
       taskId: id,
       status: providerResult.status,
-      sourceType: 'video_generation',
+      sourceType: String(taskContext.billingSourceType || 'video_generation').trim() || 'video_generation',
       provider: providerResult.provider,
       model: providerResult.model,
       jobId: providerResult.jobId,

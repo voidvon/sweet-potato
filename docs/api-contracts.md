@@ -2,6 +2,31 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-07-28 批量生成表格与执行契约
+
+- 所有接口要求 `web.module.content.batch_generation` 权限。
+- `GET /api/batch-generation/capabilities`：返回可创建表格的图片/视频功能定义、参数字段和 Schema 版本。
+- `GET /api/batch-generation/model-options`：返回批量页面可选的图片/视频模型，只包含 `id`、`type`、`name`、`isDefault`，不返回 API Key、服务地址或模型私有配置。
+- `GET /api/batch-generation/sheets`：返回当前用户的顶部 Tab 摘要，包括行数与执行状态统计。
+- `POST /api/batch-generation/sheets`：创建表格，请求体为 `{ name, capabilityKey, globalParams? }`。
+- `GET /api/batch-generation/sheets/:sheetId`：返回表格、全局参数、全部行、统计数据及每一行最新的 `latestAttempts`；结果列应优先使用该集合中的输出和错误信息。
+- `PATCH /api/batch-generation/sheets/:sheetId`：更新名称、全局参数或排序；支持传入 `revision` 做乐观并发控制。
+- `DELETE /api/batch-generation/sheets/:sheetId`：删除表格及其从属数据。
+- `POST /api/batch-generation/sheets/:sheetId/rows`：新增一行或多行。单行请求体为 `{ params }`，批量请求体为 `{ rows: Record<string, unknown>[] }`，每个表格最多 200 行。
+- `PATCH /api/batch-generation/sheets/:sheetId/rows/:rowId`：更新 `{ params?, revision? }`。
+- `DELETE /api/batch-generation/sheets/:sheetId/rows/:rowId`：删除一行并自动压紧后续位置。
+- `GET /api/batch-generation/sheets/:sheetId/runs`：返回当前表格的历史批量运行摘要。
+- `POST /api/batch-generation/sheets/:sheetId/runs`：创建运行，支持 `{ rowIds?: string[] }`；省略时运行当前表格全部行。接口在参数、资产归属和模型配置校验通过后返回 `202` 与 queued Run。
+- `GET /api/batch-generation/runs/:runId`：返回 Run、Attempt 快照和每个 Attempt 的输出资产 ID。
+- `POST /api/batch-generation/runs/:runId/retry`：将上次 Run 的失败或部分失败行作为新 Run 重试。
+- `GET /api/batch-generation/events`：SSE；同一用户会收到 `run` 事件，payload 为最新 Run 详情，可用于行状态、统计和结果即时刷新。
+- `POST /api/batch-generation/assets/upload`：上传当前表格的图片、视频或音频参考素材，使用 `multipart/form-data` 的 `file`、`sheetId` 和 `fieldKey` 字段。
+- `GET /api/batch-generation/assets/:assetId`：读取当前用户拥有的批量参考素材或结果素材元数据。
+- `revision` 不匹配时返回 `409`；资源不存在或不属于当前用户时返回 `404`。
+- 图片能力现已接入异步执行：Attempt 会冻结合并后的行/全局参数和不含 API Key 的模型身份快照；图片结果写入 `content_assets` 后作为 Output 关联。图片计费来源标记为 `batch_generation`。
+- 批量调度在单服务进程内最多并发执行 2 个 Attempt；服务启动时会恢复 queued/running Run。供应商调用按同一 Attempt ID 恢复，调用方仍应把执行视为至少一次语义。
+- 通用“视频生成”能力现已接入同一执行队列。其内部 `video_task_id` 会持久化到 Attempt，在服务重启后继续等待和轮询同一个供应商任务；视频放大、跳舞复刻和主体替换仍需各自的专用参数适配，当前启动会返回明确错误。
+
 ## 2026-07-27 权限变更强制重新登录
 
 - `POST /api/auth/login` 与 `POST /api/auth/register` 返回的 Bearer token 现在携带服务端 `auth_version`，后端会在鉴权时校验该版本；当账号权限发生有效变化后，旧 token 会立即失效并返回 `401`。

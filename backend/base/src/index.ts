@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
+import { batchGenerationRunService } from './modules/batch-generation/batch-generation-run.service.js';
 import { env, volcengineRealPersonConfig, contentPublicBaseUrl } from './config/env.js';
 import { attachChatWebSocketServer } from './modules/chat/chat-stream.service.js';
 import { contentService } from './modules/content/content.service.js';
@@ -20,6 +21,7 @@ server.listen(env.port, () => {
   // console.log('-----------volcengineRealPersonConfig:', volcengineRealPersonConfig);
   // console.log('-----------contentPublicBaseUrl:', contentPublicBaseUrl);
   logger.info('server started', { port: env.port });
+  batchGenerationRunService.resumeInterruptedRuns();
   contentService.resumeRunningVideoGenerations();
   contentPlanningService.resumeInterruptedGenerationsOnStartup();
   contentService.resumePendingGeneratedVideoMirrors();
