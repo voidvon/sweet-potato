@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const {
+  BASELINE_SCOPE,
   THRESHOLDS,
   collectFileMetrics,
   countFileLines,
@@ -44,7 +45,7 @@ function writeBaseline(baselinePath, files, grandfatheredFiles = {}) {
     `${JSON.stringify(
       {
         generatedAt: '2026-07-27T00:00:00+08:00',
-        scope: 'frontend/{admin,web}/src/**/*.{tsx,css,scss}',
+        scope: BASELINE_SCOPE,
         grandfatheredFiles,
         files,
       },
@@ -63,9 +64,45 @@ test('countFileLines handles empty content and trailing newlines', () => {
 
 test('loadBaseline rejects invalid baseline shapes', () => {
   const { baselinePath } = createTempProject()
-  fs.writeFileSync(baselinePath, '{"grandfatheredFiles":{},"files":[]}\n')
+  fs.writeFileSync(
+    baselinePath,
+    `{"scope":"${BASELINE_SCOPE}","grandfatheredFiles":{},"files":[]}\n`,
+  )
 
   assert.throws(() => loadBaseline(baselinePath), /expected a "files" object/)
+})
+
+test('loadBaseline accepts the canonical Admin/Web TSX/CSS/SCSS scope', () => {
+  const { baselinePath } = createTempProject()
+  writeBaseline(baselinePath, {})
+
+  assert.equal(loadBaseline(baselinePath).scope, BASELINE_SCOPE)
+})
+
+test('loadBaseline rejects missing, non-string, and wrong scopes', () => {
+  const cases = [
+    ['missing scope', undefined],
+    ['non-string scope', 42],
+    ['wrong scope', 'frontend/web/src/**/*.{tsx,css,scss}'],
+  ]
+
+  for (const [, scope] of cases) {
+    const { baselinePath } = createTempProject()
+    const baseline = {
+      generatedAt: '2026-07-27T00:00:00+08:00',
+      grandfatheredFiles: {},
+      files: {},
+    }
+    if (scope !== undefined) baseline.scope = scope
+    fs.writeFileSync(baselinePath, `${JSON.stringify(baseline)}\n`)
+
+    assert.throws(() => loadBaseline(baselinePath), (error) => {
+      assert.match(error.message, /Invalid baseline scope/)
+      assert.match(error.message, /expected exactly/)
+      assert.match(error.message, /frontend\/\{admin,web\}\/src/)
+      return true
+    })
+  }
 })
 
 test('loadBaseline rejects unsafe, non-normalized, and out-of-scope paths', () => {

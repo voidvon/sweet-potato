@@ -10,6 +10,7 @@ const DEFAULT_TARGET_DIRS = Object.freeze([
 ])
 const DEFAULT_TARGET_DIR = DEFAULT_TARGET_DIRS[0]
 const DEFAULT_BASELINE_PATH = path.join(__dirname, 'file-size-baseline.json')
+const BASELINE_SCOPE = 'frontend/{admin,web}/src/**/*.{tsx,css,scss}'
 
 const THRESHOLDS = Object.freeze({
   tsx: Object.freeze({ warn: 300, fail: 500 }),
@@ -72,6 +73,12 @@ function validateBaselineContent(baselinePath, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(
       `Invalid baseline format in ${baselinePath}: expected an object root`,
+    )
+  }
+
+  if (value.scope !== BASELINE_SCOPE) {
+    throw new Error(
+      `Invalid baseline scope in ${baselinePath}: expected exactly "${BASELINE_SCOPE}"`,
     )
   }
 
@@ -318,6 +325,7 @@ function main() {
 }
 
 module.exports = {
+  BASELINE_SCOPE,
   THRESHOLDS,
   collectFileMetrics,
   countFileLines,
