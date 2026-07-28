@@ -1,0 +1,47 @@
+.antd-form-grid {
+  display: grid;
+  gap: 0 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.antd-form-grid .full-span {
+  grid-column: 1 / -1;
+}
+
+.model-config-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.model-config-toolbar h2 {
+  margin-bottom: 0;
+}
+
+.model-subtext {
+  color: #667085;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.model-url-text {
+  color: #475467;
+  display: inline-block;
+  font-size: 12px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .antd-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-config-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
