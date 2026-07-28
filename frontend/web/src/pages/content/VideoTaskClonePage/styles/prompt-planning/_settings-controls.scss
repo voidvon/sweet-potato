@@ -1,0 +1,58 @@
+.video-task-epa-stepper {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.video-task-epa-stepper span {
+  color: var(--color-neutral-600);
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: center;
+}
+
+.video-task-epa-stepper-btn {
+  align-items: center;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 9px;
+  color: var(--color-neutral-500);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.video-task-epa-stepper-btn:disabled {
+  color: var(--color-neutral-300);
+  cursor: not-allowed;
+}
+
+.video-task-epa-field.is-product-name {
+  gap: 10px;
+}
+
+.video-task-epa-field.is-product-name input {
+  background: rgb(var(--color-text-muted-rgb) / 0.06);
+  border: 1px solid rgb(var(--color-rose-shadow-rgb) / 0.12);
+  border-radius: 12px;
+  color: var(--color-neutral-800);
+  font: inherit;
+  font-size: 15px;
+  height: 45px;
+  line-height: 21px;
+  outline: 0;
+  padding: 11px 14px;
+  width: 100%;
+}
+
+.video-task-epa-field.is-product-name input::placeholder {
+  color: rgb(var(--color-rose-shadow-rgb) / 0.34);
+}
+
+.video-task-epa-native-input {
+  display: none;
+}

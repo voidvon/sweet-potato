@@ -1,0 +1,98 @@
+.video-task-epa-footer {
+  align-items: center;
+  border-top: 1px solid var(--color-neutral-100);
+  display: flex;
+  flex: none;
+  grid-column: 2;
+  grid-row: 2;
+  justify-content: space-between;
+  min-height: 110px;
+  padding: 20px 36px 22px;
+  position: relative;
+}
+
+.video-task-epa-footer-left,
+.video-task-epa-footer-right {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+
+.video-task-epa-points {
+  align-items: center;
+  color: var(--color-warning-bright);
+  display: inline-flex;
+  font-size: 18px;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.video-task-epa-footer-warning {
+  align-items: center;
+  background: var(--color-warning-soft);
+  border-radius: 999px;
+  color: var(--color-warning-strong);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  position: absolute;
+  right: 208px;
+  top: -38px;
+  white-space: nowrap;
+}
+
+.video-task-epa-btn {
+  align-items: center;
+  border: 0;
+  border-radius: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 15px;
+  font-weight: 700;
+  gap: 8px;
+  height: 56px;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0 22px;
+  white-space: nowrap;
+}
+
+.video-task-epa-btn:disabled {
+  cursor: not-allowed;
+}
+
+.video-task-epa-btn-text {
+  border-radius: 18px;
+  height: 46px;
+  background: transparent;
+  color: var(--color-neutral-400);
+  > span {
+    font-size: 15px;
+  }
+}
+
+.video-task-epa-btn-secondary {
+  background: var(--color-sidebar-hover);
+  color: var(--color-neutral-600);
+}
+
+.video-task-epa-btn-secondary:disabled {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-300);
+}
+.video-task-epa-btn-accent {
+  background: var(--color-black);
+  box-shadow: 0 12px 28px rgb(var(--color-black-rgb) / 0.18);
+  color: var(--color-white);
+  min-width: 238px;
+}
+
+.video-task-epa-btn-accent:disabled {
+  background: var(--color-text-placeholder);
+  box-shadow: none;
+  color: var(--color-white);
+}
