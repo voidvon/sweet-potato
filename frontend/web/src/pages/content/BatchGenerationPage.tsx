@@ -177,6 +177,7 @@ export function BatchGenerationPage() {
         <Button disabled icon={<Columns3 size={17} />} type="text">列宽</Button>
       </section>
 
+      <div className="sheet-table-area">
       <section className="sheet-grid" aria-label="图片批量生成表格">
         <div className="sheet-grid__header">
           <button aria-label="选择全部行" className={`sheet-checkbox${selectedRowIds.length === rows.length ? ' is-checked' : ''}`} onClick={toggleAllRows} type="button">
@@ -207,18 +208,19 @@ export function BatchGenerationPage() {
       </section>
 
       <section className="sheet-add-row">
-        <Button disabled={rows.length >= MAX_ROWS} icon={<Plus size={20} />} onClick={addRow} size="large" type="dashed">新增一行</Button>
+        <Button disabled={rows.length >= MAX_ROWS} icon={<Plus size={20} />} onClick={addRow} type="dashed">新增一行</Button>
       </section>
+      </div>
 
       <section className="sheet-remaining">剩余可添加 <strong>{MAX_ROWS - rows.length}</strong> / {MAX_ROWS}</section>
 
       <footer className="sheet-task-stats">
         <span>共 <strong>{rows.length}</strong> 行</span>
         <i />
-        <span className="sheet-task-stats__done">● 完成 <strong>{rowStats.completed}</strong></span>
-        <span className="sheet-task-stats__processing">● 处理中 <strong>{rowStats.processing}</strong></span>
-        <span className="sheet-task-stats__failed">● 失败 <strong>{rowStats.failed}</strong></span>
-        <span className="sheet-task-stats__pending">● 待提交 <strong>{rowStats.pending}</strong></span>
+        <span className="sheet-task-stats__done"><span className="sheet-task-stats__dot" />完成 <strong>{rowStats.completed}</strong></span>
+        <span className="sheet-task-stats__processing"><span className="sheet-task-stats__dot" />处理中 <strong>{rowStats.processing}</strong></span>
+        <span className="sheet-task-stats__failed"><span className="sheet-task-stats__dot" />失败 <strong>{rowStats.failed}</strong></span>
+        <span className="sheet-task-stats__pending"><span className="sheet-task-stats__dot" />待提交 <strong>{rowStats.pending}</strong></span>
         {hasUnsavedChanges && <><i /><span className="sheet-task-stats__unsaved">有未保存的改动</span></>}
       </footer>
     </main>
