@@ -380,6 +380,80 @@ export function migrateDatabase() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS batch_generation_sheets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      capability_key TEXT NOT NULL,
+      media_kind TEXT NOT NULL,
+      global_params TEXT NOT NULL DEFAULT '{}',
+      schema_version INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      revision INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS batch_generation_rows (
+      id TEXT PRIMARY KEY,
+      sheet_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      params TEXT NOT NULL DEFAULT '{}',
+      validation_status TEXT NOT NULL DEFAULT 'draft',
+      validation_errors TEXT NOT NULL DEFAULT '[]',
+      execution_status TEXT NOT NULL DEFAULT 'idle',
+      latest_attempt_id TEXT,
+      actual_credits REAL NOT NULL DEFAULT 0,
+      revision INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS batch_generation_runs (
+      id TEXT PRIMARY KEY,
+      sheet_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      total_count INTEGER NOT NULL DEFAULT 0,
+      completed_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      estimated_credits REAL NOT NULL DEFAULT 0,
+      actual_credits REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS batch_generation_attempts (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      row_id TEXT NOT NULL,
+      attempt_no INTEGER NOT NULL DEFAULT 1,
+      status TEXT NOT NULL,
+      effective_params TEXT NOT NULL DEFAULT '{}',
+      model_config_snapshot TEXT NOT NULL DEFAULT '{}',
+      generation_job_id TEXT,
+      estimated_credits REAL NOT NULL DEFAULT 0,
+      actual_credits REAL NOT NULL DEFAULT 0,
+      error_code TEXT,
+      error_message TEXT,
+      queued_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS batch_generation_outputs (
+      id TEXT PRIMARY KEY,
+      attempt_id TEXT NOT NULL,
+      slot_index INTEGER NOT NULL,
+      asset_id TEXT NOT NULL,
+      media_kind TEXT NOT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS skill_files (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -727,6 +801,21 @@ export function migrateDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_generation_job_items_job_slot
     ON generation_job_items(job_id, slot_index ASC);
+
+    CREATE INDEX IF NOT EXISTS idx_batch_generation_sheets_user_sort
+    ON batch_generation_sheets(user_id, sort_order ASC, created_at ASC);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_batch_generation_rows_sheet_position
+    ON batch_generation_rows(sheet_id, position ASC);
+
+    CREATE INDEX IF NOT EXISTS idx_batch_generation_runs_sheet_created
+    ON batch_generation_runs(sheet_id, created_at DESC);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_batch_generation_attempts_run_row_no
+    ON batch_generation_attempts(run_id, row_id, attempt_no);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_batch_generation_outputs_attempt_slot
+    ON batch_generation_outputs(attempt_id, slot_index);
 
     CREATE INDEX IF NOT EXISTS idx_skill_files_user_updated
     ON skill_files(user_id, updated_at DESC);

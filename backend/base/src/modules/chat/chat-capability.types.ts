@@ -51,6 +51,8 @@ export type ChatCapabilityInvocation = {
 
 export type ChatCapabilityExecutionInput = {
   userId: string;
+  sourceType?: string;
+  sourceId?: string;
   content: string;
   agent: AiAgent;
   modelConfig: AiModelConfig;

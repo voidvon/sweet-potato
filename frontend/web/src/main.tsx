@@ -67,7 +67,9 @@ createRoot(rootElement).render(
             primaryColor: themeColors.onBrand,
           },
           Input: {
+            borderRadius: 16,
             borderRadiusLG: 16,
+            borderRadiusSM: 16,
             colorBorder: themeColors.neutral100,
             inputFontSizeLG: 13,
           },
@@ -89,6 +91,11 @@ createRoot(rootElement).render(
             borderRadiusSM: 14,
             colorBorder: themeColors.controlBorder,
             fontSizeLG: 13,
+          },
+          Table: {
+            cellPaddingBlock: 13,
+            cellPaddingBlockMD: 13,
+            cellPaddingBlockSM: 13,
           },
           Tabs: {
             inkBarColor: themeColors.tabsInk,

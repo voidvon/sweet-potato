@@ -32,6 +32,8 @@ import {
   type ChromaKeyOutputBackground,
 } from './image-chroma-key.js';
 
+export type ImageGenerationWorkflowInput = Omit<ChatCapabilityExecutionInput, 'agent'>;
+
 type ImageGenerationPreparedInput = {
   chromaKeyOutputBackground?: ChromaKeyOutputBackground;
   generationOptions?: ImageGenerationModeOptions;
@@ -51,16 +53,17 @@ type ImageGenerationPreparedInput = {
   referenceAssetBatchPrompts?: string[];
   referenceDecision?: ImageGenerationReferenceDecision;
   sourceIdPrefix: string;
+  sourceType: string;
 };
 
-type ImageGenerationModeReferenceGroup = {
+export type ImageGenerationModeReferenceGroup = {
   key: string;
   label: string;
   maxCount?: number;
   required?: boolean;
 };
 
-type ImageGenerationModeSchema = {
+export type ImageGenerationModeSchema = {
   generationPrompt?: string;
   generationOptions?: ImageGenerationModeOptions;
   key: string;
@@ -363,6 +366,10 @@ const imageGenerationModeSchemas: Record<string, ImageGenerationModeSchema> = {
   },
 };
 
+export function getImageGenerationModeSchema(modeKey: string) {
+  return imageGenerationModeSchemas[modeKey];
+}
+
 function dataUrlToBuffer(dataUrl: string) {
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(dataUrl);
   if (!match) {
@@ -453,7 +460,7 @@ async function imageUrlForModelVision(attachment: ChatAttachment) {
   return `data:${mimeType};base64,${bytes.toString('base64')}`;
 }
 
-function latestGeneratedImageAttachment(input: ChatCapabilityExecutionInput) {
+function latestGeneratedImageAttachment(input: ImageGenerationWorkflowInput) {
   for (const message of [...input.history].reverse()) {
     if (message.role !== 'assistant') {
       continue;
@@ -618,20 +625,20 @@ function imageGenerationFailureMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || '图片生成失败');
 }
 
-function accumulatedImageGenerationCreditCost(input: ChatCapabilityExecutionInput) {
+function accumulatedImageGenerationCreditCost(input: ImageGenerationWorkflowInput) {
   return Math.max(0, numericValue(input.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0));
 }
 
-function modeSchemaOf(input: ChatCapabilityExecutionInput) {
+function modeSchemaOf(input: ImageGenerationWorkflowInput) {
   const modeKey = cleanText(input.capabilityContext?.imageGeneration?.modeKey) || 'dialog';
   return imageGenerationModeSchemas[modeKey] || imageGenerationModeSchemas.dialog;
 }
 
 export function expectedImageGenerationOutputCount(input: {
   attachments: ChatAttachment[];
-  capabilityContext?: ChatCapabilityExecutionInput['capabilityContext'];
+  capabilityContext?: ImageGenerationWorkflowInput['capabilityContext'];
 }) {
-  const modeSchema = modeSchemaOf(input as ChatCapabilityExecutionInput);
+  const modeSchema = modeSchemaOf(input as ImageGenerationWorkflowInput);
   const outputConfig = imageGenerationOutputConfigOf(modeSchema);
   if (modeSchema.outputCountStrategy === 'fixedOne') {
     return 1;
@@ -668,7 +675,7 @@ function imageModelSupportsCustomResolution(modelConfig: AiModelConfig) {
     );
 }
 
-function referenceGroupsBySchema(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema) {
+function referenceGroupsBySchema(input: ImageGenerationWorkflowInput, modeSchema: ImageGenerationModeSchema) {
   const imageAttachments = input.attachments.filter((attachment) => attachment.kind === 'image' && attachment.url);
   const contextGroups = input.capabilityContext?.imageGeneration?.referenceGroups || [];
   const attachmentsById = new Map(imageAttachments.map((attachment) => [attachment.id, attachment]));
@@ -692,7 +699,7 @@ function referenceGroupsBySchema(input: ChatCapabilityExecutionInput, modeSchema
 }
 
 function referenceAttachmentsByContext(
-  input: ChatCapabilityExecutionInput,
+  input: ImageGenerationWorkflowInput,
   groups: ResolvedImageGenerationReferenceGroup[],
 ) {
   const imageAttachments = input.attachments.filter((attachment) => attachment.kind === 'image' && attachment.url);
@@ -711,7 +718,7 @@ function referenceAttachmentsByContext(
 }
 
 function referenceAttachmentsByGroup(
-  input: ChatCapabilityExecutionInput,
+  input: ImageGenerationWorkflowInput,
   groups: ResolvedImageGenerationReferenceGroup[],
 ) {
   const imageAttachments = input.attachments.filter((attachment) => attachment.kind === 'image' && attachment.url);
@@ -742,7 +749,7 @@ function referenceImageSequenceSummary(groups: ResolvedImageGenerationReferenceG
 
 async function describeRedrawImage(input: {
   attachment: ChatAttachment;
-  executionInput: ChatCapabilityExecutionInput;
+  executionInput: ImageGenerationWorkflowInput;
   modeSchema: ImageGenerationModeSchema;
   userPrompt: string;
 }) {
@@ -780,7 +787,7 @@ async function describeRedrawImage(input: {
 }
 
 async function decideImageGenerationReference(input: {
-  executionInput: ChatCapabilityExecutionInput;
+  executionInput: ImageGenerationWorkflowInput;
   modeSchema: ImageGenerationModeSchema;
   userPrompt: string;
   latestGeneratedImage?: ChatAttachment | null;
@@ -827,7 +834,7 @@ async function decideImageGenerationReference(input: {
 }
 
 function buildImageGenerationPrompt(
-  input: ChatCapabilityExecutionInput,
+  input: ImageGenerationWorkflowInput,
   modeSchema: ImageGenerationModeSchema,
   groups: ResolvedImageGenerationReferenceGroup[],
   options?: {
@@ -897,7 +904,7 @@ function generationOptionsOf(modeSchema: ImageGenerationModeSchema) {
 
 function chromaKeyOutputBackgroundOf(
   modeSchema: ImageGenerationModeSchema,
-  context: ChatCapabilityExecutionInput['capabilityContext'],
+  context: ImageGenerationWorkflowInput['capabilityContext'],
 ): ChromaKeyOutputBackground | undefined {
   if (modeSchema.key === 'print-extract') {
     return 'transparent';
@@ -916,7 +923,7 @@ function imageGenerationOutputConfigOf(modeSchema: ImageGenerationModeSchema) {
 }
 
 function outputCountOf(
-  input: ChatCapabilityExecutionInput,
+  input: ImageGenerationWorkflowInput,
   modeSchema: ImageGenerationModeSchema,
   referenceAttachments: ChatAttachment[],
 ) {
@@ -1034,7 +1041,7 @@ export function resolveSeedreamOutputSize(model: string, resolution: string, asp
   };
 }
 
-function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: ImageGenerationModeSchema, modelConfig: AiModelConfig) {
+function normalizeOutputSize(input: ImageGenerationWorkflowInput, modeSchema: ImageGenerationModeSchema, modelConfig: AiModelConfig) {
   if (!imageModelSupportsCustomResolution(modelConfig)) {
     return {
       outputSize: undefined,
@@ -1096,7 +1103,7 @@ function normalizeOutputSize(input: ChatCapabilityExecutionInput, modeSchema: Im
   };
 }
 
-function assertImageModelReady(input: ChatCapabilityExecutionInput) {
+function assertImageModelReady(input: ImageGenerationWorkflowInput) {
   const modelConfig = input.imageModelConfig;
   if (!modelConfig) {
     throw new Error('请先选择图片模型');
@@ -1113,7 +1120,7 @@ function assertImageModelReady(input: ChatCapabilityExecutionInput) {
   return modelConfig;
 }
 
-async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Promise<ImageGenerationPreparedInput> {
+async function prepareImageGeneration(input: ImageGenerationWorkflowInput): Promise<ImageGenerationPreparedInput> {
   const modelConfig = assertImageModelReady(input);
   const modeSchema = modeSchemaOf(input);
   const userPrompt = cleanText(input.capabilityContext?.imageGeneration?.promptText || input.content);
@@ -1179,7 +1186,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
       `当前批次：使用主体参考图，并只使用第 ${index + 1} 张${modeSchema.referenceGroups.find((group) => group.key === modeSchema.outputCountGroupKey)?.label || '目标参考图'}作为姿势参考；不要参考其他姿势图。`
     ));
   }
-  const sourceIdPrefix = input.conversation?.id || `chat-image-${Date.now()}`;
+  const sourceIdPrefix = input.sourceId || input.conversation?.id || `chat-image-${Date.now()}`;
   return {
     chromaKeyOutputBackground: chromaKeyOutputBackgroundOf(modeSchema, input.capabilityContext),
     generationOptions: generationOptionsOf(modeSchema),
@@ -1199,6 +1206,7 @@ async function prepareImageGeneration(input: ChatCapabilityExecutionInput): Prom
     referenceAssetBatchPrompts,
     referenceDecision: referenceDecision || undefined,
     sourceIdPrefix,
+    sourceType: input.sourceType || 'chat_image_generation',
   };
 }
 
@@ -1228,6 +1236,7 @@ async function generateImageItems(input: {
         referenceAssets: [],
         referenceDecision: prepared.referenceDecision?.intent,
         sourceIdPrefix: `${prepared.sourceIdPrefix}-redraw-${index + 1}`,
+        sourceType: prepared.sourceType,
         userId,
       });
       return results[0] ? [results[0]] : [];
@@ -1255,6 +1264,7 @@ async function generateImageItems(input: {
         referenceAssets,
         referenceDecision: prepared.referenceDecision?.intent,
         sourceIdPrefix: `${prepared.sourceIdPrefix}-${index + 1}`,
+        sourceType: prepared.sourceType,
         userId,
       });
       return results[0] ? [results[0]] : [];
@@ -1276,6 +1286,7 @@ async function generateImageItems(input: {
     referenceAssets: prepared.referenceAssets,
     referenceDecision: prepared.referenceDecision?.intent,
     sourceIdPrefix: prepared.sourceIdPrefix,
+    sourceType: prepared.sourceType,
     userId,
   });
 }
@@ -1353,6 +1364,7 @@ async function persistGeneratedImageAttachment(input: {
     url: workAsset.fileUrl,
     ...(dimensions ? dimensions : {}),
     imageGenerationSlotIndex: slotIndex,
+    assetId: workAsset.id,
   };
 }
 
@@ -1423,6 +1435,7 @@ async function generateAndPersistImageAttachments(input: {
         referenceAssets: [],
         referenceDecision: prepared.referenceDecision?.intent,
         sourceIdPrefix: `${prepared.sourceIdPrefix}-redraw-${index + 1}`,
+        sourceType: prepared.sourceType,
         userId,
       });
       await persistResults(results.slice(0, 1), index);
@@ -1454,6 +1467,7 @@ async function generateAndPersistImageAttachments(input: {
         referenceAssets,
         referenceDecision: prepared.referenceDecision?.intent,
         sourceIdPrefix: `${prepared.sourceIdPrefix}-${index + 1}`,
+        sourceType: prepared.sourceType,
         userId,
       });
       await persistResults(results.slice(0, 1), index);
@@ -1479,6 +1493,7 @@ async function generateAndPersistImageAttachments(input: {
     referenceAssets: prepared.referenceAssets,
     referenceDecision: prepared.referenceDecision?.intent,
     sourceIdPrefix: prepared.sourceIdPrefix,
+    sourceType: prepared.sourceType,
     userId,
   }), 0);
 
@@ -1488,7 +1503,7 @@ async function generateAndPersistImageAttachments(input: {
   };
 }
 
-async function runPreparedImageGeneration(input: ChatCapabilityExecutionInput, prepared: ImageGenerationPreparedInput) {
+async function runPreparedImageGeneration(input: ImageGenerationWorkflowInput, prepared: ImageGenerationPreparedInput) {
   const generatedItems = await generateImageItems({
     prepared,
     userId: input.userId,
@@ -1505,7 +1520,7 @@ async function runPreparedImageGeneration(input: ChatCapabilityExecutionInput, p
   };
 }
 
-export async function runImageGenerationWorkflow(input: ChatCapabilityExecutionInput) {
+export async function runImageGenerationWorkflow(input: ImageGenerationWorkflowInput) {
   if (input.onImageGenerationAttachmentsChange) {
     const prepared = await prepareImageGeneration(input);
     assertSufficientImageGenerationCredits({
