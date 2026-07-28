@@ -4,14 +4,68 @@ set -eu
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_DIR="${SOURCE_DIR:-$ROOT_DIR/docker_run}"
 
-REMOTE_USER="${REMOTE_USER:-root}"
-REMOTE_HOST="${REMOTE_HOST:-119.45.92.250}"
-REMOTE_DIR="${REMOTE_DIR:-/root/ai-tool}"
-SSH_TARGET="$REMOTE_USER@$REMOTE_HOST"
+POSITIONAL_DEPLOY_PROFILE="${1:-}"
+DEPLOY_PROFILE="${DEPLOY_PROFILE:-}"
+SOURCE_DEPLOY_PROFILE=""
+
+REMOTE_USER="${REMOTE_USER:-}"
+REMOTE_HOST="${REMOTE_HOST:-}"
+REMOTE_DIR="${REMOTE_DIR:-}"
 
 WEB_HOST_PORT="${WEB_HOST_PORT:-}"
 WEB_PUBLIC_PATH="${WEB_PUBLIC_PATH:-/}"
 ADMIN_PUBLIC_PATH="${ADMIN_PUBLIC_PATH:-/admin/}"
+
+select_deploy_profile() {
+  local choice="${DEPLOY_PROFILE:-$POSITIONAL_DEPLOY_PROFILE}"
+  local default_choice="${SOURCE_DEPLOY_PROFILE:-1}"
+
+  echo "==> 选择部署配置"
+  echo "    1) default（旧服务器）"
+  echo "    2) mengmao（101.96.221.207）"
+  if [ -z "$choice" ] && [ -t 0 ]; then
+    read -r -p "请选择部署配置 [${default_choice}]: " choice
+  fi
+
+  case "${choice:-$default_choice}" in
+    1|default)
+      DEPLOY_PROFILE="default"
+      ;;
+    2|mengmao)
+      DEPLOY_PROFILE="mengmao"
+      ;;
+    *)
+      echo "未知部署配置：$choice" >&2
+      echo "可用配置：default、mengmao" >&2
+      exit 1
+      ;;
+  esac
+}
+
+configure_deploy_profile() {
+  case "${DEPLOY_PROFILE:-default}" in
+    default)
+      PROFILE_REMOTE_USER="root"
+      PROFILE_REMOTE_HOST="119.45.92.250"
+      PROFILE_REMOTE_DIR="/root/ai-tool"
+      ;;
+    mengmao)
+      PROFILE_REMOTE_USER="root"
+      PROFILE_REMOTE_HOST="101.96.221.207"
+      PROFILE_REMOTE_DIR="/root/ai-tool"
+      ;;
+    *)
+      echo "未知部署配置：$DEPLOY_PROFILE" >&2
+      echo "可用配置：default、mengmao" >&2
+      exit 1
+      ;;
+  esac
+
+  REMOTE_USER="${REMOTE_USER:-$PROFILE_REMOTE_USER}"
+  REMOTE_HOST="${REMOTE_HOST:-$PROFILE_REMOTE_HOST}"
+  REMOTE_DIR="${REMOTE_DIR:-$PROFILE_REMOTE_DIR}"
+  SSH_TARGET="$REMOTE_USER@$REMOTE_HOST"
+}
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -36,6 +90,12 @@ need_source base
 need_source web
 need_source .build-info
 need_source docker-compose.yml
+
+if [ -z "$DEPLOY_PROFILE" ] && [ -f "$SOURCE_DIR/.env" ]; then
+  SOURCE_DEPLOY_PROFILE="$(sed -n 's/^DEPLOY_PROFILE=//p' "$SOURCE_DIR/.env" | tail -n 1)"
+fi
+select_deploy_profile
+configure_deploy_profile
 
 if [ -z "$WEB_HOST_PORT" ] && [ -f "$SOURCE_DIR/.env" ]; then
   WEB_HOST_PORT="$(sed -n 's/^WEB_HOST_PORT=//p' "$SOURCE_DIR/.env" | tail -n 1)"
@@ -91,6 +151,6 @@ ssh "$SSH_TARGET" "
 "
 
 echo "==> 部署完成"
-echo "web 访问地址：http://$REMOTE_HOST$WEB_PUBLIC_PATH"
-echo "admin 访问地址：http://$REMOTE_HOST$ADMIN_PUBLIC_PATH"
+echo "web 访问地址：http://$REMOTE_HOST:$WEB_HOST_PORT$WEB_PUBLIC_PATH"
+echo "admin 访问地址：http://$REMOTE_HOST:$WEB_HOST_PORT$ADMIN_PUBLIC_PATH"
 echo "容器直连地址：http://$REMOTE_HOST:$WEB_HOST_PORT"

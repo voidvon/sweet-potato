@@ -17,6 +17,8 @@ README_RUN_TEMPLATE="$BUILD_DIR/README.md"
 LOCAL_RUN_SCRIPT="$BUILD_DIR/run.sh"
 
 POSITIONAL_PACKAGE_ENV="${1:-}"
+POSITIONAL_DEPLOY_PROFILE="${2:-}"
+DEPLOY_PROFILE="${DEPLOY_PROFILE:-}"
 
 resolve_git_commit() {
   if command -v git >/dev/null 2>&1; then
@@ -30,19 +32,66 @@ configure_runtime_ports() {
   case "$PACKAGE_ENV" in
     production)
       WEB_HOST_PORT="${WEB_HOST_PORT:-5689}"
-      BASE_HOST_PORT="${BASE_HOST_PORT:-7072}"
-      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-7073}"
+      BASE_HOST_PORT="${BASE_HOST_PORT:-5672}"
+      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-5673}"
       ;;
     test)
       WEB_HOST_PORT="${WEB_HOST_PORT:-5690}"
-      BASE_HOST_PORT="${BASE_HOST_PORT:-7172}"
-      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-7173}"
+      BASE_HOST_PORT="${BASE_HOST_PORT:-5772}"
+      AI_WORKER_HOST_PORT="${AI_WORKER_HOST_PORT:-5773}"
       ;;
     *)
       echo "Unsupported package environment for ports: $PACKAGE_ENV" >&2
       exit 1
       ;;
   esac
+}
+
+select_deploy_profile() {
+  local choice="${DEPLOY_PROFILE:-${POSITIONAL_DEPLOY_PROFILE:-}}"
+
+  echo "==> Select deploy profile"
+  echo "    1) default (legacy server)"
+  echo "    2) mengmao (101.96.221.207)"
+  if [ -z "$choice" ] && [ -t 0 ]; then
+    read -r -p "Choose deploy profile [1]: " choice
+  fi
+
+  case "${choice:-1}" in
+    1|default)
+      DEPLOY_PROFILE="default"
+      ;;
+    2|mengmao)
+      DEPLOY_PROFILE="mengmao"
+      ;;
+    *)
+      echo "Unknown deploy profile: $choice" >&2
+      echo "Use 1 for default or 2 for mengmao." >&2
+      exit 1
+      ;;
+  esac
+}
+
+configure_deploy_profile() {
+  case "$DEPLOY_PROFILE" in
+    default)
+      DEPLOY_REMOTE_USER="root"
+      DEPLOY_REMOTE_HOST="119.45.92.250"
+      DEPLOY_REMOTE_DIR="/root/ai-tool"
+      ;;
+    mengmao)
+      DEPLOY_REMOTE_USER="root"
+      DEPLOY_REMOTE_HOST="101.96.221.207"
+      DEPLOY_REMOTE_DIR="/root/ai-tool"
+      ;;
+    *)
+      echo "Unknown deploy profile: $DEPLOY_PROFILE" >&2
+      echo "Use default or mengmao." >&2
+      exit 1
+      ;;
+  esac
+
+  echo "==> Deploy profile: $DEPLOY_PROFILE ($DEPLOY_REMOTE_USER@$DEPLOY_REMOTE_HOST:$DEPLOY_REMOTE_DIR)"
 }
 
 select_mirror_profile() {
@@ -52,15 +101,18 @@ select_mirror_profile() {
   echo "    1) Tencent Cloud (default)"
   echo "    2) Docker Hub"
   echo "    3) Alibaba Cloud"
+  echo "    4) Tsinghua TUNA"
+  echo "    5) USTC"
+  echo "    6) Shanghai Jiao Tong University"
   if [ -z "$choice" ] && [ -t 0 ]; then
     read -r -p "Choose mirror profile [1]: " choice
   fi
 
   case "${choice:-1}" in
     1)
-      MIRROR_PROFILE_NAME="Tencent Cloud"
-      APT_MIRROR="mirrors.tencentyun.com"
-      AI_WORKER_APT_MIRROR="mirrors.tencentyun.com"
+      MIRROR_PROFILE_NAME="Tencent Cloud + Debian official APT"
+      APT_MIRROR="deb.debian.org"
+      AI_WORKER_APT_MIRROR="deb.debian.org"
       PIP_INDEX_URL="https://mirrors.cloud.tencent.com/pypi/simple"
       PYTHON_IMAGE_REGISTRY="docker.m.daocloud.io/library"
       NODE_IMAGE_REGISTRY="docker.m.daocloud.io/library"
@@ -84,9 +136,36 @@ select_mirror_profile() {
       NODE_IMAGE_REGISTRY="registry.cn-hangzhou.aliyuncs.com/library"
       NGINX_IMAGE_REGISTRY="registry.cn-hangzhou.aliyuncs.com/library"
       ;;
+    4)
+      MIRROR_PROFILE_NAME="Tsinghua TUNA + DaoCloud images"
+      APT_MIRROR="mirrors.tuna.tsinghua.edu.cn"
+      AI_WORKER_APT_MIRROR="mirrors.tuna.tsinghua.edu.cn"
+      PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+      PYTHON_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NODE_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NGINX_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      ;;
+    5)
+      MIRROR_PROFILE_NAME="USTC + DaoCloud images"
+      APT_MIRROR="mirrors.ustc.edu.cn"
+      AI_WORKER_APT_MIRROR="mirrors.ustc.edu.cn"
+      PIP_INDEX_URL="https://mirrors.ustc.edu.cn/pypi/simple"
+      PYTHON_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NODE_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NGINX_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      ;;
+    6)
+      MIRROR_PROFILE_NAME="Shanghai Jiao Tong University + DaoCloud images"
+      APT_MIRROR="mirror.sjtu.edu.cn"
+      AI_WORKER_APT_MIRROR="mirror.sjtu.edu.cn"
+      PIP_INDEX_URL="https://mirror.sjtu.edu.cn/pypi/web/simple/"
+      PYTHON_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NODE_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      NGINX_IMAGE_REGISTRY="docker.m.daocloud.io/library"
+      ;;
     *)
       echo "Unknown mirror profile: $choice" >&2
-      echo "Use 1 for Tencent Cloud, 2 for Docker Hub, or 3 for Alibaba Cloud." >&2
+      echo "Use a mirror profile from 1 to 6." >&2
       exit 1
       ;;
   esac
@@ -149,6 +228,8 @@ pnpm_cmd() {
 }
 
 select_mirror_profile
+select_deploy_profile
+configure_deploy_profile
 select_package_environment
 begin_release_version "$ROOT_DIR"
 
@@ -210,6 +291,7 @@ echo "==> Creating empty runtime data directories"
 echo "==> Writing docker runtime files"
 cat > "$RUN_DIR/.env" <<EOF
 PACKAGE_ENV=$PACKAGE_ENV
+DEPLOY_PROFILE=$DEPLOY_PROFILE
 APP_VERSION=$APP_VERSION
 VITE_API_BASE_URL=$VITE_API_BASE_URL
 WEB_ASSET_BASE=$WEB_ASSET_BASE
@@ -239,6 +321,7 @@ cat > "$RUN_DIR/.build-info" <<EOF
 BUILD_TIME=$BUILD_TIME
 APP_VERSION=$APP_VERSION
 PACKAGE_ENV=$PACKAGE_ENV
+DEPLOY_PROFILE=$DEPLOY_PROFILE
 GIT_COMMIT=$GIT_COMMIT
 WEB_HOST_PORT=$WEB_HOST_PORT
 BASE_HOST_PORT=$BASE_HOST_PORT
@@ -265,7 +348,7 @@ services:
       context: ./base
       args:
         NODE_IMAGE_REGISTRY: \${NODE_IMAGE_REGISTRY:-docker.m.daocloud.io/library}
-        APT_MIRROR: \${APT_MIRROR:-mirrors.tencentyun.com}
+        APT_MIRROR: \${APT_MIRROR:-deb.debian.org}
     image: ai-marketing-base:run
     ports:
       - "127.0.0.1:${BASE_HOST_PORT}:7072"
@@ -301,7 +384,7 @@ $BASE_PUBLIC_ENV
       context: ./ai-worker
       args:
         PYTHON_IMAGE_REGISTRY: \${PYTHON_IMAGE_REGISTRY:-docker.m.daocloud.io/library}
-        AI_WORKER_APT_MIRROR: \${AI_WORKER_APT_MIRROR:-mirrors.tencentyun.com}
+        AI_WORKER_APT_MIRROR: \${AI_WORKER_APT_MIRROR:-deb.debian.org}
         PIP_INDEX_URL: \${PIP_INDEX_URL:-https://mirrors.cloud.tencent.com/pypi/simple}
     image: ai-marketing-ai-worker:run
     ports:
@@ -345,6 +428,7 @@ cat > "$RUN_DIR/web/nginx.conf" <<'EOF'
 server {
   listen 80;
   server_name _;
+  absolute_redirect off;
 
   root /usr/share/nginx/html;
   index index.html;
@@ -398,7 +482,7 @@ EOF
 cat > "$RUN_DIR/base/Dockerfile" <<'EOF'
 ARG NODE_IMAGE_REGISTRY=docker.m.daocloud.io/library
 FROM ${NODE_IMAGE_REGISTRY}/node:22-bookworm-slim
-ARG APT_MIRROR=mirrors.tencentyun.com
+ARG APT_MIRROR=deb.debian.org
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -427,7 +511,7 @@ EOF
 cat > "$RUN_DIR/ai-worker/Dockerfile" <<'EOF'
 ARG PYTHON_IMAGE_REGISTRY=docker.m.daocloud.io/library
 FROM ${PYTHON_IMAGE_REGISTRY}/python:3.12-slim
-ARG AI_WORKER_APT_MIRROR=mirrors.tencentyun.com
+ARG AI_WORKER_APT_MIRROR=deb.debian.org
 ARG PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple
 
 WORKDIR /app
