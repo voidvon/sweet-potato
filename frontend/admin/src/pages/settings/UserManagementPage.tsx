@@ -1,28 +1,26 @@
 import {
   type CSSProperties,
-  useCallback,
   useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
   useState,
 } from 'react';
-import { Button, Descriptions, Dropdown, Input, Modal, Select, Space, Table, Tabs, Tag, message } from 'antd';
-import type { TableProps, TabsProps } from 'antd';
+import { Button, Dropdown, Input, Space, Table, Tag, message } from 'antd';
+import type { TableProps } from 'antd';
 import { DownOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { formatIntegerCreditAmount } from '@shared/utils/credits';
 import type {
-  AdminBillableUsageRecord,
-  AdminCreditLedgerEntry,
-  AdminLlmUsageRecord,
   ManagedUser,
   UserRoleSummary,
 } from '../../types';
 import { listBillableUsageRecords, listCreditLedger, listLlmUsageRecords } from '../../api/billing';
+import { useTableBodyHeight } from '../../hooks/useTableBodyHeight';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { adjustUserCredits, assignUserRoles, listUsers, updateManagedUserPassword } from '../../api/user';
 import { listRoles } from '../../api/role';
-import { billableUsageSourceLabel, sourceTypeLabel } from '../../utils/billingLabels';
+import { UserCreditModal } from './user-management/UserCreditModal';
+import { UserDetailModal } from './user-management/UserDetailModal';
+import { formatDateTime } from './user-management/userManagementFormatters';
+import { UserPasswordModal } from './user-management/UserPasswordModal';
+import { UserRoleModal } from './user-management/UserRoleModal';
 import './UserManagementPage.scss';
 
 type CreditAction = {
@@ -42,9 +40,9 @@ type PasswordEditState = {
 
 type DetailState = {
   user: ManagedUser;
-  ledger: AdminCreditLedgerEntry[];
-  usage: AdminLlmUsageRecord[];
-  billableUsage: AdminBillableUsageRecord[];
+  ledger: Awaited<ReturnType<typeof listCreditLedger>>;
+  usage: Awaited<ReturnType<typeof listLlmUsageRecords>>;
+  billableUsage: Awaited<ReturnType<typeof listBillableUsageRecords>>;
 };
 
 type UserSortField = 'creditBalance' | 'totalRechargeCredits' | 'totalUsageCredits';
@@ -59,169 +57,6 @@ const userSortFields = new Set<UserSortField>([
   'totalRechargeCredits',
   'totalUsageCredits',
 ]);
-
-function useTableBodyHeight() {
-  const viewportElementRef = useRef<HTMLDivElement | null>(null);
-  const observerRef = useRef<ResizeObserver | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const [bodyHeight, setBodyHeight] = useState(1);
-
-  const measure = useCallback(() => {
-    const viewport = viewportElementRef.current;
-    if (!viewport || viewport.clientHeight <= 0) return;
-
-    const headerHeight = viewport.querySelector<HTMLElement>('.ant-table-header')?.offsetHeight || 0;
-    const pagination = viewport.querySelector<HTMLElement>('.ant-table-pagination');
-    let paginationHeight = 0;
-    if (pagination) {
-      const style = window.getComputedStyle(pagination);
-      paginationHeight = pagination.offsetHeight
-        + Number.parseFloat(style.marginTop || '0')
-        + Number.parseFloat(style.marginBottom || '0');
-    }
-
-    const nextHeight = Math.max(1, Math.floor(viewport.clientHeight - headerHeight - paginationHeight));
-    setBodyHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
-  }, []);
-
-  const scheduleMeasure = useCallback(() => {
-    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-    animationFrameRef.current = requestAnimationFrame(() => {
-      animationFrameRef.current = null;
-      measure();
-    });
-  }, [measure]);
-
-  const viewportRef = useCallback((viewport: HTMLDivElement | null) => {
-    observerRef.current?.disconnect();
-    observerRef.current = null;
-    viewportElementRef.current = viewport;
-
-    if (!viewport) return;
-    observerRef.current = new ResizeObserver(scheduleMeasure);
-    observerRef.current.observe(viewport);
-    scheduleMeasure();
-  }, [scheduleMeasure]);
-
-  useLayoutEffect(() => {
-    scheduleMeasure();
-  });
-
-  useEffect(() => () => {
-    observerRef.current?.disconnect();
-    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-  }, []);
-
-  return { bodyHeight, viewportRef };
-}
-
-function formatCredits(credits: number) {
-  return `${credits.toFixed(2)} Credit`;
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '未登录';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString('zh-CN', { hour12: false });
-}
-
-function sanitizeCreditAmountInput(value: string) {
-  const normalizedValue = value.replace(/[^\d.]/g, '');
-  if (!normalizedValue) {
-    return '';
-  }
-
-  const firstDotIndex = normalizedValue.indexOf('.');
-  if (firstDotIndex === -1) {
-    return normalizedValue;
-  }
-
-  const integerPart = normalizedValue.slice(0, firstDotIndex) || '0';
-  const decimalPart = normalizedValue.slice(firstDotIndex + 1).replace(/\./g, '').slice(0, 2);
-  return `${integerPart}.${decimalPart}`;
-}
-
-function ledgerTypeLabel(entry: AdminCreditLedgerEntry) {
-  if (entry.type === 'admin_adjust' && entry.creditDelta > 0) {
-    return { color: 'green', text: '充值' };
-  }
-  if (entry.type === 'admin_adjust' && entry.creditDelta < 0) {
-    return { color: 'red', text: '人工扣减' };
-  }
-  if (entry.type === 'reserve_debit') {
-    return { color: 'gold', text: '预扣' };
-  }
-  if (entry.type === 'reserve_refund') {
-    return { color: 'blue', text: '退回' };
-  }
-  if (entry.type === 'usage_debit') {
-    return { color: 'purple', text: '业务扣费' };
-  }
-  return { color: 'volcano', text: '补扣' };
-}
-
-function usageModelName(record: AdminLlmUsageRecord) {
-  return record.modelName?.trim() || record.modelConfigId;
-}
-
-function billableCategoryLabel(category: AdminBillableUsageRecord['category']) {
-  switch (category) {
-    case 'content_planning_analysis':
-      return { color: 'lime', text: '策划识别' };
-    case 'content_planning_generation':
-      return { color: 'green', text: '策划生成' };
-    case 'image_generation':
-      return { color: 'cyan', text: '图片生成' };
-    case 'video_generation':
-      return { color: 'geekblue', text: '视频生成' };
-    case 'video_upscale':
-      return { color: 'blue', text: '视频高清放大' };
-    case 'voice_clone':
-      return { color: 'orange', text: '声音克隆' };
-    case 'speech_synthesis':
-      return { color: 'gold', text: '语音合成' };
-    case 'vod_upload':
-      return { color: 'blue', text: '视频上传' };
-    case 'vod_understanding':
-      return { color: 'purple', text: '视频理解' };
-    default:
-      return { color: 'default', text: category };
-  }
-}
-
-function billableUsageName(record: AdminBillableUsageRecord) {
-  if (record.model && record.model.trim()) {
-    return record.model;
-  }
-  if (record.provider && record.provider.trim()) {
-    return record.provider;
-  }
-  return record.category;
-}
-
-function pricingModeLabel(mode: AdminBillableUsageRecord['pricingMode']) {
-  switch (mode) {
-    case 'per_request':
-      return '按次';
-    case 'per_second':
-      return '按秒';
-    case 'per_minute':
-      return '按分钟';
-    case 'per_1k_chars':
-      return '按千字';
-    case 'per_mb':
-      return '按 MB';
-    case 'per_1m_tokens':
-      return '按百万 token';
-    default:
-      return mode;
-  }
-}
 
 export function UserManagementPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -384,10 +219,6 @@ export function UserManagementPage() {
     }
   }
 
-  const rechargeRecords = useMemo(
-    () => detailState?.ledger.filter((entry) => entry.type === 'admin_adjust' && entry.creditDelta > 0) || [],
-    [detailState],
-  );
   const columns: TableProps<ManagedUser>['columns'] = [
     {
       title: '用户名称',
@@ -536,195 +367,6 @@ export function UserManagementPage() {
     },
   ];
 
-  const ledgerColumns: TableProps<AdminCreditLedgerEntry>['columns'] = [
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 200,
-      render: (value: string) => formatDateTime(value),
-    },
-    {
-      title: '类型',
-      width: 120,
-      render: (_value, record) => {
-        const meta = ledgerTypeLabel(record);
-        return <Tag color={meta.color}>{meta.text}</Tag>;
-      },
-    },
-    {
-      title: '变动积分',
-      dataIndex: 'creditDelta',
-      width: 140,
-      render: (value: number) => (
-        <span style={{ color: value >= 0 ? '#15803d' : '#b91c1c' }}>
-          {value >= 0 ? '+' : ''}{formatCredits(value)}
-        </span>
-      ),
-    },
-    {
-      title: '变动后余额',
-      dataIndex: 'creditBalanceAfter',
-      width: 160,
-      render: (value: number) => formatCredits(value),
-    },
-    {
-      title: '来源',
-      dataIndex: 'sourceType',
-      width: 180,
-      render: (value?: string | null) => sourceTypeLabel(value),
-    },
-  ];
-
-  const usageColumns: TableProps<AdminLlmUsageRecord>['columns'] = [
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 200,
-      render: (value: string) => formatDateTime(value),
-    },
-    {
-      title: '模型',
-      width: 180,
-      render: (_value, record) => usageModelName(record),
-    },
-    {
-      title: '输入 Tokens',
-      dataIndex: 'promptTokens',
-      width: 140,
-    },
-    {
-      title: '输出 Tokens',
-      dataIndex: 'completionTokens',
-      width: 140,
-    },
-    {
-      title: '缓存命中 Tokens',
-      dataIndex: 'cachedPromptTokens',
-      width: 160,
-    },
-    {
-      title: '消耗积分',
-      dataIndex: 'creditCost',
-      width: 140,
-      render: (value: number) => formatCredits(value),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (value: AdminLlmUsageRecord['status']) => (
-        <Tag color={value === 'completed' ? 'green' : 'red'}>
-          {value === 'completed' ? '成功' : '失败'}
-        </Tag>
-      ),
-    },
-  ];
-
-  const billableUsageColumns: TableProps<AdminBillableUsageRecord>['columns'] = [
-    {
-      title: '时间',
-      dataIndex: 'createdAt',
-      width: 200,
-      render: (value: string) => formatDateTime(value),
-    },
-    {
-      title: '类型',
-      width: 140,
-      render: (_value, record) => {
-        const meta = billableCategoryLabel(record.category);
-        return <Tag color={meta.color}>{meta.text}</Tag>;
-      },
-    },
-    {
-      title: '模型/服务',
-      width: 180,
-      render: (_value, record) => billableUsageName(record),
-    },
-    {
-      title: '计费模式',
-      dataIndex: 'pricingMode',
-      width: 140,
-      render: (value: AdminBillableUsageRecord['pricingMode']) => pricingModeLabel(value),
-    },
-    {
-      title: '来源',
-      dataIndex: 'sourceType',
-      width: 180,
-      render: (value: string) => billableUsageSourceLabel({ sourceType: value }),
-    },
-    {
-      title: '消耗积分',
-      dataIndex: 'creditCost',
-      width: 140,
-      render: (value: number) => formatCredits(value),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (value: AdminBillableUsageRecord['status']) => (
-        <Tag color={value === 'completed' ? 'green' : 'red'}>
-          {value === 'completed' ? '成功' : '失败'}
-        </Tag>
-      ),
-    },
-  ];
-
-  const detailTabItems: TabsProps['items'] = [
-    {
-      key: 'recharge',
-      label: `充值记录 (${rechargeRecords.length})`,
-      children: (
-        <Table
-          columns={ledgerColumns}
-          dataSource={rechargeRecords}
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 880 }}
-        />
-      ),
-    },
-    {
-      key: 'ledger',
-      label: `积分流水 (${detailState?.ledger.length || 0})`,
-      children: (
-        <Table
-          columns={ledgerColumns}
-          dataSource={detailState?.ledger || []}
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 880 }}
-        />
-      ),
-    },
-    {
-      key: 'usage',
-      label: `LLM 用量 (${detailState?.usage.length || 0})`,
-      children: (
-        <Table
-          columns={usageColumns}
-          dataSource={detailState?.usage || []}
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          scroll={{ x: 1120 }}
-        />
-      ),
-    },
-    {
-      key: 'billable-usage',
-      label: `业务消费 (${detailState?.billableUsage.length || 0})`,
-      children: (
-        <Table
-          columns={billableUsageColumns}
-          dataSource={detailState?.billableUsage || []}
-          rowKey="id"
-          pagination={{ pageSize: 8, showSizeChanger: false }}
-          scroll={{ x: 1120 }}
-        />
-      ),
-    },
-  ];
-
   return (
     <ContentStudioLayout>
       <section className="settings-page user-management-page">
@@ -789,129 +431,56 @@ export function UserManagementPage() {
           </div>
         </section>
 
-      <Modal
-        cancelText="取消"
-        centered
-        confirmLoading={assigningRoleUserId === roleEditState?.user.id}
-        okText="保存角色"
-        onCancel={() => setRoleEditState(null)}
-        onOk={() => void handleAssignRoles()}
-        open={Boolean(roleEditState)}
-        title={roleEditState ? `编辑 ${roleEditState.user.displayName} 的角色` : '编辑角色'}
-        destroyOnClose
-      >
-        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
-          <div>
-            用户账号：<strong>{roleEditState?.user.username}</strong>
-          </div>
-          <Select
-            mode="multiple"
-            allowClear
-            style={{ width: '100%' }}
-            placeholder="请选择一个或多个角色"
-            value={roleEditState?.roleIds || []}
-            options={roleOptions.map((role) => ({
-              label: role.isDefault ? `${role.name}（默认）` : role.name,
-              value: role.id,
-            }))}
-            onChange={(roleIds) => {
-              if (!roleEditState) {
-                return;
-              }
-              setRoleEditState({ ...roleEditState, roleIds });
-            }}
-          />
-        </Space>
-      </Modal>
-
-      <Modal
-        cancelText="取消"
-        centered
-        confirmLoading={updatingUserId === passwordEditState?.user.id}
-        okText="确认修改"
-        onCancel={() => setPasswordEditState(null)}
-        onOk={() => void handleUpdatePassword()}
-        open={Boolean(passwordEditState)}
-        title={passwordEditState ? `修改 ${passwordEditState.user.displayName} 的密码` : '修改账号密码'}
-        destroyOnClose
-      >
-        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
-          <div>
-            用户账号：<strong>{passwordEditState?.user.username}</strong>
-          </div>
-          <Input.Password
-            placeholder="请输入新密码，至少 6 位"
-            value={passwordEditState?.password || ''}
-            onChange={(event) => {
-              if (!passwordEditState) {
-                return;
-              }
-              setPasswordEditState({ ...passwordEditState, password: event.target.value });
-            }}
-          />
-        </Space>
-      </Modal>
-
-      <Modal
-        cancelText="取消"
-        centered
-        confirmLoading={updatingUserId === creditAction?.user.id}
-        okText={creditAction?.type === 'recharge' ? '确认充值' : '确认扣除'}
-        okButtonProps={creditAction?.type === 'deduct' ? { danger: true } : undefined}
-        onCancel={() => {
-          setCreditAction(null);
-          setAmountInput('');
-        }}
-        onOk={() => void handleAdjustCredits()}
-        open={Boolean(creditAction)}
-        title={creditAction?.type === 'recharge' ? '积分充值' : '积分扣除'}
-        destroyOnClose
-      >
-        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
-          <div>
-            当前用户：<strong>{creditAction?.user.displayName}</strong>
-          </div>
-          <div>
-            用户账号：<strong>{creditAction?.user.username}</strong>
-          </div>
-          <Input
-            addonBefore={creditAction?.type === 'recharge' ? '充值积分' : '扣除积分'}
-            inputMode="decimal"
-            style={{ width: '100%' }}
-            placeholder={creditAction?.type === 'recharge' ? '请输入充值积分' : '请输入扣除积分'}
-            value={amountInput}
-            onChange={(event) => {
-              setAmountInput(sanitizeCreditAmountInput(event.target.value));
-            }}
-          />
-        </Space>
-      </Modal>
-
-      <Modal
-        footer={null}
-        onCancel={() => setDetailState(null)}
-        open={Boolean(detailState)}
-        title={detailState ? `${detailState.user.displayName} 的积分明细` : '积分明细'}
-        width={1200}
-        destroyOnClose
-      >
-        {detailState ? (
-          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-            <Descriptions bordered column={3} size="small">
-              <Descriptions.Item label="当前积分余额">
-                {formatIntegerCreditAmount(detailState.user.creditBalance)} Credit
-              </Descriptions.Item>
-              <Descriptions.Item label="累计充值积分">
-                {formatCredits(detailState.user.totalRechargeCredits)}
-              </Descriptions.Item>
-              <Descriptions.Item label="累计消耗积分">
-                {formatCredits(detailState.user.totalUsageCredits)}
-              </Descriptions.Item>
-            </Descriptions>
-            <Tabs items={detailTabItems} />
-          </Space>
-        ) : null}
-      </Modal>
+        <UserRoleModal
+          open={Boolean(roleEditState)}
+          user={roleEditState?.user || null}
+          roleIds={roleEditState?.roleIds || []}
+          roleOptions={roleOptions}
+          saving={assigningRoleUserId === roleEditState?.user.id}
+          onCancel={() => setRoleEditState(null)}
+          onRoleIdsChange={(roleIds) => {
+            if (!roleEditState) {
+              return;
+            }
+            setRoleEditState({ ...roleEditState, roleIds });
+          }}
+          onSubmit={() => void handleAssignRoles()}
+        />
+        <UserPasswordModal
+          open={Boolean(passwordEditState)}
+          user={passwordEditState?.user || null}
+          password={passwordEditState?.password || ''}
+          saving={updatingUserId === passwordEditState?.user.id}
+          onCancel={() => setPasswordEditState(null)}
+          onPasswordChange={(password) => {
+            if (!passwordEditState) {
+              return;
+            }
+            setPasswordEditState({ ...passwordEditState, password });
+          }}
+          onSubmit={() => void handleUpdatePassword()}
+        />
+        <UserCreditModal
+          amountInput={amountInput}
+          open={Boolean(creditAction)}
+          saving={updatingUserId === creditAction?.user.id}
+          type={creditAction?.type || null}
+          user={creditAction?.user || null}
+          onAmountInputChange={setAmountInput}
+          onCancel={() => {
+            setCreditAction(null);
+            setAmountInput('');
+          }}
+          onSubmit={() => void handleAdjustCredits()}
+        />
+        <UserDetailModal
+          billableUsage={detailState?.billableUsage || []}
+          ledger={detailState?.ledger || []}
+          open={Boolean(detailState)}
+          usage={detailState?.usage || []}
+          user={detailState?.user || null}
+          onCancel={() => setDetailState(null)}
+        />
       </section>
     </ContentStudioLayout>
   );
