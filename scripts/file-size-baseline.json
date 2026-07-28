@@ -45,6 +45,6 @@
     "frontend/admin/src/pages/works/AllWorksPage.scss": 49,
     "frontend/admin/src/pages/works/AllWorksPage.tsx": 299,
     "frontend/admin/src/routes/AppRoutes.tsx": 30,
-    "frontend/admin/src/routes/routeConfig.tsx": 522
+    "frontend/admin/src/routes/routeConfig.tsx": 92
   }
 }
