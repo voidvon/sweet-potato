@@ -8,6 +8,7 @@ const DEFAULT_TARGET_DIRS = Object.freeze([
   path.join(ROOT_DIR, 'frontend', 'admin', 'src'),
   path.join(ROOT_DIR, 'frontend', 'web', 'src'),
 ])
+const DEFAULT_TARGET_DIR = DEFAULT_TARGET_DIRS[0]
 const DEFAULT_BASELINE_PATH = path.join(__dirname, 'file-size-baseline.json')
 
 const THRESHOLDS = Object.freeze({
@@ -37,21 +38,22 @@ function walkDirectory(directoryPath, fsImpl = fs) {
     throw new Error(`Target directory not found: ${directoryPath}`)
   }
 
-  return fsImpl.readdirSync(directoryPath, { withFileTypes: true })
+  return fsImpl
+    .readdirSync(directoryPath, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name))
     .flatMap((entry) => {
       const absolutePath = path.join(directoryPath, entry.name)
-      return entry.isDirectory() ? walkDirectory(absolutePath, fsImpl) : [absolutePath]
+      return entry.isDirectory()
+        ? walkDirectory(absolutePath, fsImpl)
+        : [absolutePath]
     })
 }
 
-function collectFileMetrics(
-  targetDir = DEFAULT_TARGET_DIR,
-  options = {},
-) {
+function collectFileMetrics(targetDir = DEFAULT_TARGET_DIR, options = {}) {
   const { fsImpl = fs, rootDir = ROOT_DIR } = options
-  const files = walkDirectory(targetDir, fsImpl)
-    .filter((absolutePath) => getThresholdForFile(absolutePath))
+  const files = walkDirectory(targetDir, fsImpl).filter((absolutePath) =>
+    getThresholdForFile(absolutePath),
+  )
 
   return files.map((absolutePath) => {
     const relativePath = toPosixPath(path.relative(rootDir, absolutePath))
@@ -68,17 +70,32 @@ function collectFileMetrics(
 
 function validateBaselineContent(baselinePath, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Invalid baseline format in ${baselinePath}: expected an object root`)
+    throw new Error(
+      `Invalid baseline format in ${baselinePath}: expected an object root`,
+    )
   }
 
-  if (!value.files || typeof value.files !== 'object' || Array.isArray(value.files)) {
-    throw new Error(`Invalid baseline format in ${baselinePath}: expected a "files" object`)
+  if (
+    !value.files ||
+    typeof value.files !== 'object' ||
+    Array.isArray(value.files)
+  ) {
+    throw new Error(
+      `Invalid baseline format in ${baselinePath}: expected a "files" object`,
+    )
   }
 
-  const files = {}
+  const files = Object.create(null)
   for (const [relativePath, lineCount] of Object.entries(value.files)) {
+    if (!isValidBaselinePath(relativePath)) {
+      throw new Error(
+        `Invalid baseline path ${relativePath}: expected a normalized Admin/Web TSX/CSS/SCSS path under frontend/{admin,web}/src`,
+      )
+    }
     if (!Number.isInteger(lineCount) || lineCount < 0) {
-      throw new Error(`Invalid baseline line count for ${relativePath}: expected a non-negative integer`)
+      throw new Error(
+        `Invalid baseline line count for ${relativePath}: expected a non-negative integer`,
+      )
     }
     files[relativePath] = lineCount
   }
@@ -90,6 +107,26 @@ function validateBaselineContent(baselinePath, value) {
   }
 }
 
+function isValidBaselinePath(relativePath) {
+  if (typeof relativePath !== 'string' || relativePath.length === 0)
+    return false
+  if (relativePath.includes('\\')) return false
+  if (path.posix.isAbsolute(relativePath)) return false
+  if (path.posix.normalize(relativePath) !== relativePath) return false
+
+  const segments = relativePath.split('/')
+  if (
+    segments.length < 4 ||
+    segments[0] !== 'frontend' ||
+    !['admin', 'web'].includes(segments[1]) ||
+    segments[2] !== 'src'
+  ) {
+    return false
+  }
+
+  return Boolean(getThresholdForFile(relativePath))
+}
+
 function loadBaseline(baselinePath = DEFAULT_BASELINE_PATH, fsImpl = fs) {
   if (!fsImpl.existsSync(baselinePath)) {
     throw new Error(`Baseline file not found: ${baselinePath}`)
@@ -99,7 +136,9 @@ function loadBaseline(baselinePath = DEFAULT_BASELINE_PATH, fsImpl = fs) {
   try {
     parsed = JSON.parse(fsImpl.readFileSync(baselinePath, 'utf8'))
   } catch (error) {
-    throw new Error(`Unable to parse baseline JSON at ${baselinePath}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(
+      `Unable to parse baseline JSON at ${baselinePath}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   return validateBaselineContent(baselinePath, parsed)
@@ -114,7 +153,10 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
     const { fail, warn } = metric.threshold
     const baselineLineCount = baselineFiles[metric.relativePath]
 
-    if (typeof baselineLineCount === 'number' && metric.lineCount > baselineLineCount) {
+    if (
+      typeof baselineLineCount === 'number' &&
+      metric.lineCount > baselineLineCount
+    ) {
       errors.push(
         `${metric.relativePath}: ${metric.lineCount} lines exceeds baseline ${baselineLineCount}`,
       )
@@ -130,13 +172,17 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
         results.push({ ...metric, baselineLineCount, status: 'grandfathered' })
         continue
       }
-      errors.push(`${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without baseline`)
+      errors.push(
+        `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without baseline`,
+      )
       results.push({ ...metric, baselineLineCount, status: 'error' })
       continue
     }
 
     if (metric.lineCount > warn) {
-      warnings.push(`${metric.relativePath}: ${metric.lineCount} lines exceeds warn threshold ${warn}`)
+      warnings.push(
+        `${metric.relativePath}: ${metric.lineCount} lines exceeds warn threshold ${warn}`,
+      )
       results.push({ ...metric, baselineLineCount, status: 'warn' })
       continue
     }
@@ -150,7 +196,9 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
 function runFileSizeCheck(options = {}) {
   const fsImpl = options.fsImpl || fs
   const rootDir = options.rootDir || ROOT_DIR
-  const targetDirs = options.targetDirs || (options.targetDir ? [options.targetDir] : DEFAULT_TARGET_DIRS)
+  const targetDirs =
+    options.targetDirs ||
+    (options.targetDir ? [options.targetDir] : DEFAULT_TARGET_DIRS)
   const baselinePath = options.baselinePath || DEFAULT_BASELINE_PATH
   const baseline = loadBaseline(baselinePath, fsImpl)
   const fileMetrics = targetDirs
@@ -181,10 +229,12 @@ function printReport(result) {
     return false
   }
 
-  const oversizedCount = result.results.filter((item) => item.status === 'grandfathered').length
+  const oversizedCount = result.results.filter(
+    (item) => item.status === 'grandfathered',
+  ).length
   console.log(
-    `Checked ${result.fileMetrics.length} Admin/Web TSX/CSS/SCSS files`
-    + `${oversizedCount > 0 ? ` (${oversizedCount} grandfathered)` : ''}`,
+    `Checked ${result.fileMetrics.length} Admin/Web TSX/CSS/SCSS files` +
+      `${oversizedCount > 0 ? ` (${oversizedCount} grandfathered)` : ''}`,
   )
   return true
 }
@@ -205,6 +255,7 @@ module.exports = {
   countFileLines,
   evaluateFileSizeMetrics,
   getThresholdForFile,
+  isValidBaselinePath,
   loadBaseline,
   runFileSizeCheck,
 }
