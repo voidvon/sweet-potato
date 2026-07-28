@@ -18,6 +18,7 @@ import {
   RobotOutlined,
   StarFilled,
   StarOutlined,
+  TableOutlined,
   ThunderboltFilled,
   ThunderboltOutlined,
   VideoCameraFilled,
@@ -48,6 +49,7 @@ import type { AuthSession, CreativeModuleCode, User } from '../types';
 
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
+const BatchGenerationPage = lazy(() => import('../pages/content/BatchGenerationPage').then((m) => ({ default: m.BatchGenerationPage })));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const DiscoverPage = lazy(() => import('../pages/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
 const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
@@ -367,6 +369,27 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     routeResource: chatRouteGrant,
     handle: {
       title: '图片创作',
+    },
+  },
+  {
+    key: 'content-batch-generation',
+    path: 'content/batch-generation',
+    fullPath: routePaths.contentModule('batch-generation'),
+    element: () => withStudioSuspense(<BatchGenerationPage />),
+    routeResource: {
+      permissionCode: 'web.module.content.batch_generation',
+      protected: true,
+      resourceKey: 'web.module.content.batch_generation',
+      resourceType: 'menu',
+    },
+    handle: {
+      hideWorkspaceHeader: true,
+      title: '表格',
+      surface: 'studio',
+      sidebar: {
+        icon: <TableOutlined />,
+        selectedIcon: <TableOutlined />,
+      },
     },
   },
   {

@@ -15,6 +15,7 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
   'web.module.content.scene_library',
   'web.module.content.product_assets',
   'web.module.content.finished_assets',
+  'web.module.content.batch_generation',
   'web.module.creator_ops.xingtu',
   'web.module.creator_ops.buyin',
   'web.module.creator_ops.douyin',
@@ -45,6 +46,9 @@ const webRouteMetaByPermission = {
   },
   'web.module.content.finished_assets': {
     path: '/app/content/finished_assets',
+  },
+  'web.module.content.batch_generation': {
+    path: '/app/content/batch-generation',
   },
   'web.module.creator_ops.xingtu': {
     path: '/app/creator-ops/xingtu',
@@ -122,6 +126,7 @@ export const seededRouteResources: SeedRouteResource[] = [
       }
       if (
         entry.key === 'web.module.content.finished_assets'
+        || entry.key === 'web.module.content.batch_generation'
         || entry.key === 'web.module.content.video_remake'
         || entry.key === 'web.module.content.create_video'
       ) {
@@ -136,6 +141,7 @@ export const seededRouteResources: SeedRouteResource[] = [
       'web.module.content.scene_library': 30,
       'web.module.content.product_assets': 40,
       'web.module.content.finished_assets': 50,
+      'web.module.content.batch_generation': 40,
       'web.module.content.video_remake': 30,
       'web.module.content.create_video': 20,
       'web.module.creator_ops.xingtu': 10,

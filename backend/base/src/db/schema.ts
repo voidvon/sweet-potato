@@ -1248,6 +1248,11 @@ export function migrateDatabase() {
   });
   db.prepare(`
     UPDATE route_resources
+    SET name = '表格', updated_at = @updatedAt
+    WHERE id = 'rr-web.module.content.batch_generation' AND is_system = 1
+  `).run({ updatedAt: now });
+  db.prepare(`
+    UPDATE route_resources
     SET name = '发现', updated_at = @updatedAt
     WHERE id = 'rr-admin-discover' AND is_system = 1
   `).run({ updatedAt: now });

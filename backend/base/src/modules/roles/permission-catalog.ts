@@ -90,6 +90,12 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
     resourceTypes: ['finished_video'] as const,
   },
   {
+    key: 'web.module.content.batch_generation',
+    label: '表格',
+    description: '允许访问图片和视频批量生成任务页面。',
+    group: 'content',
+  },
+  {
     key: 'web.module.creator_ops.xingtu',
     label: '星图达人',
     description: '允许访问星图达人搜索草稿与执行能力。',
