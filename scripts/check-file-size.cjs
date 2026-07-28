@@ -100,8 +100,54 @@ function validateBaselineContent(baselinePath, value) {
     files[relativePath] = lineCount
   }
 
+  if (
+    !value.grandfatheredFiles ||
+    typeof value.grandfatheredFiles !== 'object' ||
+    Array.isArray(value.grandfatheredFiles)
+  ) {
+    throw new Error(
+      `Invalid baseline format in ${baselinePath}: expected a "grandfatheredFiles" object`,
+    )
+  }
+
+  const grandfatheredFiles = Object.create(null)
+  for (const [relativePath, lineCap] of Object.entries(
+    value.grandfatheredFiles,
+  )) {
+    if (!isValidBaselinePath(relativePath)) {
+      throw new Error(
+        `Invalid grandfathered path ${relativePath}: expected a normalized Admin/Web TSX/CSS/SCSS path under frontend/{admin,web}/src`,
+      )
+    }
+    if (!Number.isInteger(lineCap) || lineCap < 0) {
+      throw new Error(
+        `Invalid grandfathered line cap for ${relativePath}: expected a non-negative integer`,
+      )
+    }
+
+    const threshold = getThresholdForFile(relativePath)
+    if (lineCap <= threshold.fail) {
+      throw new Error(
+        `Invalid grandfathered line cap for ${relativePath}: expected more than fail threshold ${threshold.fail}`,
+      )
+    }
+    if (typeof files[relativePath] !== 'number') {
+      throw new Error(
+        `Invalid grandfathered path ${relativePath}: expected a matching ordinary baseline entry`,
+      )
+    }
+    if (files[relativePath] > lineCap) {
+      throw new Error(
+        `Invalid grandfathered line cap for ${relativePath}: ordinary baseline ${files[relativePath]} exceeds cap ${lineCap}`,
+      )
+    }
+
+    grandfatheredFiles[relativePath] = lineCap
+  }
+
   return {
     files,
+    grandfatheredFiles,
     generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : '',
     scope: typeof value.scope === 'string' ? value.scope : '',
   }
@@ -144,7 +190,11 @@ function loadBaseline(baselinePath = DEFAULT_BASELINE_PATH, fsImpl = fs) {
   return validateBaselineContent(baselinePath, parsed)
 }
 
-function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
+function evaluateFileSizeMetrics(
+  fileMetrics,
+  baselineFiles,
+  grandfatheredFiles = {},
+) {
   const errors = []
   const warnings = []
   const results = []
@@ -152,6 +202,7 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
   for (const metric of fileMetrics) {
     const { fail, warn } = metric.threshold
     const baselineLineCount = baselineFiles[metric.relativePath]
+    const grandfatheredLineCap = grandfatheredFiles[metric.relativePath]
 
     if (
       typeof baselineLineCount === 'number' &&
@@ -165,17 +216,30 @@ function evaluateFileSizeMetrics(fileMetrics, baselineFiles) {
     }
 
     if (metric.lineCount > fail) {
-      if (typeof baselineLineCount === 'number') {
+      if (
+        typeof grandfatheredLineCap === 'number' &&
+        metric.lineCount <= grandfatheredLineCap
+      ) {
         warnings.push(
-          `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} but is grandfathered at baseline ${baselineLineCount}`,
+          `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} but is grandfathered up to historical cap ${grandfatheredLineCap}`,
         )
-        results.push({ ...metric, baselineLineCount, status: 'grandfathered' })
+        results.push({
+          ...metric,
+          baselineLineCount,
+          grandfatheredLineCap,
+          status: 'grandfathered',
+        })
         continue
       }
       errors.push(
-        `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without baseline`,
+        `${metric.relativePath}: ${metric.lineCount} lines exceeds fail threshold ${fail} without historical grandfather allowance`,
       )
-      results.push({ ...metric, baselineLineCount, status: 'error' })
+      results.push({
+        ...metric,
+        baselineLineCount,
+        grandfatheredLineCap,
+        status: 'error',
+      })
       continue
     }
 
@@ -204,7 +268,11 @@ function runFileSizeCheck(options = {}) {
   const fileMetrics = targetDirs
     .flatMap((targetDir) => collectFileMetrics(targetDir, { fsImpl, rootDir }))
     .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
-  const evaluation = evaluateFileSizeMetrics(fileMetrics, baseline.files)
+  const evaluation = evaluateFileSizeMetrics(
+    fileMetrics,
+    baseline.files,
+    baseline.grandfatheredFiles,
+  )
 
   return {
     baseline,

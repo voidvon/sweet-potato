@@ -38,13 +38,14 @@ function writeFile(rootDir, relativePath, content) {
   fs.writeFileSync(absolutePath, content)
 }
 
-function writeBaseline(baselinePath, files) {
+function writeBaseline(baselinePath, files, grandfatheredFiles = {}) {
   fs.writeFileSync(
     baselinePath,
     `${JSON.stringify(
       {
         generatedAt: '2026-07-27T00:00:00+08:00',
         scope: 'frontend/{admin,web}/src/**/*.{tsx,css,scss}',
+        grandfatheredFiles,
         files,
       },
       null,
@@ -62,7 +63,7 @@ test('countFileLines handles empty content and trailing newlines', () => {
 
 test('loadBaseline rejects invalid baseline shapes', () => {
   const { baselinePath } = createTempProject()
-  fs.writeFileSync(baselinePath, '{"files":[]}\n')
+  fs.writeFileSync(baselinePath, '{"grandfatheredFiles":{},"files":[]}\n')
 
   assert.throws(() => loadBaseline(baselinePath), /expected a "files" object/)
 })
@@ -84,6 +85,32 @@ test('loadBaseline rejects unsafe, non-normalized, and out-of-scope paths', () =
   }
 })
 
+test('loadBaseline validates explicit grandfather paths and caps', () => {
+  const cases = [
+    {
+      files: { 'frontend/web/src/Panel.tsx': 501 },
+      grandfatheredFiles: { '../frontend/web/src/Panel.tsx': 501 },
+      expectedError: /Invalid grandfathered path/,
+    },
+    {
+      files: { 'frontend/web/src/Panel.tsx': 501 },
+      grandfatheredFiles: { 'frontend/web/src/Panel.tsx': 500 },
+      expectedError: /expected more than fail threshold 500/,
+    },
+    {
+      files: {},
+      grandfatheredFiles: { 'frontend/web/src/Panel.tsx': 501 },
+      expectedError: /expected a matching ordinary baseline entry/,
+    },
+  ]
+
+  for (const { expectedError, files, grandfatheredFiles } of cases) {
+    const { baselinePath } = createTempProject()
+    writeBaseline(baselinePath, files, grandfatheredFiles)
+    assert.throws(() => loadBaseline(baselinePath), expectedError)
+  }
+})
+
 test('loadBaseline reports a missing baseline file', () => {
   const { baselinePath } = createTempProject()
 
@@ -101,6 +128,7 @@ test('evaluateFileSizeMetrics warns for grandfathered files without failing', ()
         threshold: THRESHOLDS.tsx,
       },
     ],
+    { [relativePath]: THRESHOLDS.tsx.fail + 20 },
     { [relativePath]: THRESHOLDS.tsx.fail + 20 },
   )
 
@@ -120,6 +148,7 @@ test('evaluateFileSizeMetrics fails when a grandfathered file grows', () => {
         threshold: THRESHOLDS.tsx,
       },
     ],
+    { [relativePath]: THRESHOLDS.tsx.fail + 20 },
     { [relativePath]: THRESHOLDS.tsx.fail + 20 },
   )
 
@@ -186,8 +215,71 @@ test('evaluateFileSizeMetrics enforces new-file thresholds for TSX, CSS, and SCS
     )
 
     assert.equal(result.errors.length, 1)
-    assert.match(result.errors[0], /without baseline/)
+    assert.match(result.errors[0], /without historical grandfather allowance/)
   }
+})
+
+test('ordinary baseline entries cannot grandfather new oversized TSX, CSS, or SCSS files', () => {
+  const cases = [
+    ['tsx', 'frontend/web/src/components/NewPanel.tsx', 501],
+    ['css', 'frontend/web/src/components/NewPanel.css', 901],
+    ['scss', 'frontend/web/src/components/NewPanel.scss', 901],
+  ]
+
+  for (const [extension, relativePath, lineCount] of cases) {
+    const result = evaluateFileSizeMetrics(
+      [
+        {
+          absolutePath: `/tmp/${path.basename(relativePath)}`,
+          lineCount,
+          relativePath,
+          threshold: THRESHOLDS[extension],
+        },
+      ],
+      { [relativePath]: lineCount },
+    )
+
+    assert.equal(result.errors.length, 1)
+    assert.match(result.errors[0], /without historical grandfather allowance/)
+    assert.equal(result.results[0]?.status, 'error')
+  }
+})
+
+test('historical grandfather allowance is bounded by both baseline and explicit cap', () => {
+  const relativePath = 'frontend/web/src/components/HistoricalPanel.tsx'
+  const metric = (lineCount) => ({
+    absolutePath: `/tmp/${path.basename(relativePath)}`,
+    lineCount,
+    relativePath,
+    threshold: THRESHOLDS.tsx,
+  })
+  const baselineFiles = { [relativePath]: 520 }
+  const grandfatheredFiles = { [relativePath]: 530 }
+
+  assert.equal(
+    evaluateFileSizeMetrics(
+      [metric(510)],
+      baselineFiles,
+      grandfatheredFiles,
+    ).results[0]?.status,
+    'grandfathered',
+  )
+  assert.match(
+    evaluateFileSizeMetrics(
+      [metric(521)],
+      baselineFiles,
+      grandfatheredFiles,
+    ).errors[0],
+    /exceeds baseline 520/,
+  )
+  assert.match(
+    evaluateFileSizeMetrics(
+      [metric(531)],
+      { [relativePath]: 531 },
+      grandfatheredFiles,
+    ).errors[0],
+    /without historical grandfather allowance/,
+  )
 })
 
 test('evaluateFileSizeMetrics honors exact warn and fail boundaries for every extension', () => {
@@ -314,11 +406,19 @@ test('runFileSizeCheck walks Admin and Web files and applies thresholds end to e
       '\n',
     ),
   )
-  writeBaseline(project.baselinePath, {
-    'frontend/admin/src/pages/settings/LargePage.tsx': THRESHOLDS.tsx.fail + 5,
-    'frontend/admin/src/pages/settings/SmallPage.tsx': 1,
-    'frontend/web/src/components/WarningPanel.css': THRESHOLDS.css.warn + 1,
-  })
+  writeBaseline(
+    project.baselinePath,
+    {
+      'frontend/admin/src/pages/settings/LargePage.tsx':
+        THRESHOLDS.tsx.fail + 5,
+      'frontend/admin/src/pages/settings/SmallPage.tsx': 1,
+      'frontend/web/src/components/WarningPanel.css': THRESHOLDS.css.warn + 1,
+    },
+    {
+      'frontend/admin/src/pages/settings/LargePage.tsx':
+        THRESHOLDS.tsx.fail + 5,
+    },
+  )
 
   const collected = project.targetDirs.flatMap((targetDir) =>
     collectFileMetrics(targetDir, { rootDir: project.rootDir }),
