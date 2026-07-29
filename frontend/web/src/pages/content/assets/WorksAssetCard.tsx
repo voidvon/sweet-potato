@@ -6,7 +6,7 @@ import { API_BASE_URL } from '../../../api/request';
 import type { ContentAsset } from '../../../types';
 import { VideoAssetCover } from '../shared/VideoAssetCover';
 import { getVideoWorkSource } from './worksAssetSource';
-
+import './WorksAssetCard.scss';
 type WorksAssetStatus = 'completed' | 'generating' | 'failed';
 
 type WorksAssetCardProps = {
