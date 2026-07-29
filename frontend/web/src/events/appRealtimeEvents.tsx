@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { getCurrentUser } from '@shared/api/user';
 import { API_BASE_URL } from '../api/request';
+import type { BatchRunDetail } from '../api/batch-generation';
 import { withAuthToken } from '../utils/session';
 import type { ChatMessage, User } from '../types';
 
@@ -37,7 +38,14 @@ export type AppPermissionUpdatedDetail = {
   requireRelogin?: boolean;
 };
 
+export type AppBatchGenerationRunUpdatedDetail = {
+  userId: string;
+  run: BatchRunDetail;
+  at?: string;
+};
+
 export const appRealtimeEventNames = {
+  batchGenerationRunUpdated: 'app:batch-generation-run-updated',
   creditBalanceUpdated: 'app:credit-balance-updated',
   generationJobUpdated: 'app:generation-job-updated',
   permissionUpdated: 'app:permission-updated',
@@ -104,6 +112,16 @@ export function AppRealtimeEventsProvider({
       onCreditBalanceUpdated(detail.userId, detail.creditBalance);
       dispatchAppEvent(appRealtimeEventNames.creditBalanceUpdated, detail);
     };
+    const handleBatchGenerationRunUpdated = (event: MessageEvent<string>) => {
+      let detail: AppBatchGenerationRunUpdatedDetail;
+      try {
+        detail = JSON.parse(event.data || '{}') as AppBatchGenerationRunUpdatedDetail;
+      } catch {
+        return;
+      }
+      if (detail.userId !== currentUserId || !detail.run) return;
+      dispatchAppEvent(appRealtimeEventNames.batchGenerationRunUpdated, detail);
+    };
     const handlePermissionUpdated = (event: MessageEvent<string>) => {
       let detail: AppPermissionUpdatedDetail;
       try {
@@ -119,11 +137,13 @@ export function AppRealtimeEventsProvider({
     };
 
     source.addEventListener('open', handleOpen);
+    source.addEventListener('batch-generation-run-updated', handleBatchGenerationRunUpdated);
     source.addEventListener('credit-balance-updated', handleCreditBalanceUpdated);
     source.addEventListener('generation-job-updated', handleGenerationJobUpdated);
     source.addEventListener('permission-updated', handlePermissionUpdated);
     return () => {
       source.removeEventListener('open', handleOpen);
+      source.removeEventListener('batch-generation-run-updated', handleBatchGenerationRunUpdated);
       source.removeEventListener('credit-balance-updated', handleCreditBalanceUpdated);
       source.removeEventListener('generation-job-updated', handleGenerationJobUpdated);
       source.removeEventListener('permission-updated', handlePermissionUpdated);

@@ -8,6 +8,7 @@ import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
+import { imageGenerationCreditsPerRequest } from '../billing/billing.service.js';
 import { contentRepository } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
 import {
@@ -17,8 +18,8 @@ import {
   inputMediaRelativePath,
 } from '../content/internals/content-common.js';
 import { listCreativeCapabilities } from '../creative-capabilities/creative-capability.registry.js';
+import { getImageGenerationModeSchema } from '../chat/capabilities/image-generation.workflow.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
-import { registerBatchGenerationEventClient } from './batch-generation.events.js';
 import { batchGenerationRunService } from './batch-generation-run.service.js';
 import {
   BatchGenerationConflictError,
@@ -66,7 +67,16 @@ export function createBatchGenerationRouter() {
   router.use(requirePermission('web.module.content.batch_generation'));
 
   router.get('/capabilities', (_req, res) => {
-    res.json(listCreativeCapabilities());
+    res.json(listCreativeCapabilities().map((capability) => {
+      if (capability.mediaKind !== 'image') return capability;
+      const modeKey = capability.key.slice('image.'.length).replace(/_/g, '-');
+      const modeSchema = getImageGenerationModeSchema(modeKey);
+      return {
+        ...capability,
+        outputCountStrategy: modeSchema?.outputCountStrategy || 'selectable',
+        ...(modeSchema?.outputCountGroupKey ? { outputCountGroupKey: modeSchema.outputCountGroupKey } : {}),
+      };
+    }));
   });
 
   router.get('/model-options', (_req, res) => {
@@ -85,16 +95,13 @@ export function createBatchGenerationRouter() {
             name: config.name,
             provider: config.provider,
             model: config.model,
+            creditsPerRequest: config.type === 'image' ? imageGenerationCreditsPerRequest(config) : 0,
             supportsCustomResolution: imageGeneration.supportsCustomResolution === true
               || settings.supportsCustomResolution === true,
             isDefault: Boolean(config.isDefault),
           };
         }),
     );
-  });
-
-  router.get('/events', (req, res) => {
-    registerBatchGenerationEventClient(userIdOf(req), res);
   });
 
   router.post('/assets/upload', (req, res) => {

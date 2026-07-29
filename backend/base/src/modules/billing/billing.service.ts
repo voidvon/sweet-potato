@@ -288,6 +288,15 @@ function nonLlmModelBillingSettingsOf(modelConfig: AiModelConfig): NonLlmModelBi
   };
 }
 
+export function imageGenerationCreditsPerRequest(modelConfig: AiModelConfig) {
+  return nonLlmModelBillingSettingsOf(modelConfig).creditsPerRequest;
+}
+
+export function estimateImageGenerationCredits(modelConfig: AiModelConfig, outputCount: number) {
+  const normalizedOutputCount = Math.max(0, Math.floor(Number(outputCount) || 0));
+  return roundCredits(imageGenerationCreditsPerRequest(modelConfig) * normalizedOutputCount);
+}
+
 function assertSystemBillingReady() {
   const settings = billingRepository.getSettings();
   if (!settings) {

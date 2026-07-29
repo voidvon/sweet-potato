@@ -3,7 +3,10 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { z } from 'zod';
-import { assertSufficientStepCredits } from '../../billing/billing.service.js';
+import {
+  assertSufficientStepCredits,
+  estimateImageGenerationCredits,
+} from '../../billing/billing.service.js';
 import {
   contentFilePathForRelativePath,
   contentFilesDir,
@@ -591,18 +594,8 @@ function imageDimensions(buffer: Buffer, mimeType: string) {
   return dimensions;
 }
 
-function imageCreditsPerRequest(modelConfig: AiModelConfig) {
-  const settings = modelConfig.settings && typeof modelConfig.settings === 'object' && !Array.isArray(modelConfig.settings)
-    ? modelConfig.settings as Record<string, unknown>
-    : {};
-  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
-    ? settings.billing as Record<string, unknown>
-    : {};
-  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
-}
-
 function imageGenerationCreditCost(modelConfig: AiModelConfig, generatedCount: number) {
-  return roundCreditCost(imageCreditsPerRequest(modelConfig) * Math.max(0, generatedCount));
+  return estimateImageGenerationCredits(modelConfig, generatedCount);
 }
 
 function assertSufficientImageGenerationCredits(input: {

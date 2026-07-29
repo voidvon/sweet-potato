@@ -33,6 +33,11 @@ import {
 } from '../../../components/ImageOutputSizePicker';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
+import {
+  estimateImageGenerationCredits,
+  imageGenerationCreditsPerRequest,
+  resolveImageGenerationOutputCount,
+} from '@shared/utils/imageGenerationCredits';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
 
@@ -359,21 +364,6 @@ function imageModelValue(config: ModelConfig) {
   return config.id || `${config.provider}::${config.model}`;
 }
 
-function numericValue(value: unknown, fallback = 0) {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : fallback;
-}
-
-function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
-  const settings = config?.settings && typeof config.settings === 'object'
-    ? config.settings as Record<string, unknown>
-    : {};
-  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
-    ? settings.billing as Record<string, unknown>
-    : {};
-  return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
-}
-
 export function ClawDialogComposer({
   attachments,
   composerDraftContext,
@@ -618,15 +608,15 @@ export function ClawDialogComposer({
     : selectableResolutions[0] || selectedOutputConfig.defaultResolution;
   const outputSizeLabel = getImageOutputSize(selectedRawImageConfig, effectiveResolution, selectedAspectRatio);
   const selectedBackgroundOption = backgroundOptions.find((option) => option.key === selectedBackground) || backgroundOptions[0];
-  const resolvedOutputCount = outputCountStrategy === 'fixedOne'
-    ? 1
-    : outputCountStrategy === 'matchUploadedImages'
-      ? Math.max(1, attachments.filter((attachment) => attachment.kind === 'image').length)
-      : outputCountStrategy === 'matchReferenceGroup'
-        ? Math.max(1, (groupedAttachments[selectedMode.outputCountGroupKey || ''] || []).filter((attachment) => attachment.kind === 'image').length)
-        : selectedOutputCount;
-  const imageCreditsPerRequest = imageModelCreditsPerRequest(selectedRawImageConfig);
-  const totalImageCredits = imageCreditsPerRequest * resolvedOutputCount;
+  const resolvedOutputCount = resolveImageGenerationOutputCount({
+    strategy: outputCountStrategy,
+    requestedCount: selectedOutputCount,
+    uploadedImageCount: attachments.filter((attachment) => attachment.kind === 'image').length,
+    referenceGroupImageCount: (groupedAttachments[selectedMode.outputCountGroupKey || ''] || [])
+      .filter((attachment) => attachment.kind === 'image').length,
+  });
+  const imageCreditsPerRequest = imageGenerationCreditsPerRequest(selectedRawImageConfig);
+  const totalImageCredits = estimateImageGenerationCredits(imageCreditsPerRequest, resolvedOutputCount);
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {

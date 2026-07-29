@@ -4,6 +4,10 @@ import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
+import {
+  estimateImageGenerationCredits,
+  imageGenerationCreditsPerRequest,
+} from '@shared/utils/imageGenerationCredits';
 import { AppImage } from '../../../components/AppImage';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
@@ -508,16 +512,6 @@ export function ChatMessageList({
     return Number.isFinite(numeric) ? numeric : fallback;
   }
 
-  function imageModelCreditsPerRequest(config: ModelConfig | undefined) {
-    const settings = config?.settings && typeof config.settings === 'object'
-      ? config.settings as Record<string, unknown>
-      : {};
-    const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
-      ? settings.billing as Record<string, unknown>
-      : {};
-    return Math.max(0, numericValue(billing.creditsPerRequest, numericValue(billing.perRequestUsd, 0)));
-  }
-
   function fallbackImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
     const modelConfigId = previousUserMessage?.imageModelConfigId;
     if (!modelConfigId) {
@@ -532,7 +526,10 @@ export function ChatMessageList({
       return undefined;
     }
     const accumulatedCreditCost = numericValue(previousUserMessage?.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0);
-    return accumulatedCreditCost + imageModelCreditsPerRequest(config) * generatedCount;
+    return accumulatedCreditCost + estimateImageGenerationCredits(
+      imageGenerationCreditsPerRequest(config),
+      generatedCount,
+    );
   }
 
   function resolveImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {

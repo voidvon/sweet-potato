@@ -7,6 +7,7 @@ import {
 } from '../chat/capabilities/image-generation.workflow.js';
 import type { ImageGenerationWorkflowInput } from '../chat/capabilities/image-generation.workflow.js';
 import type { ChatAttachment } from '../chat/chat.types.js';
+import { estimateImageGenerationCredits } from '../billing/billing.service.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { registerCreativeCapabilityExecutor } from './creative-capability.registry.js';
@@ -172,15 +173,6 @@ function attachmentOf(asset: ContentAsset): ChatAttachment {
   };
 }
 
-function imageCreditsPerRequest(modelConfig: AiModelConfig) {
-  const billing = modelConfig.settings?.billing;
-  if (!billing || typeof billing !== 'object' || Array.isArray(billing)) return 0;
-  const value = numberValue((billing as Record<string, unknown>).creditsPerRequest)
-    ?? numberValue((billing as Record<string, unknown>).perRequestUsd)
-    ?? 0;
-  return Math.max(0, value);
-}
-
 function workflowInput(input: {
   context: CreativeCapabilityExecutionContext;
   params: Record<string, unknown>;
@@ -267,7 +259,7 @@ function createImageExecutor(capabilityKey: string): CreativeCapabilityExecutor 
           image: modelSnapshot(imageModelConfig),
           ...(llmModelConfig ? { llm: modelSnapshot(llmModelConfig) } : {}),
         },
-        estimatedCredits: imageCreditsPerRequest(imageModelConfig) * outputCount,
+        estimatedCredits: estimateImageGenerationCredits(imageModelConfig, outputCount),
       };
     },
 

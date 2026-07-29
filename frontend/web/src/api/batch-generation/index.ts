@@ -1,6 +1,6 @@
-import { withAuthToken } from '../../utils/session';
-import { API_BASE_URL, request } from '../request';
+import { request } from '../request';
 import type { ContentAsset } from '../../types';
+import type { ImageGenerationOutputCountStrategy } from '@shared/utils/imageGenerationCredits';
 
 export type CreativeMediaKind = 'image' | 'video';
 export type BatchValidationStatus = 'draft' | 'valid' | 'invalid';
@@ -22,6 +22,8 @@ export type CreativeCapability = {
   schemaVersion: number;
   globalFields: CreativeCapabilityField[];
   rowFields: CreativeCapabilityField[];
+  outputCountStrategy?: ImageGenerationOutputCountStrategy;
+  outputCountGroupKey?: string;
 };
 
 export type BatchGenerationModelOption = {
@@ -30,6 +32,7 @@ export type BatchGenerationModelOption = {
   name: string;
   provider: string;
   model: string;
+  creditsPerRequest: number;
   supportsCustomResolution: boolean;
   isDefault: boolean;
 };
@@ -204,10 +207,6 @@ export function getBatchRun(runId: string) {
 
 export function retryBatchRun(runId: string) {
   return request<BatchRunDetail>(`${basePath}/runs/${encodeURIComponent(runId)}/retry`, { method: 'POST', body: '{}' });
-}
-
-export function createBatchGenerationEventSource() {
-  return new EventSource(withAuthToken(`${API_BASE_URL}${basePath}/events`));
 }
 
 export function uploadBatchGenerationAsset(payload: {
