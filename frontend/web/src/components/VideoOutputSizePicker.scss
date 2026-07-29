@@ -1,0 +1,94 @@
+.video-output-size-picker {
+  box-sizing: border-box;
+  display: grid;
+  gap: 18px;
+  width: 380px;
+}
+
+.video-output-size-picker__section {
+  display: grid;
+  gap: 10px;
+}
+
+.video-output-size-picker__section h3 {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.video-output-size-picker__aspect-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.video-output-size-picker__aspect,
+.video-output-size-picker__resolution {
+  align-items: center;
+  background: var(--color-neutral-100);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--color-neutral-900);
+  cursor: pointer;
+  display: inline-grid;
+  justify-items: center;
+  line-height: 1;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.video-output-size-picker__aspect:hover,
+.video-output-size-picker__resolution:hover {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+}
+
+.video-output-size-picker__aspect {
+  gap: 7px;
+  min-height: 66px;
+  padding: 8px 4px;
+}
+
+.video-output-size-picker__aspect span:last-child {
+  font-size: 12px;
+}
+
+.video-output-size-picker__aspect.is-selected,
+.video-output-size-picker__resolution.is-selected {
+  background: var(--color-white);
+  border-color: var(--color-neutral-400);
+  box-shadow: inset 0 0 0 1px var(--color-neutral-400);
+}
+
+.video-output-size-picker__aspect-icon {
+  border: 2px solid var(--color-neutral-900);
+  border-radius: 3px;
+  display: block;
+  height: 14px;
+  width: 22px;
+}
+
+.video-output-size-picker__aspect-icon.ratio-9-16 { height: 28px; width: 15px; }
+.video-output-size-picker__aspect-icon.ratio-16-9 { height: 15px; width: 28px; }
+.video-output-size-picker__aspect-icon.ratio-1-1 { height: 22px; width: 22px; }
+.video-output-size-picker__aspect-icon.ratio-4-3 { height: 18px; width: 24px; }
+.video-output-size-picker__aspect-icon.ratio-3-4 { height: 24px; width: 18px; }
+.video-output-size-picker__aspect-icon.ratio-21-9 { height: 10px; width: 30px; }
+
+.video-output-size-picker__resolution-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-output-size-picker__resolution {
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 54px;
+}
+
+@media (max-width: 560px) {
+  .video-output-size-picker {
+    width: min(380px, calc(100vw - 56px));
+  }
+}

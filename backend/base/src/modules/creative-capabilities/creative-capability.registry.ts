@@ -34,10 +34,9 @@ const imageGlobalFields: CreativeCapabilityField[] = [
 
 const videoGlobalFields: CreativeCapabilityField[] = [
   { key: 'modelConfigId', label: '模型', valueType: 'string', overridable: true },
-  { key: 'resolution', label: '分辨率', valueType: 'string', overridable: true },
   { key: 'aspectRatio', label: '画面比例', valueType: 'string', overridable: true },
   { key: 'duration', label: '时长', valueType: 'string', overridable: true },
-  { key: 'generateAudio', label: '生成音频', valueType: 'boolean', overridable: true },
+  { key: 'generateAudio', label: '生成配音', valueType: 'boolean', overridable: true },
 ];
 
 const videoRowFields: CreativeCapabilityField[] = [
