@@ -130,9 +130,9 @@ test('loadBaseline validates explicit grandfather paths and caps', () => {
       expectedError: /Invalid grandfathered path/,
     },
     {
-      files: { 'frontend/web/src/Panel.tsx': 501 },
-      grandfatheredFiles: { 'frontend/web/src/Panel.tsx': 500 },
-      expectedError: /expected more than fail threshold 500/,
+      files: { 'frontend/web/src/Panel.tsx': 701 },
+      grandfatheredFiles: { 'frontend/web/src/Panel.tsx': 700 },
+      expectedError: /ordinary baseline 701 exceeds cap 700/,
     },
     {
       files: {},
@@ -146,6 +146,18 @@ test('loadBaseline validates explicit grandfather paths and caps', () => {
     writeBaseline(baselinePath, files, grandfatheredFiles)
     assert.throws(() => loadBaseline(baselinePath), expectedError)
   }
+})
+
+test('loadBaseline keeps historical grandfather caps valid after threshold increases', () => {
+  const { baselinePath } = createTempProject()
+  writeBaseline(
+    baselinePath,
+    { 'frontend/web/src/Panel.scss': 141 },
+    { 'frontend/web/src/Panel.scss': 141 },
+  )
+
+  const baseline = loadBaseline(baselinePath)
+  assert.equal(baseline.grandfatheredFiles['frontend/web/src/Panel.scss'], 141)
 })
 
 test('loadBaseline reports a missing baseline file', () => {
@@ -258,9 +270,9 @@ test('evaluateFileSizeMetrics enforces new-file thresholds for TSX, CSS, and SCS
 
 test('ordinary baseline entries cannot grandfather new oversized TSX, CSS, or SCSS files', () => {
   const cases = [
-    ['tsx', 'frontend/web/src/components/NewPanel.tsx', 501],
-    ['css', 'frontend/web/src/components/NewPanel.css', 901],
-    ['scss', 'frontend/web/src/components/NewPanel.scss', 901],
+    ['tsx', 'frontend/web/src/components/NewPanel.tsx', THRESHOLDS.tsx.fail + 1],
+    ['css', 'frontend/web/src/components/NewPanel.css', THRESHOLDS.css.fail + 1],
+    ['scss', 'frontend/web/src/components/NewPanel.scss', THRESHOLDS.scss.fail + 1],
   ]
 
   for (const [extension, relativePath, lineCount] of cases) {
@@ -290,12 +302,12 @@ test('historical grandfather allowance is bounded by both baseline and explicit 
     relativePath,
     threshold: THRESHOLDS.tsx,
   })
-  const baselineFiles = { [relativePath]: 520 }
-  const grandfatheredFiles = { [relativePath]: 530 }
+  const baselineFiles = { [relativePath]: THRESHOLDS.tsx.fail + 20 }
+  const grandfatheredFiles = { [relativePath]: THRESHOLDS.tsx.fail + 30 }
 
   assert.equal(
     evaluateFileSizeMetrics(
-      [metric(510)],
+      [metric(THRESHOLDS.tsx.fail + 10)],
       baselineFiles,
       grandfatheredFiles,
     ).results[0]?.status,
@@ -303,16 +315,16 @@ test('historical grandfather allowance is bounded by both baseline and explicit 
   )
   assert.match(
     evaluateFileSizeMetrics(
-      [metric(521)],
+      [metric(THRESHOLDS.tsx.fail + 21)],
       baselineFiles,
       grandfatheredFiles,
     ).errors[0],
-    /exceeds baseline 520/,
+    new RegExp(`exceeds baseline ${THRESHOLDS.tsx.fail + 20}`),
   )
   assert.match(
     evaluateFileSizeMetrics(
-      [metric(531)],
-      { [relativePath]: 531 },
+      [metric(THRESHOLDS.tsx.fail + 31)],
+      { [relativePath]: THRESHOLDS.tsx.fail + 31 },
       grandfatheredFiles,
     ).errors[0],
     /without historical grandfather allowance/,

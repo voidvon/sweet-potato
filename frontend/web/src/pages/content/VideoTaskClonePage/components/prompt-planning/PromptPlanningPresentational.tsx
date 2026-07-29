@@ -3,6 +3,14 @@ import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { PlanningGeneration } from '../../../../../api/content-planning';
 import type { LocalMaterialFile } from '../../types';
 import { normalizeTagToken } from './planningSessionHelpers';
+import './PromptPlanningAudioReferenceCard.scss';
+import './PromptPlanningChoiceAndBreakdownFields.scss';
+import './PromptPlanningEditableAnalysis.scss';
+import './PromptPlanningLoadingCards.scss';
+import './PromptPlanningMotion.scss';
+import './PromptPlanningSettingsControls.scss';
+import './PromptPlanningSharedFields.scss';
+import './PromptPlanningPresentational.scss';
 
 type PlanningStageItem = {
   role: string;

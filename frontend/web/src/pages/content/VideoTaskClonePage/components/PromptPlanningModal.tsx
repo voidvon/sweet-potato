@@ -14,6 +14,11 @@ import { PromptPlanningStepSettings } from './prompt-planning/PromptPlanningStep
 import { modalCopy, railSteps, videoMaterial } from './prompt-planning/promptPlanningConfig';
 import { CenteredLoadingCard } from './prompt-planning/PromptPlanningPresentational';
 import { usePromptPlanningController } from './prompt-planning/usePromptPlanningController';
+import './PromptPlanningModalShell.scss';
+import './PromptPlanningModalRail.scss';
+import './PromptPlanningModalResponsive.scss';
+import './PromptPlanningModalDensity.scss';
+import './PromptPlanningModal.scss';
 
 type PromptPlanningModalProps = {
   currentUser: User;

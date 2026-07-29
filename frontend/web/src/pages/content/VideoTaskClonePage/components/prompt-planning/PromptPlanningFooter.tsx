@@ -9,6 +9,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { PromptPlanningController } from './usePromptPlanningController';
+import './PromptPlanningFooter.scss';
 
 type PromptPlanningFooterProps = {
   actionLabel: string;

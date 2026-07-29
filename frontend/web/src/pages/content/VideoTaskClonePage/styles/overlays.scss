@@ -520,27 +520,6 @@
   height: 32px;
 }
 
-@include meta.load-css("./prompt-planning/shell");
-@include meta.load-css("./prompt-planning/rail");
-@include meta.load-css("./prompt-planning/settings");
-@include meta.load-css("./prompt-planning/materials");
-@include meta.load-css("./prompt-planning/materials-reference");
-@include meta.load-css("./prompt-planning/materials-audio");
-@include meta.load-css("./prompt-planning/inputs");
-@include meta.load-css("./prompt-planning/analysis-breakdown");
-@include meta.load-css("./prompt-planning/analysis-captions");
-@include meta.load-css("./prompt-planning/settings-switches");
-@include meta.load-css("./prompt-planning/loading");
-@include meta.load-css("./prompt-planning/analysis-thinking");
-@include meta.load-css("./prompt-planning/motion");
-@include meta.load-css("./prompt-planning/candidates");
-@include meta.load-css("./prompt-planning/footer");
-@include meta.load-css("./prompt-planning/settings-controls");
-@include meta.load-css("./prompt-planning/responsive");
-@include meta.load-css("./prompt-planning/density-layout");
-@include meta.load-css("./prompt-planning/density-analysis");
-@include meta.load-css("./prompt-planning/density-content");
-
 .video-task-param-popover {
   display: block;
   padding: 0 0 4px;

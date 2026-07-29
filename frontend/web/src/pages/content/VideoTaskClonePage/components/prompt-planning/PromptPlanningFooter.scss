@@ -18,7 +18,6 @@
   gap: 12px;
 }
 
-
 .video-task-epa-points {
   align-items: center;
   color: var(--color-warning-bright);
@@ -48,16 +47,16 @@
 .video-task-epa-btn {
   align-items: center;
   border: 0;
-  border-radius: 18px;
+  border-radius: 12px;
   cursor: pointer;
   display: inline-flex;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   gap: 8px;
-  height: 56px;
+  height: 46px;
   justify-content: center;
-  min-width: 120px;
-  padding: 0 22px;
+  min-width: 96px;
+  padding: 0 18px;
   white-space: nowrap;
 }
 
@@ -66,13 +65,14 @@
 }
 
 .video-task-epa-btn-text {
-  border-radius: 18px;
-  height: 46px;
   background: transparent;
+  border-radius: 18px;
   color: var(--color-neutral-400);
-  > span {
-    font-size: 15px;
-  }
+  height: 46px;
+}
+
+.video-task-epa-btn-text > span {
+  font-size: 15px;
 }
 
 .video-task-epa-btn-secondary {
@@ -84,6 +84,7 @@
   background: var(--color-neutral-100);
   color: var(--color-neutral-300);
 }
+
 .video-task-epa-btn-accent {
   background: var(--color-black);
   box-shadow: 0 12px 28px rgb(var(--color-black-rgb) / 0.18);
@@ -95,4 +96,55 @@
   background: var(--color-text-placeholder);
   box-shadow: none;
   color: var(--color-white);
+}
+
+.video-task-epa-stepper {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.video-task-epa-stepper span {
+  color: var(--color-neutral-600);
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: center;
+}
+
+.video-task-epa-stepper-btn {
+  align-items: center;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 9px;
+  color: var(--color-neutral-500);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.video-task-epa-stepper-btn:disabled {
+  color: var(--color-neutral-300);
+  cursor: not-allowed;
+}
+
+.video-task-epa-footer {
+  min-height: 78px;
+  padding: 14px 24px 16px;
+}
+
+.video-task-epa-btn-accent {
+  min-width: 150px;
+}
+
+.video-task-epa-footer-right {
+  gap: 8px;
+}
+
+.video-task-epa-footer-right .video-task-epa-btn-text {
+  min-width: 88px;
+  padding: 0 10px;
 }

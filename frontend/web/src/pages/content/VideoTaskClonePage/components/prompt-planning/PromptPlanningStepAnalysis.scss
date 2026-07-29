@@ -23,6 +23,14 @@
   line-height: 1.4;
 }
 
+.video-task-epa-section-head strong {
+  font-size: 15px;
+}
+
+.video-task-epa-section-head span {
+  font-size: 12px;
+}
+
 .video-task-epa-analysis-section > .video-task-epa-section-head span,
 .video-task-epa-analysis-section > .video-task-epa-section-head .video-task-epa-text-action {
   font-size: 12px;
@@ -32,6 +40,12 @@
   border-radius: 14px;
   box-shadow: none;
   padding: 14px 16px;
+}
+
+.video-task-epa-card,
+.video-task-epa-breakdown-card {
+  border-radius: 16px;
+  padding: 16px 18px;
 }
 
 .video-task-epa-breakdown-card .video-task-epa-pill-line {
