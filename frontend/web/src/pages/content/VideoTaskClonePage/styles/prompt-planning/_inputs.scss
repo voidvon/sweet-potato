@@ -1,0 +1,90 @@
+.video-task-epa-inline-input,
+.video-task-epa-large-textarea,
+.video-task-epa-caption-edit textarea,
+.video-task-epa-script-editor {
+  background: rgb(var(--color-text-muted-rgb) / 0.059);
+  border: 1px solid rgb(var(--color-rose-shadow-rgb) / 0.12);
+  border-radius: 12px;
+  color: var(--color-neutral-800);
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 11px 14px;
+  transition: border-color .2s ease,box-shadow .2s ease,background .2s ease;
+  width: 100%;
+}
+
+.video-task-epa-inline-input:focus,
+.video-task-epa-large-textarea:focus,
+.video-task-epa-caption-edit textarea:focus,
+.video-task-epa-script-editor:focus {
+    background: var(--color-white);
+    border-color: var(--color-black);
+    box-shadow: 0 0 0 4px color-mix(in srgb,var(--color-workspace-accent,var(--color-success-bright)) 18%,transparent);
+    outline: none;
+}
+
+
+.video-task-epa-large-textarea {
+  min-height: 80px;
+  padding: 18px;
+  resize: vertical;
+  width: 100%;
+}
+
+.video-task-epa-step-shell-step3 .video-task-epa-large-textarea {
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 104px;
+  padding: 13px 14px;
+}
+
+.video-task-epa-card,
+.video-task-epa-breakdown-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 22px;
+  padding: 22px 24px;
+}
+
+.video-task-epa-breakdown-card {
+  box-shadow: 0 10px 22px rgb(var(--color-shadow-rgb) / 0.03);
+}
+
+.video-task-epa-section-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.video-task-epa-section-head strong {
+  color: var(--color-neutral-900);
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.video-task-epa-section-head span {
+  color: var(--color-neutral-400);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.video-task-epa-text-action {
+  background: transparent;
+  border: 0;
+  color: var(--color-neutral-400);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.video-task-epa-text-action.is-muted {
+  color: var(--color-neutral-600);
+}

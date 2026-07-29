@@ -1,0 +1,118 @@
+.video-task-epa-candidate-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.video-task-epa-candidate-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 24px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 232px;
+  padding: 22px;
+  text-align: left;
+}
+
+.video-task-epa-candidate-card.is-active {
+  border: 2px solid var(--color-neutral-900);
+  padding: 21px;
+}
+
+.video-task-epa-candidate-pill {
+  align-items: center;
+  background: var(--color-black);
+  border-radius: 999px;
+  color: var(--color-white);
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 700;
+  height: 34px;
+  justify-content: center;
+  padding: 0 14px;
+  width: fit-content;
+}
+
+.video-task-epa-candidate-card strong {
+  color: var(--color-neutral-900);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.video-task-epa-candidate-card p {
+  color: var(--color-neutral-500);
+  display: -webkit-box;
+  font-size: 15px;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.7;
+  margin: 0;
+  overflow: hidden;
+}
+
+.video-task-epa-script-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 0;
+}
+
+.video-task-epa-script-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.video-task-epa-script-title {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.video-task-epa-script-head strong {
+  color: var(--color-neutral-900);
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.video-task-epa-script-head span {
+  color: var(--color-neutral-400);
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.video-task-epa-edit-btn {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 10px;
+  color: var(--color-neutral-600);
+  cursor: pointer;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  height: 32px;
+  padding: 0 12px;
+}
+
+.video-task-epa-script-editor {
+  height: clamp(360px, 44vh, 560px);
+  padding: 18px;
+  resize: none;
+  width: 100%;
+}
+
+.video-task-epa-script-editor[readonly] {
+  background: var(--color-white);
+  color: var(--color-neutral-600);
+}
