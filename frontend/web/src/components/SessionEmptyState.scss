@@ -1,0 +1,41 @@
+.session-empty-state {
+  align-items: center;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-200);
+  border-radius: 12px;
+  color: var(--color-neutral-500);
+  display: flex;
+  gap: 10px;
+  margin: 8px 12px;
+  padding: 16px 14px;
+}
+
+.session-empty-state-icon {
+  align-items: center;
+  background: var(--color-brand-soft);
+  border-radius: 10px;
+  color: var(--color-brand);
+  display: inline-flex;
+  flex: 0 0 34px;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.session-empty-state-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-empty-state-copy strong {
+  color: var(--color-neutral-700);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.session-empty-state-copy span {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  line-height: 1.5;
+}

@@ -11,6 +11,7 @@ import { MessageItem } from './helpers/VideoRemakeMessageItem';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import { VideoWorkbenchLayout } from '../../../layouts/VideoWorkbenchLayout';
 import { FloatingComposer } from '../../../components/FloatingComposer';
+import { SessionEmptyState } from '../../../components/SessionEmptyState';
 import { useVideoRemakePageController } from './helpers/useVideoRemakePageController';
 import './VideoRemakePage.scss';
 
@@ -149,74 +150,78 @@ export function VideoRemakePage({ currentUser }: VideoRemakePageProps) {
         )}
         sidebarContent={(
           <div className="video-remake-sidebar-section">
-            <div className="video-workbench-list">
-              {sessions.map((session) => {
-                const status = sessionStatusMeta(session.status);
-                const title = session.filename || '未命名复刻';
-                return (
-                  <div
-                    className={`video-workbench-list-item video-remake-session-item ${session.id === activeSession?.id ? 'active' : ''}`}
-                    key={session.id}
-                    onClick={() => {
-                      setShowStartPanel(false);
-                      void loadSessionDetail(session.id, { silent: true, syncUrl: true, showOverlay: true });
-                      setHighlightCardId('');
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
+            {sessions.length ? (
+              <div className="video-workbench-list">
+                {sessions.map((session) => {
+                  const status = sessionStatusMeta(session.status);
+                  const title = session.filename || '未命名复刻';
+                  return (
+                    <div
+                      className={`video-workbench-list-item video-remake-session-item ${session.id === activeSession?.id ? 'active' : ''}`}
+                      key={session.id}
+                      onClick={() => {
                         setShowStartPanel(false);
                         void loadSessionDetail(session.id, { silent: true, syncUrl: true, showOverlay: true });
                         setHighlightCardId('');
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="video-workbench-list-main">
-                      <span className="video-remake-session-title-row">
-                        <span className="video-workbench-list-title">{title}</span>
-                        <Dropdown
-                          menu={{
-                            items: [
-                              {
-                                key: 'rename',
-                                icon: <Edit3 size={16} />,
-                                label: '编辑名称',
-                                onClick: () => handleRenameSession(session),
-                              },
-                              {
-                                key: 'delete',
-                                danger: true,
-                                icon: <Trash2 size={16} />,
-                                label: '删除会话',
-                                onClick: () => handleDeleteSession(session),
-                              },
-                            ],
-                          }}
-                          placement="bottomRight"
-                          trigger={['click']}
-                        >
-                          <Button
-                            aria-label="会话操作"
-                            className="video-workbench-item-action video-remake-session-action"
-                            icon={<MoreHorizontal size={18} />}
-                            onClick={(event) => event.stopPropagation()}
-                            type="text"
-                          />
-                        </Dropdown>
-                      </span>
-                      <span className="video-remake-session-meta">
-                        <small className={`video-workbench-status ${status.tone}`}>{status.label}</small>
-                        <time className="video-remake-session-time" dateTime={session.updatedAt}>
-                          {formatRelativeCalendarDateTime(session.updatedAt)}
-                        </time>
-                      </span>
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setShowStartPanel(false);
+                          void loadSessionDetail(session.id, { silent: true, syncUrl: true, showOverlay: true });
+                          setHighlightCardId('');
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="video-workbench-list-main">
+                        <span className="video-remake-session-title-row">
+                          <span className="video-workbench-list-title">{title}</span>
+                          <Dropdown
+                            menu={{
+                              items: [
+                                {
+                                  key: 'rename',
+                                  icon: <Edit3 size={16} />,
+                                  label: '编辑名称',
+                                  onClick: () => handleRenameSession(session),
+                                },
+                                {
+                                  key: 'delete',
+                                  danger: true,
+                                  icon: <Trash2 size={16} />,
+                                  label: '删除会话',
+                                  onClick: () => handleDeleteSession(session),
+                                },
+                              ],
+                            }}
+                            placement="bottomRight"
+                            trigger={['click']}
+                          >
+                            <Button
+                              aria-label="会话操作"
+                              className="video-workbench-item-action video-remake-session-action"
+                              icon={<MoreHorizontal size={18} />}
+                              onClick={(event) => event.stopPropagation()}
+                              type="text"
+                            />
+                          </Dropdown>
+                        </span>
+                        <span className="video-remake-session-meta">
+                          <small className={`video-workbench-status ${status.tone}`}>{status.label}</small>
+                          <time className="video-remake-session-time" dateTime={session.updatedAt}>
+                            {formatRelativeCalendarDateTime(session.updatedAt)}
+                          </time>
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <SessionEmptyState description="新建会话，开始你的爆款复刻。" />
+            )}
           </div>
         )}
         footer={activeSession && !showStartPanel ? (

@@ -3,6 +3,7 @@ import { Button, Dropdown, message } from 'antd';
 import type { MenuProps } from 'antd';
 import { MoreHorizontal } from 'lucide-react';
 import { ClearOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { SessionEmptyState } from '../../../components/SessionEmptyState';
 import type { ChatConversation } from '../../../types';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import { RenameConversationModal } from './RenameConversationModal';
@@ -50,57 +51,61 @@ export function ClawSidebar({
   return (
     <>
       <div className="video-remake-sidebar-section">
-        <div className="video-workbench-list">
-          {conversations.map((conversation) => (
-            <div
-              className={`video-workbench-list-item video-remake-session-item ${conversation.id === activeConversationId ? 'active' : ''}`}
-              key={conversation.id}
-              onClick={() => onOpenConversation(conversation)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onOpenConversation(conversation);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              <div className="video-workbench-list-main">
-                <span className="video-remake-session-title-row">
-                  <span className="video-workbench-list-title">{conversation.title || '未命名会话'}</span>
-                  <Dropdown
-                    menu={{
-                      items: buildConversationMenuItems(conversation, onClear, onDelete, openRenameModal),
-                      onClick: ({ domEvent }) => domEvent.stopPropagation(),
-                    }}
-                    placement="bottomRight"
-                    trigger={['click']}
-                  >
-                    <Button
-                      aria-label="会话操作"
-                      className="video-workbench-item-action video-remake-session-action"
-                      icon={<MoreHorizontal size={18} />}
-                      onClick={(event) => event.stopPropagation()}
-                      type="text"
-                    />
-                  </Dropdown>
-                </span>
-                <span className="video-remake-session-meta">
-                  <small className="chat-session-preview">
-                    {conversationPreviewText(conversation, {
-                      active: conversation.id === activeConversationId,
-                      hasStreamingAssistant,
-                      sending,
-                    })}
-                  </small>
-                  <time className="video-remake-session-time" dateTime={conversation.updatedAt}>
-                    {formatRelativeCalendarDateTime(conversation.updatedAt)}
-                  </time>
-                </span>
+        {conversations.length ? (
+          <div className="video-workbench-list">
+            {conversations.map((conversation) => (
+              <div
+                className={`video-workbench-list-item video-remake-session-item ${conversation.id === activeConversationId ? 'active' : ''}`}
+                key={conversation.id}
+                onClick={() => onOpenConversation(conversation)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onOpenConversation(conversation);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="video-workbench-list-main">
+                  <span className="video-remake-session-title-row">
+                    <span className="video-workbench-list-title">{conversation.title || '未命名会话'}</span>
+                    <Dropdown
+                      menu={{
+                        items: buildConversationMenuItems(conversation, onClear, onDelete, openRenameModal),
+                        onClick: ({ domEvent }) => domEvent.stopPropagation(),
+                      }}
+                      placement="bottomRight"
+                      trigger={['click']}
+                    >
+                      <Button
+                        aria-label="会话操作"
+                        className="video-workbench-item-action video-remake-session-action"
+                        icon={<MoreHorizontal size={18} />}
+                        onClick={(event) => event.stopPropagation()}
+                        type="text"
+                      />
+                    </Dropdown>
+                  </span>
+                  <span className="video-remake-session-meta">
+                    <small className="chat-session-preview">
+                      {conversationPreviewText(conversation, {
+                        active: conversation.id === activeConversationId,
+                        hasStreamingAssistant,
+                        sending,
+                      })}
+                    </small>
+                    <time className="video-remake-session-time" dateTime={conversation.updatedAt}>
+                      {formatRelativeCalendarDateTime(conversation.updatedAt)}
+                    </time>
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <SessionEmptyState description="新建会话，开始你的图片创作。" />
+        )}
       </div>
 
       <RenameConversationModal
