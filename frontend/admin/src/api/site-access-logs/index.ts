@@ -25,11 +25,19 @@ export type PaginatedSiteAccessLogs = {
   total: number;
 };
 
+export type SiteAccessLogFilters = {
+  ip?: string;
+  username?: string;
+  method?: string;
+};
+
 const apiBase = '/api/access-logs';
 
-export function listSiteAccessLogs(page = 1, pageSize = 20, ip = '') {
+export function listSiteAccessLogs(page = 1, pageSize = 20, filters: SiteAccessLogFilters = {}) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  if (ip) params.set('ip', ip);
+  if (filters.ip) params.set('ip', filters.ip);
+  if (filters.username) params.set('username', filters.username);
+  if (filters.method) params.set('method', filters.method);
   return request<PaginatedSiteAccessLogs>(`${apiBase}?${params.toString()}`, { dedupe: false });
 }
 

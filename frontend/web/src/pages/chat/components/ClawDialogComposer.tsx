@@ -364,6 +364,10 @@ function imageModelValue(config: ModelConfig) {
   return config.id || `${config.provider}::${config.model}`;
 }
 
+function imageModelIsConfigured(config: ModelConfig) {
+  return config.isConfigured ?? Boolean(config.apiKey);
+}
+
 export function ClawDialogComposer({
   attachments,
   composerDraftContext,
@@ -558,7 +562,7 @@ export function ClawDialogComposer({
 
   const selectableImageModels = useMemo<SelectableImageModel[]>(() => {
     return imageConfigs
-      .filter((config) => config.id && config.apiKey)
+      .filter((config) => config.id && imageModelIsConfigured(config))
       .map((config) => ({
         config,
         value: imageModelValue(config),
@@ -566,8 +570,8 @@ export function ClawDialogComposer({
   }, [imageConfigs]);
 
   const defaultImageModelValue = useMemo(() => {
-    const defaultConfig = imageConfigs.find((item) => item.isDefault && item.apiKey)
-      || imageConfigs.find((item) => item.apiKey);
+    const defaultConfig = imageConfigs.find((item) => item.isDefault && imageModelIsConfigured(item))
+      || imageConfigs.find(imageModelIsConfigured);
     if (defaultConfig) {
       return imageModelValue(defaultConfig);
     }

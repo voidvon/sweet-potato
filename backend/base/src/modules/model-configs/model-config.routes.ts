@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getErrorMessage, sendError } from '../../shared/http.js';
-import { requirePermission } from '../../shared/auth.middleware.js';
+import { requireAnyPermission, requirePermission } from '../../shared/auth.middleware.js';
 import { listAudioModelProviders } from '../audio-models/audio-model.registry.js';
 import { listImageModelProviders } from '../image-models/image-model.registry.js';
 import { listVideoModelProviders } from '../video-models/video-model.registry.js';
@@ -19,10 +19,70 @@ import {
   serializeModelConfig,
 } from './model-config.service.js';
 
+const manageModelConfigsPermission = 'admin.route.system.models.view';
+const useImageModelsPermission = 'web.module.chat';
+
+function serializeImageModelOption(config: ReturnType<typeof modelConfigRepository.list>[number]) {
+  const settings = config.settings && typeof config.settings === 'object' ? config.settings : {};
+  const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
+    ? settings.imageGeneration as Record<string, unknown>
+    : {};
+  const billing = settings.billing && typeof settings.billing === 'object'
+    ? settings.billing as Record<string, unknown>
+    : {};
+
+  return {
+    id: config.id,
+    type: config.type,
+    name: config.name,
+    provider: config.provider,
+    model: config.model,
+    settings: {
+      supportsCustomResolution: settings.supportsCustomResolution === true,
+      imageGeneration: {
+        supportsCustomResolution: imageGeneration.supportsCustomResolution === true,
+      },
+      billing: {
+        creditsPerRequest: billing.creditsPerRequest,
+        perRequestUsd: billing.perRequestUsd,
+      },
+    },
+    isConfigured: Boolean(config.apiKey),
+    isDefault: Boolean(config.isDefault),
+    sortOrder: config.sortOrder,
+  };
+}
+
 export function createModelConfigRouter() {
   const router = Router();
 
-  router.use(requirePermission('admin.route.system.models.view'));
+  router.get(
+    '/model-configs',
+    requireAnyPermission([manageModelConfigsPermission, useImageModelsPermission]),
+    (req, res) => {
+      const type = req.query.type ? String(req.query.type) : undefined;
+
+      if (type && !isModelType(type)) {
+        sendError(res, 400, '模型类型不支持');
+        return;
+      }
+
+      const canManageModelConfigs = req.auth?.systemRole === 'admin'
+        || req.auth?.hasPermission(manageModelConfigsPermission);
+      if (!canManageModelConfigs && type !== 'image') {
+        sendError(res, 403, '当前账号无权访问该功能');
+        return;
+      }
+
+      const modelType = type && isModelType(type) ? type : undefined;
+      const configs = modelConfigRepository.list(modelType);
+      res.json(canManageModelConfigs
+        ? configs.map(serializeModelConfig)
+        : configs.map(serializeImageModelOption));
+    },
+  );
+
+  router.use(requirePermission(manageModelConfigsPermission));
 
   router.get('/ai-model-config', (_req, res) => {
     const configs = modelConfigRepository.list('llm').map(serializeModelConfig);
@@ -46,18 +106,6 @@ export function createModelConfigRouter() {
     } catch (error) {
       sendError(res, 400, getErrorMessage(error, '模型配置保存失败'));
     }
-  });
-
-  router.get('/model-configs', (req, res) => {
-    const type = req.query.type ? String(req.query.type) : undefined;
-
-    if (type && !isModelType(type)) {
-      sendError(res, 400, '模型类型不支持');
-      return;
-    }
-
-    const modelType = type && isModelType(type) ? type : undefined;
-    res.json(modelConfigRepository.list(modelType).map(serializeModelConfig));
   });
 
   router.get('/model-configs/audio-providers', (_req, res) => {

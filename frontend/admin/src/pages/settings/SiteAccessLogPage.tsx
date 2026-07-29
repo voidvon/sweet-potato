@@ -1,5 +1,5 @@
 import { ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
-import { Button, Form, Input, InputNumber, Modal, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -7,6 +7,7 @@ import {
   listSiteAccessLogs,
   updateSiteAccessLogSettings,
   type SiteAccessLog,
+  type SiteAccessLogFilters,
 } from '../../api/site-access-logs';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
@@ -21,6 +22,9 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   second: '2-digit',
   hour12: false,
 });
+
+const methodOptions = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD']
+  .map((method) => ({ label: method, value: method }));
 
 function useTableBodyHeight() {
   const viewportElementRef = useRef<HTMLDivElement | null>(null);
@@ -91,12 +95,20 @@ export function SiteAccessLogPage() {
   const [total, setTotal] = useState(0);
   const [ipInput, setIpInput] = useState('');
   const [ipFilter, setIpFilter] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameFilter, setUsernameFilter] = useState('');
+  const [methodInput, setMethodInput] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
   const logTable = useTableBodyHeight();
 
-  const loadLogs = useCallback(async (nextPage = page, nextPageSize = pageSize, nextIp = ipFilter) => {
+  const loadLogs = useCallback(async (
+    nextPage = page,
+    nextPageSize = pageSize,
+    filters: SiteAccessLogFilters = { ip: ipFilter, username: usernameFilter, method: methodFilter },
+  ) => {
     setLoading(true);
     try {
-      const result = await listSiteAccessLogs(nextPage, nextPageSize, nextIp);
+      const result = await listSiteAccessLogs(nextPage, nextPageSize, filters);
       setLogs(result.items);
       setPage(result.page);
       setPageSize(result.pageSize);
@@ -106,19 +118,27 @@ export function SiteAccessLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [ipFilter, page, pageSize]);
+  }, [ipFilter, methodFilter, page, pageSize, usernameFilter]);
 
-  function applyIpFilter() {
+  function applyFilters() {
     const nextIp = ipInput.trim();
+    const nextUsername = usernameInput.trim();
     setIpInput(nextIp);
     setIpFilter(nextIp);
-    void loadLogs(1, pageSize, nextIp);
+    setUsernameInput(nextUsername);
+    setUsernameFilter(nextUsername);
+    setMethodFilter(methodInput);
+    void loadLogs(1, pageSize, { ip: nextIp, username: nextUsername, method: methodInput });
   }
 
-  function resetIpFilter() {
+  function resetFilters() {
     setIpInput('');
     setIpFilter('');
-    void loadLogs(1, pageSize, '');
+    setUsernameInput('');
+    setUsernameFilter('');
+    setMethodInput('');
+    setMethodFilter('');
+    void loadLogs(1, pageSize, {});
   }
 
   async function openSettings() {
@@ -134,18 +154,21 @@ export function SiteAccessLogPage() {
 
   useEffect(() => {
     setHeaderExtra(
-      <Tooltip title="日志设置">
-        <Button
-          aria-label="日志设置"
-          className="site-access-log-header-settings"
-          icon={<SettingOutlined />}
-          onClick={() => void openSettings()}
-          type="text"
-        />
-      </Tooltip>,
+      <Space size={8}>
+        <Tooltip title="日志设置">
+          <Button
+            aria-label="日志设置"
+            className="site-access-log-header-settings"
+            icon={<SettingOutlined />}
+            onClick={() => void openSettings()}
+            type="text"
+          />
+        </Tooltip>
+        <Typography.Text type="secondary">仅展示最近 {retentionDays} 天的访问记录。</Typography.Text>
+      </Space>,
     );
     return () => setHeaderExtra(null);
-  }, [setHeaderExtra]);
+  }, [retentionDays, setHeaderExtra]);
 
   useEffect(() => {
     void Promise.all([
@@ -239,15 +262,35 @@ export function SiteAccessLogPage() {
               allowClear
               className="site-access-log-ip-filter"
               onChange={(event) => setIpInput(event.target.value)}
-              onPressEnter={applyIpFilter}
+              onPressEnter={applyFilters}
               placeholder="输入 IP 地址"
               value={ipInput}
             />
-            <Button icon={<SearchOutlined />} loading={loading} onClick={applyIpFilter}>查询</Button>
-            <Button disabled={!ipInput && !ipFilter} onClick={resetIpFilter}>重置</Button>
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs(page, pageSize, ipFilter)}>刷新</Button>
+            <Input
+              allowClear
+              className="site-access-log-username-filter"
+              onChange={(event) => setUsernameInput(event.target.value)}
+              onPressEnter={applyFilters}
+              placeholder="输入用户账号"
+              value={usernameInput}
+            />
+            <Select
+              allowClear
+              className="site-access-log-method-filter"
+              onChange={(value) => setMethodInput(value || '')}
+              options={methodOptions}
+              placeholder="请求方法"
+              value={methodInput || undefined}
+            />
+            <Button icon={<SearchOutlined />} loading={loading} onClick={applyFilters}>查询</Button>
+            <Button
+              disabled={!ipInput && !ipFilter && !usernameInput && !usernameFilter && !methodInput && !methodFilter}
+              onClick={resetFilters}
+            >
+              重置
+            </Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs()}>刷新</Button>
           </Space>
-          <Typography.Text type="secondary">仅展示最近 {retentionDays} 天的访问记录。</Typography.Text>
         </div>
         <div
           className="site-access-log-table-viewport"
@@ -266,7 +309,7 @@ export function SiteAccessLogPage() {
               total,
               showSizeChanger: true,
               showTotal: (count) => `共 ${count} 条`,
-              onChange: (nextPage, nextPageSize) => void loadLogs(nextPage, nextPageSize, ipFilter),
+              onChange: (nextPage, nextPageSize) => void loadLogs(nextPage, nextPageSize),
             }}
             rowKey="id"
             scroll={{ x: 1120, y: logTable.bodyHeight }}

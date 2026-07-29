@@ -361,6 +361,7 @@ export type ModelConfig = {
   baseUrl: string;
   temperature: number;
   settings?: Record<string, unknown>;
+  isConfigured?: boolean;
   isDefault: boolean;
   sortOrder?: number;
   createdAt?: string;
