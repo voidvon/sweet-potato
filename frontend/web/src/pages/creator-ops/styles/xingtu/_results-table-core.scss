@@ -1,0 +1,39 @@
+.xingtu-search-results-table .ant-table-cell {
+  align-content: center;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+
+.xingtu-search-results-table .ant-table-cell a,
+.xingtu-search-results-table .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+
+.xingtu-search-results-table .ant-table-thead > tr > th {
+  color: var(--color-neutral-700);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.xingtu-search-results-table .ant-table-tbody > tr > td {
+  color: var(--color-neutral-600);
+}
+
+.xingtu-search-results-table .ant-table-container {
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.xingtu-search-results-table .ant-table-content {
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.xingtu-search-results-table .ant-table {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}

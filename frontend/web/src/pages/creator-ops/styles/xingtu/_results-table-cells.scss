@@ -1,0 +1,117 @@
+.xingtu-cell-creator {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-height: 72px;
+}
+
+.xingtu-cell-avatar {
+  align-items: center;
+  background: var(--color-brand-soft);
+  border-radius: 999px;
+  color: var(--color-brand-active);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 40px;
+  justify-content: center;
+  overflow: hidden;
+  width: 40px;
+}
+
+.xingtu-cell-avatar img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.xingtu-cell-avatar span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.xingtu-cell-creator-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.xingtu-cell-creator-title {
+  align-items: center;
+  color: var(--color-neutral-900);
+  display: flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 6px;
+  line-height: 1.4;
+  margin-bottom: 2px;
+}
+
+.xingtu-cell-creator-title a {
+  color: inherit;
+}
+
+.xingtu-cell-creator-icon {
+  display: block;
+  flex: 0 0 auto;
+  height: 16px;
+  width: 16px;
+}
+
+.xingtu-cell-creator-badges,
+.xingtu-cell-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.xingtu-cell-creator-badges .ant-tag,
+.xingtu-cell-topics .ant-tag {
+  background: var(--color-surface-muted);
+  border-radius: 6px;
+  color: var(--color-neutral-600);
+  font-size: 12px;
+  line-height: 18px;
+  margin-inline-end: 0;
+  padding: 0 6px;
+}
+
+.xingtu-cell-creator-icon-tag {
+  align-items: center;
+  background: var(--color-warning-soft);
+  border-radius: 6px;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.xingtu-cell-price {
+  color: var(--color-orange);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.xingtu-cell-operation {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xingtu-cell-operation-hint {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.xingtu-cell-action-button.ant-btn {
+  align-self: flex-start;
+  border-radius: 6px;
+  min-width: 52px;
+  padding-inline: 10px;
+  width: auto;
+}
