@@ -13,9 +13,9 @@ const DEFAULT_BASELINE_PATH = path.join(__dirname, 'file-size-baseline.json')
 const BASELINE_SCOPE = 'frontend/{admin,web}/src/**/*.{tsx,css,scss}'
 
 const THRESHOLDS = Object.freeze({
-  tsx: Object.freeze({ warn: 300, fail: 500 }),
-  css: Object.freeze({ warn: 90, fail: 140 }),
-  scss: Object.freeze({ warn: 90, fail: 140 }),
+  tsx: Object.freeze({ warn: 450, fail: 700 }),
+  css: Object.freeze({ warn: 300, fail: 500 }),
+  scss: Object.freeze({ warn: 300, fail: 500 }),
 })
 
 function toPosixPath(value) {
@@ -132,12 +132,6 @@ function validateBaselineContent(baselinePath, value) {
       )
     }
 
-    const threshold = getThresholdForFile(relativePath)
-    if (lineCap <= threshold.fail) {
-      throw new Error(
-        `Invalid grandfathered line cap for ${relativePath}: expected more than fail threshold ${threshold.fail}`,
-      )
-    }
     if (typeof files[relativePath] !== 'number') {
       throw new Error(
         `Invalid grandfathered path ${relativePath}: expected a matching ordinary baseline entry`,

@@ -9,6 +9,10 @@ import {
   stylePresets,
 } from './promptPlanningConfig';
 import type { PromptPlanningController } from './usePromptPlanningController';
+import './PromptPlanningStepSettings.scss';
+import './PromptPlanningChoiceAndBreakdownFields.scss';
+import './PromptPlanningSharedFields.scss';
+import './PromptPlanningSettingsControls.scss';
 
 type PromptPlanningStepSettingsProps = {
   controller: PromptPlanningController;

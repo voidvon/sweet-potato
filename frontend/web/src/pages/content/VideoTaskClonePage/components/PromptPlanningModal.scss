@@ -1,0 +1,18 @@
+.video-task-epa-native-input {
+  display: none;
+}
+
+.video-task-epa-alert {
+  align-items: center;
+  border-radius: 14px;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+
+.video-task-epa-alert.is-error {
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-border);
+  color: var(--color-danger-strong);
+}

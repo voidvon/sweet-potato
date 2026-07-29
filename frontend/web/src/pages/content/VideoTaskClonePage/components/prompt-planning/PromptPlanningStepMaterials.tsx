@@ -9,6 +9,9 @@ import {
 } from './promptPlanningConfig';
 import { toConfirmedReferenceVideo } from './materialHelpers';
 import type { PromptPlanningController } from './usePromptPlanningController';
+import './PromptPlanningSharedFields.scss';
+import './PromptPlanningStepMaterialsUploads.scss';
+import './PromptPlanningStepMaterials.scss';
 
 type PromptPlanningStepMaterialsProps = {
   controller: PromptPlanningController;

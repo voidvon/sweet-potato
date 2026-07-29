@@ -7,6 +7,10 @@ import {
   EditableTagField,
 } from './PromptPlanningPresentational';
 import type { PromptPlanningController } from './usePromptPlanningController';
+import './PromptPlanningChoiceAndBreakdownFields.scss';
+import './PromptPlanningEditableAnalysis.scss';
+import './PromptPlanningSharedFields.scss';
+import './PromptPlanningStepAnalysis.scss';
 
 type PromptPlanningStepAnalysisProps = {
   controller: PromptPlanningController;

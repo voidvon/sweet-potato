@@ -1,3 +1,25 @@
+.video-task-epa-field.is-product-name {
+  gap: 10px;
+}
+
+.video-task-epa-field.is-product-name input {
+  background: rgb(var(--color-text-muted-rgb) / 0.06);
+  border: 1px solid rgb(var(--color-rose-shadow-rgb) / 0.12);
+  border-radius: 12px;
+  color: var(--color-neutral-800);
+  font: inherit;
+  font-size: 15px;
+  height: 45px;
+  line-height: 21px;
+  outline: 0;
+  padding: 11px 14px;
+  width: 100%;
+}
+
+.video-task-epa-field.is-product-name input::placeholder {
+  color: rgb(var(--color-rose-shadow-rgb) / 0.34);
+}
+
 .video-task-epa-inline-input,
 .video-task-epa-large-textarea,
 .video-task-epa-caption-edit textarea,

@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react';
 import { useRef } from 'react';
+import './ReferenceVideoCard.scss';
 
 export type ConfirmedReferenceVideo = {
   assetId?: string;

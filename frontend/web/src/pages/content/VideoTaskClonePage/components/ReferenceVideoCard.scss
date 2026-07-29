@@ -1,25 +1,21 @@
-.video-task-epa-upload-bar > div {
-  min-width: 0;
-}
-
 .video-task-reference-card {
   align-items: center;
   background: var(--color-white);
   border: 1px solid var(--color-neutral-200);
   border-radius: 14px;
+  box-shadow: 0 8px 22px -18px rgb(var(--color-shadow-rgb) / 0.251);
   display: flex;
   gap: 14px;
-  box-shadow: 0 8px 22px -18px rgb(var(--color-shadow-rgb) / 0.251);
   padding: 12px;
   width: 100%;
 }
 
 .video-task-reference-thumb {
-  flex-shrink: 0;
   background: var(--color-black);
   border: 0;
   border-radius: 16px;
   cursor: pointer;
+  flex-shrink: 0;
   height: 84px;
   overflow: hidden;
   padding: 0;
@@ -56,7 +52,6 @@
   color: var(--color-neutral-900);
   display: flex;
   height: 38px;
-  width: 38px;
   justify-content: center;
   left: 50%;
   padding-left: 3px;
@@ -64,6 +59,7 @@
   top: 50%;
   transform: translate(-50%, -50%);
   transition: box-shadow 0.18s ease, transform 0.18s ease;
+  width: 38px;
   z-index: 1;
 }
 
@@ -74,23 +70,23 @@
 }
 
 .video-task-reference-info {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
 .video-task-reference-info strong {
-  min-width: 0;
-  width: 100%;
   color: var(--color-neutral-800);
   display: block;
   font-size: 14px;
   font-weight: 600;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  width: 100%;
 }
 
 .video-task-reference-info > span {
@@ -112,9 +108,10 @@
   font-size: 13px;
   font-weight: 600;
   padding: 0;
-  &:hover {
-   text-decoration: underline;
-  }
+}
+
+.video-task-reference-actions button:hover {
+  text-decoration: underline;
 }
 
 .video-task-reference-actions button.is-danger {

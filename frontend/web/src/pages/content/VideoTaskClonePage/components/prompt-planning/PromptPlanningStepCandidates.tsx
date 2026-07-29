@@ -2,6 +2,11 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { WideLoadingCard } from './PromptPlanningPresentational';
 import { stageItems } from './promptPlanningConfig';
 import type { PromptPlanningController } from './usePromptPlanningController';
+import './PromptPlanningChoiceAndBreakdownFields.scss';
+import './PromptPlanningSharedFields.scss';
+import './PromptPlanningStepCandidatesCards.scss';
+import './PromptPlanningStepCandidatesThinking.scss';
+import './PromptPlanningStepCandidates.scss';
 
 type PromptPlanningStepCandidatesProps = {
   controller: PromptPlanningController;
