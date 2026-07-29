@@ -64,6 +64,7 @@ import {
   updateBatchSheet,
   uploadBatchGenerationAsset,
 } from '../../api/batch-generation';
+import { listVideoModelProviders } from '../../api/model-config';
 import type {
   BatchAttempt,
   BatchExecutionStatus,
@@ -75,6 +76,7 @@ import type {
   CreativeCapability,
   CreativeCapabilityField,
 } from '../../api/batch-generation';
+import type { VideoModelProviderOption } from '../../api/model-config';
 import { resolveAssetUrl } from '../../api/request';
 import {
   ImageOutputSizePicker,
@@ -83,6 +85,13 @@ import {
   type ImageAspectRatio,
   type ImageResolution,
 } from '../../components/ImageOutputSizePicker';
+import {
+  VideoOutputSizePicker,
+  videoAspectRatioOptions,
+  videoResolutionOptions,
+  type VideoAspectRatio,
+  type VideoResolution,
+} from '../../components/VideoOutputSizePicker';
 import { AppImage } from '../../components/AppImage';
 import {
   appRealtimeEventNames,
@@ -96,6 +105,7 @@ const MAX_REFERENCE_IMAGE_COUNT = 8;
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
+const PREFERRED_VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
 
 const gridAddRow: BatchRow = {
   id: GRID_ADD_ROW_ID,
@@ -253,10 +263,14 @@ const imageResolutionOptions = [
   { label: '2K', value: '2K' },
   { label: '4K', value: '4K' },
 ];
-const videoResolutionOptions = imageResolutionOptions;
 const aspectRatioOptions = ['auto', '1:1', '3:4', '4:3', '9:16', '16:9'].map((value) => ({ label: value, value }));
 const outputCountOptions = [1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }));
-const durationOptions = [5, 10, 15].map((value) => ({ label: `${value} 秒`, value: `${value}秒` }));
+const durationOptions = [5, 10, 15].map((value) => ({ label: `${value}s`, value: `${value}秒` }));
+
+type AvailableBatchModelOption = BatchGenerationModelOption & {
+  configId: string;
+  disabled?: boolean;
+};
 
 function generateSheetName(label: string) {
   const now = new Date();
@@ -354,18 +368,56 @@ function assetLabel(field: CreativeCapabilityField) {
 
 function defaultGlobalParamsForCapability(
   capability: CreativeCapability,
-  availableModels: BatchGenerationModelOption[],
+  availableModels: AvailableBatchModelOption[],
 ) {
-  const model = availableModels.find((item) => item.type === capability.mediaKind);
+  const model = capability.mediaKind === 'video'
+    ? availableModels.find((item) => item.type === 'video' && item.model === PREFERRED_VIDEO_MODEL_ID)
+      || availableModels.find((item) => item.type === 'video')
+    : availableModels.find((item) => item.type === capability.mediaKind);
   const params: Record<string, unknown> = {};
-  if (model) params.modelConfigId = model.id;
+  if (model) {
+    params.modelConfigId = model.configId;
+    if (capability.mediaKind === 'video') params.videoModelId = model.model;
+  }
   if (capability.mediaKind === 'image') {
     params.aspectRatio = 'auto';
     const resolution = getImageResolutionOptions(model)[0];
     if (resolution) params.resolution = resolution;
     if (capability.globalFields.some((field) => field.key === 'outputCount')) params.outputCount = 1;
+  } else {
+    params.aspectRatio = '9:16';
+    params.resolution = '720P';
+    params.duration = '10秒';
+    params.generateAudio = false;
   }
   return params;
+}
+
+function availableBatchModelOptions(
+  modelOptions: BatchGenerationModelOption[],
+  videoProviders: VideoModelProviderOption[],
+): AvailableBatchModelOption[] {
+  const imageOptions = modelOptions
+    .filter((option) => option.type === 'image')
+    .map((option) => ({ ...option, configId: option.id }));
+  const configuredVideoProviders = new Set(
+    modelOptions.filter((option) => option.type === 'video').map((option) => option.provider),
+  );
+  const videoOptions = videoProviders
+    .filter((provider) => configuredVideoProviders.has(provider.id))
+    .flatMap((provider) => {
+      const config = modelOptions.find((option) => option.type === 'video' && option.provider === provider.id);
+      if (!config) return [];
+      return provider.models.map((model) => ({
+        ...config,
+        configId: config.id,
+        disabled: model.disabled,
+        id: `${config.id}::${model.id}`,
+        model: model.id,
+        name: model.name,
+      }));
+    });
+  return [...imageOptions, ...videoOptions];
 }
 
 export function BatchGenerationPage() {
@@ -392,6 +444,7 @@ export function BatchGenerationPage() {
   const [latestRun, setLatestRun] = useState<BatchRunDetail | null>(null);
   const [assets, setAssets] = useState<Record<string, ContentAsset>>({});
   const [modelOptions, setModelOptions] = useState<BatchGenerationModelOption[]>([]);
+  const [videoModelProviders, setVideoModelProviders] = useState<VideoModelProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [switchingSheetRequest, setSwitchingSheetRequest] = useState<{ requestId: number; sheetId: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -430,6 +483,10 @@ export function BatchGenerationPage() {
   const activeCapability = useMemo(
     () => capabilities.find((item) => item.key === detail?.sheet.capabilityKey),
     [capabilities, detail?.sheet.capabilityKey],
+  );
+  const availableModelOptions = useMemo(
+    () => availableBatchModelOptions(modelOptions, videoModelProviders),
+    [modelOptions, videoModelProviders],
   );
   const selectedCapability = capabilities.find((item) => item.key === selectedCapabilityKey) || capabilities[0];
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId);
@@ -529,14 +586,16 @@ export function BatchGenerationPage() {
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      const [capabilityList, sheetList, availableModelOptions] = await Promise.all([
+      const [capabilityList, sheetList, availableModelOptionConfigs, videoProviderList] = await Promise.all([
         listBatchCapabilities(),
         listBatchSheets(),
         listBatchGenerationModelOptions(),
+        listVideoModelProviders(),
       ]);
       setCapabilities(capabilityList);
       setSheets(sheetList);
-      setModelOptions(availableModelOptions);
+      setModelOptions(availableModelOptionConfigs);
+      setVideoModelProviders(videoProviderList);
       const firstCapability = capabilityList[0];
       if (firstCapability) {
         setSelectedCapabilityKey(firstCapability.key);
@@ -818,7 +877,7 @@ export function BatchGenerationPage() {
       const sheet = await createBatchSheet({
         name: newSheetName.trim() || suggestedSheetName,
         capabilityKey: selectedCapability.key,
-        globalParams: defaultGlobalParamsForCapability(selectedCapability, modelOptions),
+        globalParams: defaultGlobalParamsForCapability(selectedCapability, availableModelOptions),
       });
       const createdRows = await addBatchRows(sheet.id, [{}]);
       const summary: BatchSheetSummary = {
@@ -1252,20 +1311,48 @@ export function BatchGenerationPage() {
     };
   }, [detail?.latestAttempts, latestRun, rows]);
 
-  const availableGlobalModels = modelOptions.filter((model) => model.type === activeCapability?.mediaKind);
+  const availableGlobalModels = availableModelOptions.filter((model) => model.type === activeCapability?.mediaKind);
   const activeModelOptions = availableGlobalModels
-    .map((model) => ({ label: model.name, value: model.id as string }));
-  const selectedGlobalModel = availableGlobalModels.find((model) => model.id === globalParams.modelConfigId)
+    .map((model) => ({ disabled: model.disabled, label: model.name, value: model.id }));
+  const selectedGlobalModel = availableGlobalModels.find((model) => {
+    const configId = model.configId || model.id;
+    return configId === globalParams.modelConfigId
+      && (activeCapability?.mediaKind !== 'video' || !globalParams.videoModelId || model.model === globalParams.videoModelId);
+  })
+    || (activeCapability?.mediaKind === 'video' && !globalParams.videoModelId
+      ? availableGlobalModels.find((model) => model.model === PREFERRED_VIDEO_MODEL_ID)
+      : undefined)
     || availableGlobalModels[0];
   const globalImageResolutions = getImageResolutionOptions(selectedGlobalModel);
   const currentAspectRatio = typeof globalParams.aspectRatio === 'string'
     && imageAspectRatioOptions.includes(globalParams.aspectRatio as ImageAspectRatio)
     ? globalParams.aspectRatio as ImageAspectRatio
     : 'auto';
+  const currentVideoAspectRatio = typeof globalParams.aspectRatio === 'string'
+    && videoAspectRatioOptions.includes(globalParams.aspectRatio as VideoAspectRatio)
+    ? globalParams.aspectRatio as VideoAspectRatio
+    : '9:16';
   const currentResolution = typeof globalParams.resolution === 'string'
     && globalImageResolutions.includes(globalParams.resolution as ImageResolution)
     ? globalParams.resolution as ImageResolution
     : globalImageResolutions[0] || '2K';
+  const currentVideoResolution = typeof globalParams.resolution === 'string'
+    && videoResolutionOptions.includes(globalParams.resolution as VideoResolution)
+    ? globalParams.resolution as VideoResolution
+    : '720P';
+  const currentDuration = durationOptions.some((option) => option.value === globalParams.duration)
+    ? String(globalParams.duration)
+    : '10秒';
+  const currentGenerateAudio = globalParams.generateAudio === true;
+  const selectedModelConfigId = selectedGlobalModel?.configId || selectedGlobalModel?.id;
+  const selectedVideoModelId = selectedGlobalModel?.model;
+  const selectedModelMatches = Boolean(
+    selectedGlobalModel
+      && globalParams.modelConfigId === selectedModelConfigId
+      && (activeCapability?.mediaKind !== 'video'
+        || !globalParams.videoModelId
+        || globalParams.videoModelId === selectedVideoModelId),
+  );
 
   useEffect(() => {
     if (!activeCapability || !selectedGlobalModel) return;
@@ -1275,33 +1362,53 @@ export function BatchGenerationPage() {
     const outputCount = typeof globalParams.outputCount === 'number' && globalParams.outputCount >= 1
       ? globalParams.outputCount
       : 1;
-    const isCurrent = globalParams.modelConfigId === selectedGlobalModel.id
-      && (!isImage || (
-        globalParams.aspectRatio === currentAspectRatio
-        && globalParams.resolution === resolution
-        && (!hasOutputCount || globalParams.outputCount === outputCount)
-      ));
+    const isCurrent = selectedModelMatches && (isImage ? (
+      globalParams.aspectRatio === currentAspectRatio
+      && globalParams.resolution === resolution
+      && (!hasOutputCount || globalParams.outputCount === outputCount)
+    ) : (
+      globalParams.aspectRatio === currentVideoAspectRatio
+      && globalParams.resolution === currentVideoResolution
+      && globalParams.duration === currentDuration
+      && globalParams.generateAudio === currentGenerateAudio
+    ));
     if (isCurrent) return;
     setGlobalParams((current) => ({
       ...current,
-      modelConfigId: selectedGlobalModel.id,
+      modelConfigId: selectedModelConfigId,
       ...(isImage ? {
         aspectRatio: currentAspectRatio,
         resolution,
         ...(hasOutputCount ? { outputCount } : {}),
-      } : {}),
+      } : {
+        videoModelId: selectedVideoModelId,
+        aspectRatio: currentVideoAspectRatio,
+        resolution: currentVideoResolution,
+        duration: currentDuration,
+        generateAudio: currentGenerateAudio,
+      }),
     }));
     setGlobalDirty(true);
   }, [
     activeCapability,
     currentAspectRatio,
+    currentDuration,
+    currentGenerateAudio,
     currentResolution,
+    currentVideoAspectRatio,
+    currentVideoResolution,
     globalImageResolutions.join('|'),
     globalParams.aspectRatio,
+    globalParams.duration,
+    globalParams.generateAudio,
     globalParams.modelConfigId,
     globalParams.outputCount,
     globalParams.resolution,
+    globalParams.videoModelId,
+    selectedModelConfigId,
+    selectedModelMatches,
     selectedGlobalModel?.id,
+    selectedVideoModelId,
   ]);
 
   function renderGlobalField(field: CreativeCapabilityField) {
@@ -1313,27 +1420,23 @@ export function BatchGenerationPage() {
     if (field.key === 'modelConfigId') {
       return (
         <Select
-          onChange={(modelConfigId) => {
-            const nextModel = modelOptions.find((model) => model.id === modelConfigId);
-            const nextResolutionOptions = activeCapability?.mediaKind === 'image'
-              ? getImageResolutionOptions(nextModel).map((resolution) => ({ label: resolution, value: resolution }))
-              : videoResolutionOptions;
-            setGlobalParams((current) => {
-              const currentResolution = typeof current.resolution === 'string' ? current.resolution : '';
-              const resolution = nextResolutionOptions.some((option) => option.value === currentResolution)
-                ? currentResolution
-                : nextResolutionOptions[0]?.value;
-              return { ...current, modelConfigId, resolution };
-            });
+          onChange={(modelSelectionId) => {
+            const nextModel = availableGlobalModels.find((model) => model.id === modelSelectionId);
+            if (!nextModel) return;
+            setGlobalParams((current) => ({
+              ...current,
+              modelConfigId: nextModel.configId || nextModel.id,
+              ...(activeCapability?.mediaKind === 'video' ? { videoModelId: nextModel.model } : {}),
+            }));
             setGlobalDirty(true);
           }}
           options={activeModelOptions}
           placeholder="选择模型"
-          value={(value as string | undefined) || selectedGlobalModel?.id}
+          value={selectedGlobalModel?.id}
         />
       );
     }
-    if (field.key === 'resolution') return activeCapability?.mediaKind === 'image' ? null : <Select onChange={update} options={videoResolutionOptions} placeholder="分辨率" value={value as string | undefined} />;
+    if (field.key === 'resolution') return null;
     if (field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image') {
       return (
         <Popover
@@ -1363,10 +1466,38 @@ export function BatchGenerationPage() {
         </Popover>
       );
     }
+    if (field.key === 'aspectRatio' && activeCapability?.mediaKind === 'video') {
+      return (
+        <Popover
+          arrow={false}
+          classNames={{ root: 'video-output-size-popover' }}
+          content={(
+            <VideoOutputSizePicker
+              aspectRatio={currentVideoAspectRatio}
+              onAspectRatioChange={(aspectRatio) => {
+                setGlobalParams((current) => ({ ...current, aspectRatio }));
+                setGlobalDirty(true);
+              }}
+              onResolutionChange={(resolution) => {
+                setGlobalParams((current) => ({ ...current, resolution }));
+                setGlobalDirty(true);
+              }}
+              resolution={currentVideoResolution}
+            />
+          )}
+          placement="bottomLeft"
+          trigger="click"
+        >
+          <Button className="sheet-global-size-button" size="small" type="text">
+            {currentVideoAspectRatio} · {currentVideoResolution}<ChevronDown size={12} />
+          </Button>
+        </Popover>
+      );
+    }
     if (field.key === 'aspectRatio') return <Select onChange={update} options={aspectRatioOptions} placeholder="画面比例" value={value as string | undefined} />;
     if (field.key === 'outputCount') return <Select onChange={update} options={outputCountOptions} placeholder="张数" value={value as number | undefined} />;
     if (field.key === 'duration') return <Select onChange={update} options={durationOptions} placeholder="时长" value={value as string | undefined} />;
-    if (field.key === 'generateAudio') return <Switch checked={value !== false} onChange={update} size="small" />;
+    if (field.key === 'generateAudio') return <Switch checked={value === true} onChange={update} size="small" />;
     return <Input onChange={(event) => update(event.target.value)} value={String(value || '')} />;
   }
 
@@ -1422,10 +1553,12 @@ export function BatchGenerationPage() {
         <div className="sheet-global-settings__intro"><strong>全局参数</strong><span>应用到所有行，行内可覆盖</span></div>
         <div className="sheet-global-settings__divider" />
         {(activeCapability?.globalFields || [])
-          .filter((field) => field.key !== 'resolution' || activeCapability?.mediaKind !== 'image')
+          .filter((field) => field.key !== 'resolution')
           .map((field) => (
             <div className="sheet-global-settings__field" key={field.key}>
-              <span>{field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
+              {field.key === 'aspectRatio' && activeCapability?.mediaKind === 'video' ? null : (
+                <span>{field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
+              )}
               {renderGlobalField(field)}
             </div>
           ))}

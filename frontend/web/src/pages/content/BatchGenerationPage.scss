@@ -62,6 +62,8 @@
 .sheet-global-settings .ant-select-selection-item { flex: none; }
 .sheet-global-settings .sheet-global-size-button { color: #04546e; font-size: 13px; font-weight: 700; gap: 5px; height: 28px; padding-inline: 7px; }
 .sheet-global-settings .sheet-global-size-button .ant-btn-icon { display: inline-flex; }
+.video-output-size-popover .ant-popover-inner { padding: 16px; }
+.video-output-size-popover .ant-popover-inner-content { padding: 0; }
 
 .sheet-toolbar { border-bottom: 1px solid #e8edf5; box-sizing: border-box; color: #8ba0bd; font-size: 14px; gap: 17px; height: 40px; min-height: 40px; padding: 4px 24px; }
 .sheet-toolbar > span:first-child { font-size: 12px; }
