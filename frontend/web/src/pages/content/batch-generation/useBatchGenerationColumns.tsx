@@ -9,16 +9,23 @@ import type {
 } from '../../../api/batch-generation'
 import type { ContentAsset } from '../../../types'
 import {
+  getImageResolutionOptions,
+  imageAspectRatioOptions,
+  type ImageAspectRatio,
+  type ImageResolution,
+} from '../../../components/ImageOutputSizePicker'
+import {
   GridActionsCell,
   GridAssetCell,
   GridBooleanCell,
+  GridCanvasCell,
   GridCreditsCell,
   GridPromptCell,
   GridResultCell,
   GridSelectCell,
   GridStatusCell,
 } from './BatchGenerationGridCells'
-import type { ActiveGridSelect } from './batchGenerationGrid.types'
+import type { ActiveGridCanvas, ActiveGridSelect } from './batchGenerationGrid.types'
 import {
   aspectRatioOptions,
   durationOptions,
@@ -38,6 +45,7 @@ type UseBatchGenerationColumnsOptions = {
   modelOptions: BatchGenerationModelOption[]
   onCopyRow: (row: BatchRow) => void
   onHideTooltip: () => void
+  onOpenCanvas: (canvas: ActiveGridCanvas | null | ((current: ActiveGridCanvas | null) => ActiveGridCanvas | null)) => void
   onOpenAssetUpload: (row: BatchRow, field: CreativeCapabilityField, currentCount: number, maxCount: number) => void
   onOpenPrompt: (row: BatchRow, fieldKey: string, value: string, mode: 'inline' | 'fullscreen', anchor: HTMLElement) => void
   onOpenSelect: (select: ActiveGridSelect | null | ((current: ActiveGridSelect | null) => ActiveGridSelect | null)) => void
@@ -58,6 +66,7 @@ export function useBatchGenerationColumns({
   modelOptions,
   onCopyRow,
   onHideTooltip,
+  onOpenCanvas,
   onOpenAssetUpload,
   onOpenPrompt,
   onOpenSelect,
@@ -72,6 +81,7 @@ export function useBatchGenerationColumns({
   const actionsRef = useRef({
     onCopyRow,
     onHideTooltip,
+    onOpenCanvas,
     onOpenAssetUpload,
     onOpenPrompt,
     onOpenSelect,
@@ -84,6 +94,7 @@ export function useBatchGenerationColumns({
   actionsRef.current = {
     onCopyRow,
     onHideTooltip,
+    onOpenCanvas,
     onOpenAssetUpload,
     onOpenPrompt,
     onOpenSelect,
@@ -97,10 +108,16 @@ export function useBatchGenerationColumns({
   return useMemo<ColDef<BatchRow>[]>(() => {
     const rowFields = activeCapability?.rowFields || []
     const rowFieldKeys = new Set(rowFields.map((field) => field.key))
-    const overrideFields = (activeCapability?.globalFields || [])
+    const allOverrideFields = (activeCapability?.globalFields || [])
       .filter((field) => field.overridable && !rowFieldKeys.has(field.key))
       .map((field) => ({ ...field, isGlobalOverride: true, label: `${field.label}（覆盖）` }))
-    const businessColumns: ColDef<BatchRow>[] = [...rowFields, ...overrideFields].map((field) => {
+    const hasImageCanvas = activeCapability?.mediaKind === 'image'
+      && allOverrideFields.some((field) => field.key === 'aspectRatio' || field.key === 'resolution')
+    const overrideFields = hasImageCanvas
+      ? allOverrideFields.filter((field) => field.key !== 'aspectRatio' && field.key !== 'resolution')
+      : allOverrideFields
+    const businessFields = [...rowFields, ...overrideFields]
+    const businessColumns: ColDef<BatchRow>[] = businessFields.map((field) => {
       const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset'
       const isPrompt = field.key === 'prompt'
       const effectiveValue = (row: BatchRow) => {
@@ -141,7 +158,7 @@ export function useBatchGenerationColumns({
         cellRenderer: isPrompt
           ? (params: ICellRendererParams<BatchRow>) => params.data ? (
             <GridPromptCell
-              disabled={['queued', 'running'].includes(params.data.executionStatus)}
+              disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
               onFullscreen={(anchor) => actionsRef.current.onOpenPrompt(
                 params.data!,
                 field.key,
@@ -176,14 +193,14 @@ export function useBatchGenerationColumns({
               ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                 <GridBooleanCell
                   checked={effectiveValue(params.data) === true}
-                  disabled={['queued', 'running'].includes(params.data.executionStatus)}
+                  disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
                   onChange={(checked) => actionsRef.current.onUpdateRow(params.data!.id, field.key, checked)}
                 />
               ) : null
               : selectOptions.length
                 ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                   <GridSelectCell
-                    disabled={['queued', 'running'].includes(params.data.executionStatus)}
+                    disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
                     label={selectLabels.get(effectiveValue(params.data) as string | number)
                       || String(effectiveValue(params.data) ?? '-')}
                     onOpen={(anchor) => {
@@ -208,7 +225,7 @@ export function useBatchGenerationColumns({
           && !isAsset
           && field.valueType !== 'boolean'
           && !selectOptions.length
-          && !['queued', 'running'].includes(params.data!.executionStatus),
+          && !['queued', 'running', 'completed'].includes(params.data!.executionStatus),
         headerName: `${field.label}${field.required ? ' *' : ''}`,
         minWidth: isAsset ? 180 : 140,
         valueFormatter: selectOptions.length
@@ -223,6 +240,52 @@ export function useBatchGenerationColumns({
         wrapText: field.valueType === 'string',
       }
     })
+
+    if (hasImageCanvas) {
+      const canvasColumn: ColDef<BatchRow> = {
+        cellRenderer: (params: ICellRendererParams<BatchRow>) => {
+          if (!params.data) return null
+          const modelConfigId = String(valueAt(params.data.params, 'modelConfigId') ?? globalParams.modelConfigId ?? '')
+          const model = modelOptions.find((option) => option.type === 'image' && option.id === modelConfigId)
+          const resolutions = getImageResolutionOptions(model)
+          const aspectRatioValue = String(valueAt(params.data.params, 'aspectRatio') ?? globalParams.aspectRatio ?? 'auto')
+          const aspectRatio = imageAspectRatioOptions.includes(aspectRatioValue as ImageAspectRatio)
+            ? aspectRatioValue as ImageAspectRatio
+            : 'auto'
+          const resolutionValue = String(valueAt(params.data.params, 'resolution') ?? globalParams.resolution ?? '')
+          const resolution = resolutions.includes(resolutionValue as ImageResolution)
+            ? resolutionValue as ImageResolution
+            : resolutions[0] || '2K'
+          return (
+            <GridCanvasCell
+              disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+              label={`${aspectRatio}${resolutions.length ? ` · ${resolution}` : ''}`}
+              onOpen={(anchor) => {
+                const cell = anchor.closest('.ag-cell') || anchor
+                const rect = cell.getBoundingClientRect()
+                actionsRef.current.onOpenCanvas((current) => {
+                  if (current?.rowId === params.data!.id) return null
+                  return {
+                    anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+                    aspectRatio,
+                    model,
+                    resolution,
+                    rowId: params.data!.id,
+                  }
+                })
+              }}
+            />
+          )
+        },
+        colId: 'canvas',
+        editable: false,
+        headerName: '画布',
+        minWidth: 130,
+        initialWidth: 160,
+      }
+      const modelColumnIndex = businessFields.findIndex((field) => field.key === 'modelConfigId')
+      businessColumns.splice(modelColumnIndex >= 0 ? modelColumnIndex + 1 : businessColumns.length, 0, canvasColumn)
+    }
 
     return [
       {
@@ -242,9 +305,14 @@ export function useBatchGenerationColumns({
       ...businessColumns,
       {
         cellClass: 'batch-generation-grid-status-cell',
-        cellRenderer: (params: ICellRendererParams<BatchRow>) => params.data
-          ? <GridStatusCell status={getAttempt(params.data.id)?.status || params.data.executionStatus} />
-          : null,
+        cellRenderer: (params: ICellRendererParams<BatchRow>) => {
+          if (!params.data) return null
+          const rowStatus = params.data.executionStatus
+          const status = ['queued', 'running'].includes(rowStatus)
+            ? rowStatus
+            : getAttempt(params.data.id)?.status || rowStatus
+          return <GridStatusCell status={status} />
+        },
         colId: 'status',
         editable: false,
         headerName: '状态',
@@ -258,6 +326,7 @@ export function useBatchGenerationColumns({
             assets={assets}
             attempt={getAttempt(params.data.id)}
             onHideTooltip={() => actionsRef.current.onHideTooltip()}
+            onPreview={(...args) => actionsRef.current.onPreviewAssets(...args)}
             onShowTooltip={(...args) => actionsRef.current.onShowTooltip(...args)}
           />
         ) : null,

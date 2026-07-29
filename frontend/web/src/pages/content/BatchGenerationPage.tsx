@@ -83,12 +83,14 @@ import {
 } from '../../events/appRealtimeEvents';
 import type { ContentAsset } from '../../types';
 import {
+  GridCanvasOverlay,
   GridPromptEditorOverlay,
   GridSelectOverlay,
   GridTooltipOverlay,
 } from './batch-generation/BatchGenerationGridOverlays';
 import type {
   ActiveAssetPreview,
+  ActiveGridCanvas,
   ActiveGridSelect,
   ActiveGridTooltip,
   ActivePromptEditor,
@@ -108,6 +110,7 @@ import { useBatchGenerationColumns } from './batch-generation/useBatchGeneration
 import './BatchGenerationPage.scss';
 
 const MAX_ROWS = 200;
+const BATCH_RUNNABLE_STATUSES = new Set<BatchRow['executionStatus']>(['idle', 'failed', 'partial_failed']);
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
@@ -317,12 +320,14 @@ export function BatchGenerationPage() {
   const [loading, setLoading] = useState(true);
   const [switchingSheetRequest, setSwitchingSheetRequest] = useState<{ requestId: number; sheetId: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [uploadingCell, setUploadingCell] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState('');
   const [newSheetName, setNewSheetName] = useState('');
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
+  const [activeGridCanvas, setActiveGridCanvas] = useState<ActiveGridCanvas | null>(null);
   const [activeGridSelect, setActiveGridSelect] = useState<ActiveGridSelect | null>(null);
   const [activePromptEditor, setActivePromptEditor] = useState<ActivePromptEditor | null>(null);
   const [activeGridTooltip, setActiveGridTooltip] = useState<ActiveGridTooltip | null>(null);
@@ -436,6 +441,7 @@ export function BatchGenerationPage() {
       if (activeSheetIdRef.current !== sheetId) return;
       sheetSwitchFrameRef.current = null;
       syncActiveSheetLocation(sheetId);
+      setActiveGridCanvas(null);
       setActiveGridSelect(null);
       setActivePromptEditor(null);
       setActiveGridTooltip(null);
@@ -526,6 +532,50 @@ export function BatchGenerationPage() {
   }, [selectedRowIds.length]);
 
   useEffect(() => {
+    const executingRowIds = new Set(rows
+      .filter((row) => ['queued', 'running'].includes(row.executionStatus))
+      .map((row) => row.id));
+    if (!executingRowIds.size) return;
+    setActiveGridCanvas((current) => current && executingRowIds.has(current.rowId) ? null : current);
+    setActiveGridSelect((current) => current && executingRowIds.has(current.rowId) ? null : current);
+    setActivePromptEditor((current) => current && executingRowIds.has(current.rowId) ? null : current);
+    setSelectedRowIds((current) => {
+      const next = current.filter((rowId) => !executingRowIds.has(rowId));
+      return next.length === current.length ? current : next;
+    });
+    const api = gridRef.current?.api;
+    if (!api) return;
+    const selectedExecutingNodes = api.getSelectedNodes()
+      .filter((node) => node.data && executingRowIds.has(node.data.id));
+    if (selectedExecutingNodes.length) {
+      api.setNodesSelected({ nodes: selectedExecutingNodes, newValue: false, source: 'api' });
+    }
+  }, [rows]);
+
+  useEffect(() => {
+    if (!activeGridCanvas) return;
+    const closeCanvas = () => setActiveGridCanvas(null);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.batch-generation-grid-canvas-cell')) return;
+      if (target.closest('.batch-generation-grid-canvas-popover')) return;
+      closeCanvas();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCanvas();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('resize', closeCanvas);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('resize', closeCanvas);
+    };
+  }, [activeGridCanvas]);
+
+  useEffect(() => {
     if (!activeGridSelect) return;
     const closeSelect = () => setActiveGridSelect(null);
     const handlePointerDown = (event: PointerEvent) => {
@@ -597,9 +647,17 @@ export function BatchGenerationPage() {
       const run = (event as CustomEvent<AppBatchGenerationRunUpdatedDetail>).detail.run;
       if (run.sheetId !== activeSheetIdRef.current) return;
       setLatestRun(run);
+      const attemptStatusByRow = new Map(run.attempts.map((attempt) => [attempt.rowId, attempt.status]));
+      setRows((current) => current.map((row) => {
+        const executionStatus = attemptStatusByRow.get(row.id);
+        return executionStatus && executionStatus !== row.executionStatus
+          ? { ...row, executionStatus }
+          : row;
+      }));
       void loadAttemptAssets(run.attempts);
       if (['completed', 'partial_failed', 'failed', 'canceled'].includes(run.status)) {
-        setRunning(false);
+        setBatchRunning(false);
+        setRetrying(false);
         void loadSheet(run.sheetId);
       }
     };
@@ -612,7 +670,15 @@ export function BatchGenerationPage() {
       || detail?.latestAttempts.find((attempt) => attempt.rowId === rowId);
   }, [detail?.latestAttempts, latestRun?.attempts]);
 
+  const executionStatusForRow = useCallback((row: BatchRow) => (
+    ['queued', 'running'].includes(row.executionStatus)
+      ? row.executionStatus
+      : attemptForRow(row.id)?.status || row.executionStatus
+  ), [attemptForRow]);
+
   function updateRowParams(rowId: string, key: string, value: unknown) {
+    const row = rows.find((item) => item.id === rowId);
+    if (!row || ['queued', 'running', 'completed'].includes(row.executionStatus)) return;
     setRows((current) => current.map((row) => row.id === rowId
       ? { ...row, params: withValue(row.params, key, value), validationStatus: 'draft', validationErrors: [] }
       : row));
@@ -710,33 +776,58 @@ export function BatchGenerationPage() {
     }
   }
 
-  async function runRows(rowIds?: string[]) {
+  async function runRows(rowIds?: string[], source: 'batch' | 'row' = 'batch') {
     if (!detail) return;
     if (hasUnsavedChanges) {
       message.warning('请先保存当前改动再执行');
       return;
     }
-    setRunning(true);
+    const requestedRowIds = new Set(rowIds?.length ? rowIds : rows.map((row) => row.id));
+    const targetRows = rows.filter((row) => requestedRowIds.has(row.id)
+      && (source === 'row' || BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row))));
+    if (!targetRows.length) {
+      if (source === 'batch') message.warning('没有可批量执行的待提交或失败项');
+      return;
+    }
+    const targetRowIds = new Set(targetRows.map((row) => row.id));
+    const previousStatuses = new Map(
+      rows
+        .filter((row) => targetRowIds.has(row.id))
+        .map((row) => [row.id, row.executionStatus] as const),
+    );
+    setActiveGridCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
+    setActiveGridSelect((current) => current && targetRowIds.has(current.rowId) ? null : current);
+    setActivePromptEditor((current) => current && targetRowIds.has(current.rowId) ? null : current);
+    setRows((current) => current.map((row) => targetRowIds.has(row.id)
+      ? { ...row, executionStatus: 'queued' }
+      : row));
+    if (source === 'batch') setBatchRunning(true);
     try {
-      const run = await startBatchRun(detail.sheet.id, rowIds);
+      const run = await startBatchRun(detail.sheet.id, [...targetRowIds]);
       setLatestRun(run);
       message.success('任务已提交');
       await loadSheet(detail.sheet.id);
     } catch (error) {
-      setRunning(false);
+      setRows((current) => current.map((row) => {
+        const previousStatus = previousStatuses.get(row.id);
+        return previousStatus && row.executionStatus === 'queued'
+          ? { ...row, executionStatus: previousStatus }
+          : row;
+      }));
+      if (source === 'batch') setBatchRunning(false);
       message.error(error instanceof Error ? error.message : '任务提交失败');
     }
   }
 
   async function retryFailed() {
     if (!latestRun) return;
-    setRunning(true);
+    setRetrying(true);
     try {
       const run = await retryBatchRun(latestRun.id);
       setLatestRun(run);
       message.success('失败行已重新提交');
     } catch (error) {
-      setRunning(false);
+      setRetrying(false);
       message.error(error instanceof Error ? error.message : '重试失败');
     }
   }
@@ -833,6 +924,21 @@ export function BatchGenerationPage() {
     }
   }
 
+  function confirmRemoveSheet(sheetId: string) {
+    const sheet = sheets.find((item) => item.id === sheetId);
+    if (!sheet) return;
+    Modal.confirm({
+      cancelText: '取消',
+      centered: true,
+      content: `即将删除「${sheet.name}」，表内所有数据将丢失，操作不可撤销。`,
+      maskClosable: true,
+      okButtonProps: { danger: true },
+      okText: '删除',
+      onOk: () => removeSheet(sheetId),
+      title: '删除批量表格？',
+    });
+  }
+
   const columns = useBatchGenerationColumns({
     activeCapability,
     assets,
@@ -841,10 +947,16 @@ export function BatchGenerationPage() {
     modelOptions,
     onCopyRow: copyRow,
     onHideTooltip: hideGridTooltip,
+    onOpenCanvas: (nextCanvas) => {
+      setActiveGridSelect(null);
+      setActivePromptEditor(null);
+      setActiveGridCanvas(nextCanvas);
+    },
     onOpenAssetUpload: openAssetUpload,
     onOpenPrompt: (row, fieldKey, value, mode, anchor) => {
       const cell = anchor.closest('.ag-cell') || anchor;
       const rect = cell.getBoundingClientRect();
+      setActiveGridCanvas(null);
       setActiveGridSelect(null);
       if (mode === 'fullscreen') {
         setActivePromptEditor({
@@ -867,24 +979,30 @@ export function BatchGenerationPage() {
         };
       });
     },
-    onOpenSelect: setActiveGridSelect,
+    onOpenSelect: (nextSelect) => {
+      setActiveGridCanvas(null);
+      setActiveGridSelect(nextSelect);
+    },
     onPreviewAssets: (current, items) => setActiveAssetPreview({ current, items }),
     onRemoveRow: (row) => { void removeRow(row); },
-    onRunRow: (row) => { void runRows([row.id]); },
+    onRunRow: (row) => { void runRows([row.id], 'row'); },
     onShowTooltip: showGridTooltip,
     onUpdateRow: updateRowParams,
     rowsLength: rows.length,
     uploadingCell,
   });
   const rowStats = useMemo(() => {
-    const statuses = rows.map((row) => attemptForRow(row.id)?.status || row.executionStatus);
+    const statuses = rows.map(executionStatusForRow);
     return {
       completed: statuses.filter((status) => status === 'completed').length,
       failed: statuses.filter((status) => ['failed', 'partial_failed'].includes(status)).length,
       pending: statuses.filter((status) => status === 'idle').length,
       processing: statuses.filter((status) => ['queued', 'running'].includes(status)).length,
     };
-  }, [detail?.latestAttempts, latestRun, rows]);
+  }, [executionStatusForRow, rows]);
+  const hasExecutingRows = rowStats.processing > 0;
+  const batchRunnableRows = selectedRows
+    .filter((row) => BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row)));
 
   const availableGlobalModels = availableModelOptions.filter((model) => model.type === activeCapability?.mediaKind);
   const activeModelOptions = availableGlobalModels
@@ -1094,11 +1212,13 @@ export function BatchGenerationPage() {
             <button className="sheet-workspace__title-button" type="button"><strong>{activeSheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
           </Dropdown>
           <span className="sheet-workspace__slash">/</span>
-          <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{running ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
+          <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{hasExecutingRows ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
         </div>
         <div className="sheet-workspace__header-actions">
-          <Button disabled={switchingSheet || !latestRun?.failedCount || running} icon={<RotateCcw size={15} />} onClick={() => void retryFailed()}>重试所有失败</Button>
-          <Button disabled={switchingSheet || !rows.length || running} loading={running} onClick={() => void runRows(selectedRowIds.length ? selectedRowIds : undefined)} type="primary">批量执行</Button>
+          <Button disabled={switchingSheet || !latestRun?.failedCount || retrying} loading={retrying} icon={<RotateCcw size={15} />} onClick={() => void retryFailed()}>重试所有失败</Button>
+          <Button disabled={switchingSheet || !batchRunnableRows.length || batchRunning} loading={batchRunning} onClick={() => void runRows(batchRunnableRows.map((row) => row.id), 'batch')} type="primary">
+            {selectedRows.length ? `批量执行(${batchRunnableRows.length})` : '批量执行'}
+          </Button>
           <Button disabled={switchingSheet || !hasUnsavedChanges} icon={<Check size={16} />} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
         </div>
       </header>
@@ -1109,7 +1229,14 @@ export function BatchGenerationPage() {
         items={sheets.map((sheet) => ({
           closable: sheets.length > 1,
           key: sheet.id,
-          label: sheet.name,
+          label: (
+            <span className="sheet-workspace__tab-label">
+              <span>{sheet.name}</span>
+              <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
+                {sheet.mediaKind === 'image' ? '图片' : '视频'}
+              </Tag>
+            </span>
+          ),
         }))}
         onChange={(sheetId) => { void activateSheet(sheetId); }}
         onEdit={(targetKey, action) => {
@@ -1118,7 +1245,7 @@ export function BatchGenerationPage() {
             if (capability) setSuggestedSheetName(generateSheetName(capability.label));
             setCreateModalOpen(true);
           } else if (typeof targetKey === 'string') {
-            void removeSheet(targetKey);
+            confirmRemoveSheet(targetKey);
           }
         }}
         type="editable-card"
@@ -1174,9 +1301,15 @@ export function BatchGenerationPage() {
               getRowHeight={(params) => params.data?.id === GRID_ADD_ROW_ID ? 44 : undefined}
               headerHeight={42}
               isFullWidthRow={(params) => params.rowNode.data?.id === GRID_ADD_ROW_ID}
-              isRowSelectable={(node) => node.data?.id !== GRID_ADD_ROW_ID}
+              isRowSelectable={(node) => {
+                const row = node.data;
+                if (!row) return false;
+                return row.id !== GRID_ADD_ROW_ID
+                  && !['queued', 'running'].includes(row.executionStatus);
+              }}
               loading={loading || switchingSheet}
             onBodyScroll={() => {
+              setActiveGridCanvas(null);
               setActiveGridSelect(null);
               setActivePromptEditor(null);
               hideGridTooltip();
@@ -1203,6 +1336,17 @@ export function BatchGenerationPage() {
               theme={batchGridTheme}
           />
         </section>
+        <GridCanvasOverlay
+          activeCanvas={activeGridCanvas}
+          onAspectRatioChange={(rowId, aspectRatio) => {
+            updateRowParams(rowId, 'aspectRatio', aspectRatio);
+            setActiveGridCanvas((current) => current?.rowId === rowId ? { ...current, aspectRatio } : current);
+          }}
+          onResolutionChange={(rowId, resolution) => {
+            updateRowParams(rowId, 'resolution', resolution);
+            setActiveGridCanvas((current) => current?.rowId === rowId ? { ...current, resolution } : current);
+          }}
+        />
         <GridSelectOverlay
           activeSelect={activeGridSelect}
           onChange={(rowId, fieldKey, value) => {
