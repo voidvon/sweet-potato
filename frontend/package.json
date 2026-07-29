@@ -52,6 +52,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.2",
+    "ag-grid-community": "36.0.2",
+    "ag-grid-react": "36.0.2",
     "antd": "^6.3.7",
     "co": "^4.6.0",
     "ee-core": "^4.1.5",

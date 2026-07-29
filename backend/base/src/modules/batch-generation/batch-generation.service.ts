@@ -146,18 +146,24 @@ export const batchGenerationService = {
     return { ok: true };
   },
 
-  addRows(input: { userId: string; sheetId: string; rows: unknown[] }) {
+  addRows(input: { userId: string; sheetId: string; rows: unknown[]; insertAt?: unknown }) {
     const sheet = requireOwnedSheet(input.userId, input.sheetId);
     if (!input.rows.length) throw new Error('至少需要新增一行');
     const currentCount = batchGenerationRepository.countRows(sheet.id);
     if (currentCount + input.rows.length > MAX_ROWS) {
       throw new Error(`每个表格最多允许 ${MAX_ROWS} 行`);
     }
+    const insertAt = input.insertAt === undefined
+      ? currentCount
+      : Number(input.insertAt);
+    if (!Number.isInteger(insertAt) || insertAt < 0 || insertAt > currentCount) {
+      throw new Error('插入位置无效');
+    }
     const now = new Date().toISOString();
     const rows = input.rows.map((params, index): BatchGenerationRow => ({
       id: randomUUID(),
       sheetId: sheet.id,
-      position: currentCount + index,
+      position: insertAt + index,
       params: normalizeCreativeRowParams(sheet.capabilityKey, params),
       validationStatus: 'draft',
       validationErrors: [],
@@ -168,7 +174,7 @@ export const batchGenerationService = {
       createdAt: now,
       updatedAt: now,
     }));
-    return batchGenerationRepository.createRows(rows);
+    return batchGenerationRepository.insertRows(rows, insertAt);
   },
 
   updateRow(input: {
