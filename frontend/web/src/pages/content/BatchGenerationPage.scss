@@ -258,18 +258,21 @@
 .batch-generation-grid-prompt-cell {
   cursor: text;
   display: block;
+  max-height: 156px;
+  min-height: 100%;
+  width: 100%;
+}
+.batch-generation-grid-prompt-cell__content {
   line-height: 1.65;
   max-height: 156px;
   min-height: 100%;
   overflow-wrap: anywhere;
   overflow-y: auto;
   padding-block: 7px;
-  position: relative;
   white-space: pre-wrap;
-  width: 100%;
   word-break: break-word;
 }
-.batch-generation-grid-prompt-cell p { margin: 0; }
+.batch-generation-grid-prompt-cell__content p { margin: 0; }
 .batch-generation-grid-prompt-cell--disabled { cursor: not-allowed; opacity: .55; }
 .batch-generation-grid-prompt-cell__placeholder { color: #9aaabd; }
 .batch-generation-grid-prompt-cell__fullscreen {
@@ -286,14 +289,14 @@
   opacity: 0;
   padding: 0;
   position: absolute;
-  right: 2px;
-  top: 2px;
+  right: 12px;
+  top: 11px;
   transition: opacity .18s ease-in-out, color .12s ease;
   width: 20px;
   z-index: 1;
 }
-.batch-generation-grid-prompt-cell:hover .batch-generation-grid-prompt-cell__fullscreen,
-.batch-generation-grid-prompt-cell:focus-within .batch-generation-grid-prompt-cell__fullscreen { opacity: 1; }
+.sheet-grid .ag-cell:hover .batch-generation-grid-prompt-cell__fullscreen,
+.sheet-grid .ag-cell:focus-within .batch-generation-grid-prompt-cell__fullscreen { opacity: 1; }
 .batch-generation-grid-prompt-cell__fullscreen:hover {
   box-shadow: 0 2px 6px rgb(35 59 89 / .22);
   color: var(--color-brand);

@@ -318,7 +318,9 @@ function GridPromptCell({ disabled, options, value, onFullscreen, onOpen }: Grid
           <Maximize2 size={12} />
         </button>
       ) : null}
-      {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">输入提示词，使用 @ 引用素材</span>}
+      <div className="batch-generation-grid-prompt-cell__content">
+        {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">输入提示词，使用 @ 引用素材</span>}
+      </div>
     </div>
   );
 }
