@@ -25,8 +25,10 @@ type MentionRichTextareaProps = {
   disabled?: boolean;
   editorClassName?: string;
   emptyText?: string;
+  enableHardBreak?: boolean;
   fallbackMentionMenu?: boolean;
   menuTitle?: string;
+  minHeight?: number;
   minRows?: number;
   onChange: (value: string) => void;
   onPlaceholderClick?: (option: MentionRichTextareaOption) => void;
@@ -333,6 +335,9 @@ function nodeToPlainText(node: JSONContent): string {
   if (node.type === 'text') {
     return node.text ?? '';
   }
+  if (node.type === 'hardBreak') {
+    return '\n';
+  }
   if (node.type === 'mention') {
     return String(node.attrs?.id ?? '');
   }
@@ -494,8 +499,10 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   disabled,
   editorClassName,
   emptyText = '没有可用素材',
+  enableHardBreak = false,
   fallbackMentionMenu = false,
   menuTitle = '可引用素材',
+  minHeight,
   minRows = 8,
   onChange,
   onPlaceholderClick,
@@ -505,7 +512,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   suggestionContainer,
   value,
 }, ref) {
-  const minHeight = Math.max(minRows, 1) * 25 + 40;
+  const resolvedMinHeight = minHeight ?? Math.max(minRows, 1) * 25 + 40;
   const optionsRef = useRef(options);
   const onPlaceholderClickRef = useRef(onPlaceholderClick);
   const pendingLocalValuesRef = useRef<string[]>([]);
@@ -662,7 +669,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         bulletList: false,
         code: false,
         codeBlock: false,
-        hardBreak: false,
+        hardBreak: enableHardBreak ? {} : false,
         heading: false,
         horizontalRule: false,
         listItem: false,
@@ -786,7 +793,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         },
       }),
     ];
-  }, [emptyText, fallbackMentionMenu, menuTitle, placeholder, suggestionContainer]);
+  }, [emptyText, enableHardBreak, fallbackMentionMenu, menuTitle, placeholder, suggestionContainer]);
 
   const editor = useEditor({
     content: plainTextToDoc(value, options),
@@ -795,7 +802,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       attributes: {
         class: resolvedEditorClassName,
         'data-placeholder': placeholder ?? '',
-        style: `min-height: ${minHeight}px`,
+        style: `min-height: ${resolvedMinHeight}px`,
       },
     },
     extensions,
@@ -878,7 +885,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       onMouseDown={handleContainerMouseDown}
       onKeyDownCapture={handleFallbackKeyDown}
       ref={containerRef}
-      style={{ minHeight }}
+      style={{ minHeight: resolvedMinHeight }}
     >
       <EditorContent editor={editor} />
       {fallbackMentionMenu && fallbackMenuOpen ? (

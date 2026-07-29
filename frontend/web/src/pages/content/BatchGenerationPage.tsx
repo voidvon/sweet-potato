@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -38,6 +38,7 @@ import {
   ChevronDown,
   Copy,
   ExternalLink,
+  Maximize2,
   Play,
   Plus,
   RotateCcw,
@@ -84,6 +85,7 @@ import {
   type ImageResolution,
 } from '../../components/ImageOutputSizePicker';
 import { AppImage } from '../../components/AppImage';
+import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../components/MentionRichTextarea';
 import {
   appRealtimeEventNames,
   type AppBatchGenerationRunUpdatedDetail,
@@ -192,6 +194,14 @@ type ActiveGridTooltip = {
   title: string;
 };
 
+type ActivePromptEditor = {
+  anchor: { height: number; left: number; top: number; width: number };
+  fieldKey: string;
+  initialValue: string;
+  mode: 'inline' | 'fullscreen';
+  rowId: string;
+};
+
 type PendingAssetUpload = {
   field: CreativeCapabilityField;
   maxCount: number;
@@ -228,6 +238,87 @@ function GridSelectCell({
     >
       <span className="batch-generation-grid-select-cell__value">{label}</span>
       <ChevronDown aria-hidden="true" size={14} />
+    </div>
+  );
+}
+
+type GridPromptCellProps = {
+  disabled?: boolean;
+  options: MentionRichTextareaOption[];
+  value: string;
+  onFullscreen: (anchor: HTMLElement) => void;
+  onOpen: (anchor: HTMLElement) => void;
+};
+
+function GridPromptCell({ disabled, options, value, onFullscreen, onOpen }: GridPromptCellProps) {
+  const optionByToken = new Map(options.map((option) => [option.token, option]));
+  const tokens = [...optionByToken.keys()].sort((left, right) => right.length - left.length);
+  const paragraphs = value.split('\n').map((line, lineIndex) => {
+    const content: ReactNode[] = [];
+    let cursor = 0;
+
+    while (cursor < line.length) {
+      const token = tokens.find((item) => line.startsWith(item, cursor));
+      if (!token) {
+        const nextTokenIndex = tokens
+          .map((item) => line.indexOf(item, cursor + 1))
+          .filter((index) => index !== -1)
+          .sort((left, right) => left - right)[0] ?? line.length;
+        content.push(line.slice(cursor, nextTokenIndex));
+        cursor = nextTokenIndex;
+        continue;
+      }
+
+      const option = optionByToken.get(token)!;
+      const mentionKind = option.mimeType?.startsWith('video/')
+        ? 'video'
+        : option.mimeType?.startsWith('audio/') ? 'audio' : 'image';
+      content.push(
+        <span className="mention-rich-textarea-chip batch-generation-grid-prompt-mention" data-mention-kind={mentionKind} key={`${lineIndex}:${token}:${cursor}`}>
+          {mentionKind === 'image' && option.previewUrl ? <img alt="" src={option.previewUrl} /> : null}
+          {mentionKind === 'video' ? <span className="mention-rich-textarea-chip-icon">视</span> : null}
+          {mentionKind === 'audio' ? <span className="mention-rich-textarea-chip-icon">♪</span> : null}
+          <b>{option.label}</b>
+        </span>,
+      );
+      cursor += token.length;
+    }
+
+    return <p key={lineIndex}>{content.length ? content : <br />}</p>;
+  });
+
+  return (
+    <div
+      aria-disabled={disabled}
+      className={`batch-generation-grid-prompt-cell${disabled ? ' batch-generation-grid-prompt-cell--disabled' : ''}`}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (!disabled) onOpen(event.currentTarget);
+      }}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      onKeyDown={(event) => {
+        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onOpen(event.currentTarget);
+        }
+      }}
+    >
+      {!disabled ? (
+        <button
+          aria-label="全屏编辑提示词"
+          className="batch-generation-grid-prompt-cell__fullscreen"
+          onClick={(event) => {
+            event.stopPropagation();
+            onFullscreen(event.currentTarget.closest('.batch-generation-grid-prompt-cell') || event.currentTarget);
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          <Maximize2 size={12} />
+        </button>
+      ) : null}
+      {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">输入提示词，使用 @ 引用素材</span>}
     </div>
   );
 }
@@ -340,6 +431,45 @@ function rowAssetIds(rows: BatchRow[], capability?: CreativeCapability) {
   })).filter(Boolean))];
 }
 
+function promptMentionOptions(
+  row: BatchRow,
+  capability: CreativeCapability | undefined,
+  assets: Record<string, ContentAsset>,
+): MentionRichTextareaOption[] {
+  let imageIndex = 1;
+  let videoIndex = 1;
+  let audioIndex = 1;
+
+  return (capability?.rowFields || []).flatMap((field) => {
+    if (field.valueType !== 'asset' && field.valueType !== 'asset-list') return [];
+    const value = valueAt(row.params, field.key);
+    const ids = field.valueType === 'asset-list'
+      ? stringArray(value)
+      : typeof value === 'string' && value ? [value] : [];
+
+    return ids.map((id) => {
+      const asset = assets[id];
+      const mimeType = asset?.mimeType || (assetAccept(field) === 'video/*'
+        ? 'video/*'
+        : assetAccept(field) === 'audio/*' ? 'audio/*' : 'image/*');
+      const isVideo = mimeType.startsWith('video/');
+      const isAudio = mimeType.startsWith('audio/');
+      const label = isVideo
+        ? `视频${videoIndex++}`
+        : isAudio ? `音频${audioIndex++}` : `图${imageIndex++}`;
+      return {
+        attachmentId: id,
+        label,
+        mimeType,
+        name: asset?.name || asset?.originalFileName || label,
+        previewUrl: isAudio ? '' : resolveAssetUrl(asset?.fileUrl),
+        subtitle: field.label,
+        token: `@${label}`,
+      } satisfies MentionRichTextareaOption;
+    });
+  });
+}
+
 function assetAccept(field: CreativeCapabilityField) {
   if (/Video/i.test(field.key)) return 'video/*';
   if (/Audio/i.test(field.key)) return 'audio/*';
@@ -380,6 +510,7 @@ export function BatchGenerationPage() {
   const sheetSwitchFrameRef = useRef<number | null>(null);
   const assetInputRef = useRef<HTMLInputElement>(null);
   const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
+  const promptEditorRef = useRef<MentionRichTextareaRef>(null);
   const [capabilities, setCapabilities] = useState<CreativeCapability[]>([]);
   const [sheets, setSheets] = useState<BatchSheetSummary[]>([]);
   const [activeSheetId, setActiveSheetId] = useState('');
@@ -402,6 +533,7 @@ export function BatchGenerationPage() {
   const [newSheetName, setNewSheetName] = useState('');
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
   const [activeGridSelect, setActiveGridSelect] = useState<ActiveGridSelect | null>(null);
+  const [activePromptEditor, setActivePromptEditor] = useState<ActivePromptEditor | null>(null);
   const [activeGridTooltip, setActiveGridTooltip] = useState<ActiveGridTooltip | null>(null);
   const [activeAssetPreview, setActiveAssetPreview] = useState<ActiveAssetPreview | null>(null);
   const gridRows = useMemo(() => [...rows, gridAddRow], [rows]);
@@ -436,6 +568,15 @@ export function BatchGenerationPage() {
   const selectedRows = rows.filter((row) => selectedRowIds.includes(row.id));
   const hasUnsavedChanges = globalDirty || dirtyRowIds.length > 0;
   const switchingSheet = Boolean(switchingSheetRequest);
+  const activePromptRow = activePromptEditor
+    ? rows.find((row) => row.id === activePromptEditor.rowId)
+    : undefined;
+  const activePromptOptions = activePromptRow
+    ? promptMentionOptions(activePromptRow, activeCapability, assets)
+    : [];
+  const activePromptValue = activePromptRow && activePromptEditor
+    ? String(valueAt(activePromptRow.params, activePromptEditor.fieldKey) ?? '')
+    : '';
 
   const loadAssetsById = useCallback(async (ids: string[]) => {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -501,6 +642,7 @@ export function BatchGenerationPage() {
       sheetSwitchFrameRef.current = null;
       syncActiveSheetLocation(sheetId);
       setActiveGridSelect(null);
+      setActivePromptEditor(null);
       setActiveGridTooltip(null);
       setActiveAssetPreview(null);
       if (requestId === sheetLoadRequestRef.current && !requestFinished) {
@@ -610,6 +752,40 @@ export function BatchGenerationPage() {
   }, [activeGridSelect]);
 
   useEffect(() => {
+    if (!activePromptEditor) return;
+    const focusFrame = requestAnimationFrame(() => promptEditorRef.current?.focus());
+    const handlePointerDown = (event: PointerEvent) => {
+      if (activePromptEditor.mode === 'fullscreen') return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.batch-generation-grid-prompt-cell')) return;
+      if (target.closest('.batch-generation-grid-prompt-editor')) return;
+      if (target.closest('.mention-rich-textarea-menu')) return;
+      closePromptEditor();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (activePromptEditor.mode !== 'fullscreen') return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePromptEditor(true);
+      } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        closePromptEditor();
+      }
+    };
+    const handleResize = () => closePromptEditor();
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activePromptEditor]);
+
+  useEffect(() => {
     if (!activeGridTooltip) return;
     window.addEventListener('resize', hideGridTooltip);
     window.addEventListener('scroll', hideGridTooltip, true);
@@ -644,6 +820,13 @@ export function BatchGenerationPage() {
       ? { ...row, params: withValue(row.params, key, value), validationStatus: 'draft', validationErrors: [] }
       : row));
     setDirtyRowIds((current) => current.includes(rowId) ? current : [...current, rowId]);
+  }
+
+  function closePromptEditor(revert = false) {
+    if (revert && activePromptEditor && activePromptRow) {
+      updateRowParams(activePromptRow.id, activePromptEditor.fieldKey, activePromptEditor.initialValue);
+    }
+    setActivePromptEditor(null);
   }
 
   async function saveChanges() {
@@ -1024,6 +1207,7 @@ export function BatchGenerationPage() {
       .map((field) => ({ ...field, isGlobalOverride: true, label: `${field.label}（覆盖）` }));
     const businessColumns: ColDef<BatchRow>[] = [...rowFields, ...overrideFields].map((field) => {
       const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset';
+      const isPrompt = field.key === 'prompt';
       const effectiveValue = (row: BatchRow) => {
         const rowValue = valueAt(row.params, field.key);
         return rowValue === undefined && 'isGlobalOverride' in field
@@ -1051,14 +1235,50 @@ export function BatchGenerationPage() {
 
       return {
         autoHeight: isAsset || (!selectOptions.length && field.valueType === 'string'),
-        cellEditor: field.valueType === 'number' ? 'agNumberCellEditor'
+        cellEditor: isPrompt ? undefined
+          : field.valueType === 'number' ? 'agNumberCellEditor'
             : field.valueType === 'string' ? 'agLargeTextCellEditor'
               : undefined,
-        cellEditorParams: field.valueType === 'string'
+        cellEditorParams: field.valueType === 'string' && !isPrompt
           ? { cols: 50, maxLength: 10000, rows: 6 }
           : undefined,
-        cellEditorPopup: !selectOptions.length && field.valueType === 'string',
-        cellRenderer: isAsset
+        cellEditorPopup: !isPrompt && !selectOptions.length && field.valueType === 'string',
+        cellRenderer: isPrompt
+          ? (params: ICellRendererParams<BatchRow>) => params.data ? (
+            <GridPromptCell
+              disabled={['queued', 'running'].includes(params.data.executionStatus)}
+              onFullscreen={(anchor) => {
+                const cell = anchor.closest('.ag-cell') || anchor;
+                const rect = cell.getBoundingClientRect();
+                setActiveGridSelect(null);
+                setActivePromptEditor({
+                  anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+                  fieldKey: field.key,
+                  initialValue: String(effectiveValue(params.data!) ?? ''),
+                  mode: 'fullscreen',
+                  rowId: params.data!.id,
+                });
+              }}
+              onOpen={(anchor) => {
+                const cell = anchor.closest('.ag-cell') || anchor;
+                const rect = cell.getBoundingClientRect();
+                setActiveGridSelect(null);
+                setActivePromptEditor((current) => {
+                  if (current?.rowId === params.data!.id && current.fieldKey === field.key) return null;
+                  return {
+                    anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+                    fieldKey: field.key,
+                    initialValue: String(effectiveValue(params.data!) ?? ''),
+                    mode: 'inline',
+                    rowId: params.data!.id,
+                  };
+                });
+              }}
+              options={promptMentionOptions(params.data, activeCapability, assets)}
+              value={String(effectiveValue(params.data) ?? '')}
+            />
+          ) : null
+          : isAsset
           ? (params: ICellRendererParams<BatchRow>) => params.data ? renderAssetField(field, params.data) : null
           : field.valueType === 'boolean'
             ? (params: ICellRendererParams<BatchRow>) => params.data ? (
@@ -1093,6 +1313,7 @@ export function BatchGenerationPage() {
               : undefined,
         colId: field.key,
         editable: (params) => Boolean(params.data)
+          && !isPrompt
           && !isAsset
           && field.valueType !== 'boolean'
           && !selectOptions.length
@@ -1470,6 +1691,7 @@ export function BatchGenerationPage() {
               loading={loading || switchingSheet}
             onBodyScroll={() => {
               setActiveGridSelect(null);
+              setActivePromptEditor(null);
               hideGridTooltip();
             }}
             onSelectionChanged={(event) => {
@@ -1526,6 +1748,61 @@ export function BatchGenerationPage() {
             />
           </div>
         ) : null}
+        <div
+          aria-hidden={!activePromptEditor || !activePromptRow}
+          className={`batch-generation-grid-prompt-editor${activePromptEditor?.mode === 'fullscreen' ? ' batch-generation-grid-prompt-editor--fullscreen' : ''}${activePromptEditor && activePromptRow ? '' : ' batch-generation-grid-prompt-editor--hidden'}`}
+          role={activePromptEditor?.mode === 'fullscreen' ? 'dialog' : undefined}
+          style={activePromptEditor && activePromptRow ? {
+            height: activePromptEditor.mode === 'fullscreen' ? 380 : undefined,
+            left: activePromptEditor.mode === 'fullscreen'
+              ? Math.max(12, Math.min(activePromptEditor.anchor.left + 8, window.innerWidth - 532))
+              : activePromptEditor.anchor.left,
+            top: activePromptEditor.mode === 'fullscreen'
+              ? Math.max(12, Math.min(activePromptEditor.anchor.top + 8, window.innerHeight - 392))
+              : activePromptEditor.anchor.top,
+            width: activePromptEditor.mode === 'fullscreen' ? 520 : activePromptEditor.anchor.width,
+          } : undefined}
+        >
+          {activePromptEditor?.mode === 'fullscreen' ? (
+            <header className="batch-generation-grid-prompt-editor__header">
+              <div>
+                <strong>编辑提示词</strong>
+                <span><kbd>Ctrl / Cmd + Enter</kbd> 保存</span>
+                <span><kbd>Esc</kbd> 取消</span>
+              </div>
+              <button aria-label="取消编辑" onClick={() => closePromptEditor(true)} type="button"><X size={18} /></button>
+            </header>
+          ) : null}
+          <div className="batch-generation-grid-prompt-editor__body">
+            <MentionRichTextarea
+              editorClassName="batch-generation-grid-prompt-editor__content"
+              emptyText="暂无可引用素材"
+              enableHardBreak
+              menuTitle="可引用素材"
+              minHeight={activePromptEditor?.mode === 'fullscreen' ? 0 : activePromptEditor?.anchor.height ?? 0}
+              minRows={1}
+              onChange={(value) => {
+                if (activePromptRow && activePromptEditor) {
+                  updateRowParams(activePromptRow.id, activePromptEditor.fieldKey, value);
+                }
+              }}
+              options={activePromptOptions}
+              placeholder="输入提示词，使用 @ 引用素材"
+              ref={promptEditorRef}
+              suggestionContainer="body"
+              value={activePromptValue}
+            />
+          </div>
+          {activePromptEditor?.mode === 'fullscreen' ? (
+            <footer className="batch-generation-grid-prompt-editor__footer">
+              <span>{activePromptValue.length} 字</span>
+              <div>
+                <Button onClick={() => closePromptEditor(true)}>取消</Button>
+                <Button onClick={() => closePromptEditor()} type="primary">保存</Button>
+              </div>
+            </footer>
+          ) : null}
+        </div>
         {activeGridTooltip ? (
           <Tooltip open placement="top" title={activeGridTooltip.title}>
             <span
