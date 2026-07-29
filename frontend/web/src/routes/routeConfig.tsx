@@ -384,7 +384,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: '表格',
+      title: '批量',
       surface: 'studio',
       sidebar: {
         icon: <TableOutlined />,

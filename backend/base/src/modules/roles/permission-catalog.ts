@@ -91,7 +91,7 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
   },
   {
     key: 'web.module.content.batch_generation',
-    label: '表格',
+    label: '批量',
     description: '允许访问图片和视频批量生成任务页面。',
     group: 'content',
   },

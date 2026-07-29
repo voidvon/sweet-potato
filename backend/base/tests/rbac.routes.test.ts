@@ -178,6 +178,7 @@ test('rbac routes expose current permissions and protect guarded endpoints', asy
     const admin = createUser('route-admin', 'password123', 'Admin');
     promoteToAdmin(db, admin.id);
     const restricted = createUser('route-user', 'password123', 'Restricted User');
+    const batchUser = createUser('batch-route-user', 'password123', 'Batch User');
     assert.equal(roleRepository.findDefaultRole()?.key, 'default-onboarding');
 
     const restrictedRoleId = roleRepository.create({
@@ -190,8 +191,19 @@ test('rbac routes expose current permissions and protect guarded endpoints', asy
     roleRepository.replaceResourceGrants(restrictedRoleId, [chatResource.id]);
     userRepository.updateRoleAssignments(restricted.id, [restrictedRoleId]);
 
+    const batchRoleId = roleRepository.create({
+      key: 'batch-only',
+      name: 'Batch Only',
+      description: 'Only batch generation access',
+    });
+    const batchResource = routeResourceRepository.findByPermissionCode('web.module.content.batch_generation');
+    assert.ok(batchResource);
+    roleRepository.replaceResourceGrants(batchRoleId, [batchResource.id]);
+    userRepository.updateRoleAssignments(batchUser.id, [batchRoleId]);
+
     const adminToken = createToken({ ...admin, role: 'admin' });
     const restrictedToken = createToken(restricted);
+    const batchToken = createToken(batchUser);
 
     appServer = createApp().listen(0, '127.0.0.1');
     await once(appServer, 'listening');
@@ -228,6 +240,16 @@ test('rbac routes expose current permissions and protect guarded endpoints', asy
       headers: { Authorization: `Bearer ${restrictedToken}` },
     });
     assert.equal(chatAllowed.status, 200);
+
+    const videoProvidersAllowed = await fetch(`http://127.0.0.1:${port}/api/model-configs/video-providers`, {
+      headers: { Authorization: `Bearer ${batchToken}` },
+    });
+    assert.equal(videoProvidersAllowed.status, 200);
+
+    const modelConfigStillForbidden = await fetch(`http://127.0.0.1:${port}/api/ai-model-config`, {
+      headers: { Authorization: `Bearer ${batchToken}` },
+    });
+    assert.equal(modelConfigStillForbidden.status, 403);
 
     const rolesResponse = await fetch(`http://127.0.0.1:${port}/api/roles`, {
       headers: { Authorization: `Bearer ${adminToken}` },

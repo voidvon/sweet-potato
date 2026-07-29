@@ -112,6 +112,7 @@ const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
 const PREFERRED_VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+const DEFAULT_SHEET_NAME = '批量';
 
 const gridAddRow: BatchRow = {
   id: GRID_ADD_ROW_ID,
@@ -190,14 +191,9 @@ const capabilityColors = [
   '#eab308', '#6366f1', '#7c3aed', '#0284c7', '#db2777', '#ea580c',
 ];
 
-type AvailableBatchModelOption = BatchGenerationModelOption & {
-  configId: string;
-  disabled?: boolean;
-};
 function generateSheetName(label: string) {
   const now = new Date();
   const timestamp = [
-    now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, '0'),
     String(now.getDate()).padStart(2, '0'),
     String(now.getHours()).padStart(2, '0'),
@@ -207,6 +203,10 @@ function generateSheetName(label: string) {
   return `${label}-${timestamp}`;
 }
 
+type AvailableBatchModelOption = BatchGenerationModelOption & {
+  configId: string;
+  disabled?: boolean;
+};
 function withValue(params: Record<string, unknown>, key: string, value: unknown) {
   const parts = key.split('.');
   const result = { ...params };
@@ -1089,9 +1089,9 @@ export function BatchGenerationPage() {
     >
       <header className="sheet-workspace__header">
         <div className="sheet-workspace__breadcrumb">
-          <span className="sheet-workspace__dot" /><span>表格</span><span className="sheet-workspace__slash">/</span>
+          <span className="sheet-workspace__dot" /><span>批量</span><span className="sheet-workspace__slash">/</span>
           <Dropdown menu={{ items: titleMenu }} trigger={['click']}>
-            <button className="sheet-workspace__title-button" type="button"><strong>{activeSheet?.name || '批量生成'}</strong><ChevronDown size={18} /></button>
+            <button className="sheet-workspace__title-button" type="button"><strong>{activeSheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
           </Dropdown>
           <span className="sheet-workspace__slash">/</span>
           <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{running ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
@@ -1109,7 +1109,7 @@ export function BatchGenerationPage() {
         items={sheets.map((sheet) => ({
           closable: sheets.length > 1,
           key: sheet.id,
-          label: `${sheet.name} · ${sheet.mediaKind === 'image' ? '图片' : '视频'}`,
+          label: sheet.name,
         }))}
         onChange={(sheetId) => { void activateSheet(sheetId); }}
         onEdit={(targetKey, action) => {

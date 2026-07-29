@@ -21,6 +21,7 @@ import {
 
 const manageModelConfigsPermission = 'admin.route.system.models.view';
 const useImageModelsPermission = 'web.module.chat';
+const useBatchGenerationPermission = 'web.module.content.batch_generation';
 
 function serializeImageModelOption(config: ReturnType<typeof modelConfigRepository.list>[number]) {
   const settings = config.settings && typeof config.settings === 'object' ? config.settings : {};
@@ -82,6 +83,14 @@ export function createModelConfigRouter() {
     },
   );
 
+  router.get(
+    '/model-configs/video-providers',
+    requireAnyPermission([manageModelConfigsPermission, useBatchGenerationPermission]),
+    (_req, res) => {
+      res.json(listVideoModelProviders());
+    },
+  );
+
   router.use(requirePermission(manageModelConfigsPermission));
 
   router.get('/ai-model-config', (_req, res) => {
@@ -114,10 +123,6 @@ export function createModelConfigRouter() {
 
   router.get('/model-configs/image-providers', (_req, res) => {
     res.json(listImageModelProviders());
-  });
-
-  router.get('/model-configs/video-providers', (_req, res) => {
-    res.json(listVideoModelProviders());
   });
 
   router.get('/model-configs/llm-model-pricing', (_req, res) => {
