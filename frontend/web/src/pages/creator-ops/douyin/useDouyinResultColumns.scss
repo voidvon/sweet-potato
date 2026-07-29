@@ -1,0 +1,20 @@
+.douyin-cell-operation {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.douyin-cell-operation .ant-btn {
+  min-width: 72px;
+}
+
+.douyin-favorite-button.ant-btn {
+  color: var(--color-neutral-400);
+  min-width: 0;
+}
+
+.douyin-favorite-button.ant-btn:hover,
+.douyin-favorite-button.ant-btn:focus,
+.douyin-favorite-button.ant-btn:focus-visible,
+.douyin-favorite-button.ant-btn.is-active {
+  color: var(--color-warning-bright);
+}
