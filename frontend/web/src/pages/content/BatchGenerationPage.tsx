@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -23,10 +23,9 @@ import {
   Tag,
   Tooltip,
   Typography,
-  Upload,
   message,
 } from 'antd';
-import type { MenuProps, UploadProps } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   Check,
   ChevronDown,
@@ -38,6 +37,7 @@ import {
   Scan,
   Trash2,
   UploadCloud,
+  X,
 } from 'lucide-react';
 import {
   addBatchRows,
@@ -77,10 +77,12 @@ import {
   type ImageAspectRatio,
   type ImageResolution,
 } from '../../components/ImageOutputSizePicker';
+import { AppImage } from '../../components/AppImage';
 import type { ContentAsset } from '../../types';
 import './BatchGenerationPage.scss';
 
 const MAX_ROWS = 200;
+const MAX_REFERENCE_IMAGE_COUNT = 8;
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -144,6 +146,18 @@ type ActiveGridSelect = {
 type ActiveGridTooltip = {
   anchor: { height: number; left: number; top: number; width: number };
   title: string;
+};
+
+type PendingAssetUpload = {
+  field: CreativeCapabilityField;
+  maxCount: number;
+  remainingCount: number;
+  row: BatchRow;
+};
+
+type ActiveAssetPreview = {
+  current: number;
+  items: Array<{ alt: string; src: string }>;
 };
 
 function GridSelectCell({
@@ -284,6 +298,8 @@ function defaultGlobalParamsForCapability(
 
 export function BatchGenerationPage() {
   const gridRef = useRef<AgGridReact<BatchRow>>(null);
+  const assetInputRef = useRef<HTMLInputElement>(null);
+  const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
   const [capabilities, setCapabilities] = useState<CreativeCapability[]>([]);
   const [sheets, setSheets] = useState<BatchSheetSummary[]>([]);
   const [activeSheetId, setActiveSheetId] = useState('');
@@ -306,6 +322,7 @@ export function BatchGenerationPage() {
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
   const [activeGridSelect, setActiveGridSelect] = useState<ActiveGridSelect | null>(null);
   const [activeGridTooltip, setActiveGridTooltip] = useState<ActiveGridTooltip | null>(null);
+  const [activeAssetPreview, setActiveAssetPreview] = useState<ActiveAssetPreview | null>(null);
 
   const showGridTooltip = useCallback((target: HTMLElement, title: string) => {
     const rect = target.getBoundingClientRect();
@@ -604,6 +621,30 @@ export function BatchGenerationPage() {
     }
   }
 
+  function openAssetUpload(row: BatchRow, field: CreativeCapabilityField, currentCount: number, maxCount: number) {
+    const input = assetInputRef.current;
+    const remainingCount = Math.max(0, maxCount - currentCount);
+    if (!input || remainingCount === 0) return;
+    pendingAssetUploadRef.current = { field, maxCount, remainingCount, row };
+    input.accept = assetAccept(field);
+    input.multiple = maxCount > 1;
+    input.value = '';
+    input.click();
+  }
+
+  function handleAssetInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const pending = pendingAssetUploadRef.current;
+    const selectedFiles = Array.from(event.currentTarget.files || []);
+    event.currentTarget.value = '';
+    pendingAssetUploadRef.current = null;
+    if (!pending || !selectedFiles.length) return;
+    const files = selectedFiles.slice(0, pending.remainingCount);
+    if (files.length < selectedFiles.length) {
+      message.warning(`${pending.field.label}最多上传 ${pending.maxCount} 张`);
+    }
+    void uploadAssets(pending.row, pending.field, files);
+  }
+
   async function createSheet(enterSheet: boolean) {
     if (!selectedCapability) return;
     try {
@@ -652,18 +693,84 @@ export function BatchGenerationPage() {
     const ids = field.valueType === 'asset-list'
       ? stringArray(storedValue)
       : typeof storedValue === 'string' && storedValue ? [storedValue] : [];
-    const uploadProps: UploadProps = {
-      accept: assetAccept(field),
-      beforeUpload: (_file, fileList) => {
-        if (_file.uid === fileList[0]?.uid) {
-          const files = field.valueType === 'asset-list' ? fileList : fileList.slice(0, 1);
-          void uploadAssets(row, field, files as unknown as File[]);
-        }
-        return Upload.LIST_IGNORE;
-      },
-      multiple: field.valueType === 'asset-list',
-      showUploadList: false,
-    };
+    const isImageField = assetAccept(field) === 'image/*';
+    const maxCount = field.valueType === 'asset-list' ? MAX_REFERENCE_IMAGE_COUNT : 1;
+    const uploadDisabled = ['queued', 'running'].includes(row.executionStatus);
+    const isUploading = uploadingCell === `${row.id}:${field.key}`;
+    if (isImageField) {
+      const canUpload = ids.length < maxCount;
+      const previewItems = ids.flatMap((id, index) => {
+        const asset = assets[id];
+        const src = resolveAssetUrl(asset?.fileUrl);
+        return src ? [{
+          alt: asset?.name || asset?.originalFileName || `${assetLabel(field)} ${index + 1}`,
+          id,
+          src,
+        }] : [];
+      });
+      return (
+        <div className="batch-generation-grid-assets">
+          {ids.map((id, index) => {
+            const asset = assets[id];
+            const src = resolveAssetUrl(asset?.fileUrl);
+            const alt = asset?.name || asset?.originalFileName || `${assetLabel(field)} ${index + 1}`;
+            return (
+              <div className="batch-generation-grid-asset" key={id}>
+                {src ? (
+                  <button
+                    aria-label={`预览${alt}`}
+                    className="batch-generation-grid-asset__preview"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveAssetPreview({
+                        current: Math.max(0, previewItems.findIndex((item) => item.id === id)),
+                        items: previewItems.map((item) => ({ alt: item.alt, src: item.src })),
+                      });
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    type="button"
+                  >
+                    <img alt={alt} className="batch-generation-grid-asset__image" height={40} loading="lazy" src={src} width={40} />
+                  </button>
+                ) : <span className="batch-generation-grid-asset__placeholder"><UploadCloud size={15} /></span>}
+                {!uploadDisabled ? (
+                  <button
+                    aria-label={`移除${alt}`}
+                    className="batch-generation-grid-asset__remove"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const nextIds = ids.filter((assetId) => assetId !== id);
+                      updateRowParams(row.id, field.key, field.valueType === 'asset-list' ? nextIds : undefined);
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    type="button"
+                  >
+                    <X size={10} strokeWidth={2.4} />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          {canUpload ? (
+            <div className="batch-generation-grid-asset-upload">
+              <button
+                aria-label={`添加${field.label}`}
+                className="batch-generation-grid-asset-add"
+                disabled={uploadDisabled || isUploading}
+                onClick={() => openAssetUpload(row, field, ids.length, maxCount)}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                {isUploading
+                  ? <span className="batch-generation-grid-asset-add__spinner" />
+                  : <Plus size={18} />}
+              </button>
+              {ids.length ? <span className="batch-generation-grid-asset-upload__count">{ids.length}/{maxCount}</span> : null}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
     return (
       <Space size={6} wrap>
         {ids.map((id) => {
@@ -682,18 +789,19 @@ export function BatchGenerationPage() {
             </Tag>
           );
         })}
-        <Upload {...uploadProps}>
+        {ids.length < maxCount ? (
           <Button
             aria-label={`添加${field.label}`}
-            disabled={['queued', 'running'].includes(row.executionStatus)}
+            disabled={uploadDisabled || isUploading}
             icon={<UploadCloud size={15} />}
-            loading={uploadingCell === `${row.id}:${field.key}`}
+            loading={isUploading}
+            onClick={() => openAssetUpload(row, field, ids.length, maxCount)}
             size="small"
             type="dashed"
           >
             添加
           </Button>
-        </Upload>
+        ) : null}
       </Space>
     );
   }
@@ -843,6 +951,7 @@ export function BatchGenerationPage() {
         cellClass: 'batch-generation-grid-index-cell',
         colId: 'index',
         editable: false,
+        headerClass: 'batch-generation-grid-index-header',
         headerName: '#',
         maxWidth: 58,
         minWidth: 48,
@@ -1150,6 +1259,7 @@ export function BatchGenerationPage() {
             defaultColDef={{
               resizable: true,
               sortable: false,
+              suppressMovable: true,
               suppressHeaderMenuButton: true,
             }}
             getRowId={(params) => params.data.id}
@@ -1225,6 +1335,27 @@ export function BatchGenerationPage() {
               }}
             />
           </Tooltip>
+        ) : null}
+        <input hidden onChange={handleAssetInputChange} ref={assetInputRef} type="file" />
+        {activeAssetPreview ? (
+          <AppImage.PreviewGroup
+            downloads={activeAssetPreview.items.map((item) => ({ fileName: item.alt, url: item.src }))}
+            items={activeAssetPreview.items}
+            preview={{
+              current: activeAssetPreview.current,
+              onChange: (current) => setActiveAssetPreview((preview) => preview ? { ...preview, current } : null),
+              onOpenChange: (open, info) => {
+                if (!open) {
+                  setActiveAssetPreview(null);
+                  return;
+                }
+                setActiveAssetPreview((preview) => preview
+                  ? { ...preview, current: info.current ?? preview.current }
+                  : null);
+              },
+              open: true,
+            }}
+          />
         ) : null}
         <section className="sheet-add-row"><Button disabled={rows.length >= MAX_ROWS} icon={<Plus size={20} />} onClick={() => void addRow()} type="dashed">新增一行</Button></section>
       </div>
