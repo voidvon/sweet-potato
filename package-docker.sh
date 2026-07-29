@@ -48,48 +48,19 @@ configure_runtime_ports() {
 }
 
 select_deploy_profile() {
-  local choice="${DEPLOY_PROFILE:-${POSITIONAL_DEPLOY_PROFILE:-}}"
-
-  echo "==> Select deploy profile"
-  echo "    1) default (legacy server)"
-  echo "    2) mengmao (101.96.221.207)"
-  if [ -z "$choice" ] && [ -t 0 ]; then
-    read -r -p "Choose deploy profile [1]: " choice
+  local choice="${DEPLOY_PROFILE:-${POSITIONAL_DEPLOY_PROFILE:-mengmao}}"
+  if [ "$choice" != "mengmao" ]; then
+    echo "Unsupported deploy profile: $choice; only mengmao (8.148.148.181) is supported." >&2
+    exit 1
   fi
-
-  case "${choice:-1}" in
-    1|default)
-      DEPLOY_PROFILE="default"
-      ;;
-    2|mengmao)
-      DEPLOY_PROFILE="mengmao"
-      ;;
-    *)
-      echo "Unknown deploy profile: $choice" >&2
-      echo "Use 1 for default or 2 for mengmao." >&2
-      exit 1
-      ;;
-  esac
+  DEPLOY_PROFILE="mengmao"
+  echo "==> Deploy profile: mengmao (8.148.148.181)"
 }
 
 configure_deploy_profile() {
-  case "$DEPLOY_PROFILE" in
-    default)
-      DEPLOY_REMOTE_USER="root"
-      DEPLOY_REMOTE_HOST="119.45.92.250"
-      DEPLOY_REMOTE_DIR="/root/ai-tool"
-      ;;
-    mengmao)
-      DEPLOY_REMOTE_USER="root"
-      DEPLOY_REMOTE_HOST="101.96.221.207"
-      DEPLOY_REMOTE_DIR="/root/ai-tool"
-      ;;
-    *)
-      echo "Unknown deploy profile: $DEPLOY_PROFILE" >&2
-      echo "Use default or mengmao." >&2
-      exit 1
-      ;;
-  esac
+  DEPLOY_REMOTE_USER="root"
+  DEPLOY_REMOTE_HOST="8.148.148.181"
+  DEPLOY_REMOTE_DIR="/root/ai-tool"
 
   echo "==> Deploy profile: $DEPLOY_PROFILE ($DEPLOY_REMOTE_USER@$DEPLOY_REMOTE_HOST:$DEPLOY_REMOTE_DIR)"
 }

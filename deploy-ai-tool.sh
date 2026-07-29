@@ -17,49 +17,19 @@ WEB_PUBLIC_PATH="${WEB_PUBLIC_PATH:-/}"
 ADMIN_PUBLIC_PATH="${ADMIN_PUBLIC_PATH:-/admin/}"
 
 select_deploy_profile() {
-  local choice="${DEPLOY_PROFILE:-$POSITIONAL_DEPLOY_PROFILE}"
-  local default_choice="${SOURCE_DEPLOY_PROFILE:-1}"
-
-  echo "==> 选择部署配置"
-  echo "    1) default（旧服务器）"
-  echo "    2) mengmao（101.96.221.207）"
-  if [ -z "$choice" ] && [ -t 0 ]; then
-    read -r -p "请选择部署配置 [${default_choice}]: " choice
+  local choice="${DEPLOY_PROFILE:-${POSITIONAL_DEPLOY_PROFILE:-${SOURCE_DEPLOY_PROFILE:-mengmao}}}"
+  if [ "$choice" != "mengmao" ]; then
+    echo "不支持的部署配置：$choice；当前仅支持 mengmao（8.148.148.181）" >&2
+    exit 1
   fi
-
-  case "${choice:-$default_choice}" in
-    1|default)
-      DEPLOY_PROFILE="default"
-      ;;
-    2|mengmao)
-      DEPLOY_PROFILE="mengmao"
-      ;;
-    *)
-      echo "未知部署配置：$choice" >&2
-      echo "可用配置：default、mengmao" >&2
-      exit 1
-      ;;
-  esac
+  DEPLOY_PROFILE="mengmao"
+  echo "==> 部署配置：mengmao（8.148.148.181）"
 }
 
 configure_deploy_profile() {
-  case "${DEPLOY_PROFILE:-default}" in
-    default)
-      PROFILE_REMOTE_USER="root"
-      PROFILE_REMOTE_HOST="119.45.92.250"
-      PROFILE_REMOTE_DIR="/root/ai-tool"
-      ;;
-    mengmao)
-      PROFILE_REMOTE_USER="root"
-      PROFILE_REMOTE_HOST="101.96.221.207"
-      PROFILE_REMOTE_DIR="/root/ai-tool"
-      ;;
-    *)
-      echo "未知部署配置：$DEPLOY_PROFILE" >&2
-      echo "可用配置：default、mengmao" >&2
-      exit 1
-      ;;
-  esac
+  PROFILE_REMOTE_USER="root"
+  PROFILE_REMOTE_HOST="8.148.148.181"
+  PROFILE_REMOTE_DIR="/root/ai-tool"
 
   REMOTE_USER="${REMOTE_USER:-$PROFILE_REMOTE_USER}"
   REMOTE_HOST="${REMOTE_HOST:-$PROFILE_REMOTE_HOST}"
