@@ -14,9 +14,13 @@ import { AppButton } from '@shared/components/AppButton';
 import { AuthExperience } from '@shared/components/AuthExperience';
 import { loginAccount, registerAccount } from "../../api/auth";
 import sidebarLogo from "@shared/assets/sidebar-logo.png";
-import type { AuthSession, LoginPayload, RegisterPayload } from "../../types";
+import type { AuthSession, LoginPayload } from "../../types";
 
 type AuthMode = "login" | "register";
+
+type AuthFormValues = LoginPayload & {
+  confirmPassword?: string;
+};
 
 type AuthPageProps = {
   onAuthed: (session: AuthSession) => void;
@@ -25,13 +29,13 @@ type AuthPageProps = {
 export function AuthPage({ onAuthed }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm<LoginPayload | RegisterPayload>();
+  const [form] = Form.useForm<AuthFormValues>();
 
-  async function handleSubmit(values: LoginPayload | RegisterPayload) {
+  async function handleSubmit(values: AuthFormValues) {
     setLoading(true);
     try {
-      const action = mode === "login" ? loginAccount : registerAccount;
-      const result = await action(values);
+      const payload = { username: values.username, password: values.password };
+      const result = mode === "login" ? await loginAccount(payload) : await registerAccount(payload);
       message.success(mode === "login" ? "登录成功" : "注册成功");
       onAuthed(result);
     } catch (error) {
@@ -92,17 +96,6 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
           />
         </Form.Item>
 
-        {mode === "register" && (
-          <Form.Item label="用户名" name="displayName">
-            <Input
-              autoComplete="nickname"
-              prefix={<UserAddOutlined className="auth-experience__input-icon" />}
-              placeholder="请输入用户名"
-              size="large"
-            />
-          </Form.Item>
-        )}
-
         <Form.Item
           label="密码"
           name="password"
@@ -115,6 +108,32 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
             size="large"
           />
         </Form.Item>
+
+        {mode === "register" && (
+          <Form.Item
+            dependencies={["password"]}
+            label="确认密码"
+            name="confirmPassword"
+            rules={[
+              { required: true, message: "请再次输入密码" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue("password") === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("两次输入的密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password
+              autoComplete="new-password"
+              prefix={<LockOutlined className="auth-experience__input-icon" />}
+              placeholder="请再次输入密码"
+              size="large"
+            />
+          </Form.Item>
+        )}
 
         <AppButton
           block

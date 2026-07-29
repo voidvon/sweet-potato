@@ -18,7 +18,7 @@ export function createAuthRouter() {
     const displayName = String(req.body.displayName || username).trim();
 
     if (username.length < 3 || password.length < 6) {
-      sendError(res, 400, '用户名至少 3 位，密码至少 6 位');
+      sendError(res, 400, '账号至少 3 位，密码至少 6 位');
       return;
     }
 
