@@ -47,16 +47,21 @@ export function resolveDefaultImageModel() {
   return config;
 }
 
-export function resolveDefaultVideoModel(providerId?: string) {
+export function resolveDefaultVideoModel(providerId?: string, modelConfigId?: string) {
   const envApiKey = String(process.env.VIDEO_MODEL_API_KEY || process.env.ARK_API_KEY || '').trim();
   const envProviderId = String(providerId || process.env.VIDEO_MODEL_PROVIDER || 'volcengine-seedance').trim();
   const envModel = String(process.env.VIDEO_MODEL_ID || '').trim();
   const envBaseUrl = String(process.env.VIDEO_MODEL_BASE_URL || '').trim();
   const videoConfigs = modelConfigRepository.list('video');
+  const explicitConfig = modelConfigId ? modelConfigRepository.find(modelConfigId) : undefined;
+  if (explicitConfig && explicitConfig.type !== 'video') {
+    throw new Error('请选择视频模型配置');
+  }
   const providerConfig = providerId
     ? videoConfigs.find((item) => item.provider === providerId)
     : undefined;
-  const defaultConfig = providerConfig
+  const defaultConfig = explicitConfig
+    || providerConfig
     || videoConfigs.find((item) => Boolean(item.isDefault))
     || videoConfigs[0];
 

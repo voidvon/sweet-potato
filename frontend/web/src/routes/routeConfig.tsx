@@ -78,7 +78,7 @@ type SidebarMenuMeta = {
   label?: string;
   selectedIcon?: ReactNode;
   sortOrder?: number;
-  tag?: 'HOT' | 'NEW';
+  tag?: 'BETA' | 'HOT' | 'NEW';
 };
 
 const sidebarGroupResourceKeys: Record<SidebarGroupKey, string> = {
@@ -389,6 +389,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       sidebar: {
         icon: <TableOutlined />,
         selectedIcon: <TableOutlined />,
+        tag: 'BETA',
       },
     },
   },
@@ -1070,11 +1071,23 @@ function buildTopLevelSidebarRoutes(currentUser: User | null, resourceInfoMap?: 
     .map((route) => ({
       key: route.fullPath,
       icon: route.handle.sidebar.icon,
-      label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      label: renderSidebarMenuLabel(
+        resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+        route.handle.sidebar.tag,
+      ),
       orderIndex: getRouteOrderIndex(route, resourceInfoMap),
       selectedIcon: route.handle.sidebar.selectedIcon,
       sortOrder: getRouteSortOrder(route, resourceInfoMap),
     }));
+}
+
+function renderSidebarMenuLabel(label: string, tag?: SidebarMenuMeta['tag']) {
+  return tag ? (
+    <span className="menu-item-label">
+      <span>{label}</span>
+      <span className={`route-tag route-tag-${tag.toLowerCase()}`}>{tag === 'BETA' ? 'Beta' : tag}</span>
+    </span>
+  ) : label;
 }
 
 export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
@@ -1105,12 +1118,7 @@ export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?
       children: group.children.map((item) => ({
         key: item.path,
         icon: item.icon,
-        label: item.tag ? (
-          <span className="menu-item-label">
-            <span>{item.label}</span>
-            <span className={`route-tag route-tag-${item.tag.toLowerCase()}`}>{item.tag}</span>
-          </span>
-        ) : item.label,
+        label: renderSidebarMenuLabel(item.label, item.tag),
         selectedIcon: item.selectedIcon,
       })),
       orderIndex: group.orderIndex,

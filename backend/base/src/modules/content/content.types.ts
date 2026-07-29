@@ -339,6 +339,7 @@ export type CreateVideoProductionPayload = {
   ratio?: string;
   duration?: string;
   videoModelProviderId?: string;
+  videoModelConfigId?: string;
   videoModelId?: string;
   referenceImageGroupId?: string;
   referenceVideoGroupId?: string;
@@ -356,6 +357,8 @@ export type CreateVideoProductionPayload = {
   generateAudio?: boolean;
   skipVideoBilling?: boolean;
   videoBillingReservationId?: string;
+  billingSourceType?: string;
+  billingSourceId?: string;
 };
 
 export type CreateVideoEnhancementPayload = {

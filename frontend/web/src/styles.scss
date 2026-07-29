@@ -17,6 +17,10 @@ body {
   overflow: hidden;
 }
 
+.ant-table-thead > tr > th {
+  font-size: 12px;
+}
+
 .ant-btn {
   border-radius: 999px;
 }
