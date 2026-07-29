@@ -210,6 +210,10 @@ export const batchGenerationRepository = {
   },
 
   createRows(rows: BatchGenerationRow[]) {
+    return this.insertRows(rows);
+  },
+
+  insertRows(rows: BatchGenerationRow[], insertAt?: number) {
     const insert = db.prepare(`
       INSERT INTO batch_generation_rows (
         id, sheet_id, position, params, validation_status, validation_errors,
@@ -220,6 +224,27 @@ export const batchGenerationRepository = {
       )
     `);
     const transaction = db.transaction(() => {
+      if (insertAt !== undefined && rows.length) {
+        const sheetId = rows[0].sheetId;
+        const result = db.prepare(`
+          SELECT COALESCE(MAX(position), -1) AS maxPosition
+          FROM batch_generation_rows
+          WHERE sheet_id = ?
+        `).get(sheetId) as { maxPosition: number };
+        if (result.maxPosition >= insertAt) {
+          const temporaryOffset = result.maxPosition + rows.length + 1;
+          db.prepare(`
+            UPDATE batch_generation_rows
+            SET position = position + ?
+            WHERE sheet_id = ? AND position >= ?
+          `).run(temporaryOffset, sheetId, insertAt);
+          db.prepare(`
+            UPDATE batch_generation_rows
+            SET position = position - ? + ?
+            WHERE sheet_id = ? AND position >= ?
+          `).run(temporaryOffset, rows.length, sheetId, insertAt + temporaryOffset);
+        }
+      }
       rows.forEach((row) => insert.run({
         ...row,
         params: JSON.stringify(row.params),

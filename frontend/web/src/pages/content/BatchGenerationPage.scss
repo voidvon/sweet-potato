@@ -46,10 +46,12 @@
 .sheet-global-settings__intro span { color: #8ba0bd; font-size: 11px; }
 .sheet-remaining { color: #8ba0bd; font-size: 11px; }
 .sheet-global-settings__divider, .sheet-toolbar > i, .sheet-task-stats > i { background: #dbe4f0; display: block; height: 22px; width: 1px; }
-.sheet-global-settings label { align-items: center; color: #526984; display: flex; font-size: 13px; font-weight: 600; gap: 10px; }
+.sheet-global-settings__field { align-items: center; color: #526984; display: flex; font-size: 13px; font-weight: 600; gap: 10px; }
 .sheet-global-settings .ant-select { color: #04546e; flex: none; font-size: 13px; font-weight: 700; min-width: 0; width: auto; }
 .sheet-global-settings .ant-select-selector { padding-inline-end: 26px !important; width: fit-content !important; }
 .sheet-global-settings .ant-select-selection-item { flex: none; }
+.sheet-global-settings .sheet-global-size-button { color: #04546e; font-size: 13px; font-weight: 700; gap: 5px; height: 28px; padding-inline: 7px; }
+.sheet-global-settings .sheet-global-size-button .ant-btn-icon { display: inline-flex; }
 
 .sheet-toolbar { border-bottom: 1px solid #e8edf5; box-sizing: border-box; color: #8ba0bd; font-size: 14px; gap: 17px; height: 40px; min-height: 40px; padding: 4px 24px; }
 .sheet-toolbar > span:first-child { font-size: 12px; }
@@ -57,7 +59,68 @@
 .sheet-toolbar .ant-btn[disabled] { color: #b3c1d3; }
 
 .sheet-table-area { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.sheet-grid { min-width: 880px; }
+.sheet-grid { height: calc(100vh - 330px); min-height: 240px; min-width: 0; width: 100%; }
+.sheet-grid .ag-cell-wrapper { align-items: center; min-height: 100%; }
+.sheet-grid .ag-cell-wrap-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sheet-grid .ag-cell-auto-height .ag-cell-wrapper,
+.sheet-grid .ag-cell-auto-height .ag-cell-value { min-width: 0; width: 100%; }
+.sheet-grid .batch-generation-grid-index-cell { align-items: center; display: flex; justify-content: center; }
+.sheet-grid .batch-generation-grid-actions-cell { align-items: center; display: flex; justify-content: center; }
+.sheet-grid .batch-generation-grid-action-button {
+  align-items: center;
+  background: #fff;
+  border-color: #d9e2ee;
+  border-radius: 6px !important;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  padding: 0;
+  width: 28px;
+}
+.sheet-grid .batch-generation-grid-action-button:hover { background: #f5f9ff; border-color: #8ab4f8; }
+.sheet-grid .batch-generation-grid-action-button--run { color: var(--color-brand); }
+.sheet-grid .batch-generation-grid-action-button--run:hover { color: var(--color-brand-hover); }
+.sheet-grid .batch-generation-grid-action-button--delete:hover {
+  background: #fff2f0;
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+.sheet-grid .ag-header-cell,
+.sheet-grid .ag-cell { border-right: 1px solid #e8edf5; }
+.sheet-grid .ag-header-cell-resize::after { background-color: #b6c6da; }
+.sheet-grid .ant-space { max-width: 100%; }
+.batch-generation-grid-select-cell {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  height: 100%;
+  min-width: 0;
+  width: 100%;
+}
+.batch-generation-grid-select-cell--disabled { cursor: not-allowed; opacity: .55; }
+.batch-generation-grid-select-cell__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-generation-grid-select-cell > svg { color: #8295ad; flex: none; }
+.batch-generation-grid-select-anchor {
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+}
+.batch-generation-grid-select-anchor .ant-select,
+.batch-generation-grid-select-anchor .ant-select-selector { height: 100% !important; width: 100%; }
+.batch-generation-grid-select-popup { min-width: 160px; }
+.batch-generation-grid-tooltip-anchor { pointer-events: none; position: fixed; }
 
 .sheet-add-row { border-bottom: 1px solid #e8edf5; flex: 1; min-height: 106px; padding: 15px 24px; }
 .sheet-remaining { align-items: center; background: #f9fbfe; border-bottom: 1px solid #dfe8f3; box-sizing: border-box; display: flex; height: 30px; min-height: 30px; padding: 4px 24px; }
@@ -90,5 +153,4 @@
   .sheet-global-settings { align-items: flex-start; flex-wrap: wrap; padding-inline: 16px; }
   .sheet-global-settings__divider { display: none; }
   .sheet-toolbar, .sheet-add-row, .sheet-remaining, .sheet-task-stats { padding-inline: 16px; }
-  .sheet-grid { overflow-x: auto; }
 }

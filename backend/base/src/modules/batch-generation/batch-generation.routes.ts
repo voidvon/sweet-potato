@@ -74,12 +74,22 @@ export function createBatchGenerationRouter() {
       modelConfigRepository
         .list()
         .filter((config) => (config.type === 'image' || config.type === 'video') && Boolean(config.apiKey))
-        .map((config) => ({
-          id: config.id,
-          type: config.type,
-          name: config.name,
-          isDefault: Boolean(config.isDefault),
-        })),
+        .map((config) => {
+          const settings = config.settings && typeof config.settings === 'object' ? config.settings : {};
+          const imageGeneration = settings.imageGeneration && typeof settings.imageGeneration === 'object'
+            ? settings.imageGeneration as Record<string, unknown>
+            : {};
+          return {
+            id: config.id,
+            type: config.type,
+            name: config.name,
+            provider: config.provider,
+            model: config.model,
+            supportsCustomResolution: imageGeneration.supportsCustomResolution === true
+              || settings.supportsCustomResolution === true,
+            isDefault: Boolean(config.isDefault),
+          };
+        }),
     );
   });
 
@@ -203,6 +213,7 @@ export function createBatchGenerationRouter() {
         userId: userIdOf(req),
         sheetId: req.params.sheetId,
         rows,
+        insertAt: req.body.insertAt,
       }));
     } catch (error) {
       sendBatchError(res, error, '表格行创建失败');

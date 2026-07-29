@@ -28,6 +28,9 @@ export type BatchGenerationModelOption = {
   id: string;
   type: CreativeMediaKind;
   name: string;
+  provider: string;
+  model: string;
+  supportsCustomResolution: boolean;
   isDefault: boolean;
 };
 
@@ -166,10 +169,10 @@ export function deleteBatchSheet(sheetId: string) {
   return request<{ ok: boolean }>(`${basePath}/sheets/${encodeURIComponent(sheetId)}`, { method: 'DELETE' });
 }
 
-export function addBatchRows(sheetId: string, rows: Record<string, unknown>[]) {
+export function addBatchRows(sheetId: string, rows: Record<string, unknown>[], insertAt?: number) {
   return request<BatchRow[]>(`${basePath}/sheets/${encodeURIComponent(sheetId)}/rows`, {
     method: 'POST',
-    body: JSON.stringify({ rows }),
+    body: JSON.stringify({ rows, ...(insertAt === undefined ? {} : { insertAt }) }),
   });
 }
 
