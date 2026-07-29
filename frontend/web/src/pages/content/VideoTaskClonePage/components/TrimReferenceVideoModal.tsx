@@ -2,6 +2,7 @@ import { Alert, Descriptions, Flex, Modal, Progress, Slider, Typography } from '
 import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react';
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS } from '../videoMetadata';
+import './ReferenceVideoPreviewModal.scss';
 
 const MIN_SELECTION_SECONDS = 4;
 const MAX_SELECTION_SECONDS = MAX_REFERENCE_VIDEO_DURATION_SECONDS;

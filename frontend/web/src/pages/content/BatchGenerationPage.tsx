@@ -79,6 +79,8 @@ import type {
 } from '../../api/batch-generation';
 import type { VideoModelProviderOption } from '../../api/model-config';
 import { resolveAssetUrl } from '../../api/request';
+import { BatchAudioReferencePicker } from '../../components/BatchAudioReferencePicker';
+import { BatchVideoReferencePicker } from '../../components/BatchVideoReferencePicker';
 import {
   ImageOutputSizePicker,
   getImageResolutionOptions,
@@ -1006,6 +1008,18 @@ export function BatchGenerationPage() {
   }
 
   async function uploadAssets(row: BatchRow, field: CreativeCapabilityField, files: File[]) {
+    const uploaded = await uploadUploadedAssets(row, field, files);
+    if (!uploaded.length) return;
+    const uploadedIds = uploaded.map((asset) => asset.id);
+    if (field.valueType === 'asset-list') {
+      const currentIds = stringArray(valueAt(row.params, field.key));
+      updateRowParams(row.id, field.key, [...new Set([...currentIds, ...uploadedIds])]);
+    } else {
+      updateRowParams(row.id, field.key, uploadedIds[0]);
+    }
+  }
+
+  async function uploadUploadedAssets(row: BatchRow, field: CreativeCapabilityField, files: File[]) {
     const cellKey = `${row.id}:${field.key}`;
     setUploadingCell(cellKey);
     try {
@@ -1018,15 +1032,10 @@ export function BatchGenerationPage() {
         ...current,
         ...Object.fromEntries(uploaded.map((asset) => [asset.id, asset])),
       }));
-      const uploadedIds = uploaded.map((asset) => asset.id);
-      if (field.valueType === 'asset-list') {
-        const currentIds = stringArray(valueAt(row.params, field.key));
-        updateRowParams(row.id, field.key, [...new Set([...currentIds, ...uploadedIds])]);
-      } else {
-        updateRowParams(row.id, field.key, uploadedIds[0]);
-      }
+      return uploaded;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '素材上传失败');
+      return [];
     } finally {
       setUploadingCell('');
     }
@@ -1103,9 +1112,34 @@ export function BatchGenerationPage() {
       ? stringArray(storedValue)
       : typeof storedValue === 'string' && storedValue ? [storedValue] : [];
     const isImageField = assetAccept(field) === 'image/*';
-    const maxCount = field.valueType === 'asset-list' ? MAX_REFERENCE_IMAGE_COUNT : 1;
+    const isAudioField = assetAccept(field) === 'audio/*';
+    const isVideoField = assetAccept(field) === 'video/*';
+    const maxCount = field.valueType === 'asset-list' ? (isAudioField ? 3 : MAX_REFERENCE_IMAGE_COUNT) : 1;
     const uploadDisabled = ['queued', 'running'].includes(row.executionStatus);
     const isUploading = uploadingCell === `${row.id}:${field.key}`;
+    if (isVideoField && field.valueType === 'asset-list') {
+      return (
+        <BatchVideoReferencePicker
+          assets={ids.flatMap((id) => assets[id] ? [assets[id]] : [])}
+          disabled={uploadDisabled}
+          ids={ids}
+          onAssetReady={(asset) => setAssets((current) => ({ ...current, [asset.id]: asset }))}
+          onChange={(nextIds) => updateRowParams(row.id, field.key, nextIds)}
+          onUpload={(file) => uploadUploadedAssets(row, field, [file])}
+        />
+      );
+    }
+    if (isAudioField && field.valueType === 'asset-list') {
+      return (
+        <BatchAudioReferencePicker
+          assets={ids.flatMap((id) => assets[id] ? [assets[id]] : [])}
+          disabled={uploadDisabled}
+          ids={ids}
+          onChange={(nextIds) => updateRowParams(row.id, field.key, nextIds)}
+          onUpload={(file) => uploadUploadedAssets(row, field, [file])}
+        />
+      );
+    }
     if (isImageField) {
       const canUpload = ids.length < maxCount;
       const previewItems = ids.flatMap((id, index) => {
