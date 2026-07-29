@@ -1,0 +1,56 @@
+.xingtu-filter-popover {
+  max-width: 360px;
+}
+
+.xingtu-filter-popover-panel {
+  min-width: 288px;
+}
+
+.xingtu-filter-popover-title {
+  color: var(--color-neutral-700);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.xingtu-filter-popover-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.xingtu-filter-popover-tree {
+  max-height: 280px;
+  overflow: auto;
+  width: 280px;
+}
+
+.xingtu-filter-popover-tree .ant-tree {
+  font-size: 12px;
+}
+
+.xingtu-filter-popover-footer {
+  align-items: center;
+  border-top: 1px solid var(--color-neutral-100);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.xingtu-filter-popover-summary {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.xingtu-filter-dropdown-overlay .ant-dropdown-menu {
+  font-size: 12px;
+  padding: 4px;
+}
+
+.xingtu-filter-dropdown-overlay .ant-dropdown-menu-item {
+  border-radius: 6px;
+  min-height: 30px;
+}
