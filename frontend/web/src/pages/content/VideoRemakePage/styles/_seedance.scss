@@ -1,0 +1,117 @@
+.remake-seedance {
+  display: grid;
+  gap: 12px;
+}
+
+.remake-seedance-workbench {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.remake-seedance-preview-panel {
+  background: linear-gradient(180deg, var(--color-white) 0%, var(--color-neutral-25) 100%);
+  border: 1px solid var(--color-neutral-100);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+}
+
+.remake-seedance-preview-panel header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.remake-seedance-preview-panel header div {
+  display: grid;
+  gap: 2px;
+}
+
+.remake-seedance-preview-panel header span {
+  color: var(--remake-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remake-seedance-preview-panel header strong {
+  color: var(--remake-text);
+  font-size: 16px;
+}
+
+.remake-seedance-preview-panel time {
+  color: var(--remake-muted);
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.remake-seedance-editor-panel {
+  background: var(--color-white);
+}
+
+.remake-seedance-prompt-preview {
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+  position: relative;
+}
+
+.remake-seedance-prompt-preview p {
+  color: var(--color-neutral-700);
+  font-size: 14px;
+  line-height: 1.78;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.remake-seedance-reference-chip {
+  align-items: center;
+  background: var(--color-brand-soft);
+  border: 1px solid var(--color-brand-border);
+  border-radius: 10px;
+  color: var(--color-brand-active);
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 1px;
+  padding: 2px 6px 2px 3px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.remake-seedance-reference-chip img {
+  border-radius: 7px;
+  height: 18px;
+  object-fit: cover;
+  width: 18px;
+}
+
+.remake-seedance-reference-chip-icon {
+  align-items: center;
+  background: var(--color-border);
+  border-radius: 7px;
+  color: var(--color-brand-active);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+
+.remake-seedance-reference-chip b {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.remake-seedance-empty {
+  color: var(--remake-muted);
+  font-size: 13px;
+  margin: 0;
+}

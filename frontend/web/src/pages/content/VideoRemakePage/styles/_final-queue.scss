@@ -1,0 +1,115 @@
+.remake-final-segments-modal {
+  display: grid;
+  gap: 12px;
+  max-height: min(74vh, 760px);
+  overflow: auto;
+  padding: 0 4px 2px 0;
+}
+
+.remake-final-segments-summary {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--remake-border);
+  border-radius: 10px;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.remake-final-segments-summary > div {
+  background: var(--color-white);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.remake-final-segments-summary strong {
+  color: var(--remake-text);
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.remake-final-segments-summary span {
+  color: var(--remake-muted);
+  font-size: 12px;
+}
+
+.remake-final-segment-queue {
+  align-items: center;
+  background: rgb(var(--color-brand-rgb) / 0.06);
+  border: 1px solid rgb(var(--color-brand-rgb) / 0.16);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.remake-final-segment-queue > span {
+  color: var(--remake-muted);
+  font-size: 12px;
+}
+
+.remake-final-segment-queue button {
+  align-items: center;
+  background: var(--color-white);
+  border: 1px solid rgb(var(--color-brand-rgb) / 0.2);
+  border-radius: 999px;
+  color: var(--remake-text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 9px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.remake-final-segment-queue button:hover {
+  background: rgb(var(--color-brand-rgb) / 0.08);
+  border-color: rgb(var(--color-brand-rgb) / 0.36);
+}
+
+.remake-final-segment-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.remake-final-segment-item {
+  border: 1px solid var(--remake-border);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-rows: auto auto auto 1fr;
+  min-width: 0;
+  padding: 10px;
+}
+
+.remake-final-segment-item header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.remake-final-segment-item header strong {
+  color: var(--remake-text);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.remake-final-segment-item header span {
+  color: var(--remake-muted);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remake-final-segment-item header em {
+  font-style: normal;
+  margin-left: auto;
+}

@@ -1,0 +1,40 @@
+
+.remake-video-generation-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.remake-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.remake-card-actions .ant-btn {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.remake-intent-card-actions {
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.video-remake-composer {
+  align-items: end;
+  background: rgb(var(--color-white-rgb) / 0.92);
+  border-top: 1px solid var(--remake-border);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px 18px;
+}
+
+.video-remake-composer textarea.ant-input {
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+  resize: none;
+}

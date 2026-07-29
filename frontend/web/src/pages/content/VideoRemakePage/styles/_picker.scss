@@ -1,0 +1,116 @@
+.remake-picker-card {
+  aspect-ratio: 1 / 1;
+  background: var(--color-neutral-50);
+  border: 1px dashed var(--color-neutral-300);
+  border-radius: 12px;
+  color: var(--remake-text);
+  cursor: default;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  text-align: left;
+  height: 86px;
+  width: 86px;
+}
+
+.remake-picker-card.empty {
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.remake-picker-card.selected {
+  border-style: solid;
+  border-color: rgb(var(--color-shadow-rgb) / 0.12);
+}
+
+.remake-picker-card.selected::after {
+  background: rgb(var(--color-shadow-rgb) / 0);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: background 120ms ease;
+}
+
+.remake-picker-card.selected:hover::after {
+  background: rgb(var(--color-shadow-rgb) / 0.42);
+}
+
+.remake-picker-card-media {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.remake-picker-card-overlay {
+  background: linear-gradient(180deg, rgb(var(--color-shadow-rgb) / 0.06) 0%, rgb(var(--color-shadow-rgb) / 0.72) 100%);
+  bottom: 0;
+  color: var(--color-white);
+  display: grid;
+  gap: 2px;
+  left: 0;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+}
+
+.remake-picker-card-overlay span,
+.remake-picker-card-placeholder strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.remake-picker-card-overlay span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remake-picker-card-overlay small,
+.remake-picker-card-placeholder small {
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.88;
+}
+
+.remake-picker-card-placeholder {
+  align-content: center;
+  color: var(--remake-muted);
+  display: grid;
+  gap: 8px;
+  height: 100%;
+  justify-items: center;
+  padding: 10px;
+  text-align: center;
+}
+
+.remake-picker-card.audio {
+  background: linear-gradient(180deg, var(--color-surface-subtle) 0%, var(--color-brand-soft) 100%);
+}
+
+.remake-picker-card-audio-wave {
+  gap: 3px;
+  height: 100%;
+  inset: 0;
+  justify-content: center;
+  transform: none;
+  width: 100%;
+}
+
+.remake-picker-card-audio-wave span {
+  flex: 0 0 3px;
+  height: 16px;
+  width: 3px;
+}
+
+.remake-picker-card-audio-wave span:nth-child(2n) {
+  height: 22px;
+}
+
+.remake-picker-card-audio-wave span:nth-child(3n) {
+  height: 28px;
+}
+
+.remake-picker-card-audio-wave span:nth-child(5n) {
+  height: 18px;
+}

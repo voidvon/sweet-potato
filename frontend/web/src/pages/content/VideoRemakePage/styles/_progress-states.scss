@@ -1,0 +1,121 @@
+.remake-status-bubble .remake-expert-progress-dot {
+  border-radius: 999px;
+  display: block;
+  flex: 0 0 auto;
+  font-size: 0;
+  height: 10px;
+  line-height: 0;
+  padding: 0;
+  width: 10px;
+}
+
+.remake-expert-progress-item.is-running {
+  background: linear-gradient(90deg, rgb(var(--color-brand-rgb) / 0.08), var(--color-white) 58%);
+  border-color: rgb(var(--color-brand-rgb) / 0.22);
+}
+
+.remake-expert-progress-item.is-running .remake-expert-progress-dot {
+  animation: remakeParsePulse 1.25s ease-in-out infinite;
+  background: var(--remake-blue);
+  box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.35);
+}
+
+.remake-expert-progress-item.is-running em {
+  background: var(--color-brand-soft-strong);
+  color: var(--color-brand-hover);
+}
+
+.remake-expert-progress-item.is-done .remake-expert-progress-dot {
+  background: var(--color-success-bright);
+}
+
+.remake-expert-progress-item.is-done em {
+  background: var(--color-success-soft);
+  color: var(--color-success-strong);
+}
+
+.remake-expert-progress-item.is-failed {
+  background: var(--color-orange-soft);
+  border-color: rgb(var(--color-danger-rgb) / 0.2);
+}
+
+.remake-expert-progress-item.is-failed .remake-expert-progress-dot {
+  background: var(--color-orange);
+}
+
+.remake-expert-progress-item.is-failed em {
+  background: var(--color-orange-soft);
+  color: var(--color-orange);
+}
+
+.remake-expert-progress-item.is-muted .remake-expert-progress-dot {
+  background: var(--color-neutral-400);
+}
+
+.remake-expert-progress-item.is-muted em {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
+}
+
+.remake-progress-track {
+  background: var(--color-border-subtle);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.remake-progress-track i {
+  background: var(--color-brand);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 7px;
+  position: relative;
+  transition: width 0.25s ease;
+}
+
+.remake-progress-track i.is-running::after {
+  animation: remakeParseTrackSweep 1.45s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgb(var(--color-white-rgb) / 0.78), transparent);
+  content: '';
+  inset: 0;
+  position: absolute;
+  transform: translateX(-100%);
+}
+
+.remake-progress-detail small {
+  color: var(--remake-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remake-progress-meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+@keyframes remakeParsePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0.36);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgb(var(--color-brand-rgb) / 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--color-brand-rgb) / 0);
+  }
+}
+
+@keyframes remakeParseTrackSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
