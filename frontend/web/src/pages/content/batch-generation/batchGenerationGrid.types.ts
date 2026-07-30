@@ -4,6 +4,10 @@ import type {
   ImageOutputModel,
   ImageResolution,
 } from '../../../components/ImageOutputSizePicker'
+import type {
+  VideoAspectRatio,
+  VideoResolution,
+} from '../../../components/VideoOutputSizePicker'
 
 export type GridAnchor = {
   height: number
@@ -30,6 +34,13 @@ export type ActiveGridCanvas = {
   aspectRatio: ImageAspectRatio
   model?: ImageOutputModel
   resolution: ImageResolution
+  rowId: string
+}
+
+export type ActiveGridVideoCanvas = {
+  anchor: GridAnchor
+  aspectRatio: VideoAspectRatio
+  resolution: VideoResolution
   rowId: string
 }
 

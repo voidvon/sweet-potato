@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Button, Image, Popconfirm, Popover, Space, Switch, Tag, Typography } from 'antd'
+import { memo, type ReactNode } from 'react'
+import { Button, Image, Popconfirm, Space, Switch, Tag, Typography } from 'antd'
 import { CreditIcon } from '@shared/components/CreditIcon'
 import { formatCreditAmount } from '@shared/utils/credits'
 import { ChevronDown, Copy, ExternalLink, Maximize2, Play, Plus, Scan, Trash2, UploadCloud, X } from 'lucide-react'
@@ -13,11 +13,7 @@ import { resolveAssetUrl } from '../../../api/request'
 import { BatchAudioReferencePicker } from '../../../components/BatchAudioReferencePicker'
 import { BatchVideoReferencePicker } from '../../../components/BatchVideoReferencePicker'
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea'
-import {
-  VideoOutputSizePicker,
-  type VideoAspectRatio,
-  type VideoResolution,
-} from '../../../components/VideoOutputSizePicker'
+import type { VideoAspectRatio, VideoResolution } from '../../../components/VideoOutputSizePicker'
 import type { ContentAsset } from '../../../types'
 import {
   MAX_REFERENCE_IMAGE_COUNT,
@@ -27,6 +23,18 @@ import {
   stringArray,
   valueAt,
 } from './batchGenerationGrid.utils'
+
+const MemoBatchVideoReferencePicker = memo(BatchVideoReferencePicker, (previous, next) => {
+  if (previous.disabled !== next.disabled || previous.ids.length !== next.ids.length || previous.assets.length !== next.assets.length) return false
+  if (previous.ids.some((id, index) => id !== next.ids[index])) return false
+  return previous.assets.every((asset, index) => {
+    const nextAsset = next.assets[index]
+    return asset.id === nextAsset?.id
+      && asset.fileUrl === nextAsset.fileUrl
+      && asset.updatedAt === nextAsset.updatedAt
+      && asset.metadata?.duration === nextAsset.metadata?.duration
+  })
+})
 
 export function GridSelectCell({
   disabled,
@@ -63,40 +71,34 @@ export function GridSelectCell({
 export function GridVideoOutputSizeCell({
   aspectRatio,
   disabled,
-  onAspectRatioChange,
-  onResolutionChange,
+  onOpen,
   resolution,
 }: {
   aspectRatio: VideoAspectRatio
   disabled?: boolean
-  onAspectRatioChange: (aspectRatio: VideoAspectRatio) => void
-  onResolutionChange: (resolution: VideoResolution) => void
+  onOpen: (anchor: HTMLElement) => void
   resolution: VideoResolution
 }) {
   return (
-    <Popover
-      arrow={false}
-      content={(
-        <VideoOutputSizePicker
-          aspectRatio={aspectRatio}
-          onAspectRatioChange={onAspectRatioChange}
-          onResolutionChange={onResolutionChange}
-          resolution={resolution}
-        />
-      )}
-      placement="bottomLeft"
-      trigger={disabled ? [] : 'click'}
+    <div
+      aria-disabled={disabled}
+      className={`batch-generation-grid-select-cell batch-generation-grid-video-size-trigger${disabled ? ' batch-generation-grid-select-cell--disabled' : ''}`}
+      onKeyDown={(event) => {
+        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onOpen(event.currentTarget)
+        }
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        if (!disabled) onOpen(event.currentTarget)
+      }}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
     >
-      <div
-        aria-disabled={disabled}
-        className={`batch-generation-grid-select-cell${disabled ? ' batch-generation-grid-select-cell--disabled' : ''}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        role="button"
-        tabIndex={disabled ? -1 : 0}
-      >
-        <span className="batch-generation-grid-select-cell__value">{aspectRatio} · {resolution}</span>
-      </div>
-    </Popover> )
+      <span className="batch-generation-grid-select-cell__value">{aspectRatio} · {resolution}</span>
+    </div>
+  )
 }
 export function GridCanvasCell({
   disabled,
@@ -249,7 +251,7 @@ export function GridAssetCell({
 
   if (assetAccept(field) === 'video/*' && field.valueType === 'asset-list') {
     return (
-      <BatchVideoReferencePicker
+      <MemoBatchVideoReferencePicker
         assets={ids.flatMap((id) => assets[id] ? [assets[id]] : [])}
         disabled={uploadDisabled}
         ids={ids}

@@ -470,6 +470,10 @@
   pointer-events: none;
   position: fixed;
 }
+.batch-generation-grid-video-canvas-anchor {
+  pointer-events: none;
+  position: fixed;
+}
 .batch-generation-grid-tooltip-anchor { pointer-events: none; position: fixed; }
 
 .sheet-remaining { align-items: center; background: #f9fbfe; border-bottom: 1px solid #dfe8f3; box-sizing: border-box; display: flex; height: 30px; min-height: 30px; padding: 4px 24px; }

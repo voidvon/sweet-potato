@@ -38,7 +38,7 @@ import {
   GridStatusCell,
   GridVideoOutputSizeCell,
 } from './BatchGenerationGridCells'
-import type { ActiveGridCanvas, ActiveGridSelect } from './batchGenerationGrid.types'
+import type { ActiveGridCanvas, ActiveGridSelect, ActiveGridVideoCanvas } from './batchGenerationGrid.types'
 import {
   aspectRatioOptions,
   durationOptions,
@@ -76,6 +76,7 @@ type UseBatchGenerationColumnsOptions = {
   onCopyRow: (row: BatchRow) => void
   onHideTooltip: () => void
   onOpenCanvas: (canvas: ActiveGridCanvas | null | ((current: ActiveGridCanvas | null) => ActiveGridCanvas | null)) => void
+  onOpenVideoCanvas: (canvas: ActiveGridVideoCanvas | null | ((current: ActiveGridVideoCanvas | null) => ActiveGridVideoCanvas | null)) => void
   onOpenAssetUpload: (row: BatchRow, field: CreativeCapabilityField, currentCount: number, maxCount: number) => void
   onOpenPrompt: (row: BatchRow, fieldKey: string, value: string, mode: 'inline' | 'fullscreen', anchor: HTMLElement) => void
   onOpenSelect: (select: ActiveGridSelect | null | ((current: ActiveGridSelect | null) => ActiveGridSelect | null)) => void
@@ -100,6 +101,7 @@ export function useBatchGenerationColumns({
   onCopyRow,
   onHideTooltip,
   onOpenCanvas,
+  onOpenVideoCanvas,
   onOpenAssetUpload,
   onOpenPrompt,
   onOpenSelect,
@@ -114,9 +116,11 @@ export function useBatchGenerationColumns({
   uploadingCell,
 }: UseBatchGenerationColumnsOptions) {
   const actionsRef = useRef({
+    onAssetReady,
     onCopyRow,
     onHideTooltip,
     onOpenCanvas,
+    onOpenVideoCanvas,
     onOpenAssetUpload,
     onOpenPrompt,
     onOpenSelect,
@@ -125,11 +129,14 @@ export function useBatchGenerationColumns({
     onRunRow,
     onShowTooltip,
     onUpdateRow,
+    onUpload,
   })
   actionsRef.current = {
+    onAssetReady,
     onCopyRow,
     onHideTooltip,
     onOpenCanvas,
+    onOpenVideoCanvas,
     onOpenAssetUpload,
     onOpenPrompt,
     onOpenSelect,
@@ -138,6 +145,7 @@ export function useBatchGenerationColumns({
     onRunRow,
     onShowTooltip,
     onUpdateRow,
+    onUpload,
   }
 
   return useMemo<ColDef<BatchRow>[]>(() => {
@@ -282,10 +290,10 @@ export function useBatchGenerationColumns({
                 assets={assets}
                 field={field}
                 isUploading={uploadingCell === `${params.data.id}:${field.key}`}
-                onAssetReady={onAssetReady}
+                onAssetReady={(asset) => actionsRef.current.onAssetReady(asset)}
                 onOpenUpload={(...args) => actionsRef.current.onOpenAssetUpload(...args)}
                 onPreview={(...args) => actionsRef.current.onPreviewAssets(...args)}
-                onUpload={onUpload}
+                onUpload={(row, field, files) => actionsRef.current.onUpload(row, field, files)}
                 onUpdate={(...args) => actionsRef.current.onUpdateRow(...args)}
                 row={params.data}
               />
@@ -299,21 +307,37 @@ export function useBatchGenerationColumns({
                 />
               ) : null
               : isVideoAspectRatio
-                ? (params: ICellRendererParams<BatchRow>) => params.data ? (
-                  <GridVideoOutputSizeCell
-                    aspectRatio={videoAspectRatioOptions.includes(effectiveValue(params.data) as VideoAspectRatio)
-                      ? effectiveValue(params.data) as VideoAspectRatio
-                      : '9:16'}
-                    disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
-                    onAspectRatioChange={(nextAspectRatio) => actionsRef.current.onUpdateRow(params.data!.id, field.key, nextAspectRatio)}
-                    onResolutionChange={(nextResolution) => actionsRef.current.onUpdateRow(params.data!.id, 'resolution', nextResolution)}
-                    resolution={videoResolutionOptions.includes(
-                      (valueAt(params.data.params, 'resolution') ?? valueAt(globalParams, 'resolution')) as VideoResolution,
-                    )
-                      ? (valueAt(params.data.params, 'resolution') ?? valueAt(globalParams, 'resolution')) as VideoResolution
-                      : '720P'}
-                  />
-                ) : null
+                ? (params: ICellRendererParams<BatchRow>) => {
+                  if (!params.data) return null
+                  const aspectRatio = videoAspectRatioOptions.includes(effectiveValue(params.data) as VideoAspectRatio)
+                    ? effectiveValue(params.data) as VideoAspectRatio
+                    : '9:16'
+                  const resolution = videoResolutionOptions.includes(
+                    (valueAt(params.data.params, 'resolution') ?? valueAt(globalParams, 'resolution')) as VideoResolution,
+                  )
+                    ? (valueAt(params.data.params, 'resolution') ?? valueAt(globalParams, 'resolution')) as VideoResolution
+                    : '720P'
+                  return (
+                    <GridVideoOutputSizeCell
+                      aspectRatio={aspectRatio}
+                      disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+                      onOpen={(anchor) => {
+                        const cell = anchor.closest('.ag-cell') || anchor
+                        const rect = cell.getBoundingClientRect()
+                        actionsRef.current.onOpenVideoCanvas((current) => {
+                          if (current?.rowId === params.data!.id) return null
+                          return {
+                            anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+                            aspectRatio,
+                            resolution,
+                            rowId: params.data!.id,
+                          }
+                        })
+                      }}
+                      resolution={resolution}
+                    />
+                  )
+                }
               : selectOptions.length
                 ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                   <GridSelectCell
