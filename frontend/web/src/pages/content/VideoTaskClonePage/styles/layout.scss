@@ -1496,11 +1496,6 @@
   width: 100%;
 }
 
-.video-task-result-card:hover {
-  background: var(--color-neutral-25);
-  border-color: var(--color-border-subtle);
-}
-
 .video-task-result-card.is-failed {
   border-color: var(--color-neutral-100);
 }
@@ -1669,43 +1664,8 @@
   justify-content: space-between;
 }
 
-.video-task-result-retry.ant-btn,
-.video-task-result-more.ant-btn {
-  background: var(--color-neutral-100);
-  border-color: transparent;
-  box-shadow: none;
-  color: var(--color-neutral-700);
-  font-size: 12px;
-}
-
-.video-task-result-retry.ant-btn {
-  border-radius: 8px;
-  height: 24px;
-  padding: 0 8px;
-}
-
-.video-task-result-more.ant-btn {
-  border-radius: 8px;
-  height: 24px;
+.video-task-result-more {
   margin-left: auto;
-  min-width: 24px;
-  width: 24px;
-}
-
-.video-task-result-retry.ant-btn:hover,
-.video-task-result-more.ant-btn:hover {
-  background: var(--color-neutral-100);
-  border-color: transparent;
-  color: var(--color-neutral-800);
-}
-
-.video-task-result-retry.ant-btn .anticon,
-.video-task-result-more.ant-btn .anticon,
-.video-task-result-retry.ant-btn svg,
-.video-task-result-more.ant-btn svg {
-  font-size: 12px;
-  height: 12px;
-  width: 12px;
 }
 
 .video-task-result-more-menu .ant-dropdown-menu {

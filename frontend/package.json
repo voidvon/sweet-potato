@@ -1,6 +1,6 @@
 {
   "name": "ai-marketing-desktop",
-  "version": "0.1.46",
+  "version": "0.1.47",
   "description": "AI marketing automation desktop app based on electron-egg and React",
   "main": "./public/electron/main.js",
   "scripts": {

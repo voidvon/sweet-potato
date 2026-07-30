@@ -26,6 +26,7 @@ import type { MenuProps } from 'antd';
 import {
   Check,
   ChevronDown,
+  Columns3,
   Copy,
   Plus,
   RotateCcw,
@@ -77,6 +78,7 @@ import {
   type VideoResolution,
 } from '../../components/VideoOutputSizePicker';
 import { AppImage } from '../../components/AppImage';
+import { CompactButton } from '../../components/CompactButton';
 import type { MentionRichTextareaRef } from '../../components/MentionRichTextarea';
 import {
   appRealtimeEventNames,
@@ -161,6 +163,7 @@ const batchGridTheme = themeQuartz.withParams({
   headerFontWeight: 600,
   rowBorder: { color: '#e8edf5' },
   spacing: 6,
+  wrapperBorder: false,
 });
 
 function isLocalRow(row: BatchRow) {
@@ -1278,8 +1281,9 @@ export function BatchGenerationPage() {
 
       <section className="sheet-toolbar" aria-label="表格工具栏">
         <span>{rows.length} / {MAX_ROWS} 行</span><i />
-        <Button icon={<Plus size={17} />} onClick={() => void addRow()} type="text">新增行</Button>
-        <Button disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy size={17} />} onClick={() => void copySelectedRows()} type="text">复制</Button>
+        <CompactButton icon={<Plus />} onClick={() => void addRow()}>新增行</CompactButton>
+        <CompactButton disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy />} onClick={() => void copySelectedRows()}>复制</CompactButton>
+        <CompactButton icon={<Columns3 />}>列宽</CompactButton>
       </section>
 
       <div className="sheet-table-area">

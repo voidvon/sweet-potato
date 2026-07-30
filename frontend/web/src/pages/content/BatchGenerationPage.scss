@@ -77,10 +77,8 @@
 .video-output-size-popover .ant-popover-inner { padding: 16px; }
 .video-output-size-popover .ant-popover-inner-content { padding: 0; }
 
-.sheet-toolbar { border-bottom: 1px solid #e8edf5; box-sizing: border-box; color: #8ba0bd; font-size: 14px; gap: 17px; height: 40px; min-height: 40px; padding: 4px 24px; }
+.sheet-toolbar { border-bottom: 1px solid #e8edf5; box-sizing: border-box; color: #8ba0bd; font-size: 14px; gap: 8px; height: 40px; min-height: 40px; padding: 4px 24px; }
 .sheet-toolbar > span:first-child { font-size: 12px; }
-.sheet-toolbar .ant-btn { color: #405a7c; font-size: 14px; font-weight: 600; }
-.sheet-toolbar .ant-btn[disabled] { color: #b3c1d3; }
 
 .sheet-workspace--switching .sheet-global-settings,
 .sheet-workspace--switching .sheet-toolbar,
@@ -94,8 +92,6 @@
 .sheet-grid { flex: 1; min-height: 240px; min-width: 0; width: 100%; }
 .batch-generation-grid-add-row {
   align-items: center;
-  background: #fff;
-  border-bottom: 1px solid #e8edf5;
   box-sizing: border-box;
   display: flex;
   height: 100%;

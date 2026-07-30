@@ -6,6 +6,7 @@ import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
 import { resolveAssetUrl } from '../../../../api/request';
 import { InfiniteScroll } from '../../../../components/InfiniteScroll';
+import { CompactButton } from '../../../../components/CompactButton';
 import { formatRelativeCalendarDateTime } from '../../../../utils/dateTime';
 import { downloadUrlAsFile } from '@shared/utils/download';
 import { filterGroups } from '../constants';
@@ -249,17 +250,13 @@ export function ResultPanel({
                               {state.kind !== 'running' ? (
                                 <div className="video-task-result-action-row">
                                   {canRetry ? (
-                                    <Button
-                                      className="video-task-result-retry"
-                                      color="default"
+                                    <CompactButton
                                       disabled={isRetrying || isDeleting}
                                       icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
                                       onClick={() => void onRetry(task)}
-                                      size="small"
-                                      variant="filled"
                                     >
                                       {isRetrying ? '提交中' : '再次生成'}
-                                    </Button>
+                                    </CompactButton>
                                   ) : null}
 
                                   <Dropdown
@@ -298,13 +295,10 @@ export function ResultPanel({
                                     }}
                                     trigger={['click']}
                                   >
-                                    <Button
+                                    <CompactButton
                                       aria-label="更多操作"
                                       className="video-task-result-more"
-                                      color="default"
                                       icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
-                                      size="small"
-                                      variant="filled"
                                     />
                                   </Dropdown>
                                 </div>
