@@ -1,26 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   AllCommunityModule,
   ModuleRegistry,
   themeQuartz,
 } from 'ag-grid-community';
-import type { ColDef, ICellRendererParams, ValueSetterParams } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
 import { useSearchParams } from 'react-router-dom';
-import { CreditIcon } from '@shared/components/CreditIcon';
-import { formatCreditAmount } from '@shared/utils/credits';
-import {
-  estimateImageGenerationCredits,
-  resolveImageGenerationOutputCount,
-} from '@shared/utils/imageGenerationCredits';
 import {
   Button,
   Dropdown,
   Flex,
-  Image,
   Input,
   Modal,
-  Popconfirm,
   Popover,
   Radio,
   Select,
@@ -28,7 +19,6 @@ import {
   Switch,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
   message,
 } from 'antd';
@@ -37,15 +27,9 @@ import {
   Check,
   ChevronDown,
   Copy,
-  ExternalLink,
-  Maximize2,
-  Play,
   Plus,
   RotateCcw,
   Scan,
-  Trash2,
-  UploadCloud,
-  X,
 } from 'lucide-react';
 import {
   addBatchRows,
@@ -68,7 +52,6 @@ import {
 import { listVideoModelProviders } from '../../api/model-config';
 import type {
   BatchAttempt,
-  BatchExecutionStatus,
   BatchGenerationModelOption,
   BatchRow,
   BatchRunDetail,
@@ -79,8 +62,6 @@ import type {
 } from '../../api/batch-generation';
 import type { VideoModelProviderOption } from '../../api/model-config';
 import { resolveAssetUrl } from '../../api/request';
-import { BatchAudioReferencePicker } from '../../components/BatchAudioReferencePicker';
-import { BatchVideoReferencePicker } from '../../components/BatchVideoReferencePicker';
 import {
   ImageOutputSizePicker,
   getImageResolutionOptions,
@@ -96,16 +77,38 @@ import {
   type VideoResolution,
 } from '../../components/VideoOutputSizePicker';
 import { AppImage } from '../../components/AppImage';
-import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../components/MentionRichTextarea';
+import type { MentionRichTextareaRef } from '../../components/MentionRichTextarea';
 import {
   appRealtimeEventNames,
   type AppBatchGenerationRunUpdatedDetail,
 } from '../../events/appRealtimeEvents';
 import type { ContentAsset } from '../../types';
+import {
+  GridPromptEditorOverlay,
+  GridSelectOverlay,
+  GridTooltipOverlay,
+} from './batch-generation/BatchGenerationGridOverlays';
+import type {
+  ActiveAssetPreview,
+  ActiveGridSelect,
+  ActiveGridTooltip,
+  ActivePromptEditor,
+  PendingAssetUpload,
+} from './batch-generation/batchGenerationGrid.types';
+import {
+  MAX_REFERENCE_IMAGE_COUNT,
+  assetAccept,
+  aspectRatioOptions,
+  durationOptions,
+  outputCountOptions,
+  promptMentionOptions,
+  stringArray,
+  valueAt,
+} from './batch-generation/batchGenerationGrid.utils';
+import { useBatchGenerationColumns } from './batch-generation/useBatchGenerationColumns';
 import './BatchGenerationPage.scss';
 
 const MAX_ROWS = 200;
-const MAX_REFERENCE_IMAGE_COUNT = 8;
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
@@ -182,191 +185,16 @@ function createLocalRow(sheetId: string, params: Record<string, unknown>, positi
   };
 }
 
-type GridSelectOption = {
-  label: string;
-  value: string | number;
-};
-
-type GridSelectCellProps = {
-  disabled?: boolean;
-  label: string;
-  onOpen: (anchor: HTMLElement) => void;
-};
-
-type ActiveGridSelect = {
-  anchor: { height: number; left: number; top: number; width: number };
-  fieldKey: string;
-  options: GridSelectOption[];
-  rowId: string;
-  value?: string | number;
-};
-
-type ActiveGridTooltip = {
-  anchor: { height: number; left: number; top: number; width: number };
-  title: string;
-};
-
-type ActivePromptEditor = {
-  anchor: { height: number; left: number; top: number; width: number };
-  fieldKey: string;
-  initialValue: string;
-  mode: 'inline' | 'fullscreen';
-  rowId: string;
-};
-
-type PendingAssetUpload = {
-  field: CreativeCapabilityField;
-  maxCount: number;
-  remainingCount: number;
-  row: BatchRow;
-};
-
-type ActiveAssetPreview = {
-  current: number;
-  items: Array<{ alt: string; src: string }>;
-};
-
-function GridSelectCell({
-  disabled,
-  label,
-  onOpen,
-}: GridSelectCellProps) {
-  return (
-    <div
-      aria-disabled={disabled}
-      className={`batch-generation-grid-select-cell${disabled ? ' batch-generation-grid-select-cell--disabled' : ''}`}
-      onKeyDown={(event) => {
-        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
-          event.preventDefault();
-          onOpen(event.currentTarget);
-        }
-      }}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        if (!disabled) onOpen(event.currentTarget);
-      }}
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-    >
-      <span className="batch-generation-grid-select-cell__value">{label}</span>
-      <ChevronDown aria-hidden="true" size={14} />
-    </div>
-  );
-}
-
-type GridPromptCellProps = {
-  disabled?: boolean;
-  options: MentionRichTextareaOption[];
-  value: string;
-  onFullscreen: (anchor: HTMLElement) => void;
-  onOpen: (anchor: HTMLElement) => void;
-};
-
-function GridPromptCell({ disabled, options, value, onFullscreen, onOpen }: GridPromptCellProps) {
-  const optionByToken = new Map(options.map((option) => [option.token, option]));
-  const tokens = [...optionByToken.keys()].sort((left, right) => right.length - left.length);
-  const paragraphs = value.split('\n').map((line, lineIndex) => {
-    const content: ReactNode[] = [];
-    let cursor = 0;
-
-    while (cursor < line.length) {
-      const token = tokens.find((item) => line.startsWith(item, cursor));
-      if (!token) {
-        const nextTokenIndex = tokens
-          .map((item) => line.indexOf(item, cursor + 1))
-          .filter((index) => index !== -1)
-          .sort((left, right) => left - right)[0] ?? line.length;
-        content.push(line.slice(cursor, nextTokenIndex));
-        cursor = nextTokenIndex;
-        continue;
-      }
-
-      const option = optionByToken.get(token)!;
-      const mentionKind = option.mimeType?.startsWith('video/')
-        ? 'video'
-        : option.mimeType?.startsWith('audio/') ? 'audio' : 'image';
-      content.push(
-        <span className="mention-rich-textarea-chip batch-generation-grid-prompt-mention" data-mention-kind={mentionKind} key={`${lineIndex}:${token}:${cursor}`}>
-          {mentionKind === 'image' && option.previewUrl ? <img alt="" src={option.previewUrl} /> : null}
-          {mentionKind === 'video' ? <span className="mention-rich-textarea-chip-icon">视</span> : null}
-          {mentionKind === 'audio' ? <span className="mention-rich-textarea-chip-icon">♪</span> : null}
-          <b>{option.label}</b>
-        </span>,
-      );
-      cursor += token.length;
-    }
-
-    return <p key={lineIndex}>{content.length ? content : <br />}</p>;
-  });
-
-  return (
-    <div
-      aria-disabled={disabled}
-      className={`batch-generation-grid-prompt-cell${disabled ? ' batch-generation-grid-prompt-cell--disabled' : ''}`}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        if (!disabled) onOpen(event.currentTarget);
-      }}
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-      onKeyDown={(event) => {
-        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
-          event.preventDefault();
-          onOpen(event.currentTarget);
-        }
-      }}
-    >
-      {!disabled ? (
-        <button
-          aria-label="全屏编辑提示词"
-          className="batch-generation-grid-prompt-cell__fullscreen"
-          onClick={(event) => {
-            event.stopPropagation();
-            onFullscreen(event.currentTarget.closest('.batch-generation-grid-prompt-cell') || event.currentTarget);
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <Maximize2 size={12} />
-        </button>
-      ) : null}
-      <div className="batch-generation-grid-prompt-cell__content">
-        {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">输入提示词，使用 @ 引用素材</span>}
-      </div>
-    </div>
-  );
-}
-
 const capabilityColors = [
   '#3f82ef', '#ec4899', '#0ea5e9', '#f43f5e', '#06b6d4', '#f59e0b',
   '#f97316', '#10b981', '#a855f7', '#d946ef', '#e11d48', '#14b8a6',
   '#eab308', '#6366f1', '#7c3aed', '#0284c7', '#db2777', '#ea580c',
 ];
 
-const statusMeta: Record<BatchExecutionStatus, { label: string; tone: 'done' | 'processing' | 'failed' | 'pending' }> = {
-  idle: { label: '待提交', tone: 'pending' },
-  queued: { label: '排队中', tone: 'processing' },
-  running: { label: '处理中', tone: 'processing' },
-  completed: { label: '已完成', tone: 'done' },
-  partial_failed: { label: '部分失败', tone: 'failed' },
-  failed: { label: '失败', tone: 'failed' },
-  canceled: { label: '已取消', tone: 'pending' },
-};
-
-const imageResolutionOptions = [
-  { label: '1K', value: '1K' },
-  { label: '2K', value: '2K' },
-  { label: '4K', value: '4K' },
-];
-const aspectRatioOptions = ['auto', '1:1', '3:4', '4:3', '9:16', '16:9'].map((value) => ({ label: value, value }));
-const outputCountOptions = [1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }));
-const durationOptions = [5, 10, 15].map((value) => ({ label: `${value}s`, value: `${value}秒` }));
-
 type AvailableBatchModelOption = BatchGenerationModelOption & {
   configId: string;
   disabled?: boolean;
 };
-
 function generateSheetName(label: string) {
   const now = new Date();
   const timestamp = [
@@ -378,16 +206,6 @@ function generateSheetName(label: string) {
     String(now.getSeconds()).padStart(2, '0'),
   ].join('');
   return `${label}-${timestamp}`;
-}
-
-function valueAt(params: Record<string, unknown>, key: string) {
-  const parts = key.split('.');
-  let current: unknown = params;
-  for (const part of parts) {
-    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
-    current = (current as Record<string, unknown>)[part];
-  }
-  return current;
 }
 
 function withValue(params: Record<string, unknown>, key: string, value: unknown) {
@@ -409,95 +227,12 @@ function withValue(params: Record<string, unknown>, key: string, value: unknown)
   return result;
 }
 
-function stringArray(value: unknown) {
-  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
-}
-
-function estimatedImageCredits(
-  row: BatchRow,
-  capability: CreativeCapability | undefined,
-  globalParams: Record<string, unknown>,
-  modelOptions: BatchGenerationModelOption[],
-) {
-  if (!capability || capability.mediaKind !== 'image') return undefined;
-  const modelConfigId = String(valueAt(row.params, 'modelConfigId') ?? globalParams.modelConfigId ?? '');
-  const model = modelOptions.find((option) => option.id === modelConfigId && option.type === 'image');
-  if (!model) return undefined;
-
-  const configuredOutputCount = Number(valueAt(row.params, 'outputCount') ?? globalParams.outputCount ?? 1);
-  const uploadedImageCount = capability.rowFields.reduce((count, field) => {
-    if (field.valueType === 'asset-list') return count + stringArray(valueAt(row.params, field.key)).length;
-    if (field.valueType === 'asset') return count + (valueAt(row.params, field.key) ? 1 : 0);
-    return count;
-  }, 0);
-  const outputCount = resolveImageGenerationOutputCount({
-    strategy: capability.outputCountStrategy,
-    requestedCount: Number.isFinite(configuredOutputCount) ? configuredOutputCount : 1,
-    uploadedImageCount,
-    referenceGroupImageCount: capability.outputCountGroupKey
-      ? stringArray(valueAt(row.params, `referenceGroups.${capability.outputCountGroupKey}`)).length
-      : 0,
-  });
-  return estimateImageGenerationCredits(model.creditsPerRequest, outputCount);
-}
-
 function rowAssetIds(rows: BatchRow[], capability?: CreativeCapability) {
   const assetFields = capability?.rowFields.filter((field) => field.valueType === 'asset' || field.valueType === 'asset-list') || [];
   return [...new Set(rows.flatMap((row) => assetFields.flatMap((field) => {
     const value = valueAt(row.params, field.key);
     return field.valueType === 'asset-list' ? stringArray(value) : typeof value === 'string' ? [value] : [];
   })).filter(Boolean))];
-}
-
-function promptMentionOptions(
-  row: BatchRow,
-  capability: CreativeCapability | undefined,
-  assets: Record<string, ContentAsset>,
-): MentionRichTextareaOption[] {
-  let imageIndex = 1;
-  let videoIndex = 1;
-  let audioIndex = 1;
-
-  return (capability?.rowFields || []).flatMap((field) => {
-    if (field.valueType !== 'asset' && field.valueType !== 'asset-list') return [];
-    const value = valueAt(row.params, field.key);
-    const ids = field.valueType === 'asset-list'
-      ? stringArray(value)
-      : typeof value === 'string' && value ? [value] : [];
-
-    return ids.map((id) => {
-      const asset = assets[id];
-      const mimeType = asset?.mimeType || (assetAccept(field) === 'video/*'
-        ? 'video/*'
-        : assetAccept(field) === 'audio/*' ? 'audio/*' : 'image/*');
-      const isVideo = mimeType.startsWith('video/');
-      const isAudio = mimeType.startsWith('audio/');
-      const label = isVideo
-        ? `视频${videoIndex++}`
-        : isAudio ? `音频${audioIndex++}` : `图${imageIndex++}`;
-      return {
-        attachmentId: id,
-        label,
-        mimeType,
-        name: asset?.name || asset?.originalFileName || label,
-        previewUrl: isAudio ? '' : resolveAssetUrl(asset?.fileUrl),
-        subtitle: field.label,
-        token: `@${label}`,
-      } satisfies MentionRichTextareaOption;
-    });
-  });
-}
-
-function assetAccept(field: CreativeCapabilityField) {
-  if (/Video/i.test(field.key)) return 'video/*';
-  if (/Audio/i.test(field.key)) return 'audio/*';
-  return 'image/*';
-}
-
-function assetLabel(field: CreativeCapabilityField) {
-  if (/Video/i.test(field.key)) return '视频';
-  if (/Audio/i.test(field.key)) return '音频';
-  return '图片';
 }
 
 function defaultGlobalParamsForCapability(
@@ -873,10 +608,10 @@ export function BatchGenerationPage() {
     return () => window.removeEventListener(appRealtimeEventNames.batchGenerationRunUpdated, handleRun);
   }, [loadAttemptAssets, loadSheet]);
 
-  function attemptForRow(rowId: string) {
+  const attemptForRow = useCallback((rowId: string) => {
     return latestRun?.attempts.find((attempt) => attempt.rowId === rowId)
       || detail?.latestAttempts.find((attempt) => attempt.rowId === rowId);
-  }
+  }, [detail?.latestAttempts, latestRun?.attempts]);
 
   function updateRowParams(rowId: string, key: string, value: unknown) {
     setRows((current) => current.map((row) => row.id === rowId
@@ -1106,458 +841,51 @@ export function BatchGenerationPage() {
     }
   }
 
-  function renderAssetField(field: CreativeCapabilityField, row: BatchRow) {
-    const storedValue = valueAt(row.params, field.key);
-    const ids = field.valueType === 'asset-list'
-      ? stringArray(storedValue)
-      : typeof storedValue === 'string' && storedValue ? [storedValue] : [];
-    const isImageField = assetAccept(field) === 'image/*';
-    const isAudioField = assetAccept(field) === 'audio/*';
-    const isVideoField = assetAccept(field) === 'video/*';
-    const maxCount = field.valueType === 'asset-list' ? (isAudioField ? 3 : MAX_REFERENCE_IMAGE_COUNT) : 1;
-    const uploadDisabled = ['queued', 'running'].includes(row.executionStatus);
-    const isUploading = uploadingCell === `${row.id}:${field.key}`;
-    if (isVideoField && field.valueType === 'asset-list') {
-      return (
-        <BatchVideoReferencePicker
-          assets={ids.flatMap((id) => assets[id] ? [assets[id]] : [])}
-          disabled={uploadDisabled}
-          ids={ids}
-          onAssetReady={(asset) => setAssets((current) => ({ ...current, [asset.id]: asset }))}
-          onChange={(nextIds) => updateRowParams(row.id, field.key, nextIds)}
-          onUpload={(file) => uploadUploadedAssets(row, field, [file])}
-        />
-      );
-    }
-    if (isAudioField && field.valueType === 'asset-list') {
-      return (
-        <BatchAudioReferencePicker
-          assets={ids.flatMap((id) => assets[id] ? [assets[id]] : [])}
-          disabled={uploadDisabled}
-          ids={ids}
-          onChange={(nextIds) => updateRowParams(row.id, field.key, nextIds)}
-          onUpload={(file) => uploadUploadedAssets(row, field, [file])}
-        />
-      );
-    }
-    if (isImageField) {
-      const canUpload = ids.length < maxCount;
-      const previewItems = ids.flatMap((id, index) => {
-        const asset = assets[id];
-        const src = resolveAssetUrl(asset?.fileUrl);
-        return src ? [{
-          alt: asset?.name || asset?.originalFileName || `${assetLabel(field)} ${index + 1}`,
-          id,
-          src,
-        }] : [];
+  const columns = useBatchGenerationColumns({
+    activeCapability,
+    assets,
+    getAttempt: attemptForRow,
+    globalParams,
+    modelOptions,
+    onAssetReady: (asset) => setAssets((current) => ({ ...current, [asset.id]: asset })),
+    onCopyRow: copyRow,
+    onHideTooltip: hideGridTooltip,
+    onOpenAssetUpload: openAssetUpload,
+    onOpenPrompt: (row, fieldKey, value, mode, anchor) => {
+      const cell = anchor.closest('.ag-cell') || anchor;
+      const rect = cell.getBoundingClientRect();
+      setActiveGridSelect(null);
+      if (mode === 'fullscreen') {
+        setActivePromptEditor({
+          anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+          fieldKey,
+          initialValue: value,
+          mode,
+          rowId: row.id,
+        });
+        return;
+      }
+      setActivePromptEditor((current) => {
+        if (current?.rowId === row.id && current.fieldKey === fieldKey) return null;
+        return {
+          anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
+          fieldKey,
+          initialValue: value,
+          mode,
+          rowId: row.id,
+        };
       });
-      return (
-        <div className="batch-generation-grid-assets">
-          {ids.map((id, index) => {
-            const asset = assets[id];
-            const src = resolveAssetUrl(asset?.fileUrl);
-            const alt = asset?.name || asset?.originalFileName || `${assetLabel(field)} ${index + 1}`;
-            return (
-              <div className="batch-generation-grid-asset" key={id}>
-                {src ? (
-                  <button
-                    aria-label={`预览${alt}`}
-                    className="batch-generation-grid-asset__preview"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setActiveAssetPreview({
-                        current: Math.max(0, previewItems.findIndex((item) => item.id === id)),
-                        items: previewItems.map((item) => ({ alt: item.alt, src: item.src })),
-                      });
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    type="button"
-                  >
-                    <img alt={alt} className="batch-generation-grid-asset__image" height={40} loading="lazy" src={src} width={40} />
-                  </button>
-                ) : <span className="batch-generation-grid-asset__placeholder"><UploadCloud size={15} /></span>}
-                {!uploadDisabled ? (
-                  <button
-                    aria-label={`移除${alt}`}
-                    className="batch-generation-grid-asset__remove"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      const nextIds = ids.filter((assetId) => assetId !== id);
-                      updateRowParams(row.id, field.key, field.valueType === 'asset-list' ? nextIds : undefined);
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    type="button"
-                  >
-                    <X size={10} strokeWidth={2.4} />
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-          {canUpload ? (
-            <div className="batch-generation-grid-asset-upload">
-              <button
-                aria-label={`添加${field.label}`}
-                className="batch-generation-grid-asset-add"
-                disabled={uploadDisabled || isUploading}
-                onClick={() => openAssetUpload(row, field, ids.length, maxCount)}
-                onPointerDown={(event) => event.stopPropagation()}
-                type="button"
-              >
-                {isUploading
-                  ? <span className="batch-generation-grid-asset-add__spinner" />
-                  : <Plus size={18} />}
-              </button>
-              {ids.length ? <span className="batch-generation-grid-asset-upload__count">{ids.length}/{maxCount}</span> : null}
-            </div>
-          ) : null}
-        </div>
-      );
-    }
-    return (
-      <Space size={6} wrap>
-        {ids.map((id) => {
-          const asset = assets[id];
-          return (
-            <Tag
-              closable={!['queued', 'running'].includes(row.executionStatus)}
-              key={id}
-              onClose={(event) => {
-                event.preventDefault();
-                const nextIds = ids.filter((assetId) => assetId !== id);
-                updateRowParams(row.id, field.key, field.valueType === 'asset-list' ? nextIds : undefined);
-              }}
-            >
-              {asset?.name || asset?.originalFileName || `${assetLabel(field)} ${ids.indexOf(id) + 1}`}
-            </Tag>
-          );
-        })}
-        {ids.length < maxCount ? (
-          <Button
-            aria-label={`添加${field.label}`}
-            disabled={uploadDisabled || isUploading}
-            icon={<UploadCloud size={15} />}
-            loading={isUploading}
-            onClick={() => openAssetUpload(row, field, ids.length, maxCount)}
-            size="small"
-            type="dashed"
-          >
-            添加
-          </Button>
-        ) : null}
-      </Space>
-    );
-  }
-
-  function renderResults(row: BatchRow) {
-    const attempt = attemptForRow(row.id);
-    if (!attempt?.outputs.length) {
-      return attempt?.errorMessage
-        ? (
-          <Typography.Text
-            onBlur={hideGridTooltip}
-            onFocus={(event) => showGridTooltip(event.currentTarget, attempt.errorMessage!)}
-            onMouseEnter={(event) => showGridTooltip(event.currentTarget, attempt.errorMessage!)}
-            onMouseLeave={hideGridTooltip}
-            tabIndex={0}
-            type="danger"
-          >
-            查看错误
-          </Typography.Text>
-        )
-        : <Typography.Text type="secondary">-</Typography.Text>;
-    }
-    return (
-      <Space size={6}>
-        {attempt.outputs.map((output) => {
-          const asset = assets[output.assetId];
-          const url = resolveAssetUrl(asset?.fileUrl);
-          if (asset?.mimeType.startsWith('image/') && url) {
-            return <Image height={36} key={output.id} src={url} width={36} />;
-          }
-          return (
-            <Button
-              disabled={!url}
-              href={url || undefined}
-              icon={<ExternalLink size={14} />}
-              key={output.id}
-              rel="noreferrer"
-              size="small"
-              target="_blank"
-              type="link"
-            >
-              查看
-            </Button>
-          );
-        })}
-      </Space>
-    );
-  }
-
-  const columns = useMemo<ColDef<BatchRow>[]>(() => {
-    const rowFields = activeCapability?.rowFields || [];
-    const rowFieldKeys = new Set(rowFields.map((field) => field.key));
-    const overrideFields = (activeCapability?.globalFields || [])
-      .filter((field) => field.overridable && !rowFieldKeys.has(field.key))
-      .map((field) => ({ ...field, isGlobalOverride: true, label: `${field.label}（覆盖）` }));
-    const businessColumns: ColDef<BatchRow>[] = [...rowFields, ...overrideFields].map((field) => {
-      const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset';
-      const isPrompt = field.key === 'prompt';
-      const effectiveValue = (row: BatchRow) => {
-        const rowValue = valueAt(row.params, field.key);
-        return rowValue === undefined && 'isGlobalOverride' in field
-          ? valueAt(globalParams, field.key)
-          : rowValue;
-      };
-      const selectOptions = field.key === 'modelConfigId'
-        ? modelOptions
-          .filter((model) => model.type === activeCapability?.mediaKind)
-          .map((model) => ({ label: model.name, value: model.id as string | number }))
-        : field.key === 'resolution' ? imageResolutionOptions
-          : field.key === 'aspectRatio' ? aspectRatioOptions
-            : field.key === 'outputCount' ? outputCountOptions
-              : field.key === 'duration' ? durationOptions
-                : [];
-      const selectLabels = new Map<string | number, string>(selectOptions.map((option) => [option.value, option.label]));
-      const valueSetter = (params: ValueSetterParams<BatchRow>) => {
-        if (!params.data) return false;
-        const nextValue = params.newValue === '' || params.newValue === null
-          ? undefined
-          : field.valueType === 'number' ? Number(params.newValue) : params.newValue;
-        updateRowParams(params.data.id, field.key, nextValue);
-        return true;
-      };
-
-      return {
-        autoHeight: isAsset || (!selectOptions.length && field.valueType === 'string'),
-        cellEditor: isPrompt ? undefined
-          : field.valueType === 'number' ? 'agNumberCellEditor'
-            : field.valueType === 'string' ? 'agLargeTextCellEditor'
-              : undefined,
-        cellEditorParams: field.valueType === 'string' && !isPrompt
-          ? { cols: 50, maxLength: 10000, rows: 6 }
-          : undefined,
-        cellEditorPopup: !isPrompt && !selectOptions.length && field.valueType === 'string',
-        cellRenderer: isPrompt
-          ? (params: ICellRendererParams<BatchRow>) => params.data ? (
-            <GridPromptCell
-              disabled={['queued', 'running'].includes(params.data.executionStatus)}
-              onFullscreen={(anchor) => {
-                const cell = anchor.closest('.ag-cell') || anchor;
-                const rect = cell.getBoundingClientRect();
-                setActiveGridSelect(null);
-                setActivePromptEditor({
-                  anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
-                  fieldKey: field.key,
-                  initialValue: String(effectiveValue(params.data!) ?? ''),
-                  mode: 'fullscreen',
-                  rowId: params.data!.id,
-                });
-              }}
-              onOpen={(anchor) => {
-                const cell = anchor.closest('.ag-cell') || anchor;
-                const rect = cell.getBoundingClientRect();
-                setActiveGridSelect(null);
-                setActivePromptEditor((current) => {
-                  if (current?.rowId === params.data!.id && current.fieldKey === field.key) return null;
-                  return {
-                    anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
-                    fieldKey: field.key,
-                    initialValue: String(effectiveValue(params.data!) ?? ''),
-                    mode: 'inline',
-                    rowId: params.data!.id,
-                  };
-                });
-              }}
-              options={promptMentionOptions(params.data, activeCapability, assets)}
-              value={String(effectiveValue(params.data) ?? '')}
-            />
-          ) : null
-          : isAsset
-          ? (params: ICellRendererParams<BatchRow>) => params.data ? renderAssetField(field, params.data) : null
-          : field.valueType === 'boolean'
-            ? (params: ICellRendererParams<BatchRow>) => params.data ? (
-              <Switch
-                checked={effectiveValue(params.data) === true}
-                disabled={['queued', 'running'].includes(params.data.executionStatus)}
-                onChange={(checked) => updateRowParams(params.data!.id, field.key, checked)}
-                size="small"
-              />
-            ) : null
-            : selectOptions.length
-              ? (params: ICellRendererParams<BatchRow>) => params.data ? (
-                <GridSelectCell
-                  disabled={['queued', 'running'].includes(params.data.executionStatus)}
-                  label={selectLabels.get(effectiveValue(params.data) as string | number)
-                    || String(effectiveValue(params.data) ?? '-')}
-                  onOpen={(anchor) => {
-                    const rect = anchor.getBoundingClientRect();
-                    setActiveGridSelect((current) => {
-                      if (current?.rowId === params.data!.id && current.fieldKey === field.key) return null;
-                      return {
-                        anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
-                        fieldKey: field.key,
-                        options: selectOptions,
-                        rowId: params.data!.id,
-                        value: valueAt(params.data!.params, field.key) as string | number | undefined,
-                      };
-                    });
-                  }}
-                />
-              ) : null
-              : undefined,
-        colId: field.key,
-        editable: (params) => Boolean(params.data)
-          && !isPrompt
-          && !isAsset
-          && field.valueType !== 'boolean'
-          && !selectOptions.length
-          && !['queued', 'running'].includes(params.data!.executionStatus),
-        headerName: `${field.label}${field.required ? ' *' : ''}`,
-        minWidth: isAsset ? 180 : 140,
-        valueFormatter: selectOptions.length
-          ? (params) => {
-            const value = params.data ? effectiveValue(params.data) : params.value;
-            return selectLabels.get(value as string | number) || String(value ?? '-');
-          }
-          : undefined,
-        valueGetter: (params) => params.data ? valueAt(params.data.params, field.key) : undefined,
-        valueSetter,
-        initialWidth: isAsset ? 240 : 300,
-        wrapText: field.valueType === 'string',
-      };
-    });
-    return [
-      {
-        cellClass: 'batch-generation-grid-index-cell',
-        colId: 'index',
-        editable: false,
-        headerClass: 'batch-generation-grid-index-header',
-        headerName: '#',
-        maxWidth: 58,
-        minWidth: 48,
-        pinned: 'left',
-        resizable: false,
-        suppressMovable: true,
-        valueGetter: (params) => (params.node?.rowIndex ?? 0) + 1,
-        initialWidth: 48,
-      },
-      ...businessColumns,
-      {
-        cellClass: 'batch-generation-grid-status-cell',
-        cellRenderer: (params: ICellRendererParams<BatchRow>) => {
-          if (!params.data) return null;
-          const status = attemptForRow(params.data.id)?.status || params.data.executionStatus;
-          const meta = statusMeta[status];
-          return (
-            <span className={`sheet-task-stats__${meta.tone}`}>
-              <span className="sheet-task-stats__dot" />
-              {meta.label}
-            </span>
-          );
-        },
-        colId: 'status',
-        editable: false,
-        headerName: '状态',
-        minWidth: 96,
-        initialWidth: 110,
-      },
-      {
-        autoHeight: true,
-        cellRenderer: (params: ICellRendererParams<BatchRow>) => params.data ? renderResults(params.data) : null,
-        colId: 'result',
-        editable: false,
-        headerName: '结果',
-        minWidth: 110,
-        initialWidth: 160,
-      },
-      {
-        cellClass: 'batch-generation-grid-credits-cell',
-        cellRenderer: (params: ICellRendererParams<BatchRow, number>) => {
-          const value = formatCreditAmount(params.value ?? 0);
-          return (
-            <span aria-label={`预计消耗 ${value} 积分`} className="batch-generation-grid-credit-value">
-              <CreditIcon />
-              {value}
-            </span>
-          );
-        },
-        colId: 'credits',
-        editable: false,
-        headerName: '消耗积分',
-        minWidth: 96,
-        valueGetter: (params) => params.data
-          ? estimatedImageCredits(params.data, activeCapability, globalParams, modelOptions)
-            ?? attemptForRow(params.data.id)?.estimatedCredits
-            ?? 0
-          : 0,
-        initialWidth: 105,
-      },
-      {
-        cellClass: 'batch-generation-grid-actions-cell',
-        cellRenderer: (params: ICellRendererParams<BatchRow>) => params.data ? (
-          <Space size={4}>
-            <Button
-              aria-label="执行此行"
-              className="batch-generation-grid-action-button batch-generation-grid-action-button--run"
-              disabled={['queued', 'running'].includes(params.data.executionStatus)}
-              icon={<Play fill="currentColor" size={14} />}
-              onBlur={hideGridTooltip}
-              onClick={() => {
-                hideGridTooltip();
-                void runRows([params.data!.id]);
-              }}
-              onFocus={(event) => showGridTooltip(event.currentTarget, '执行此行')}
-              onMouseEnter={(event) => showGridTooltip(event.currentTarget, '执行此行')}
-              onMouseLeave={hideGridTooltip}
-              size="small"
-              type="default"
-            />
-            <Button
-              aria-label="复制此行"
-              className="batch-generation-grid-action-button"
-              disabled={rows.length >= MAX_ROWS}
-              icon={<Copy size={14} />}
-              onBlur={hideGridTooltip}
-              onClick={() => {
-                hideGridTooltip();
-                void copyRow(params.data!);
-              }}
-              onFocus={(event) => showGridTooltip(event.currentTarget, '复制此行')}
-              onMouseEnter={(event) => showGridTooltip(event.currentTarget, '复制此行')}
-              onMouseLeave={hideGridTooltip}
-              size="small"
-              type="default"
-            />
-            <Popconfirm onConfirm={() => void removeRow(params.data!)} title="确认删除这一行？">
-              <Button
-                aria-label="删除"
-                className="batch-generation-grid-action-button batch-generation-grid-action-button--delete"
-                disabled={['queued', 'running'].includes(params.data.executionStatus)}
-                icon={<Trash2 size={14} />}
-                onBlur={hideGridTooltip}
-                onClick={hideGridTooltip}
-                onFocus={(event) => showGridTooltip(event.currentTarget, '删除')}
-                onMouseEnter={(event) => showGridTooltip(event.currentTarget, '删除')}
-                onMouseLeave={hideGridTooltip}
-                size="small"
-                type="default"
-              />
-            </Popconfirm>
-          </Space>
-        ) : null,
-        colId: 'actions',
-        editable: false,
-        headerName: '操作',
-        minWidth: 120,
-        pinned: 'right',
-        resizable: false,
-        suppressMovable: true,
-        initialWidth: 120,
-      },
-    ];
-  }, [activeCapability, assets, detail?.latestAttempts, detail?.sheet.id, globalParams, hideGridTooltip, latestRun, modelOptions, rows.length, showGridTooltip, uploadingCell]);
-
+    },
+    onOpenSelect: setActiveGridSelect,
+    onPreviewAssets: (current, items) => setActiveAssetPreview({ current, items }),
+    onRemoveRow: (row) => { void removeRow(row); },
+    onRunRow: (row) => { void runRows([row.id]); },
+    onShowTooltip: showGridTooltip,
+    onUpload: (row, field, files) => uploadUploadedAssets(row, field, files),
+    onUpdateRow: updateRowParams,
+    rowsLength: rows.length,
+    uploadingCell,
+  });
   const rowStats = useMemo(() => {
     const statuses = rows.map((row) => attemptForRow(row.id)?.status || row.executionStatus);
     return {
@@ -1885,106 +1213,24 @@ export function BatchGenerationPage() {
               theme={batchGridTheme}
           />
         </section>
-        {activeGridSelect ? (
-          <div
-            className="batch-generation-grid-select-anchor"
-            key={`${activeGridSelect.rowId}:${activeGridSelect.fieldKey}`}
-            style={{
-              height: activeGridSelect.anchor.height,
-              left: activeGridSelect.anchor.left,
-              top: activeGridSelect.anchor.top,
-              width: activeGridSelect.anchor.width,
-            }}
-          >
-            <Select<string | number>
-              autoFocus
-              onChange={(nextValue) => {
-                updateRowParams(
-                  activeGridSelect.rowId,
-                  activeGridSelect.fieldKey,
-                  nextValue === '' ? undefined : nextValue,
-                );
-                setActiveGridSelect(null);
-              }}
-              open
-              options={[
-                { label: '使用全局设置', value: '' },
-                ...activeGridSelect.options,
-              ]}
-              popupClassName="ag-custom-component-popup batch-generation-grid-select-popup"
-              popupMatchSelectWidth={Math.max(activeGridSelect.anchor.width, 160)}
-              value={activeGridSelect.value ?? ''}
-            />
-          </div>
-        ) : null}
-        <div
-          aria-hidden={!activePromptEditor || !activePromptRow}
-          className={`batch-generation-grid-prompt-editor${activePromptEditor?.mode === 'fullscreen' ? ' batch-generation-grid-prompt-editor--fullscreen' : ''}${activePromptEditor && activePromptRow ? '' : ' batch-generation-grid-prompt-editor--hidden'}`}
-          role={activePromptEditor?.mode === 'fullscreen' ? 'dialog' : undefined}
-          style={activePromptEditor && activePromptRow ? {
-            height: activePromptEditor.mode === 'fullscreen' ? 380 : undefined,
-            left: activePromptEditor.mode === 'fullscreen'
-              ? Math.max(12, Math.min(activePromptEditor.anchor.left + 8, window.innerWidth - 532))
-              : activePromptEditor.anchor.left,
-            top: activePromptEditor.mode === 'fullscreen'
-              ? Math.max(12, Math.min(activePromptEditor.anchor.top + 8, window.innerHeight - 392))
-              : activePromptEditor.anchor.top,
-            width: activePromptEditor.mode === 'fullscreen' ? 520 : activePromptEditor.anchor.width,
-          } : undefined}
-        >
-          {activePromptEditor?.mode === 'fullscreen' ? (
-            <header className="batch-generation-grid-prompt-editor__header">
-              <div>
-                <strong>编辑提示词</strong>
-                <span><kbd>Ctrl / Cmd + Enter</kbd> 保存</span>
-                <span><kbd>Esc</kbd> 取消</span>
-              </div>
-              <button aria-label="取消编辑" onClick={() => closePromptEditor(true)} type="button"><X size={18} /></button>
-            </header>
-          ) : null}
-          <div className="batch-generation-grid-prompt-editor__body">
-            <MentionRichTextarea
-              editorClassName="batch-generation-grid-prompt-editor__content"
-              emptyText="暂无可引用素材"
-              enableHardBreak
-              menuTitle="可引用素材"
-              minHeight={activePromptEditor?.mode === 'fullscreen' ? 0 : activePromptEditor?.anchor.height ?? 0}
-              minRows={1}
-              onChange={(value) => {
-                if (activePromptRow && activePromptEditor) {
-                  updateRowParams(activePromptRow.id, activePromptEditor.fieldKey, value);
-                }
-              }}
-              options={activePromptOptions}
-              placeholder="输入提示词，使用 @ 引用素材"
-              ref={promptEditorRef}
-              suggestionContainer="body"
-              value={activePromptValue}
-            />
-          </div>
-          {activePromptEditor?.mode === 'fullscreen' ? (
-            <footer className="batch-generation-grid-prompt-editor__footer">
-              <span>{activePromptValue.length} 字</span>
-              <div>
-                <Button onClick={() => closePromptEditor(true)}>取消</Button>
-                <Button onClick={() => closePromptEditor()} type="primary">保存</Button>
-              </div>
-            </footer>
-          ) : null}
-        </div>
-        {activeGridTooltip ? (
-          <Tooltip open placement="top" title={activeGridTooltip.title}>
-            <span
-              className="batch-generation-grid-tooltip-anchor"
-              style={{
-                height: activeGridTooltip.anchor.height,
-                left: activeGridTooltip.anchor.left,
-                top: activeGridTooltip.anchor.top,
-                width: activeGridTooltip.anchor.width,
-              }}
-            />
-          </Tooltip>
-        ) : null}
+        <GridSelectOverlay
+          activeSelect={activeGridSelect}
+          onChange={(rowId, fieldKey, value) => {
+            updateRowParams(rowId, fieldKey, value);
+            setActiveGridSelect(null);
+          }}
+        />
+        <GridPromptEditorOverlay
+          activeEditor={activePromptEditor}
+          activeRow={activePromptRow}
+          editorRef={promptEditorRef}
+          onCancel={() => closePromptEditor(true)}
+          onChange={updateRowParams}
+          onSave={() => closePromptEditor()}
+          options={activePromptOptions}
+          value={activePromptValue}
+        />
+        <GridTooltipOverlay tooltip={activeGridTooltip} />
         <input hidden onChange={handleAssetInputChange} ref={assetInputRef} type="file" />
         {activeAssetPreview ? (
           <AppImage.PreviewGroup

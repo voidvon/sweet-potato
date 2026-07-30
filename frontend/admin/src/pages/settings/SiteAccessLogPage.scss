@@ -15,8 +15,13 @@
   justify-content: flex-start;
 }
 
-.site-access-log-ip-filter {
+.site-access-log-ip-filter,
+.site-access-log-username-filter {
   width: 220px;
+}
+
+.site-access-log-method-filter {
+  width: 140px;
 }
 
 .site-access-log-request {
@@ -45,7 +50,9 @@
     flex-direction: column;
   }
 
-  .site-access-log-ip-filter {
+  .site-access-log-ip-filter,
+  .site-access-log-username-filter,
+  .site-access-log-method-filter {
     width: min(100%, 280px);
   }
 }

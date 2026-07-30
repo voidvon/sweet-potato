@@ -45,13 +45,23 @@ export const siteAccessLogRepository = {
     `).run(record);
   },
 
-  list(input: { page: number; pageSize: number; ip: string }) {
+  list(input: { page: number; pageSize: number; ip: string; username: string; method: string }) {
     const offset = (input.page - 1) * input.pageSize;
+    const params = {
+      ip: input.ip,
+      username: input.username,
+      usernamePattern: `%${input.username.toLowerCase()}%`,
+      method: input.method,
+      pageSize: input.pageSize,
+      offset,
+    };
     const totalRow = db.prepare(`
       SELECT COUNT(*) AS total
       FROM site_access_logs
-      WHERE @ip = '' OR ip = @ip
-    `).get({ ip: input.ip }) as { total: number };
+      WHERE (@ip = '' OR ip = @ip)
+        AND (@username = '' OR LOWER(username) LIKE @usernamePattern)
+        AND (@method = '' OR method = @method)
+    `).get(params) as { total: number };
     const rows = db.prepare(`
       SELECT * FROM (
         SELECT
@@ -72,10 +82,12 @@ export const siteAccessLogRepository = {
           ) AS access_count
         FROM site_access_logs
       ) detailed_logs
-      WHERE @ip = '' OR ip = @ip
+      WHERE (@ip = '' OR ip = @ip)
+        AND (@username = '' OR LOWER(username) LIKE @usernamePattern)
+        AND (@method = '' OR method = @method)
       ORDER BY accessed_at DESC, id DESC
       LIMIT @pageSize OFFSET @offset
-    `).all({ ip: input.ip, pageSize: input.pageSize, offset }) as SiteAccessLogRow[];
+    `).all(params) as SiteAccessLogRow[];
 
     return {
       items: rows.map((row) => ({
