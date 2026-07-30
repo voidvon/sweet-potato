@@ -338,7 +338,7 @@ export function recordVideoGenerationUsageIfNeeded(input: {
   const provider = resolveConfiguredVideoProvider(config);
   const modelOption = resolveConfiguredVideoOption(provider, config, input.modelId);
   const billedDurationSeconds = input.durationSeconds && input.durationSeconds > 0
-    ? Math.round(input.durationSeconds)
+    ? Math.ceil(input.durationSeconds)
     : input.duration
       ? seedanceDurationSeconds(input.duration, modelOption, config.settings)
       : modelOption.durationPolicy.defaultSeconds;

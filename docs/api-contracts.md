@@ -25,6 +25,7 @@
 - `GET /api/batch-generation/events`：SSE；同一用户会收到 `run` 事件，payload 为最新 Run 详情，可用于行状态、统计和结果即时刷新。
 - `POST /api/batch-generation/assets/upload`：上传当前表格的图片、视频或音频参考素材，使用 `multipart/form-data` 的 `file`、`sheetId` 和 `fieldKey` 字段。
 - `GET /api/batch-generation/assets/:assetId`：读取当前用户拥有的批量参考素材或结果素材元数据。
+- `GET /api/batch-generation/assets/:assetId/video-upscale-estimate`：按当前高清放大固定价格和该视频素材的 VOD 上传大小返回 `{ estimatedCredits }`；批量页在视频上传或回填后调用，用于即时刷新消耗积分。
 - `revision` 不匹配时返回 `409`；资源不存在或不属于当前用户时返回 `404`。
 - 图片能力现已接入异步执行：Attempt 会冻结合并后的行/全局参数和不含 API Key 的模型身份快照；图片结果写入 `content_assets` 后作为 Output 关联。图片计费来源标记为 `batch_generation`。
 - 批量调度在单服务进程内最多并发执行 2 个 Attempt；服务启动时会恢复 queued/running Run。供应商调用按同一 Attempt ID 恢复，调用方仍应把执行视为至少一次语义。

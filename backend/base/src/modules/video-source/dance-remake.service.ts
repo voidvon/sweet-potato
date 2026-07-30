@@ -96,16 +96,12 @@ async function prepareDanceRemake(
         ? await materializeRemoteVideo({ ...input.remoteVideo, userId: input.userId })
         : null;
     if (!videoAsset) throw new VideoSourceError('请选择参考视频');
-    const duration = await probeDuration(videoAsset.filePath);
-    const durationSeconds = billedReferenceVideoDurationSeconds(duration);
-    const settings = getBillingSettings();
-    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
-    const price = resolveDanceRemakePrice({
-      durationSeconds,
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: videoAsset.filePath,
       quality: generationOptions.quality,
-      settings,
       videoModelId: generationOptions.videoModelId,
     });
+    const { durationSeconds } = price;
     const billingSourceId = `dance-remake:${randomUUID()}`;
     const reservation = reserveFixedBillableUsage({
       userId: input.userId,
@@ -241,6 +237,25 @@ export function resolveDanceRemakePrice(input: {
       400,
     );
   }
+}
+
+export async function estimateDanceRemakeAssetPrice(input: {
+  filePath: string;
+  quality: string;
+  videoModelId: string;
+}) {
+  const settings = getBillingSettings();
+  if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
+  const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(input.filePath));
+  return {
+    durationSeconds,
+    ...resolveDanceRemakePrice({
+      durationSeconds,
+      quality: input.quality,
+      settings,
+      videoModelId: input.videoModelId,
+    }),
+  };
 }
 
 function ownAsset(id: string, userId: string, kind: 'image' | 'video') {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { trimReferenceVideo, type TrimReferenceVideoResult } from '../api/content';
 import { resolveAssetUrl } from '../api/request';
 import type { ContentAsset } from '../types';
+import { BatchVideoThumbnail } from './BatchVideoThumbnail';
 import { TrimReferenceVideoModal, type TrimSelection } from '../pages/content/VideoTaskClonePage/components/TrimReferenceVideoModal';
 import { ReferenceVideoPreviewModal } from '../pages/content/VideoTaskClonePage/components/ReferenceVideoPreviewModal';
 import type { ConfirmedReferenceVideo } from '../pages/content/VideoTaskClonePage/components/ReferenceVideoCard';
@@ -182,18 +183,7 @@ export function BatchVideoReferencePicker({
           return (
             <div className="batch-generation-grid-asset" key={asset.id}>
               {preview ? (
-                <button
-                  aria-label={`预览${alt}`}
-                  className="batch-generation-grid-asset__preview"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setPreviewVideo(preview);
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  type="button"
-                >
-                  <video aria-label={alt} className="batch-generation-grid-asset__image" muted playsInline preload="metadata" src={src} />
-                </button>
+                <BatchVideoThumbnail alt={alt} onPreview={() => setPreviewVideo(preview)} src={src} />
               ) : <span className="batch-generation-grid-asset__placeholder"><UploadCloud size={15} /></span>}
               {duration ? <span className="batch-generation-grid-asset__duration">{formatDuration(duration)}</span> : null}
               <button aria-label={`移除${alt}`} className="batch-generation-grid-asset__remove" onClick={(event) => { event.stopPropagation(); removeAsset(asset.id); }} onPointerDown={(event) => event.stopPropagation()} type="button"><X size={10} strokeWidth={2.4} /></button>

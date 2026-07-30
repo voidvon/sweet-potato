@@ -1,7 +1,6 @@
 import {
   estimateVideoGenerationPrice,
   estimateVideoUpscaleCredits,
-  estimateVodUploadCredits,
 } from '../billing/billing.service.js';
 import { contentRepository } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
@@ -16,7 +15,10 @@ import { pollVideoEnhancementTask } from '../content/internals/content-video-enh
 import { generationResultForTask, pollRunningVideoGenerationTask } from '../content/internals/content-video-task-runtime.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
-import { danceRemakeService } from '../video-source/dance-remake.service.js';
+import {
+  danceRemakeService,
+  estimateDanceRemakeAssetPrice,
+} from '../video-source/dance-remake.service.js';
 import { danceRemakeDefaults, normalizeDanceRemakeQuality } from '../video-source/dance-remake.config.js';
 import { normalizeSeedanceVideoQuality } from '../video-source/seedance-video.config.js';
 import {
@@ -252,7 +254,7 @@ const videoUpscaleExecutor: CreativeCapabilityExecutor = {
       modelConfigSnapshot: {
         videoEnhancement: { model: 'moe-aigc-enhance', provider: 'volcengine-vod', resolution: '1080p' },
       },
-      estimatedCredits: estimateVideoUpscaleCredits() + estimateVodUploadCredits(sourceAsset.fileSize || 0),
+      estimatedCredits: estimateVideoUpscaleCredits(),
     };
   },
 
@@ -277,7 +279,7 @@ const videoUpscaleExecutor: CreativeCapabilityExecutor = {
     if (!assetId) throw new Error('视频高清放大已完成，但未找到结果资产');
     return {
       outputAssetIds: [assetId],
-      creditCost: prepared.estimatedCredits,
+      creditCost: Number(completedTask.creditCost ?? prepared.estimatedCredits),
       metadata: {
         resolution: '1080p',
         sourceAssetId,
@@ -289,7 +291,7 @@ const videoUpscaleExecutor: CreativeCapabilityExecutor = {
 };
 
 const videoDanceRemakeExecutor: CreativeCapabilityExecutor = {
-  prepare(context, params) {
+  async prepare(context, params) {
     const mode = params.danceRemakeMode === 'enhanced' ? 'enhanced' : 'standard';
     const characterImageAssetId = stringValue(params.characterImageAssetId);
     const [referenceVideoAssetId] = stringArray(params.referenceVideoIds);
@@ -314,6 +316,11 @@ const videoDanceRemakeExecutor: CreativeCapabilityExecutor = {
       ? danceRemakeDefaults.standardQuality
       : normalizeDanceRemakeQuality(params.quality);
     const preserveAudio = mode === 'standard' || params.preserveAudio !== false;
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: contentRepository.findAsset(referenceVideoAssetId)!.filePath,
+      quality,
+      videoModelId,
+    });
     return {
       effectiveParams: {
         characterImageAssetId,
@@ -327,7 +334,7 @@ const videoDanceRemakeExecutor: CreativeCapabilityExecutor = {
       modelConfigSnapshot: {
         danceRemake: { mode, quality, videoModelId },
       },
-      estimatedCredits: 0,
+      estimatedCredits: price.credits,
     };
   },
 
@@ -377,7 +384,7 @@ const subjectImageFields: Record<SubjectReplaceType, string[]> = {
 };
 
 const videoSubjectReplaceExecutor: CreativeCapabilityExecutor = {
-  prepare(context, params) {
+  async prepare(context, params) {
     const subjectType = isSubjectReplaceType(params.subjectReplaceType)
       ? params.subjectReplaceType
       : subjectReplaceDefaults.subjectType;
@@ -407,6 +414,11 @@ const videoSubjectReplaceExecutor: CreativeCapabilityExecutor = {
     const videoModelId = stringValue(params.videoModelId) || subjectReplaceDefaults.videoModelId;
     const quality = normalizeSeedanceVideoQuality(params.quality);
     const preserveAudio = params.preserveAudio !== false;
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: contentRepository.findAsset(referenceVideoAssetId)!.filePath,
+      quality,
+      videoModelId,
+    });
     return {
       effectiveParams: {
         imageAssetIds,
@@ -419,7 +431,7 @@ const videoSubjectReplaceExecutor: CreativeCapabilityExecutor = {
       modelConfigSnapshot: {
         subjectReplace: { quality, subjectType, videoModelId },
       },
-      estimatedCredits: 0,
+      estimatedCredits: price.credits,
     };
   },
 

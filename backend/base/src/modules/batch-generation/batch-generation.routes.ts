@@ -8,7 +8,7 @@ import { dataDir } from '../../db/database.js';
 import { requirePermission } from '../../shared/auth.middleware.js';
 import { sendError } from '../../shared/http.js';
 import { batchRequestSettingsService } from '../batch-request-settings/batch-request-settings.service.js';
-import { imageGenerationCreditsPerRequest } from '../billing/billing.service.js';
+import { estimateVideoUpscaleCredits, imageGenerationCreditsPerRequest } from '../billing/billing.service.js';
 import { contentRepository } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
 import {
@@ -20,6 +20,8 @@ import {
 import { listCreativeCapabilities } from '../creative-capabilities/creative-capability.registry.js';
 import { getImageGenerationModeSchema } from '../chat/capabilities/image-generation.workflow.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
+import { estimateDanceRemakeAssetPrice } from '../video-source/dance-remake.service.js';
+import { isSeedanceVideoModelId, normalizeSeedanceVideoQuality } from '../video-source/seedance-video.config.js';
 import { batchGenerationRunService } from './batch-generation-run.service.js';
 import {
   BatchGenerationConflictError,
@@ -162,6 +164,52 @@ export function createBatchGenerationRouter() {
       return;
     }
     res.json(asset);
+  });
+
+  router.get('/assets/:assetId/video-upscale-estimate', (req, res) => {
+    const asset = contentRepository.findAsset(req.params.assetId);
+    if (!asset || asset.userId !== userIdOf(req)) {
+      sendError(res, 404, '素材不存在');
+      return;
+    }
+    if (!asset.mimeType.startsWith('video/')) {
+      sendError(res, 400, '请选择视频素材进行高清放大');
+      return;
+    }
+    try {
+      res.json({ estimatedCredits: estimateVideoUpscaleCredits() });
+    } catch (error) {
+      sendBatchError(res, error, '预计积分计算失败');
+    }
+  });
+
+  router.post('/assets/:assetId/video-source-estimate', (req, res) => {
+    void (async () => {
+      const asset = contentRepository.findAsset(req.params.assetId);
+      if (!asset || asset.userId !== userIdOf(req)) {
+        sendError(res, 404, '素材不存在');
+        return;
+      }
+      if (!asset.mimeType.startsWith('video/')) {
+        sendError(res, 400, '请选择参考视频');
+        return;
+      }
+      const videoModelId = String(req.body.videoModelId || '').trim();
+      if (!isSeedanceVideoModelId(videoModelId)) {
+        sendError(res, 400, '当前模型不支持该功能');
+        return;
+      }
+      try {
+        const price = await estimateDanceRemakeAssetPrice({
+          filePath: asset.filePath,
+          quality: normalizeSeedanceVideoQuality(req.body.quality),
+          videoModelId,
+        });
+        res.json({ estimatedCredits: price.credits });
+      } catch (error) {
+        sendBatchError(res, error, '预计积分计算失败');
+      }
+    })();
   });
 
   router.get('/sheets', (req, res) => {

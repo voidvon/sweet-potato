@@ -5,7 +5,7 @@ import {
   themeQuartz,
 } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
-import { useSearchParams } from 'react-router-dom';
+import { useBlocker, useSearchParams } from 'react-router-dom';
 import {
   Button,
   Dropdown,
@@ -23,6 +23,7 @@ import {
   message,
 } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
+import { formatCreditAmount } from '@shared/utils/credits';
 import {
   ChevronDown,
   Columns3,
@@ -39,6 +40,8 @@ import {
   deleteBatchSheet,
   getBatchRun,
   getBatchGenerationAsset,
+  getBatchVideoUpscaleEstimate,
+  getBatchVideoSourceEstimate,
   getBatchSheet,
   listBatchCapabilities,
   listBatchGenerationModelOptions,
@@ -119,6 +122,7 @@ import {
   promptMentionOptions,
   stringArray,
   valueAt,
+  videoSourceEstimateInput,
 } from './batch-generation/batchGenerationGrid.utils';
 import { useBatchGenerationColumns } from './batch-generation/useBatchGenerationColumns';
 import './BatchGenerationPage.scss';
@@ -463,6 +467,8 @@ export function BatchGenerationPage() {
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [latestRun, setLatestRun] = useState<BatchRunDetail | null>(null);
   const [assets, setAssets] = useState<Record<string, ContentAsset>>({});
+  const [videoUpscaleEstimates, setVideoUpscaleEstimates] = useState<Record<string, number>>({});
+  const [videoSourceEstimates, setVideoSourceEstimates] = useState<Record<string, number>>({});
   const [modelOptions, setModelOptions] = useState<BatchGenerationModelOption[]>([]);
   const [videoModelProviders, setVideoModelProviders] = useState<VideoModelProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -581,6 +587,9 @@ export function BatchGenerationPage() {
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId);
   const selectedRows = rows.filter((row) => selectedRowIds.includes(row.id));
   const hasUnsavedChanges = globalDirty || dirtyRowIds.length > 0;
+  const routeBlocker = useBlocker(({ currentLocation, nextLocation }) => (
+    hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  ));
   const switchingSheet = Boolean(switchingSheetRequest);
   const activePromptRow = activePromptEditor
     ? rows.find((row) => row.id === activePromptEditor.rowId)
@@ -591,6 +600,53 @@ export function BatchGenerationPage() {
   const activePromptValue = activePromptRow && activePromptEditor
     ? String(valueAt(activePromptRow.params, activePromptEditor.fieldKey) ?? '')
     : '';
+
+  useEffect(() => {
+    if (activeCapability?.key !== 'video.upscale') return;
+    const assetIds = [...new Set(rows.flatMap((row) => stringArray(valueAt(row.params, 'referenceVideoIds'))))];
+    const missingIds = assetIds.filter((assetId) => videoUpscaleEstimates[assetId] === undefined);
+    if (!missingIds.length) return;
+    let canceled = false;
+    void Promise.all(missingIds.map(async (assetId) => {
+      try {
+        const estimate = await getBatchVideoUpscaleEstimate(assetId);
+        return [assetId, estimate.estimatedCredits] as const;
+      } catch {
+        return [assetId, 0] as const;
+      }
+    })).then((estimates) => {
+      if (canceled) return;
+      setVideoUpscaleEstimates((current) => ({
+        ...current,
+        ...Object.fromEntries(estimates),
+      }));
+    });
+    return () => { canceled = true; };
+  }, [activeCapability?.key, rows, videoUpscaleEstimates]);
+
+  useEffect(() => {
+    if (!['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) return;
+    const inputs = rows
+      .map((row) => videoSourceEstimateInput(row, activeCapability?.key, globalParams))
+      .filter((input): input is NonNullable<typeof input> => Boolean(input));
+    const missingInputs = [...new Map(inputs
+      .filter((input) => videoSourceEstimates[input.cacheKey] === undefined)
+      .map((input) => [input.cacheKey, input])).values()];
+    if (!missingInputs.length) return;
+    let canceled = false;
+    void Promise.all(missingInputs.map(async (input) => {
+      try {
+        const estimate = await getBatchVideoSourceEstimate(input);
+        return [input.cacheKey, estimate.estimatedCredits] as const;
+      } catch {
+        return [input.cacheKey, 0] as const;
+      }
+    })).then((estimates) => {
+      if (canceled) return;
+      setVideoSourceEstimates((current) => ({ ...current, ...Object.fromEntries(estimates) }));
+    });
+    return () => { canceled = true; };
+  }, [activeCapability?.key, globalParams, rows, videoSourceEstimates]);
 
   const loadAssetsById = useCallback(async (ids: string[]) => {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -738,6 +794,15 @@ export function BatchGenerationPage() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (routeBlocker.state !== 'blocked') return;
+    if (window.confirm('当前页面有未保存的修改，确定离开吗？')) {
+      routeBlocker.proceed();
+      return;
+    }
+    routeBlocker.reset();
+  }, [routeBlocker]);
 
   useEffect(() => () => {
     if (sheetSwitchFrameRef.current !== null) cancelAnimationFrame(sheetSwitchFrameRef.current);
@@ -1323,6 +1388,8 @@ export function BatchGenerationPage() {
     rows,
     rowsLength: rows.length,
     uploadingCell,
+    videoSourceEstimates,
+    videoUpscaleEstimates,
   });
   const configuredGridWidth = useMemo(() => columns.reduce(
     (total, column) => total + (column.initialWidth ?? column.width ?? 200),
@@ -1814,7 +1881,7 @@ export function BatchGenerationPage() {
         <span className="sheet-task-stats__processing"><span className="sheet-task-stats__dot" />处理中 <strong>{rowStats.processing}</strong></span>
         <span className="sheet-task-stats__failed"><span className="sheet-task-stats__dot" />失败 <strong>{rowStats.failed}</strong></span>
         <span className="sheet-task-stats__pending"><span className="sheet-task-stats__dot" />待提交 <strong>{rowStats.pending}</strong></span>
-        <i /><span>累计消耗 <strong>{detail?.stats.actualCredits || 0}</strong> 积分</span>
+        <i /><span>累计消耗 <strong>{formatCreditAmount(detail?.stats.actualCredits || 0)}</strong> 积分</span>
         {hasUnsavedChanges ? <><i /><span className="sheet-task-stats__unsaved">有未保存的改动</span></> : null}
       </footer>
     </main>

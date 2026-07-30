@@ -225,3 +225,23 @@ export function uploadBatchGenerationAsset(payload: {
 export function getBatchGenerationAsset(assetId: string) {
   return request<ContentAsset>(`${basePath}/assets/${encodeURIComponent(assetId)}`);
 }
+
+export function getBatchVideoUpscaleEstimate(assetId: string) {
+  return request<{ estimatedCredits: number }>(
+    `${basePath}/assets/${encodeURIComponent(assetId)}/video-upscale-estimate`,
+  );
+}
+
+export function getBatchVideoSourceEstimate(payload: {
+  assetId: string;
+  quality: string;
+  videoModelId: string;
+}) {
+  return request<{ estimatedCredits: number }>(
+    `${basePath}/assets/${encodeURIComponent(payload.assetId)}/video-source-estimate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ quality: payload.quality, videoModelId: payload.videoModelId }),
+    },
+  );
+}

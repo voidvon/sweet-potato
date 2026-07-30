@@ -48,7 +48,9 @@ import {
   imageResolutionOptions,
   outputCountOptions,
   promptMentionOptions,
+  stringArray,
   valueAt,
+  videoSourceEstimateInput,
 } from './batchGenerationGrid.utils'
 
 const MAX_ROWS = 200
@@ -100,6 +102,8 @@ type UseBatchGenerationColumnsOptions = {
   rows: BatchRow[]
   rowsLength: number
   uploadingCell: string
+  videoUpscaleEstimates: Record<string, number>
+  videoSourceEstimates: Record<string, number>
 }
 
 export function useBatchGenerationColumns({
@@ -125,6 +129,8 @@ export function useBatchGenerationColumns({
   rows,
   rowsLength,
   uploadingCell,
+  videoUpscaleEstimates,
+  videoSourceEstimates,
 }: UseBatchGenerationColumnsOptions) {
   const actionsRef = useRef({
     onAssetReady,
@@ -550,7 +556,12 @@ export function useBatchGenerationColumns({
         headerName: '消耗积分',
         minWidth: 80,
         valueGetter: (params) => params.data
-          ? estimatedImageCredits(params.data, activeCapability, globalParams, modelOptions)
+          ? (activeCapability?.key === 'video.upscale'
+            ? videoUpscaleEstimates[stringArray(valueAt(params.data.params, 'referenceVideoIds'))[0] || '']
+            : ['completed', 'partial_failed'].includes(getAttempt(params.data.id)?.status || '')
+              ? getAttempt(params.data.id)?.actualCredits
+              : videoSourceEstimates[videoSourceEstimateInput(params.data, activeCapability?.key, globalParams)?.cacheKey || ''])
+            ?? estimatedImageCredits(params.data, activeCapability, globalParams, modelOptions)
             ?? getAttempt(params.data.id)?.estimatedCredits
             ?? 0
           : 0,
@@ -590,5 +601,7 @@ export function useBatchGenerationColumns({
     rows,
     rowsLength,
     uploadingCell,
+    videoSourceEstimates,
+    videoUpscaleEstimates,
   ])
 }

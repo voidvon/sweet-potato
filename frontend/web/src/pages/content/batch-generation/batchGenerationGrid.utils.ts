@@ -12,6 +12,11 @@ import type {
 import { resolveAssetUrl } from '../../../api/request'
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea'
 import type { ContentAsset } from '../../../types'
+import {
+  danceRemakeDefaults,
+  subjectReplaceDefaults,
+  videoModelDefinitions,
+} from '../shared/videoGenerationOptions'
 
 export const MAX_REFERENCE_IMAGE_COUNT = 8
 export const imageResolutionOptions = [
@@ -46,6 +51,45 @@ export function valueAt(params: Record<string, unknown>, key: string) {
 
 export function stringArray(value: unknown) {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : []
+}
+
+export type VideoSourceEstimateInput = {
+  assetId: string
+  cacheKey: string
+  quality: string
+  videoModelId: string
+}
+
+export function videoSourceEstimateInput(
+  row: BatchRow,
+  capabilityKey: string | undefined,
+  globalParams: Record<string, unknown>,
+): VideoSourceEstimateInput | undefined {
+  if (!['video.dance_remake', 'video.subject_replace'].includes(capabilityKey || '')) return undefined
+  const assetId = stringArray(valueAt(row.params, 'referenceVideoIds') ?? globalParams.referenceVideoIds)[0]
+  if (!assetId) return undefined
+
+  let quality: string
+  let videoModelId: string
+  if (capabilityKey === 'video.dance_remake') {
+    const mode = valueAt(row.params, 'danceRemakeMode') ?? globalParams.danceRemakeMode
+    if (mode !== 'enhanced') {
+      quality = '480P'
+      videoModelId = videoModelDefinitions[2].id
+    } else {
+      quality = String(valueAt(row.params, 'quality') ?? globalParams.quality ?? danceRemakeDefaults.quality)
+      videoModelId = String(valueAt(row.params, 'videoModelId') ?? globalParams.videoModelId ?? danceRemakeDefaults.videoModelId)
+    }
+  } else {
+    quality = String(valueAt(row.params, 'quality') ?? globalParams.quality ?? subjectReplaceDefaults.quality)
+    videoModelId = String(valueAt(row.params, 'videoModelId') ?? globalParams.videoModelId ?? subjectReplaceDefaults.videoModelId)
+  }
+  return {
+    assetId,
+    cacheKey: [assetId, videoModelId, quality].join('|'),
+    quality,
+    videoModelId,
+  }
 }
 
 export function assetAccept(field: CreativeCapabilityField) {

@@ -1,16 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import {
-  getBillingSettings,
   releaseReservedFixedBillableUsage,
   reserveFixedBillableUsage,
 } from '../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
 import {
-  billedReferenceVideoDurationSeconds,
+  estimateDanceRemakeAssetPrice,
   materializeRemoteVideo,
-  probeDuration,
-  resolveDanceRemakePrice,
 } from './dance-remake.service.js';
 import { VideoSourceError } from './video-source.types.js';
 import { isSeedanceVideoModelId } from './seedance-video.config.js';
@@ -108,15 +105,12 @@ async function prepareSubjectReplace(
         updatedAt: new Date().toISOString(),
       },
     });
-    const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(video.filePath));
-    const settings = getBillingSettings();
-    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
-    const price = resolveDanceRemakePrice({
-      durationSeconds,
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: video.filePath,
       quality: input.quality,
-      settings,
       videoModelId: input.videoModelId,
     });
+    const { durationSeconds } = price;
     const billingSourceId = `subject-replace:${randomUUID()}`;
     const reservation = reserveFixedBillableUsage({
       userId: input.userId,
