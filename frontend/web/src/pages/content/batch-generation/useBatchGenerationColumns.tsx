@@ -144,6 +144,8 @@ export function useBatchGenerationColumns({
     const businessColumns: ColDef<BatchRow>[] = businessFields.map((field) => {
       const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset'
       const isPrompt = field.key === 'prompt'
+      const isOutfitAsset = activeCapability?.key === 'image.outfit'
+        && ['referenceGroups.model', 'referenceGroups.clothes'].includes(field.key)
       const isVideoAspectRatio = activeCapability?.mediaKind === 'video' && field.key === 'aspectRatio'
       const initialWidth = isPrompt
         ? 560
@@ -281,7 +283,7 @@ export function useBatchGenerationColumns({
           && !selectOptions.length
           && !['queued', 'running', 'completed'].includes(params.data!.executionStatus),
         headerName: `${isVideoAspectRatio ? '画布' : field.label}${field.required ? ' *' : ''}`,
-        minWidth: field.key === 'aspectRatio' ? 130 : field.key === 'outputCount' ? 80 : isAsset ? 180 : 140,
+        minWidth: isOutfitAsset ? 202 : field.key === 'aspectRatio' ? 130 : field.key === 'outputCount' ? 80 : isAsset ? 180 : 140,
         valueFormatter: selectOptions.length
           ? (params) => {
             const value = params.data ? effectiveValue(params.data) : params.value
@@ -291,6 +293,7 @@ export function useBatchGenerationColumns({
         valueGetter: (params) => params.data ? valueAt(params.data.params, field.key) : undefined,
         valueSetter,
         initialWidth,
+        width: isOutfitAsset ? 202 : undefined,
         wrapText: field.valueType === 'string',
       }
     })

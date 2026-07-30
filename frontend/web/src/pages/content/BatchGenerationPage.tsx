@@ -24,7 +24,6 @@ import {
 } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import {
-  Check,
   ChevronDown,
   Columns3,
   Copy,
@@ -644,6 +643,16 @@ export function BatchGenerationPage() {
 
   useEffect(() => { void loadInitialData(); }, []);
 
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   useEffect(() => () => {
     if (sheetSwitchFrameRef.current !== null) cancelAnimationFrame(sheetSwitchFrameRef.current);
     if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
@@ -833,8 +842,15 @@ export function BatchGenerationPage() {
     setActivePromptEditor(null);
   }
 
-  async function saveChanges() {
-    if (!detail) return false;
+  async function saveChanges({
+    notify = true,
+    reload = true,
+  }: {
+    notify?: boolean;
+    reload?: boolean;
+  } = {}) {
+    if (!detail) return null;
+    const savedRowIds = new Map(rows.map((row) => [row.id, row.id]));
     setSaving(true);
     try {
       if (globalDirty) {
@@ -854,15 +870,16 @@ export function BatchGenerationPage() {
       for (const row of rows.filter(isLocalRow)) {
         const [created] = await addBatchRows(detail.sheet.id, [row.params], row.position);
         if (!created) throw new Error('新增行保存失败');
+        savedRowIds.set(row.id, created.id);
         setRows((current) => withRowPositions(current.map((item) => item.id === row.id ? created : item)));
         setDirtyRowIds((current) => current.filter((id) => id !== row.id));
       }
-      await loadSheet(detail.sheet.id);
-      message.success('已保存');
-      return true;
+      if (reload) await loadSheet(detail.sheet.id);
+      if (notify) message.success('已保存');
+      return savedRowIds;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存失败');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -929,21 +946,29 @@ export function BatchGenerationPage() {
   async function runRows(rowIds?: string[], source: 'batch' | 'row' = 'batch') {
     if (!detail) return;
     if (hasUnsavedChanges) {
-      message.warning('请先保存当前改动再执行');
-      return;
+      if (source === 'batch') {
+        message.warning('请先保存当前改动再执行');
+        return;
+      }
+      const savedRowIds = await saveChanges({ notify: false, reload: false });
+      if (!savedRowIds) return;
+      rowIds = rowIds?.map((rowId) => savedRowIds.get(rowId) || rowId);
     }
     const requestedRowIds = new Set(rowIds?.length ? rowIds : rows.map((row) => row.id));
     const targetRows = rows.filter((row) => requestedRowIds.has(row.id)
-      && (source === 'row' || BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row))));
-    if (!targetRows.length) {
+      && BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row)));
+    const targetRowIds = source === 'row'
+      ? requestedRowIds
+      : new Set(targetRows.map((row) => row.id));
+    if (!targetRowIds.size) {
       if (source === 'batch') message.warning('没有可批量执行的待提交或失败项');
       return;
     }
-    const targetRowIds = new Set(targetRows.map((row) => row.id));
-    const previousStatuses = new Map(
-      rows
-        .filter((row) => targetRowIds.has(row.id))
-        .map((row) => [row.id, row.executionStatus] as const),
+    const previousStatuses = new Map<string, BatchRow['executionStatus']>(
+      [...targetRowIds].map((rowId) => [
+        rowId,
+        rows.find((row) => row.id === rowId)?.executionStatus || 'idle',
+      ]),
     );
     setActiveGridCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
     setActiveGridSelect((current) => current && targetRowIds.has(current.rowId) ? null : current);
@@ -956,7 +981,7 @@ export function BatchGenerationPage() {
       const run = await startBatchRun(detail.sheet.id, [...targetRowIds]);
       setLatestRun(run);
       message.success('任务已提交');
-      await loadSheet(detail.sheet.id);
+      if (source === 'batch') await loadSheet(detail.sheet.id);
     } catch (error) {
       setRows((current) => current.map((row) => {
         const previousStatus = previousStatuses.get(row.id);
@@ -1411,7 +1436,7 @@ export function BatchGenerationPage() {
           <Button disabled={switchingSheet || !batchRunnableRows.length || batchRunning} loading={batchRunning} onClick={() => void runRows(batchRunnableRows.map((row) => row.id), 'batch')} type="primary">
             {selectedRows.length ? `批量执行(${batchRunnableRows.length})` : '批量执行'}
           </Button>
-          <Button disabled={switchingSheet || !hasUnsavedChanges} icon={<Check size={16} />} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
+          <Button disabled={switchingSheet || !hasUnsavedChanges} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
         </div>
       </header>
 

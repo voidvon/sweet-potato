@@ -107,6 +107,7 @@
 .sheet-grid { flex: 1; max-width: 100%; min-height: 240px; min-width: 0; }
 .sheet-grid--measuring .ag-header,
 .sheet-grid--measuring .ag-grid-viewport { visibility: hidden; }
+.batch-generation-grid-result-error { font-size: 13px; }
 .batch-generation-grid-add-row {
   align-items: center;
   box-sizing: border-box;
