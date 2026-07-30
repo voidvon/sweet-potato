@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -22,11 +22,12 @@ import {
   Typography,
   message,
 } from 'antd';
-import type { MenuProps } from 'antd';
+import type { InputRef, MenuProps } from 'antd';
 import {
-  Check,
   ChevronDown,
+  Columns3,
   Copy,
+  Pencil,
   Plus,
   RotateCcw,
   Scan,
@@ -77,6 +78,7 @@ import {
   type VideoResolution,
 } from '../../components/VideoOutputSizePicker';
 import { AppImage } from '../../components/AppImage';
+import { CompactButton } from '../../components/CompactButton';
 import type { MentionRichTextareaRef } from '../../components/MentionRichTextarea';
 import {
   appRealtimeEventNames,
@@ -152,6 +154,119 @@ function storeActiveSheetId(sheetId: string) {
   }
 }
 
+function SheetTitleEditor({
+  menuItems,
+  onRename,
+  sheet,
+}: {
+  menuItems: MenuProps['items'];
+  onRename: (sheetId: string, value: string) => Promise<void>;
+  sheet?: BatchSheetSummary;
+}) {
+  const inputRef = useRef<InputRef>(null);
+  const [editing, setEditing] = useState(false);
+
+  useLayoutEffect(() => {
+    if (editing) inputRef.current?.focus({ cursor: 'all' });
+  }, [editing]);
+
+  if (editing && sheet) {
+    return (
+      <Input
+        className="sheet-workspace__title-input"
+        defaultValue={sheet.name}
+        maxLength={100}
+        onBlur={(event) => {
+          setEditing(false);
+          void onRename(sheet.id, event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Escape') setEditing(false);
+        }}
+        ref={inputRef}
+        size="small"
+      />
+    );
+  }
+
+  return (
+    <>
+      <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+        <button className="sheet-workspace__title-button" type="button"><strong>{sheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
+      </Dropdown>
+      <Button
+        aria-label="重命名当前表格"
+        className="sheet-workspace__title-edit"
+        disabled={!sheet}
+        icon={<Pencil size={14} />}
+        onClick={() => setEditing(true)}
+        size="small"
+        title="重命名"
+        type="text"
+      />
+    </>
+  );
+}
+
+function SheetTabLabel({
+  onRename,
+  sheet,
+}: {
+  onRename: (sheetId: string, value: string) => Promise<void>;
+  sheet: BatchSheetSummary;
+}) {
+  const inputRef = useRef<InputRef>(null);
+  const [editing, setEditing] = useState(false);
+
+  useLayoutEffect(() => {
+    if (editing) inputRef.current?.focus({ cursor: 'all' });
+  }, [editing]);
+
+  return (
+    <span className="sheet-workspace__tab-label">
+      <span
+        className="sheet-workspace__tab-name-editor"
+        onMouseDown={(event) => {
+          if (event.detail !== 2) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setEditing(true);
+        }}
+      >
+        <span className={editing ? 'sheet-workspace__tab-name sheet-workspace__tab-name--editing' : 'sheet-workspace__tab-name'}>
+          {sheet.name}
+        </span>
+        {editing ? (
+          <Input
+            className="sheet-workspace__tab-name-input"
+            defaultValue={sheet.name}
+            maxLength={100}
+            onBlur={(event) => {
+              event.stopPropagation();
+              setEditing(false);
+              void onRename(sheet.id, event.target.value);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') setEditing(false);
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            ref={inputRef}
+            size="small"
+          />
+        ) : null}
+      </span>
+      <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
+        {sheet.mediaKind === 'image' ? '图片' : '视频'}
+      </Tag>
+    </span>
+  );
+}
+
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 const batchGridTheme = themeQuartz.withParams({
@@ -163,6 +278,7 @@ const batchGridTheme = themeQuartz.withParams({
   headerFontWeight: 600,
   rowBorder: { color: '#e8edf5' },
   spacing: 6,
+  wrapperBorder: false,
 });
 
 function isLocalRow(row: BatchRow) {
@@ -298,12 +414,15 @@ export function BatchGenerationPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlSheetId = searchParams.get('sheetId')?.trim() || '';
   const gridRef = useRef<AgGridReact<BatchRow>>(null);
+  const gridContainerRef = useRef<HTMLElement>(null);
   const initialUrlSheetIdRef = useRef(urlSheetId);
   const initialDataLoadedRef = useRef(false);
   const pendingLocationSheetIdRef = useRef<string | null>(null);
   const activeSheetIdRef = useRef('');
   const sheetLoadRequestRef = useRef(0);
   const sheetSwitchFrameRef = useRef<number | null>(null);
+  const gridRevealTimerRef = useRef<number | null>(null);
+  const gridCanRevealRef = useRef(false);
   const assetInputRef = useRef<HTMLInputElement>(null);
   const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
   const promptEditorRef = useRef<MentionRichTextareaRef>(null);
@@ -321,12 +440,21 @@ export function BatchGenerationPage() {
   const [modelOptions, setModelOptions] = useState<BatchGenerationModelOption[]>([]);
   const [videoModelProviders, setVideoModelProviders] = useState<VideoModelProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gridLayoutReady, setGridLayoutReady] = useState(false);
   const [switchingSheetRequest, setSwitchingSheetRequest] = useState<{ requestId: number; sheetId: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [uploadingCell, setUploadingCell] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const scheduleGridReveal = useCallback(() => {
+    if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
+    gridRevealTimerRef.current = window.setTimeout(() => {
+      gridRevealTimerRef.current = null;
+      if (!gridCanRevealRef.current) return;
+      setGridLayoutReady(true);
+    }, 80);
+  }, []);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState('');
   const [newSheetName, setNewSheetName] = useState('');
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
@@ -470,6 +598,12 @@ export function BatchGenerationPage() {
     const next = await getBatchSheet(sheetId);
     if (currentRequestId !== sheetLoadRequestRef.current || activeSheetIdRef.current !== sheetId) return false;
     setDetail(next);
+    setGridLayoutReady(false);
+    gridCanRevealRef.current = false;
+    if (gridRevealTimerRef.current !== null) {
+      window.clearTimeout(gridRevealTimerRef.current);
+      gridRevealTimerRef.current = null;
+    }
     setRows(next.rows);
     setGlobalParams(next.sheet.globalParams);
     setDirtyRowIds([]);
@@ -485,8 +619,10 @@ export function BatchGenerationPage() {
     ]);
     if (currentRequestId !== sheetLoadRequestRef.current || activeSheetIdRef.current !== sheetId) return false;
     setLatestRun(run);
+    gridCanRevealRef.current = true;
+    requestAnimationFrame(scheduleGridReveal);
     return true;
-  }, [capabilities, loadAssetsById, loadAttemptAssets, loadLatestRun]);
+  }, [capabilities, loadAssetsById, loadAttemptAssets, loadLatestRun, scheduleGridReveal]);
 
   const activateSheet = useCallback(async (sheetId: string, capabilityList = capabilities) => {
     if (!sheetId) return;
@@ -519,6 +655,8 @@ export function BatchGenerationPage() {
       if (requestId === sheetLoadRequestRef.current) {
         setDetail(null);
         setRows([]);
+        gridCanRevealRef.current = true;
+        setGridLayoutReady(true);
         setLatestRun(null);
         message.error(error instanceof Error ? error.message : '表格加载失败');
       }
@@ -565,8 +703,19 @@ export function BatchGenerationPage() {
 
   useEffect(() => { void loadInitialData(); }, []);
 
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = true;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
   useEffect(() => () => {
     if (sheetSwitchFrameRef.current !== null) cancelAnimationFrame(sheetSwitchFrameRef.current);
+    if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -779,8 +928,15 @@ export function BatchGenerationPage() {
     setActivePromptEditor(null);
   }
 
-  async function saveChanges() {
-    if (!detail) return false;
+  async function saveChanges({
+    notify = true,
+    reload = true,
+  }: {
+    notify?: boolean;
+    reload?: boolean;
+  } = {}) {
+    if (!detail) return null;
+    const savedRowIds = new Map(rows.map((row) => [row.id, row.id]));
     setSaving(true);
     try {
       if (globalDirty) {
@@ -800,15 +956,16 @@ export function BatchGenerationPage() {
       for (const row of rows.filter(isLocalRow)) {
         const [created] = await addBatchRows(detail.sheet.id, [row.params], row.position);
         if (!created) throw new Error('新增行保存失败');
+        savedRowIds.set(row.id, created.id);
         setRows((current) => withRowPositions(current.map((item) => item.id === row.id ? created : item)));
         setDirtyRowIds((current) => current.filter((id) => id !== row.id));
       }
-      await loadSheet(detail.sheet.id);
-      message.success('已保存');
-      return true;
+      if (reload) await loadSheet(detail.sheet.id);
+      if (notify) message.success('已保存');
+      return savedRowIds;
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存失败');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -823,10 +980,19 @@ export function BatchGenerationPage() {
 
   function copySelectedRows() {
     if (!detail || !selectedRows.length) return;
-    const created = selectedRows
-      .slice(0, MAX_ROWS - rows.length)
-      .map((row, index) => createLocalRow(detail.sheet.id, row.params, rows.length + index));
-    setRows((current) => [...current, ...created]);
+    const selectedRowIds = new Set(selectedRows.map((row) => row.id));
+    const created: BatchRow[] = [];
+    const nextRows: BatchRow[] = [];
+    let remainingCapacity = MAX_ROWS - rows.length;
+    rows.forEach((row) => {
+      nextRows.push(row);
+      if (remainingCapacity <= 0 || !selectedRowIds.has(row.id)) return;
+      const copy = createLocalRow(detail.sheet.id, row.params, nextRows.length);
+      created.push(copy);
+      nextRows.push(copy);
+      remainingCapacity -= 1;
+    });
+    setRows(withRowPositions(nextRows));
     setDirtyRowIds((current) => [...current, ...created.map((row) => row.id)]);
     setSelectedRowIds([]);
   }
@@ -866,21 +1032,29 @@ export function BatchGenerationPage() {
   async function runRows(rowIds?: string[], source: 'batch' | 'row' = 'batch') {
     if (!detail) return;
     if (hasUnsavedChanges) {
-      message.warning('请先保存当前改动再执行');
-      return;
+      if (source === 'batch') {
+        message.warning('请先保存当前改动再执行');
+        return;
+      }
+      const savedRowIds = await saveChanges({ notify: false, reload: false });
+      if (!savedRowIds) return;
+      rowIds = rowIds?.map((rowId) => savedRowIds.get(rowId) || rowId);
     }
     const requestedRowIds = new Set(rowIds?.length ? rowIds : rows.map((row) => row.id));
     const targetRows = rows.filter((row) => requestedRowIds.has(row.id)
-      && (source === 'row' || BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row))));
-    if (!targetRows.length) {
+      && BATCH_RUNNABLE_STATUSES.has(executionStatusForRow(row)));
+    const targetRowIds = source === 'row'
+      ? requestedRowIds
+      : new Set(targetRows.map((row) => row.id));
+    if (!targetRowIds.size) {
       if (source === 'batch') message.warning('没有可批量执行的待提交或失败项');
       return;
     }
-    const targetRowIds = new Set(targetRows.map((row) => row.id));
-    const previousStatuses = new Map(
-      rows
-        .filter((row) => targetRowIds.has(row.id))
-        .map((row) => [row.id, row.executionStatus] as const),
+    const previousStatuses = new Map<string, BatchRow['executionStatus']>(
+      [...targetRowIds].map((rowId) => [
+        rowId,
+        rows.find((row) => row.id === rowId)?.executionStatus || 'idle',
+      ]),
     );
     setActiveGridCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
     setActiveVideoCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
@@ -894,7 +1068,7 @@ export function BatchGenerationPage() {
       const run = await startBatchRun(detail.sheet.id, [...targetRowIds]);
       setLatestRun(run);
       message.success('任务已提交');
-      await loadSheet(detail.sheet.id);
+      if (source === 'batch') await loadSheet(detail.sheet.id);
     } catch (error) {
       setRows((current) => current.map((row) => {
         const previousStatus = previousStatuses.get(row.id);
@@ -1019,6 +1193,30 @@ export function BatchGenerationPage() {
     }
   }
 
+  async function renameSheet(sheetId: string, value: string) {
+    const sheet = sheets.find((item) => item.id === sheetId);
+    if (!sheet) return;
+    const name = value.trim();
+    if (!name) {
+      message.error('表名不能为空');
+      return;
+    }
+    if (name === sheet.name) {
+      return;
+    }
+    try {
+      const revision = detail?.sheet.id === sheetId ? detail.sheet.revision : sheet.revision;
+      const updated = await updateBatchSheet(sheetId, { name, revision });
+      setSheets((current) => current.map((item) => item.id === sheetId ? { ...item, ...updated } : item));
+      setDetail((current) => current?.sheet.id === sheetId
+        ? { ...current, sheet: updated }
+        : current);
+      message.success('重命名成功');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重命名失败');
+    }
+  }
+
   function confirmRemoveSheet(sheetId: string) {
     const sheet = sheets.find((item) => item.id === sheetId);
     if (!sheet) return;
@@ -1099,6 +1297,20 @@ export function BatchGenerationPage() {
     rowsLength: rows.length,
     uploadingCell,
   });
+  const configuredGridWidth = useMemo(() => columns.reduce(
+    (total, column) => total + (column.initialWidth ?? column.width ?? 200),
+    42,
+  ), [columns]);
+  const syncGridContainerWidth = useCallback(() => {
+    const api = gridRef.current?.api;
+    const container = gridContainerRef.current;
+    if (!api || !container) return;
+    const width = api.getAllDisplayedColumns().reduce((total, column) => total + column.getActualWidth(), 0);
+    container.style.width = `${width}px`;
+  }, []);
+  const handleGridColumnResized = useCallback((event: { finished?: boolean }) => {
+    if (event.finished) syncGridContainerWidth();
+  }, [syncGridContainerWidth]);
   const rowStats = useMemo(() => {
     const statuses = rows.map(executionStatusForRow);
     return {
@@ -1316,9 +1528,7 @@ export function BatchGenerationPage() {
       <header className="sheet-workspace__header">
         <div className="sheet-workspace__breadcrumb">
           <span className="sheet-workspace__dot" /><span>批量</span><span className="sheet-workspace__slash">/</span>
-          <Dropdown menu={{ items: titleMenu }} trigger={['click']}>
-            <button className="sheet-workspace__title-button" type="button"><strong>{activeSheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
-          </Dropdown>
+          <SheetTitleEditor menuItems={titleMenu} onRename={renameSheet} sheet={activeSheet} />
           <span className="sheet-workspace__slash">/</span>
           <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{hasExecutingRows ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
         </div>
@@ -1327,7 +1537,7 @@ export function BatchGenerationPage() {
           <Button disabled={switchingSheet || !batchRunnableRows.length || batchRunning} loading={batchRunning} onClick={() => void runRows(batchRunnableRows.map((row) => row.id), 'batch')} type="primary">
             {selectedRows.length ? `批量执行(${batchRunnableRows.length})` : '批量执行'}
           </Button>
-          <Button disabled={switchingSheet || !hasUnsavedChanges} icon={<Check size={16} />} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
+          <Button disabled={switchingSheet || !hasUnsavedChanges} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
         </div>
       </header>
 
@@ -1337,14 +1547,7 @@ export function BatchGenerationPage() {
         items={sheets.map((sheet) => ({
           closable: sheets.length > 1,
           key: sheet.id,
-          label: (
-            <span className="sheet-workspace__tab-label">
-              <span>{sheet.name}</span>
-              <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
-                {sheet.mediaKind === 'image' ? '图片' : '视频'}
-              </Tag>
-            </span>
-          ),
+          label: <SheetTabLabel onRename={renameSheet} sheet={sheet} />,
         }))}
         onChange={(sheetId) => { void activateSheet(sheetId); }}
         onEdit={(targetKey, action) => {
@@ -1376,12 +1579,27 @@ export function BatchGenerationPage() {
 
       <section className="sheet-toolbar" aria-label="表格工具栏">
         <span>{rows.length} / {MAX_ROWS} 行</span><i />
-        <Button icon={<Plus size={17} />} onClick={() => void addRow()} type="text">新增行</Button>
-        <Button disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy size={17} />} onClick={() => void copySelectedRows()} type="text">复制</Button>
+        <CompactButton icon={<Plus />} onClick={() => void addRow()}>新增行</CompactButton>
+        <CompactButton disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy />} onClick={() => void copySelectedRows()}>复制</CompactButton>
+        <CompactButton
+          icon={<Columns3 />}
+          onClick={() => {
+            gridRef.current?.api.resetColumnState();
+            requestAnimationFrame(syncGridContainerWidth);
+            message.success('已恢复默认列宽');
+          }}
+        >
+          列宽
+        </CompactButton>
       </section>
 
       <div className="sheet-table-area">
-        <section className="sheet-grid" aria-label="批量生成表格">
+        <section
+          className={`sheet-grid${gridLayoutReady ? '' : ' sheet-grid--measuring'}`}
+          aria-label="批量生成表格"
+          ref={gridContainerRef}
+          style={{ width: configuredGridWidth }}
+        >
           <AgGridReact<BatchRow>
               ref={gridRef}
               animateRows={false}
@@ -1396,6 +1614,9 @@ export function BatchGenerationPage() {
               isRowSelectable={isGridRowSelectable}
               loading={loading || switchingSheet}
             onBodyScroll={handleGridBodyScroll}
+            onColumnResized={handleGridColumnResized}
+            onModelUpdated={scheduleGridReveal}
+            onNewColumnsLoaded={syncGridContainerWidth}
             onSelectionChanged={handleGridSelectionChanged}
             overlayNoRowsTemplate="暂无表格行"
               rowData={gridRows}

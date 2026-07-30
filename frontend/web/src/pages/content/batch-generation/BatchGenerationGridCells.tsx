@@ -412,6 +412,7 @@ export function GridResultCell({
   if (!attempt?.outputs.length) {
     return attempt?.errorMessage ? (
       <Typography.Text
+        className="batch-generation-grid-result-error"
         onBlur={onHideTooltip}
         onFocus={(event) => onShowTooltip(event.currentTarget, attempt.errorMessage!)}
         onMouseEnter={(event) => onShowTooltip(event.currentTarget, attempt.errorMessage!)}

@@ -142,7 +142,7 @@ export function useBatchGenerationColumns({
       : activeCapability?.globalFields || []
     const allOverrideFields = globalFields
       .filter((field) => (field.overridable || exposeVideoOverrides) && !rowFieldKeys.has(field.key))
-      .map((field) => ({ ...field, isGlobalOverride: true, label: `${field.label}（覆盖）` }))
+      .map((field) => ({ ...field, isGlobalOverride: true }))
     const hasImageCanvas = activeCapability?.mediaKind === 'image'
       && allOverrideFields.some((field) => field.key === 'aspectRatio' || field.key === 'resolution')
     const overrideFields = hasImageCanvas
@@ -152,7 +152,20 @@ export function useBatchGenerationColumns({
     const businessColumns: ColDef<BatchRow>[] = businessFields.map((field) => {
       const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset'
       const isPrompt = field.key === 'prompt'
+      const isOutfitAsset = activeCapability?.key === 'image.outfit'
+        && ['referenceGroups.model', 'referenceGroups.clothes'].includes(field.key)
       const isVideoAspectRatio = activeCapability?.mediaKind === 'video' && field.key === 'aspectRatio'
+      const initialWidth = isPrompt
+        ? 560
+        : isAsset
+          ? 202
+          : field.key === 'modelConfigId'
+            ? 180
+            : field.key === 'aspectRatio'
+              ? 130
+              : field.key === 'outputCount'
+                ? 80
+                : 300
       const effectiveValue = (row: BatchRow) => {
         const rowValue = valueAt(row.params, field.key)
         return rowValue === undefined && 'isGlobalOverride' in field
@@ -294,7 +307,7 @@ export function useBatchGenerationColumns({
           && !selectOptions.length
           && !['queued', 'running', 'completed'].includes(params.data!.executionStatus),
         headerName: `${isVideoAspectRatio ? '画布' : field.label}${field.required ? ' *' : ''}`,
-        minWidth: isAsset ? 180 : 140,
+        minWidth: isOutfitAsset ? 202 : field.key === 'aspectRatio' ? 130 : field.key === 'outputCount' ? 80 : isAsset ? 180 : 140,
         valueFormatter: selectOptions.length
           ? (params) => {
             const value = params.data ? effectiveValue(params.data) : params.value
@@ -303,7 +316,8 @@ export function useBatchGenerationColumns({
           : undefined,
         valueGetter: (params) => params.data ? valueAt(params.data.params, field.key) : undefined,
         valueSetter,
-        initialWidth: isAsset ? 240 : 300,
+        initialWidth,
+        width: isOutfitAsset ? 202 : undefined,
         wrapText: field.valueType === 'string',
       }
     })
@@ -348,7 +362,7 @@ export function useBatchGenerationColumns({
         editable: false,
         headerName: '画布',
         minWidth: 130,
-        initialWidth: 160,
+        initialWidth: 130,
       }
       const modelColumnIndex = businessFields.findIndex((field) => field.key === 'modelConfigId')
       businessColumns.splice(modelColumnIndex >= 0 ? modelColumnIndex + 1 : businessColumns.length, 0, canvasColumn)
@@ -383,8 +397,8 @@ export function useBatchGenerationColumns({
         colId: 'status',
         editable: false,
         headerName: '状态',
-        minWidth: 96,
-        initialWidth: 110,
+        minWidth: 90,
+        initialWidth: 90,
       },
       {
         autoHeight: true,
@@ -400,8 +414,8 @@ export function useBatchGenerationColumns({
         colId: 'result',
         editable: false,
         headerName: '结果',
-        minWidth: 110,
-        initialWidth: 160,
+        minWidth: 120,
+        initialWidth: 120,
       },
       {
         cellClass: 'batch-generation-grid-credits-cell',
@@ -409,13 +423,13 @@ export function useBatchGenerationColumns({
         colId: 'credits',
         editable: false,
         headerName: '消耗积分',
-        minWidth: 96,
+        minWidth: 80,
         valueGetter: (params) => params.data
           ? estimatedImageCredits(params.data, activeCapability, globalParams, modelOptions)
             ?? getAttempt(params.data.id)?.estimatedCredits
             ?? 0
           : 0,
-        initialWidth: 105,
+        initialWidth: 80,
       },
       {
         cellClass: 'batch-generation-grid-actions-cell',
