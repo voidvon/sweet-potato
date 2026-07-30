@@ -90,6 +90,8 @@
 
 .sheet-table-area { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .sheet-grid { flex: 1; max-width: 100%; min-height: 240px; min-width: 0; }
+.sheet-grid--measuring .ag-header,
+.sheet-grid--measuring .ag-grid-viewport { visibility: hidden; }
 .batch-generation-grid-add-row {
   align-items: center;
   box-sizing: border-box;
@@ -245,6 +247,7 @@
 .batch-generation-grid-asset-upload:focus-within .batch-generation-grid-asset-upload__count { opacity: 1; }
 .sheet-grid .ag-header-cell,
 .sheet-grid .ag-cell { border-right: 1px solid #e8edf5; }
+.sheet-grid .ag-header-cell-text { color: #60758f; font-size: 12px; }
 .sheet-grid .ag-header-cell-resize::after { background-color: #b6c6da; }
 .sheet-grid .ant-space { max-width: 100%; }
 .batch-generation-grid-select-cell {

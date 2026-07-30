@@ -306,6 +306,8 @@ export function BatchGenerationPage() {
   const activeSheetIdRef = useRef('');
   const sheetLoadRequestRef = useRef(0);
   const sheetSwitchFrameRef = useRef<number | null>(null);
+  const gridRevealTimerRef = useRef<number | null>(null);
+  const gridCanRevealRef = useRef(false);
   const assetInputRef = useRef<HTMLInputElement>(null);
   const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
   const promptEditorRef = useRef<MentionRichTextareaRef>(null);
@@ -323,12 +325,21 @@ export function BatchGenerationPage() {
   const [modelOptions, setModelOptions] = useState<BatchGenerationModelOption[]>([]);
   const [videoModelProviders, setVideoModelProviders] = useState<VideoModelProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gridLayoutReady, setGridLayoutReady] = useState(false);
   const [switchingSheetRequest, setSwitchingSheetRequest] = useState<{ requestId: number; sheetId: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [batchRunning, setBatchRunning] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [uploadingCell, setUploadingCell] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const scheduleGridReveal = useCallback(() => {
+    if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
+    gridRevealTimerRef.current = window.setTimeout(() => {
+      gridRevealTimerRef.current = null;
+      if (!gridCanRevealRef.current) return;
+      setGridLayoutReady(true);
+    }, 80);
+  }, []);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState('');
   const [newSheetName, setNewSheetName] = useState('');
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
@@ -415,6 +426,12 @@ export function BatchGenerationPage() {
     const next = await getBatchSheet(sheetId);
     if (currentRequestId !== sheetLoadRequestRef.current || activeSheetIdRef.current !== sheetId) return false;
     setDetail(next);
+    setGridLayoutReady(false);
+    gridCanRevealRef.current = false;
+    if (gridRevealTimerRef.current !== null) {
+      window.clearTimeout(gridRevealTimerRef.current);
+      gridRevealTimerRef.current = null;
+    }
     setRows(next.rows);
     setGlobalParams(next.sheet.globalParams);
     setDirtyRowIds([]);
@@ -430,8 +447,10 @@ export function BatchGenerationPage() {
     ]);
     if (currentRequestId !== sheetLoadRequestRef.current || activeSheetIdRef.current !== sheetId) return false;
     setLatestRun(run);
+    gridCanRevealRef.current = true;
+    requestAnimationFrame(scheduleGridReveal);
     return true;
-  }, [capabilities, loadAssetsById, loadAttemptAssets, loadLatestRun]);
+  }, [capabilities, loadAssetsById, loadAttemptAssets, loadLatestRun, scheduleGridReveal]);
 
   const activateSheet = useCallback(async (sheetId: string, capabilityList = capabilities) => {
     if (!sheetId) return;
@@ -463,6 +482,8 @@ export function BatchGenerationPage() {
       if (requestId === sheetLoadRequestRef.current) {
         setDetail(null);
         setRows([]);
+        gridCanRevealRef.current = true;
+        setGridLayoutReady(true);
         setLatestRun(null);
         message.error(error instanceof Error ? error.message : '表格加载失败');
       }
@@ -511,6 +532,7 @@ export function BatchGenerationPage() {
 
   useEffect(() => () => {
     if (sheetSwitchFrameRef.current !== null) cancelAnimationFrame(sheetSwitchFrameRef.current);
+    if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -1318,7 +1340,7 @@ export function BatchGenerationPage() {
 
       <div className="sheet-table-area">
         <section
-          className="sheet-grid"
+          className={`sheet-grid${gridLayoutReady ? '' : ' sheet-grid--measuring'}`}
           aria-label="批量生成表格"
           ref={gridContainerRef}
           style={{ width: configuredGridWidth }}
@@ -1366,6 +1388,7 @@ export function BatchGenerationPage() {
             onColumnResized={(event) => {
               if (event.finished) syncGridContainerWidth();
             }}
+            onModelUpdated={scheduleGridReveal}
             onNewColumnsLoaded={syncGridContainerWidth}
             onSelectionChanged={(event) => {
               setSelectedRowIds(event.api.getSelectedRows().map((row) => row.id));

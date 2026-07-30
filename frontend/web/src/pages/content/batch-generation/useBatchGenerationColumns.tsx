@@ -148,7 +148,7 @@ export function useBatchGenerationColumns({
       const initialWidth = isPrompt
         ? 560
         : isAsset
-          ? 200
+          ? 202
           : field.key === 'modelConfigId'
             ? 180
             : field.key === 'aspectRatio'
