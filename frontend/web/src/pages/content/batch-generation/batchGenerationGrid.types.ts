@@ -1,4 +1,9 @@
 import type { CreativeCapabilityField, BatchRow } from '../../../api/batch-generation'
+import type {
+  ImageAspectRatio,
+  ImageOutputModel,
+  ImageResolution,
+} from '../../../components/ImageOutputSizePicker'
 
 export type GridAnchor = {
   height: number
@@ -18,6 +23,14 @@ export type ActiveGridSelect = {
   options: GridSelectOption[]
   rowId: string
   value?: string | number
+}
+
+export type ActiveGridCanvas = {
+  anchor: GridAnchor
+  aspectRatio: ImageAspectRatio
+  model?: ImageOutputModel
+  resolution: ImageResolution
+  rowId: string
 }
 
 export type ActiveGridTooltip = {

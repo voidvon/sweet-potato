@@ -1,17 +1,64 @@
 import type { RefObject } from 'react'
-import { Button, Select, Tooltip } from 'antd'
+import { createPortal } from 'react-dom'
+import { Button, Popover, Select, Tooltip } from 'antd'
 import { X } from 'lucide-react'
 import type { BatchRow } from '../../../api/batch-generation'
+import {
+  ImageOutputSizePicker,
+  type ImageAspectRatio,
+  type ImageResolution,
+} from '../../../components/ImageOutputSizePicker'
 import {
   MentionRichTextarea,
   type MentionRichTextareaOption,
   type MentionRichTextareaRef,
 } from '../../../components/MentionRichTextarea'
 import type {
+  ActiveGridCanvas,
   ActiveGridSelect,
   ActiveGridTooltip,
   ActivePromptEditor,
 } from './batchGenerationGrid.types'
+
+export function GridCanvasOverlay({
+  activeCanvas,
+  onAspectRatioChange,
+  onResolutionChange,
+}: {
+  activeCanvas: ActiveGridCanvas | null
+  onAspectRatioChange: (rowId: string, aspectRatio: ImageAspectRatio) => void
+  onResolutionChange: (rowId: string, resolution: ImageResolution) => void
+}) {
+  if (!activeCanvas) return null
+  return (
+    <Popover
+      arrow={false}
+      classNames={{ root: 'image-output-size-popover batch-generation-grid-canvas-popover' }}
+      content={(
+        <ImageOutputSizePicker
+          aspectRatio={activeCanvas.aspectRatio}
+          model={activeCanvas.model}
+          onAspectRatioChange={(aspectRatio) => onAspectRatioChange(activeCanvas.rowId, aspectRatio)}
+          onResolutionChange={(resolution) => onResolutionChange(activeCanvas.rowId, resolution)}
+          resolution={activeCanvas.resolution}
+        />
+      )}
+      open
+      placement="bottomLeft"
+      trigger={[]}
+    >
+      <span
+        className="batch-generation-grid-canvas-anchor"
+        style={{
+          height: activeCanvas.anchor.height,
+          left: activeCanvas.anchor.left,
+          top: activeCanvas.anchor.top,
+          width: activeCanvas.anchor.width,
+        }}
+      />
+    </Popover>
+  )
+}
 
 export function GridSelectOverlay({
   activeSelect,
@@ -72,7 +119,7 @@ export function GridPromptEditorOverlay({
   value: string
 }) {
   const isActive = Boolean(activeEditor && activeRow)
-  return (
+  return createPortal(
     <div
       aria-hidden={!isActive}
       className={`batch-generation-grid-prompt-editor${activeEditor?.mode === 'fullscreen' ? ' batch-generation-grid-prompt-editor--fullscreen' : ''}${isActive ? '' : ' batch-generation-grid-prompt-editor--hidden'}`}
@@ -125,13 +172,14 @@ export function GridPromptEditorOverlay({
           </div>
         </footer>
       ) : null}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
 export function GridTooltipOverlay({ tooltip }: { tooltip: ActiveGridTooltip | null }) {
   if (!tooltip) return null
-  return (
+  return createPortal(
     <Tooltip open placement="top" title={tooltip.title}>
       <span
         className="batch-generation-grid-tooltip-anchor"
@@ -142,6 +190,7 @@ export function GridTooltipOverlay({ tooltip }: { tooltip: ActiveGridTooltip | n
           width: tooltip.anchor.width,
         }}
       />
-    </Tooltip>
+    </Tooltip>,
+    document.body,
   )
 }

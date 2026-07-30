@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Button, Image, Popconfirm, Popover, Space, Switch, Tag, Typography } from 'antd'
 import { CreditIcon } from '@shared/components/CreditIcon'
 import { formatCreditAmount } from '@shared/utils/credits'
-import { ChevronDown, Copy, ExternalLink, Maximize2, Play, Plus, Trash2, UploadCloud, X } from 'lucide-react'
+import { ChevronDown, Copy, ExternalLink, Maximize2, Play, Plus, Scan, Trash2, UploadCloud, X } from 'lucide-react'
 import type {
   BatchAttempt,
   BatchExecutionStatus,
@@ -96,7 +96,38 @@ export function GridVideoOutputSizeCell({
       >
         <span className="batch-generation-grid-select-cell__value">{aspectRatio} · {resolution}</span>
       </div>
-    </Popover>
+    </Popover> )
+}
+export function GridCanvasCell({
+  disabled,
+  label,
+  onOpen,
+}: {
+  disabled?: boolean
+  label: string
+  onOpen: (anchor: HTMLElement) => void
+}) {
+  return (
+    <div
+      aria-disabled={disabled}
+      className={`batch-generation-grid-canvas-cell${disabled ? ' batch-generation-grid-canvas-cell--disabled' : ''}`}
+      onKeyDown={(event) => {
+        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onOpen(event.currentTarget)
+        }
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        if (!disabled) onOpen(event.currentTarget)
+      }}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+    >
+      <Scan aria-hidden="true" size={13} />
+      <span>{label}</span>
+      <ChevronDown aria-hidden="true" size={14} />
+    </div>
   )
 }
 
@@ -214,7 +245,7 @@ export function GridAssetCell({
     : typeof storedValue === 'string' && storedValue ? [storedValue] : []
   const isImageField = assetAccept(field) === 'image/*'
   const maxCount = field.valueType === 'asset-list' ? MAX_REFERENCE_IMAGE_COUNT : 1
-  const uploadDisabled = ['queued', 'running'].includes(row.executionStatus)
+  const uploadDisabled = ['queued', 'running', 'completed'].includes(row.executionStatus)
 
   if (assetAccept(field) === 'video/*' && field.valueType === 'asset-list') {
     return (
@@ -367,11 +398,13 @@ export function GridResultCell({
   assets,
   attempt,
   onHideTooltip,
+  onPreview,
   onShowTooltip,
 }: {
   assets: Record<string, ContentAsset>
   attempt?: BatchAttempt
   onHideTooltip: () => void
+  onPreview: (current: number, items: Array<{ alt: string; src: string }>) => void
   onShowTooltip: (target: HTMLElement, title: string) => void
 }) {
   if (!attempt?.outputs.length) {
@@ -388,13 +421,50 @@ export function GridResultCell({
       </Typography.Text>
     ) : <Typography.Text type="secondary">-</Typography.Text>
   }
+  const previewItems = attempt.outputs.flatMap((output, index) => {
+    const asset = assets[output.assetId]
+    const src = resolveAssetUrl(asset?.fileUrl)
+    return asset?.mimeType.startsWith('image/') && src ? [{
+      alt: asset.name || asset.originalFileName || `生成结果 ${index + 1}`,
+      outputId: output.id,
+      src,
+    }] : []
+  })
+
   return (
-    <Space size={6}>
+    <div className="batch-generation-grid-assets batch-generation-grid-results">
       {attempt.outputs.map((output) => {
         const asset = assets[output.assetId]
         const url = resolveAssetUrl(asset?.fileUrl)
         if (asset?.mimeType.startsWith('image/') && url) {
-          return <Image height={36} key={output.id} src={url} width={36} />
+          const alt = asset.name || asset.originalFileName || '生成结果'
+          return (
+            <div className="batch-generation-grid-asset" key={output.id}>
+              <button
+                aria-label={`预览${alt}`}
+                className="batch-generation-grid-asset__preview"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onPreview(
+                    Math.max(0, previewItems.findIndex((item) => item.outputId === output.id)),
+                    previewItems.map((item) => ({ alt: item.alt, src: item.src })),
+                  )
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                <img
+                  alt={alt}
+                  className="batch-generation-grid-asset__image"
+                  decoding="async"
+                  height={40}
+                  loading="lazy"
+                  src={url}
+                  width={40}
+                />
+              </button>
+            </div>
+          )
         }
         return (
           <Button
@@ -411,7 +481,7 @@ export function GridResultCell({
           </Button>
         )
       })}
-    </Space>
+    </div>
   )
 }
 
@@ -444,26 +514,26 @@ export function GridActionsCell({
 }) {
   const disabled = ['queued', 'running'].includes(row.executionStatus)
   const tooltipEvents = (title: string) => ({
-    onBlur: onHideTooltip,
-    onFocus: (event: React.FocusEvent<HTMLElement>) => onShowTooltip(event.currentTarget, title),
     onMouseEnter: (event: React.MouseEvent<HTMLElement>) => onShowTooltip(event.currentTarget, title),
     onMouseLeave: onHideTooltip,
   })
   return (
     <Space size={4}>
-      <Button
-        {...tooltipEvents('执行此行')}
-        aria-label="执行此行"
-        className="batch-generation-grid-action-button batch-generation-grid-action-button--run"
-        disabled={disabled}
-        icon={<Play fill="currentColor" size={14} />}
-        onClick={() => {
-          onHideTooltip()
-          onRun(row)
-        }}
-        size="small"
-        type="default"
-      />
+      {row.executionStatus !== 'completed' ? (
+        <Button
+          {...tooltipEvents('执行此行')}
+          aria-label="执行此行"
+          className="batch-generation-grid-action-button batch-generation-grid-action-button--run"
+          disabled={disabled}
+          icon={<Play fill="currentColor" size={14} />}
+          onClick={() => {
+            onHideTooltip()
+            onRun(row)
+          }}
+          size="small"
+          type="default"
+        />
+      ) : null}
       <Button
         {...tooltipEvents('复制此行')}
         aria-label="复制此行"
