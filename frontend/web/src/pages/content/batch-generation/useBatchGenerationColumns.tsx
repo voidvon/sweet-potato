@@ -145,6 +145,13 @@ export function useBatchGenerationColumns({
       const isAsset = field.valueType === 'asset-list' || field.valueType === 'asset'
       const isPrompt = field.key === 'prompt'
       const isVideoAspectRatio = activeCapability?.mediaKind === 'video' && field.key === 'aspectRatio'
+      const initialWidth = isPrompt
+        ? 560
+        : isAsset
+          ? 200
+          : ['modelConfigId', 'aspectRatio', 'outputCount'].includes(field.key)
+            ? 180
+            : 300
       const effectiveValue = (row: BatchRow) => {
         const rowValue = valueAt(row.params, field.key)
         return rowValue === undefined && 'isGlobalOverride' in field
@@ -279,7 +286,7 @@ export function useBatchGenerationColumns({
           : undefined,
         valueGetter: (params) => params.data ? valueAt(params.data.params, field.key) : undefined,
         valueSetter,
-        initialWidth: isAsset ? 240 : 300,
+        initialWidth,
         wrapText: field.valueType === 'string',
       }
     })
@@ -324,7 +331,7 @@ export function useBatchGenerationColumns({
         editable: false,
         headerName: '画布',
         minWidth: 130,
-        initialWidth: 160,
+        initialWidth: 180,
       }
       const modelColumnIndex = businessFields.findIndex((field) => field.key === 'modelConfigId')
       businessColumns.splice(modelColumnIndex >= 0 ? modelColumnIndex + 1 : businessColumns.length, 0, canvasColumn)
@@ -359,8 +366,8 @@ export function useBatchGenerationColumns({
         colId: 'status',
         editable: false,
         headerName: '状态',
-        minWidth: 96,
-        initialWidth: 110,
+        minWidth: 90,
+        initialWidth: 90,
       },
       {
         autoHeight: true,
@@ -377,7 +384,7 @@ export function useBatchGenerationColumns({
         editable: false,
         headerName: '结果',
         minWidth: 110,
-        initialWidth: 160,
+        initialWidth: 120,
       },
       {
         cellClass: 'batch-generation-grid-credits-cell',
@@ -391,7 +398,7 @@ export function useBatchGenerationColumns({
             ?? getAttempt(params.data.id)?.estimatedCredits
             ?? 0
           : 0,
-        initialWidth: 105,
+        initialWidth: 110,
       },
       {
         cellClass: 'batch-generation-grid-actions-cell',

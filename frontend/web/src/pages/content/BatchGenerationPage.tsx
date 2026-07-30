@@ -740,10 +740,19 @@ export function BatchGenerationPage() {
 
   function copySelectedRows() {
     if (!detail || !selectedRows.length) return;
-    const created = selectedRows
-      .slice(0, MAX_ROWS - rows.length)
-      .map((row, index) => createLocalRow(detail.sheet.id, row.params, rows.length + index));
-    setRows((current) => [...current, ...created]);
+    const selectedRowIds = new Set(selectedRows.map((row) => row.id));
+    const created: BatchRow[] = [];
+    const nextRows: BatchRow[] = [];
+    let remainingCapacity = MAX_ROWS - rows.length;
+    rows.forEach((row) => {
+      nextRows.push(row);
+      if (remainingCapacity <= 0 || !selectedRowIds.has(row.id)) return;
+      const copy = createLocalRow(detail.sheet.id, row.params, nextRows.length);
+      created.push(copy);
+      nextRows.push(copy);
+      remainingCapacity -= 1;
+    });
+    setRows(withRowPositions(nextRows));
     setDirtyRowIds((current) => [...current, ...created.map((row) => row.id)]);
     setSelectedRowIds([]);
   }
@@ -1283,7 +1292,15 @@ export function BatchGenerationPage() {
         <span>{rows.length} / {MAX_ROWS} 行</span><i />
         <CompactButton icon={<Plus />} onClick={() => void addRow()}>新增行</CompactButton>
         <CompactButton disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy />} onClick={() => void copySelectedRows()}>复制</CompactButton>
-        <CompactButton icon={<Columns3 />}>列宽</CompactButton>
+        <CompactButton
+          icon={<Columns3 />}
+          onClick={() => {
+            gridRef.current?.api.resetColumnState();
+            message.success('已恢复默认列宽');
+          }}
+        >
+          列宽
+        </CompactButton>
       </section>
 
       <div className="sheet-table-area">
