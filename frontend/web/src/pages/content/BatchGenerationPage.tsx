@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -22,12 +22,13 @@ import {
   Typography,
   message,
 } from 'antd';
-import type { MenuProps } from 'antd';
+import type { InputRef, MenuProps } from 'antd';
 import {
   Check,
   ChevronDown,
   Columns3,
   Copy,
+  Pencil,
   Plus,
   RotateCcw,
   Scan,
@@ -150,6 +151,61 @@ function storeActiveSheetId(sheetId: string) {
   } catch {
     // URL state remains available when browser storage is unavailable.
   }
+}
+
+function SheetTitleEditor({
+  menuItems,
+  onRename,
+  sheet,
+}: {
+  menuItems: MenuProps['items'];
+  onRename: (sheetId: string, value: string) => Promise<void>;
+  sheet?: BatchSheetSummary;
+}) {
+  const inputRef = useRef<InputRef>(null);
+  const [editing, setEditing] = useState(false);
+
+  useLayoutEffect(() => {
+    if (editing) inputRef.current?.focus({ cursor: 'all' });
+  }, [editing]);
+
+  if (editing && sheet) {
+    return (
+      <Input
+        className="sheet-workspace__title-input"
+        defaultValue={sheet.name}
+        maxLength={100}
+        onBlur={(event) => {
+          setEditing(false);
+          void onRename(sheet.id, event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Escape') setEditing(false);
+        }}
+        ref={inputRef}
+        size="small"
+      />
+    );
+  }
+
+  return (
+    <>
+      <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+        <button className="sheet-workspace__title-button" type="button"><strong>{sheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
+      </Dropdown>
+      <Button
+        aria-label="重命名当前表格"
+        className="sheet-workspace__title-edit"
+        disabled={!sheet}
+        icon={<Pencil size={14} />}
+        onClick={() => setEditing(true)}
+        size="small"
+        title="重命名"
+        type="text"
+      />
+    </>
+  );
 }
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -311,6 +367,7 @@ export function BatchGenerationPage() {
   const assetInputRef = useRef<HTMLInputElement>(null);
   const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
   const promptEditorRef = useRef<MentionRichTextareaRef>(null);
+  const sheetNameInputRef = useRef<InputRef>(null);
   const [capabilities, setCapabilities] = useState<CreativeCapability[]>([]);
   const [sheets, setSheets] = useState<BatchSheetSummary[]>([]);
   const [activeSheetId, setActiveSheetId] = useState('');
@@ -332,6 +389,11 @@ export function BatchGenerationPage() {
   const [retrying, setRetrying] = useState(false);
   const [uploadingCell, setUploadingCell] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingSheetName, setEditingSheetName] = useState<{ sheetId: string; value: string } | null>(null);
+  useLayoutEffect(() => {
+    if (!editingSheetName) return;
+    sheetNameInputRef.current?.focus({ cursor: 'all' });
+  }, [editingSheetName?.sheetId]);
   const scheduleGridReveal = useCallback(() => {
     if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
     gridRevealTimerRef.current = window.setTimeout(() => {
@@ -967,6 +1029,31 @@ export function BatchGenerationPage() {
     }
   }
 
+  async function renameSheet(sheetId: string, value: string) {
+    const sheet = sheets.find((item) => item.id === sheetId);
+    if (!sheet) return;
+    const name = value.trim();
+    setEditingSheetName(null);
+    if (!name) {
+      message.error('表名不能为空');
+      return;
+    }
+    if (name === sheet.name) {
+      return;
+    }
+    try {
+      const revision = detail?.sheet.id === sheetId ? detail.sheet.revision : sheet.revision;
+      const updated = await updateBatchSheet(sheetId, { name, revision });
+      setSheets((current) => current.map((item) => item.id === sheetId ? { ...item, ...updated } : item));
+      setDetail((current) => current?.sheet.id === sheetId
+        ? { ...current, sheet: updated }
+        : current);
+      message.success('重命名成功');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '重命名失败');
+    }
+  }
+
   function confirmRemoveSheet(sheetId: string) {
     const sheet = sheets.find((item) => item.id === sheetId);
     if (!sheet) return;
@@ -1264,9 +1351,7 @@ export function BatchGenerationPage() {
       <header className="sheet-workspace__header">
         <div className="sheet-workspace__breadcrumb">
           <span className="sheet-workspace__dot" /><span>批量</span><span className="sheet-workspace__slash">/</span>
-          <Dropdown menu={{ items: titleMenu }} trigger={['click']}>
-            <button className="sheet-workspace__title-button" type="button"><strong>{activeSheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
-          </Dropdown>
+          <SheetTitleEditor menuItems={titleMenu} onRename={renameSheet} sheet={activeSheet} />
           <span className="sheet-workspace__slash">/</span>
           <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{hasExecutingRows ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
         </div>
@@ -1287,7 +1372,40 @@ export function BatchGenerationPage() {
           key: sheet.id,
           label: (
             <span className="sheet-workspace__tab-label">
-              <span>{sheet.name}</span>
+              <span
+                className="sheet-workspace__tab-name-editor"
+                onMouseDown={(event) => {
+                  if (event.detail !== 2) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setEditingSheetName({ sheetId: sheet.id, value: sheet.name });
+                }}
+              >
+                <span className={editingSheetName?.sheetId === sheet.id ? 'sheet-workspace__tab-name sheet-workspace__tab-name--editing' : 'sheet-workspace__tab-name'}>
+                  {sheet.name}
+                </span>
+                {editingSheetName?.sheetId === sheet.id ? (
+                  <Input
+                    className="sheet-workspace__tab-name-input"
+                    defaultValue={editingSheetName.value}
+                    maxLength={100}
+                    onBlur={(event) => {
+                      event.stopPropagation();
+                      void renameSheet(sheet.id, event.target.value);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    onFocus={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === 'Enter') event.currentTarget.blur();
+                      if (event.key === 'Escape') setEditingSheetName(null);
+                    }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    ref={sheetNameInputRef}
+                    size="small"
+                  />
+                ) : null}
+              </span>
               <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
                 {sheet.mediaKind === 'image' ? '图片' : '视频'}
               </Tag>

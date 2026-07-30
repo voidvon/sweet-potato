@@ -26,6 +26,8 @@
 .sheet-workspace__dot { background: #3f82ef; border-radius: 50%; height: 6px; width: 6px; }
 .sheet-workspace__slash { color: #c9d6e7; font-size: 13px; }
 .sheet-workspace__title-button { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; gap: 8px; padding: 0; }
+.sheet-workspace__title-edit { color: #7f93ae; margin-left: -4px; }
+.sheet-workspace__title-input { flex: none; font-size: 13px; height: 28px; width: 256px; }
 .sheet-workspace__new-state { align-items: center; color: #90a4c0; display: inline-flex; gap: 6px; }
 .sheet-workspace__state-dot { background: #90a4c0; border-radius: 50%; height: 6px; width: 6px; }
 .sheet-workspace__header-actions { gap: 10px; margin-left: 24px; }
@@ -52,6 +54,19 @@
   padding-inline: 10px;
 }
 .sheet-workspace__tab-label { align-items: center; display: inline-flex; gap: 6px; }
+.sheet-workspace__tab-name-editor { align-items: center; display: inline-grid; position: relative; }
+.sheet-workspace__tab-name { cursor: text; }
+.sheet-workspace__tab-name--editing { visibility: hidden; }
+.sheet-workspace__tab-name-input {
+  font-size: 13px;
+  height: 24px;
+  inset-inline-start: -5px;
+  min-width: 110px;
+  padding-block: 0;
+  position: absolute;
+  width: calc(100% + 48px);
+  z-index: 2;
+}
 .sheet-workspace__tab-label .ant-tag {
   align-items: center;
   display: inline-flex;
