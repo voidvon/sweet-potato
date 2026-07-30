@@ -1,4 +1,8 @@
-import { estimateVideoGenerationPrice } from '../billing/billing.service.js';
+import {
+  estimateVideoGenerationPrice,
+  estimateVideoUpscaleCredits,
+  estimateVodUploadCredits,
+} from '../billing/billing.service.js';
 import { contentRepository } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
 import {
@@ -8,9 +12,12 @@ import {
   resolveDefaultVideoModel,
   seedanceDurationSeconds,
 } from '../content/internals/content-video-generation.js';
+import { pollVideoEnhancementTask } from '../content/internals/content-video-enhancement.js';
 import { generationResultForTask, pollRunningVideoGenerationTask } from '../content/internals/content-video-task-runtime.js';
 import { modelConfigRepository } from '../model-configs/model-config.repository.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
+import { danceRemakeService } from '../video-source/dance-remake.service.js';
+import { danceRemakeDefaults, normalizeDanceRemakeQuality } from '../video-source/dance-remake.config.js';
 import { registerCreativeCapabilityExecutor } from './creative-capability.registry.js';
 import type {
   CreativeCapabilityExecutionContext,
@@ -121,6 +128,23 @@ async function waitForVideoTask(taskId: string, userId: string) {
   throw new Error('视频生成等待超时，任务会继续在后台轮询');
 }
 
+async function waitForVideoEnhancementTask(taskId: string, userId: string) {
+  const deadline = Date.now() + VIDEO_TASK_TIMEOUT_MS;
+  void pollVideoEnhancementTask(taskId);
+  while (Date.now() < deadline) {
+    const task = contentRepository.findVideoTask(taskId);
+    if (!task || task.userId !== userId) {
+      throw new Error('批量视频高清放大任务不存在或无权访问');
+    }
+    if (task.status === 'success') return task;
+    if (task.status === 'failed') {
+      throw new Error(task.failureReason || generationResultForTask(task)?.errorMessage || '视频高清放大失败');
+    }
+    await new Promise((resolve) => setTimeout(resolve, VIDEO_TASK_CHECK_INTERVAL_MS));
+  }
+  throw new Error('视频高清放大等待超时，任务会继续在后台处理');
+}
+
 const videoGenerateExecutor: CreativeCapabilityExecutor = {
   prepare(context, params) {
     const prompt = stringValue(params.prompt);
@@ -205,6 +229,140 @@ const videoGenerateExecutor: CreativeCapabilityExecutor = {
   },
 };
 
+const videoUpscaleExecutor: CreativeCapabilityExecutor = {
+  prepare(context, params) {
+    const [sourceAssetId] = stringArray(params.referenceVideoIds);
+    if (!sourceAssetId) throw new Error('请选择视频素材');
+    const sourceAsset = contentRepository.findAsset(sourceAssetId);
+    if (!sourceAsset || sourceAsset.userId !== context.userId) {
+      throw new Error('待放大视频素材不存在或无权访问');
+    }
+    if (!sourceAsset.mimeType.startsWith('video/')) {
+      throw new Error('请选择视频素材进行高清放大');
+    }
+    return {
+      effectiveParams: { referenceVideoIds: [sourceAsset.id] },
+      modelConfigSnapshot: {
+        videoEnhancement: { model: 'moe-aigc-enhance', provider: 'volcengine-vod', resolution: '1080p' },
+      },
+      estimatedCredits: estimateVideoUpscaleCredits() + estimateVodUploadCredits(sourceAsset.fileSize || 0),
+    };
+  },
+
+  async execute(context, prepared) {
+    const [sourceAssetId] = stringArray(prepared.effectiveParams.referenceVideoIds);
+    const task = context.generationJobId
+      ? contentService.getVideoTask(context.generationJobId, context.userId)
+      : await contentService.createVideoEnhancement({
+        userId: context.userId,
+        sourceAssetId,
+        resolution: '1080p',
+      });
+    if (!context.generationJobId) {
+      await context.onExternalJobCreated?.(task.id);
+    }
+    const completedTask = await waitForVideoEnhancementTask(task.id, context.userId);
+    const result = generationResultForTask(completedTask);
+    const assetId = stringValue(result?.assetId)
+      || contentRepository.listAssets({ userId: context.userId, resourceType: 'finished_video' })
+        .find((asset) => asset.metadata.videoTaskId === completedTask.id)?.id
+      || '';
+    if (!assetId) throw new Error('视频高清放大已完成，但未找到结果资产');
+    return {
+      outputAssetIds: [assetId],
+      creditCost: prepared.estimatedCredits,
+      metadata: {
+        resolution: '1080p',
+        sourceAssetId,
+        videoTaskId: completedTask.id,
+        videoUrl: completedTask.generatedVideoUrl || result?.videoUrl || '',
+      },
+    };
+  },
+};
+
+const videoDanceRemakeExecutor: CreativeCapabilityExecutor = {
+  prepare(context, params) {
+    const mode = params.danceRemakeMode === 'enhanced' ? 'enhanced' : 'standard';
+    const characterImageAssetId = stringValue(params.characterImageAssetId);
+    const [referenceVideoAssetId] = stringArray(params.referenceVideoIds);
+    if (!characterImageAssetId) throw new Error('请选择人物图');
+    if (!referenceVideoAssetId) throw new Error('请选择参考视频');
+    requireOwnedAssets({
+      userId: context.userId,
+      assetIds: [characterImageAssetId],
+      mimePrefix: 'image/',
+      label: '人物图',
+    });
+    requireOwnedAssets({
+      userId: context.userId,
+      assetIds: [referenceVideoAssetId],
+      mimePrefix: 'video/',
+      label: '参考视频',
+    });
+    const videoModelId = mode === 'standard'
+      ? danceRemakeDefaults.standardModelId
+      : stringValue(params.videoModelId) || danceRemakeDefaults.enhancedModelId;
+    const quality = mode === 'standard'
+      ? danceRemakeDefaults.standardQuality
+      : normalizeDanceRemakeQuality(params.quality);
+    const preserveAudio = mode === 'standard' || params.preserveAudio !== false;
+    return {
+      effectiveParams: {
+        characterImageAssetId,
+        danceRemakeMode: mode,
+        preserveAudio,
+        quality,
+        ratio: '9:16',
+        referenceVideoIds: [referenceVideoAssetId],
+        videoModelId,
+      },
+      modelConfigSnapshot: {
+        danceRemake: { mode, quality, videoModelId },
+      },
+      estimatedCredits: 0,
+    };
+  },
+
+  async execute(context, prepared) {
+    const params = prepared.effectiveParams;
+    const [referenceVideoAssetId] = stringArray(params.referenceVideoIds);
+    const task = context.generationJobId
+      ? contentService.getVideoTask(context.generationJobId, context.userId)
+      : await danceRemakeService.create({
+        characterImageAssetId: stringValue(params.characterImageAssetId),
+        mode: params.danceRemakeMode === 'enhanced' ? 'enhanced' : 'standard',
+        preserveAudio: params.preserveAudio === true,
+        quality: stringValue(params.quality),
+        ratio: '9:16',
+        referenceVideoAssetId,
+        userId: context.userId,
+        videoModelId: stringValue(params.videoModelId),
+      });
+    if (!context.generationJobId) {
+      await context.onExternalJobCreated?.(task.id);
+    }
+    const completedTask = await waitForVideoTask(task.id, context.userId);
+    const result = generationResultForTask(completedTask);
+    const assetId = stringValue(result?.assetId)
+      || contentRepository.listAssets({ userId: context.userId, resourceType: 'finished_video' })
+        .find((asset) => asset.metadata.videoTaskId === completedTask.id)?.id
+      || '';
+    if (!assetId) throw new Error('跳舞复刻已完成，但未找到结果资产');
+    return {
+      outputAssetIds: [assetId],
+      creditCost: Number(completedTask.creditCost || 0),
+      metadata: {
+        danceRemakeMode: params.danceRemakeMode,
+        videoTaskId: completedTask.id,
+        videoUrl: completedTask.generatedVideoUrl || result?.videoUrl || '',
+      },
+    };
+  },
+};
+
 export function registerVideoCreativeCapabilityExecutors() {
   registerCreativeCapabilityExecutor('video.generate', videoGenerateExecutor);
+  registerCreativeCapabilityExecutor('video.upscale', videoUpscaleExecutor);
+  registerCreativeCapabilityExecutor('video.dance_remake', videoDanceRemakeExecutor);
 }

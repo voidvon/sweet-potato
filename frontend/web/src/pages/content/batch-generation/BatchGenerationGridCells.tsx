@@ -381,7 +381,11 @@ export function GridAssetCell({
 }
 
 export function GridBooleanCell({ checked, disabled, onChange }: { checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }) {
-  return <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
+  return (
+    <div className="batch-generation-grid-boolean-cell">
+      <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
+    </div>
+  )
 }
 
 export function GridStatusCell({ status }: { status: BatchExecutionStatus }) {

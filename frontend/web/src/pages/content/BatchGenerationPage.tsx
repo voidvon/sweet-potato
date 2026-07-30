@@ -86,6 +86,13 @@ import {
 } from '../../events/appRealtimeEvents';
 import type { ContentAsset } from '../../types';
 import {
+  danceRemakeDefaults,
+  danceRemakeModeOptions,
+  preferredVideoModelId,
+  qualityOptions as sharedVideoQualityOptions,
+  videoModelDefinitions,
+} from './shared/videoGenerationOptions';
+import {
   GridCanvasOverlay,
   GridPromptEditorOverlay,
   GridSelectOverlay,
@@ -117,7 +124,7 @@ const BATCH_RUNNABLE_STATUSES = new Set<BatchRow['executionStatus']>(['idle', 'f
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
-const PREFERRED_VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+const PREFERRED_VIDEO_MODEL_ID = preferredVideoModelId;
 const DEFAULT_SHEET_NAME = '批量';
 
 const gridAddRow: BatchRow = {
@@ -358,6 +365,15 @@ function defaultGlobalParamsForCapability(
   capability: CreativeCapability,
   availableModels: AvailableBatchModelOption[],
 ) {
+  if (capability.key === 'video.upscale') return {};
+  if (capability.key === 'video.dance_remake') {
+    return {
+      danceRemakeMode: 'standard',
+      preserveAudio: danceRemakeDefaults.preserveAudio,
+      quality: danceRemakeDefaults.quality,
+      videoModelId: danceRemakeDefaults.videoModelId,
+    };
+  }
   const model = capability.mediaKind === 'video'
     ? availableModels.find((item) => item.type === 'video' && item.model === PREFERRED_VIDEO_MODEL_ID)
       || availableModels.find((item) => item.type === 'video')
@@ -1196,6 +1212,7 @@ export function BatchGenerationPage() {
     onShowTooltip: showGridTooltip,
     onUpload: (row, field, files) => uploadUploadedAssets(row, field, files),
     onUpdateRow: updateRowParams,
+    rows,
     rowsLength: rows.length,
     uploadingCell,
   });
@@ -1268,6 +1285,7 @@ export function BatchGenerationPage() {
 
   useEffect(() => {
     if (!activeCapability || !selectedGlobalModel) return;
+    if (['video.upscale', 'video.dance_remake'].includes(activeCapability.key)) return;
     const isImage = activeCapability.mediaKind === 'image';
     const resolution = isImage && globalImageResolutions.length ? currentResolution : undefined;
     const hasOutputCount = activeCapability.globalFields.some((field) => field.key === 'outputCount');
@@ -1347,6 +1365,36 @@ export function BatchGenerationPage() {
           value={selectedGlobalModel?.id}
         />
       );
+    }
+    if (field.key === 'danceRemakeMode') {
+      return (
+        <Select
+          onChange={update}
+          options={[...danceRemakeModeOptions]}
+          value={value === 'enhanced' ? 'enhanced' : 'standard'}
+        />
+      );
+    }
+    if (field.key === 'videoModelId' && activeCapability?.key === 'video.dance_remake') {
+      return (
+        <Select
+          onChange={update}
+          options={videoModelDefinitions.map((option) => ({ label: option.label, value: option.id }))}
+          value={typeof value === 'string' ? value : danceRemakeDefaults.videoModelId}
+        />
+      );
+    }
+    if (field.key === 'quality' && activeCapability?.key === 'video.dance_remake') {
+      return (
+        <Select
+          onChange={update}
+          options={sharedVideoQualityOptions.map((option) => ({ label: option.label, value: option.label }))}
+          value={value === '480P' || value === '普清 (480p)' ? '480P' : '720P'}
+        />
+      );
+    }
+    if (field.key === 'preserveAudio' && activeCapability?.key === 'video.dance_remake') {
+      return <Switch checked={value !== false} onChange={update} size="small" />;
     }
     if (field.key === 'resolution') return null;
     if (field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image') {
@@ -1462,18 +1510,28 @@ export function BatchGenerationPage() {
       />
 
       <section className="sheet-global-settings" aria-label="全局参数">
-        <div className="sheet-global-settings__intro"><strong>全局参数</strong><span>应用到所有行，行内可覆盖</span></div>
+        <div className="sheet-global-settings__intro">
+          <strong>全局参数</strong>
+          <span>应用到所有行，行内可覆盖</span>
+        </div>
         <div className="sheet-global-settings__divider" />
-        {(activeCapability?.globalFields || [])
-          .filter((field) => field.key !== 'resolution')
-          .map((field) => (
-            <div className="sheet-global-settings__field" key={field.key}>
-              {field.key === 'aspectRatio' && activeCapability?.mediaKind === 'video' ? null : (
-                <span>{field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
-              )}
-              {renderGlobalField(field)}
-            </div>
-          ))}
+        {activeCapability?.globalFields.length ? (
+          activeCapability.globalFields
+            .filter((field) => field.key !== 'resolution'
+              && (activeCapability.key !== 'video.dance_remake'
+                || field.key === 'danceRemakeMode'
+                || globalParams.danceRemakeMode === 'enhanced'))
+            .map((field) => (
+              <div className="sheet-global-settings__field" key={field.key}>
+                {field.key === 'aspectRatio' && activeCapability.mediaKind === 'video' ? null : (
+                  <span>{field.key === 'aspectRatio' && activeCapability.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
+                )}
+                {renderGlobalField(field)}
+              </div>
+            ))
+        ) : (
+          <span className="sheet-global-settings__empty">此功能无全局参数</span>
+        )}
       </section>
 
       <section className="sheet-toolbar" aria-label="表格工具栏">

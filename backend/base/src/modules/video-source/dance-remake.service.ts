@@ -20,16 +20,9 @@ import {
   inputMediaRelativePath,
 } from '../content/internals/content-common.js';
 import { safeFetch } from './video-source.http.js';
+import { danceRemakeDefaults, isDanceRemakeModelId } from './dance-remake.config.js';
 import { videoSourceService } from './video-source.service.js';
 import { VideoSourceError } from './video-source.types.js';
-
-const danceRemakeModelIds = new Set([
-  'doubao-seedance-2-0-260128',
-  'doubao-seedance-2-0-fast-260128',
-  'doubao-seedance-2-0-mini-260615',
-]);
-const standardDanceRemakeModelId = 'doubao-seedance-2-0-mini-260615';
-const standardDanceRemakeQuality = '普清 (480p)';
 
 type DanceRemakeInput = {
   characterImageAssetId: string;
@@ -50,7 +43,7 @@ type DanceRemakeInput = {
 export const danceRemakeService = {
   async create(input: DanceRemakeInput) {
     const generationOptions = resolveDanceRemakeGenerationOptions(input);
-    if (!danceRemakeModelIds.has(generationOptions.videoModelId)) {
+    if (!isDanceRemakeModelId(generationOptions.videoModelId)) {
       throw new VideoSourceError('当前模型不支持跳舞复刻');
     }
     const imageAsset = ownAsset(input.characterImageAssetId, input.userId, 'image');
@@ -201,8 +194,8 @@ function failDanceRemakePreparation(taskId: string, error: unknown) {
 export function resolveDanceRemakeGenerationOptions(input: Pick<DanceRemakeInput, 'mode' | 'quality' | 'videoModelId'>) {
   if (input.mode === 'standard') {
     return {
-      quality: standardDanceRemakeQuality,
-      videoModelId: standardDanceRemakeModelId,
+      quality: danceRemakeDefaults.standardQuality,
+      videoModelId: danceRemakeDefaults.standardModelId,
     };
   }
   return {

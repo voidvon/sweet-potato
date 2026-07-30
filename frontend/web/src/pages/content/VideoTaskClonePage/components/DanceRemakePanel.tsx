@@ -1,4 +1,5 @@
 import { Checkbox, Flex } from 'antd';
+import { danceRemakeModeOptions } from '../../shared/videoGenerationOptions';
 import type { DanceRemakeMode, LocalMaterialFile, MaterialKind, SelectedMaterials, ToolOption } from '../types';
 import { SelectionCardGroup } from './SelectionCardGroup';
 import { VideoSourcePanel } from './VideoSourcePanel';
@@ -50,28 +51,19 @@ export function DanceRemakePanel({
 
       <WorkspaceSection
         description="选择适合当前素材的视频复刻模式。"
-        title="模型选择"
+        title="生成模型"
       >
         <Flex gap={12} vertical>
           <SelectionCardGroup
             ariaLabel="视频复刻模式"
             columns={2}
-            options={[
-              {
-                description: '轻量视频复刻。',
-                key: 'standard',
-                onSelect: () => onModeChange('standard'),
-                selected: mode === 'standard',
-                title: '标准模式',
-              },
-              {
-                description: '动作、镜头和节奏复刻更强。',
-                key: 'enhanced',
-                onSelect: () => onModeChange('enhanced'),
-                selected: mode === 'enhanced',
-                title: '增强模式',
-              },
-            ]}
+            options={danceRemakeModeOptions.map((option) => ({
+              description: option.description,
+              key: option.value,
+              onSelect: () => onModeChange(option.value),
+              selected: mode === option.value,
+              title: option.label,
+            }))}
           />
 
           {mode === 'enhanced' && (

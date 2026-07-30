@@ -9,6 +9,12 @@ import type {
 } from '../../../api/batch-generation'
 import type { ContentAsset } from '../../../types'
 import {
+  danceRemakeDefaults,
+  danceRemakeModeOptions,
+  qualityOptions as sharedVideoQualityOptions,
+  videoModelDefinitions,
+} from '../shared/videoGenerationOptions'
+import {
   videoAspectRatioOptions,
   videoResolutionOptions,
   type VideoAspectRatio,
@@ -51,6 +57,15 @@ const videoOverrideFields: CreativeCapabilityField[] = [
   { key: 'generateAudio', label: '生成配音', overridable: true, valueType: 'boolean' },
 ]
 
+const danceRemakeEnhancedFields: CreativeCapabilityField[] = [
+  { key: 'videoModelId', label: '模型', valueType: 'string' },
+  { key: 'quality', label: '清晰度', valueType: 'string' },
+  { key: 'preserveAudio', label: '保留音乐和节奏', valueType: 'boolean' },
+]
+
+const danceRemakeModelOptions = videoModelDefinitions.map((option) => ({ label: option.label, value: option.id }))
+const danceRemakeQualityOptions = sharedVideoQualityOptions.map((option) => ({ label: option.label, value: option.label }))
+
 type UseBatchGenerationColumnsOptions = {
   activeCapability?: CreativeCapability
   assets: Record<string, ContentAsset>
@@ -70,6 +85,7 @@ type UseBatchGenerationColumnsOptions = {
   onRunRow: (row: BatchRow) => void
   onShowTooltip: (target: HTMLElement, title: string) => void
   onUpdateRow: (rowId: string, fieldKey: string, value: unknown) => void
+  rows: BatchRow[]
   rowsLength: number
   uploadingCell: string
 }
@@ -93,6 +109,7 @@ export function useBatchGenerationColumns({
   onRunRow,
   onShowTooltip,
   onUpdateRow,
+  rows,
   rowsLength,
   uploadingCell,
 }: UseBatchGenerationColumnsOptions) {
@@ -124,14 +141,22 @@ export function useBatchGenerationColumns({
   }
 
   return useMemo<ColDef<BatchRow>[]>(() => {
+    const hasEnhancedDanceRows = activeCapability?.key === 'video.dance_remake'
+      && (globalParams.danceRemakeMode === 'enhanced'
+        || rows.some((row) => valueAt(row.params, 'danceRemakeMode') === 'enhanced'))
     const rowFields = activeCapability?.rowFields || []
     const rowFieldKeys = new Set(rowFields.map((field) => field.key))
     const exposeVideoOverrides = activeCapability?.mediaKind === 'video'
+      && activeCapability.key !== 'video.upscale'
+      && activeCapability.key !== 'video.dance_remake'
+    const capabilityGlobalFields = activeCapability?.key === 'video.dance_remake'
+      ? (activeCapability.globalFields || []).filter((field) => field.key === 'danceRemakeMode' || hasEnhancedDanceRows)
+      : activeCapability?.globalFields || []
     const globalFields = exposeVideoOverrides
       ? Array.from(new Map(
-        [...(activeCapability?.globalFields || []), ...videoOverrideFields].map((field) => [field.key, field]),
+        [...capabilityGlobalFields, ...videoOverrideFields].map((field) => [field.key, field]),
       ).values())
-      : activeCapability?.globalFields || []
+      : capabilityGlobalFields
     const allOverrideFields = globalFields
       .filter((field) => (field.overridable || exposeVideoOverrides) && !rowFieldKeys.has(field.key))
       .map((field) => ({ ...field, isGlobalOverride: true }))
@@ -147,24 +172,60 @@ export function useBatchGenerationColumns({
       const isOutfitAsset = activeCapability?.key === 'image.outfit'
         && ['referenceGroups.model', 'referenceGroups.clothes'].includes(field.key)
       const isVideoAspectRatio = activeCapability?.mediaKind === 'video' && field.key === 'aspectRatio'
+      const isDanceEnhancedField = activeCapability?.key === 'video.dance_remake'
+        && danceRemakeEnhancedFields.some((item) => item.key === field.key)
+      const danceModeForRow = (row: BatchRow) => {
+        const rowMode = valueAt(row.params, 'danceRemakeMode')
+        if (rowMode === 'standard' || rowMode === 'enhanced') return rowMode
+        return globalParams.danceRemakeMode === 'enhanced' ? 'enhanced' : 'standard'
+      }
+      const isFieldDisabled = (row: BatchRow) => ['queued', 'running', 'completed'].includes(row.executionStatus)
+        || (isDanceEnhancedField && danceModeForRow(row) !== 'enhanced')
       const initialWidth = isPrompt
         ? 560
         : isAsset
           ? 202
-          : field.key === 'modelConfigId'
+          : field.key === 'modelConfigId' || field.key === 'videoModelId'
             ? 180
+            : field.key === 'danceRemakeMode'
+              ? 140
+              : field.key === 'quality'
+                ? 90
+                : field.key === 'preserveAudio'
+                  ? 90
             : field.key === 'aspectRatio'
               ? 130
               : field.key === 'outputCount'
                 ? 80
                 : 300
       const effectiveValue = (row: BatchRow) => {
+        if (isDanceEnhancedField && danceModeForRow(row) !== 'enhanced') return undefined
         const rowValue = valueAt(row.params, field.key)
+        if (rowValue === undefined && activeCapability?.key === 'video.dance_remake') {
+          if (field.key === 'danceRemakeMode') {
+            return globalParams.danceRemakeMode === 'enhanced' ? 'enhanced' : 'standard'
+          }
+          if (field.key === 'videoModelId') {
+            return typeof globalParams.videoModelId === 'string'
+              ? globalParams.videoModelId
+              : danceRemakeDefaults.videoModelId
+          }
+          if (field.key === 'quality') {
+            return globalParams.quality === '480P' || globalParams.quality === '普清 (480p)' ? '480P' : '720P'
+          }
+          if (field.key === 'preserveAudio') return globalParams.preserveAudio ?? danceRemakeDefaults.preserveAudio
+        }
         return rowValue === undefined && 'isGlobalOverride' in field
           ? valueAt(globalParams, field.key)
           : rowValue
       }
-      const selectOptions = field.key === 'modelConfigId'
+      const selectOptions = field.key === 'danceRemakeMode' && activeCapability?.key === 'video.dance_remake'
+        ? [...danceRemakeModeOptions]
+        : field.key === 'videoModelId' && activeCapability?.key === 'video.dance_remake'
+        ? danceRemakeModelOptions
+        : field.key === 'quality' && activeCapability?.key === 'video.dance_remake'
+          ? danceRemakeQualityOptions
+          : field.key === 'modelConfigId'
         ? modelOptions
           .filter((model) => model.type === activeCapability?.mediaKind)
           .map((model) => ({ label: model.name, value: model.id as string | number }))
@@ -233,7 +294,7 @@ export function useBatchGenerationColumns({
               ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                 <GridBooleanCell
                   checked={effectiveValue(params.data) === true}
-                  disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+                  disabled={isFieldDisabled(params.data)}
                   onChange={(checked) => actionsRef.current.onUpdateRow(params.data!.id, field.key, checked)}
                 />
               ) : null
@@ -256,7 +317,7 @@ export function useBatchGenerationColumns({
               : selectOptions.length
                 ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                   <GridSelectCell
-                    disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+                    disabled={isFieldDisabled(params.data)}
                     label={selectLabels.get(effectiveValue(params.data) as string | number)
                       || String(effectiveValue(params.data) ?? '-')}
                     onOpen={(anchor) => {
@@ -268,7 +329,7 @@ export function useBatchGenerationColumns({
                           fieldKey: field.key,
                           options: selectOptions,
                           rowId: params.data!.id,
-                          value: valueAt(params.data!.params, field.key) as string | number | undefined,
+                          value: effectiveValue(params.data!) as string | number | undefined,
                         }
                       })
                     }}
@@ -281,9 +342,14 @@ export function useBatchGenerationColumns({
           && !isAsset
           && field.valueType !== 'boolean'
           && !selectOptions.length
-          && !['queued', 'running', 'completed'].includes(params.data!.executionStatus),
+          && !isFieldDisabled(params.data!),
         headerName: `${isVideoAspectRatio ? '画布' : field.label}${field.required ? ' *' : ''}`,
-        minWidth: isOutfitAsset ? 202 : field.key === 'aspectRatio' ? 130 : field.key === 'outputCount' ? 80 : isAsset ? 180 : 140,
+        minWidth: isOutfitAsset
+          ? 202
+          : field.key === 'aspectRatio' ? 130
+            : field.key === 'outputCount' ? 80
+              : field.key === 'quality' || field.key === 'preserveAudio' ? 90
+                : isAsset ? 180 : 140,
         valueFormatter: selectOptions.length
           ? (params) => {
             const value = params.data ? effectiveValue(params.data) : params.value
@@ -293,7 +359,7 @@ export function useBatchGenerationColumns({
         valueGetter: (params) => params.data ? valueAt(params.data.params, field.key) : undefined,
         valueSetter,
         initialWidth,
-        width: isOutfitAsset ? 202 : undefined,
+        width: isOutfitAsset ? 202 : field.key === 'quality' || field.key === 'preserveAudio' ? 90 : undefined,
         wrapText: field.valueType === 'string',
       }
     })
@@ -438,6 +504,7 @@ export function useBatchGenerationColumns({
     modelOptions,
     onAssetReady,
     onUpload,
+    rows,
     rowsLength,
     uploadingCell,
   ])
