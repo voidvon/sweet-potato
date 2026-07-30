@@ -89,7 +89,7 @@
 }
 
 .sheet-table-area { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.sheet-grid { flex: 1; min-height: 240px; min-width: 0; width: 100%; }
+.sheet-grid { flex: 1; max-width: 100%; min-height: 240px; min-width: 0; }
 .batch-generation-grid-add-row {
   align-items: center;
   box-sizing: border-box;

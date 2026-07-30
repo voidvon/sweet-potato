@@ -299,6 +299,7 @@ export function BatchGenerationPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlSheetId = searchParams.get('sheetId')?.trim() || '';
   const gridRef = useRef<AgGridReact<BatchRow>>(null);
+  const gridContainerRef = useRef<HTMLElement>(null);
   const initialUrlSheetIdRef = useRef(urlSheetId);
   const initialDataLoadedRef = useRef(false);
   const pendingLocationSheetIdRef = useRef<string | null>(null);
@@ -1013,6 +1014,17 @@ export function BatchGenerationPage() {
     rowsLength: rows.length,
     uploadingCell,
   });
+  const configuredGridWidth = useMemo(() => columns.reduce(
+    (total, column) => total + (column.initialWidth ?? column.width ?? 200),
+    42,
+  ), [columns]);
+  const syncGridContainerWidth = useCallback(() => {
+    const api = gridRef.current?.api;
+    const container = gridContainerRef.current;
+    if (!api || !container) return;
+    const width = api.getAllDisplayedColumns().reduce((total, column) => total + column.getActualWidth(), 0);
+    container.style.width = `${width}px`;
+  }, []);
   const rowStats = useMemo(() => {
     const statuses = rows.map(executionStatusForRow);
     return {
@@ -1296,6 +1308,7 @@ export function BatchGenerationPage() {
           icon={<Columns3 />}
           onClick={() => {
             gridRef.current?.api.resetColumnState();
+            requestAnimationFrame(syncGridContainerWidth);
             message.success('已恢复默认列宽');
           }}
         >
@@ -1304,7 +1317,12 @@ export function BatchGenerationPage() {
       </section>
 
       <div className="sheet-table-area">
-        <section className="sheet-grid" aria-label="批量生成表格">
+        <section
+          className="sheet-grid"
+          aria-label="批量生成表格"
+          ref={gridContainerRef}
+          style={{ width: configuredGridWidth }}
+        >
           <AgGridReact<BatchRow>
               ref={gridRef}
               animateRows={false}
@@ -1345,6 +1363,10 @@ export function BatchGenerationPage() {
               setActivePromptEditor(null);
               hideGridTooltip();
             }}
+            onColumnResized={(event) => {
+              if (event.finished) syncGridContainerWidth();
+            }}
+            onNewColumnsLoaded={syncGridContainerWidth}
             onSelectionChanged={(event) => {
               setSelectedRowIds(event.api.getSelectedRows().map((row) => row.id));
             }}
