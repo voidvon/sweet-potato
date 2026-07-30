@@ -46,3 +46,18 @@ export const danceRemakeDefaults = {
   quality: '720P',
   videoModelId: preferredVideoModelId,
 } as const
+
+export const subjectReplaceTypeOptions = [
+  { assetField: 'subjectModelImageAssetId', label: '模特', uploadLabel: '模特图', value: 'model' },
+  { assetField: 'subjectClothingFrontAssetId', label: '服饰', uploadLabel: '服饰图', value: 'clothing' },
+  { assetField: 'subjectFaceImageAssetId', label: '人脸', uploadLabel: '人脸图', value: 'face' },
+  { assetField: 'subjectBackgroundImageAssetId', label: '背景', uploadLabel: '背景图', value: 'background' },
+  { assetField: 'subjectProductImageAssetId', label: '商品', uploadLabel: '商品图', value: 'product' },
+] as const
+
+export const subjectReplaceDefaults = {
+  preserveAudio: true,
+  quality: '720P',
+  subjectType: 'model',
+  videoModelId: preferredVideoModelId,
+} as const

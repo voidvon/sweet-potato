@@ -90,6 +90,8 @@ import {
   danceRemakeModeOptions,
   preferredVideoModelId,
   qualityOptions as sharedVideoQualityOptions,
+  subjectReplaceDefaults,
+  subjectReplaceTypeOptions,
   videoModelDefinitions,
 } from './shared/videoGenerationOptions';
 import {
@@ -374,6 +376,14 @@ function defaultGlobalParamsForCapability(
       preserveAudio: danceRemakeDefaults.preserveAudio,
       quality: danceRemakeDefaults.quality,
       videoModelId: danceRemakeDefaults.videoModelId,
+    };
+  }
+  if (capability.key === 'video.subject_replace') {
+    return {
+      preserveAudio: subjectReplaceDefaults.preserveAudio,
+      quality: subjectReplaceDefaults.quality,
+      subjectReplaceType: subjectReplaceDefaults.subjectType,
+      videoModelId: subjectReplaceDefaults.videoModelId,
     };
   }
   const model = capability.mediaKind === 'video'
@@ -1476,7 +1486,17 @@ export function BatchGenerationPage() {
         />
       );
     }
-    if (field.key === 'videoModelId' && activeCapability?.key === 'video.dance_remake') {
+    if (field.key === 'subjectReplaceType' && activeCapability?.key === 'video.subject_replace') {
+      return (
+        <Select
+          onChange={update}
+          options={subjectReplaceTypeOptions.map((option) => ({ label: option.label, value: option.value }))}
+          value={typeof value === 'string' ? value : subjectReplaceDefaults.subjectType}
+        />
+      );
+    }
+    if (field.key === 'videoModelId'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
       return (
         <Select
           onChange={update}
@@ -1485,7 +1505,8 @@ export function BatchGenerationPage() {
         />
       );
     }
-    if (field.key === 'quality' && activeCapability?.key === 'video.dance_remake') {
+    if (field.key === 'quality'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
       return (
         <Select
           onChange={update}
@@ -1494,7 +1515,8 @@ export function BatchGenerationPage() {
         />
       );
     }
-    if (field.key === 'preserveAudio' && activeCapability?.key === 'video.dance_remake') {
+    if (field.key === 'preserveAudio'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
       return <Switch checked={value !== false} onChange={update} size="small" />;
     }
     if (field.key === 'resolution') return null;

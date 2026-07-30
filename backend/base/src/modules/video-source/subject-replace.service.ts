@@ -13,15 +13,8 @@ import {
   resolveDanceRemakePrice,
 } from './dance-remake.service.js';
 import { VideoSourceError } from './video-source.types.js';
-
-const subjectTypes = new Set(['model', 'clothing', 'face', 'background', 'product']);
-const supportedModelIds = new Set([
-  'doubao-seedance-2-0-260128',
-  'doubao-seedance-2-0-fast-260128',
-  'doubao-seedance-2-0-mini-260615',
-]);
-
-type SubjectReplaceType = 'model' | 'clothing' | 'face' | 'background' | 'product';
+import { isSeedanceVideoModelId } from './seedance-video.config.js';
+import { isSubjectReplaceType, type SubjectReplaceType } from './subject-replace.config.js';
 
 type SubjectReplaceInput = {
   imageAssetIds: string[];
@@ -40,10 +33,10 @@ type SubjectReplaceInput = {
 
 export const subjectReplaceService = {
   async create(input: SubjectReplaceInput) {
-    if (!subjectTypes.has(input.subjectType)) {
+    if (!isSubjectReplaceType(input.subjectType)) {
       throw new VideoSourceError('请选择正确的图片类型');
     }
-    if (!supportedModelIds.has(input.videoModelId)) {
+    if (!isSeedanceVideoModelId(input.videoModelId)) {
       throw new VideoSourceError('当前模型不支持主体替换');
     }
     const expectedMaxImages = input.subjectType === 'clothing' ? 2 : 1;

@@ -18,6 +18,13 @@ import { modelConfigRepository } from '../model-configs/model-config.repository.
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import { danceRemakeService } from '../video-source/dance-remake.service.js';
 import { danceRemakeDefaults, normalizeDanceRemakeQuality } from '../video-source/dance-remake.config.js';
+import { normalizeSeedanceVideoQuality } from '../video-source/seedance-video.config.js';
+import {
+  isSubjectReplaceType,
+  subjectReplaceDefaults,
+  type SubjectReplaceType,
+} from '../video-source/subject-replace.config.js';
+import { subjectReplaceService } from '../video-source/subject-replace.service.js';
 import { registerCreativeCapabilityExecutor } from './creative-capability.registry.js';
 import type {
   CreativeCapabilityExecutionContext,
@@ -361,8 +368,103 @@ const videoDanceRemakeExecutor: CreativeCapabilityExecutor = {
   },
 };
 
+const subjectImageFields: Record<SubjectReplaceType, string[]> = {
+  background: ['subjectBackgroundImageAssetId'],
+  clothing: ['subjectClothingFrontAssetId', 'subjectClothingBackAssetId'],
+  face: ['subjectFaceImageAssetId'],
+  model: ['subjectModelImageAssetId'],
+  product: ['subjectProductImageAssetId'],
+};
+
+const videoSubjectReplaceExecutor: CreativeCapabilityExecutor = {
+  prepare(context, params) {
+    const subjectType = isSubjectReplaceType(params.subjectReplaceType)
+      ? params.subjectReplaceType
+      : subjectReplaceDefaults.subjectType;
+    const [requiredImageField, ...optionalImageFields] = subjectImageFields[subjectType];
+    const requiredImageAssetId = stringValue(params[requiredImageField]);
+    const imageAssetIds = [
+      requiredImageAssetId,
+      ...optionalImageFields.map((field) => stringValue(params[field])),
+    ].filter(Boolean);
+    const [referenceVideoAssetId] = stringArray(params.referenceVideoIds);
+    if (!requiredImageAssetId) {
+      throw new Error(subjectType === 'clothing' ? '请选择服饰正面图' : '请选择主体图片');
+    }
+    if (!referenceVideoAssetId) throw new Error('请选择参考视频');
+    requireOwnedAssets({
+      userId: context.userId,
+      assetIds: imageAssetIds,
+      mimePrefix: 'image/',
+      label: '主体图片',
+    });
+    requireOwnedAssets({
+      userId: context.userId,
+      assetIds: [referenceVideoAssetId],
+      mimePrefix: 'video/',
+      label: '参考视频',
+    });
+    const videoModelId = stringValue(params.videoModelId) || subjectReplaceDefaults.videoModelId;
+    const quality = normalizeSeedanceVideoQuality(params.quality);
+    const preserveAudio = params.preserveAudio !== false;
+    return {
+      effectiveParams: {
+        imageAssetIds,
+        preserveAudio,
+        quality,
+        referenceVideoIds: [referenceVideoAssetId],
+        subjectReplaceType: subjectType,
+        videoModelId,
+      },
+      modelConfigSnapshot: {
+        subjectReplace: { quality, subjectType, videoModelId },
+      },
+      estimatedCredits: 0,
+    };
+  },
+
+  async execute(context, prepared) {
+    const params = prepared.effectiveParams;
+    const [referenceVideoAssetId] = stringArray(params.referenceVideoIds);
+    const subjectType = isSubjectReplaceType(params.subjectReplaceType)
+      ? params.subjectReplaceType
+      : subjectReplaceDefaults.subjectType;
+    const task = context.generationJobId
+      ? contentService.getVideoTask(context.generationJobId, context.userId)
+      : await subjectReplaceService.create({
+        imageAssetIds: stringArray(params.imageAssetIds),
+        preserveAudio: params.preserveAudio !== false,
+        quality: stringValue(params.quality),
+        referenceVideoAssetId,
+        subjectType,
+        userId: context.userId,
+        videoModelId: stringValue(params.videoModelId),
+      });
+    if (!context.generationJobId) {
+      await context.onExternalJobCreated?.(task.id);
+    }
+    const completedTask = await waitForVideoTask(task.id, context.userId);
+    const result = generationResultForTask(completedTask);
+    const assetId = stringValue(result?.assetId)
+      || contentRepository.listAssets({ userId: context.userId, resourceType: 'finished_video' })
+        .find((asset) => asset.metadata.videoTaskId === completedTask.id)?.id
+      || '';
+    if (!assetId) throw new Error('模特 / 商品替换已完成，但未找到结果资产');
+    return {
+      outputAssetIds: [assetId],
+      creditCost: Number(completedTask.creditCost || 0),
+      metadata: {
+        subjectReplaceType: subjectType,
+        videoTaskId: completedTask.id,
+        videoUrl: completedTask.generatedVideoUrl || result?.videoUrl || '',
+      },
+    };
+  },
+};
+
 export function registerVideoCreativeCapabilityExecutors() {
   registerCreativeCapabilityExecutor('video.generate', videoGenerateExecutor);
   registerCreativeCapabilityExecutor('video.upscale', videoUpscaleExecutor);
   registerCreativeCapabilityExecutor('video.dance_remake', videoDanceRemakeExecutor);
+  registerCreativeCapabilityExecutor('video.subject_replace', videoSubjectReplaceExecutor);
 }

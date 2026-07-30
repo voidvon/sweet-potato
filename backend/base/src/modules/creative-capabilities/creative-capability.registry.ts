@@ -10,6 +10,7 @@ const globalParamsSchema = z.object({
   danceRemakeMode: z.enum(['standard', 'enhanced']).optional(),
   preserveAudio: z.boolean().optional(),
   quality: z.string().trim().min(1).optional(),
+  subjectReplaceType: z.enum(['model', 'clothing', 'face', 'background', 'product']).optional(),
   videoModelId: z.string().trim().min(1).optional(),
   modelConfigId: z.string().trim().min(1).optional(),
   resolution: z.string().trim().min(1).optional(),
@@ -59,12 +60,27 @@ const videoCapabilityRowFields: Record<string, CreativeCapabilityField[]> = {
     { key: 'characterImageAssetId', label: '人物图', valueType: 'asset', required: true },
     { key: 'referenceVideoIds', label: '参考视频', valueType: 'asset-list', required: true },
   ],
+  'video.subject_replace': [
+    { key: 'subjectModelImageAssetId', label: '模特图', valueType: 'asset', required: true },
+    { key: 'subjectClothingFrontAssetId', label: '服饰正面图', valueType: 'asset', required: true },
+    { key: 'subjectClothingBackAssetId', label: '服饰反面图', valueType: 'asset' },
+    { key: 'subjectFaceImageAssetId', label: '人脸图', valueType: 'asset', required: true },
+    { key: 'subjectBackgroundImageAssetId', label: '背景图', valueType: 'asset', required: true },
+    { key: 'subjectProductImageAssetId', label: '商品图', valueType: 'asset', required: true },
+    { key: 'referenceVideoIds', label: '参考视频', valueType: 'asset-list', required: true },
+  ],
 };
 
 const videoCapabilityGlobalFields: Record<string, CreativeCapabilityField[]> = {
   'video.upscale': [],
   'video.dance_remake': [
     { key: 'danceRemakeMode', label: '生成模式', valueType: 'string', overridable: true },
+    { key: 'videoModelId', label: '模型', valueType: 'string', overridable: true },
+    { key: 'quality', label: '清晰度', valueType: 'string', overridable: true },
+    { key: 'preserveAudio', label: '保留音乐', valueType: 'boolean', overridable: true },
+  ],
+  'video.subject_replace': [
+    { key: 'subjectReplaceType', label: '图片类型', valueType: 'string', overridable: true },
     { key: 'videoModelId', label: '模型', valueType: 'string', overridable: true },
     { key: 'quality', label: '清晰度', valueType: 'string', overridable: true },
     { key: 'preserveAudio', label: '保留音乐', valueType: 'boolean', overridable: true },
