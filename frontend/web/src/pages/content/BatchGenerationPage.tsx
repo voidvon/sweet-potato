@@ -208,6 +208,64 @@ function SheetTitleEditor({
   );
 }
 
+function SheetTabLabel({
+  onRename,
+  sheet,
+}: {
+  onRename: (sheetId: string, value: string) => Promise<void>;
+  sheet: BatchSheetSummary;
+}) {
+  const inputRef = useRef<InputRef>(null);
+  const [editing, setEditing] = useState(false);
+
+  useLayoutEffect(() => {
+    if (editing) inputRef.current?.focus({ cursor: 'all' });
+  }, [editing]);
+
+  return (
+    <span className="sheet-workspace__tab-label">
+      <span
+        className="sheet-workspace__tab-name-editor"
+        onMouseDown={(event) => {
+          if (event.detail !== 2) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setEditing(true);
+        }}
+      >
+        <span className={editing ? 'sheet-workspace__tab-name sheet-workspace__tab-name--editing' : 'sheet-workspace__tab-name'}>
+          {sheet.name}
+        </span>
+        {editing ? (
+          <Input
+            className="sheet-workspace__tab-name-input"
+            defaultValue={sheet.name}
+            maxLength={100}
+            onBlur={(event) => {
+              event.stopPropagation();
+              setEditing(false);
+              void onRename(sheet.id, event.target.value);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') setEditing(false);
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            ref={inputRef}
+            size="small"
+          />
+        ) : null}
+      </span>
+      <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
+        {sheet.mediaKind === 'image' ? '图片' : '视频'}
+      </Tag>
+    </span>
+  );
+}
+
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 const batchGridTheme = themeQuartz.withParams({
@@ -367,7 +425,6 @@ export function BatchGenerationPage() {
   const assetInputRef = useRef<HTMLInputElement>(null);
   const pendingAssetUploadRef = useRef<PendingAssetUpload | null>(null);
   const promptEditorRef = useRef<MentionRichTextareaRef>(null);
-  const sheetNameInputRef = useRef<InputRef>(null);
   const [capabilities, setCapabilities] = useState<CreativeCapability[]>([]);
   const [sheets, setSheets] = useState<BatchSheetSummary[]>([]);
   const [activeSheetId, setActiveSheetId] = useState('');
@@ -389,11 +446,6 @@ export function BatchGenerationPage() {
   const [retrying, setRetrying] = useState(false);
   const [uploadingCell, setUploadingCell] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editingSheetName, setEditingSheetName] = useState<{ sheetId: string; value: string } | null>(null);
-  useLayoutEffect(() => {
-    if (!editingSheetName) return;
-    sheetNameInputRef.current?.focus({ cursor: 'all' });
-  }, [editingSheetName?.sheetId]);
   const scheduleGridReveal = useCallback(() => {
     if (gridRevealTimerRef.current !== null) window.clearTimeout(gridRevealTimerRef.current);
     gridRevealTimerRef.current = window.setTimeout(() => {
@@ -1033,7 +1085,6 @@ export function BatchGenerationPage() {
     const sheet = sheets.find((item) => item.id === sheetId);
     if (!sheet) return;
     const name = value.trim();
-    setEditingSheetName(null);
     if (!name) {
       message.error('表名不能为空');
       return;
@@ -1370,47 +1421,7 @@ export function BatchGenerationPage() {
         items={sheets.map((sheet) => ({
           closable: sheets.length > 1,
           key: sheet.id,
-          label: (
-            <span className="sheet-workspace__tab-label">
-              <span
-                className="sheet-workspace__tab-name-editor"
-                onMouseDown={(event) => {
-                  if (event.detail !== 2) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setEditingSheetName({ sheetId: sheet.id, value: sheet.name });
-                }}
-              >
-                <span className={editingSheetName?.sheetId === sheet.id ? 'sheet-workspace__tab-name sheet-workspace__tab-name--editing' : 'sheet-workspace__tab-name'}>
-                  {sheet.name}
-                </span>
-                {editingSheetName?.sheetId === sheet.id ? (
-                  <Input
-                    className="sheet-workspace__tab-name-input"
-                    defaultValue={editingSheetName.value}
-                    maxLength={100}
-                    onBlur={(event) => {
-                      event.stopPropagation();
-                      void renameSheet(sheet.id, event.target.value);
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    onFocus={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation();
-                      if (event.key === 'Enter') event.currentTarget.blur();
-                      if (event.key === 'Escape') setEditingSheetName(null);
-                    }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                    ref={sheetNameInputRef}
-                    size="small"
-                  />
-                ) : null}
-              </span>
-              <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
-                {sheet.mediaKind === 'image' ? '图片' : '视频'}
-              </Tag>
-            </span>
-          ),
+          label: <SheetTabLabel onRename={renameSheet} sheet={sheet} />,
         }))}
         onChange={(sheetId) => { void activateSheet(sheetId); }}
         onEdit={(targetKey, action) => {
