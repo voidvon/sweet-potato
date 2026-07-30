@@ -85,6 +85,7 @@ import {
 import type { ContentAsset } from '../../types';
 import {
   GridCanvasOverlay,
+  GridVideoCanvasOverlay,
   GridPromptEditorOverlay,
   GridSelectOverlay,
   GridTooltipOverlay,
@@ -94,6 +95,7 @@ import type {
   ActiveGridCanvas,
   ActiveGridSelect,
   ActiveGridTooltip,
+  ActiveGridVideoCanvas,
   ActivePromptEditor,
   PendingAssetUpload,
 } from './batch-generation/batchGenerationGrid.types';
@@ -329,11 +331,68 @@ export function BatchGenerationPage() {
   const [newSheetName, setNewSheetName] = useState('');
   const [suggestedSheetName, setSuggestedSheetName] = useState('');
   const [activeGridCanvas, setActiveGridCanvas] = useState<ActiveGridCanvas | null>(null);
+  const [activeVideoCanvas, setActiveVideoCanvas] = useState<ActiveGridVideoCanvas | null>(null);
   const [activeGridSelect, setActiveGridSelect] = useState<ActiveGridSelect | null>(null);
   const [activePromptEditor, setActivePromptEditor] = useState<ActivePromptEditor | null>(null);
   const [activeGridTooltip, setActiveGridTooltip] = useState<ActiveGridTooltip | null>(null);
   const [activeAssetPreview, setActiveAssetPreview] = useState<ActiveAssetPreview | null>(null);
   const gridRows = useMemo(() => [...rows, gridAddRow], [rows]);
+  const rowsLengthRef = useRef(rows.length);
+  const addRowActionRef = useRef<() => void>(() => {});
+  rowsLengthRef.current = rows.length;
+  addRowActionRef.current = () => { void addRow(); };
+  const gridDefaultColDef = useMemo(() => ({
+    resizable: true,
+    sortable: false,
+    suppressHeaderMenuButton: true,
+    suppressMovable: true,
+  }), []);
+  const gridRowSelection = useMemo(() => ({
+    checkboxes: true,
+    enableClickSelection: false,
+    headerCheckbox: true,
+    mode: 'multiRow' as const,
+  }), []);
+  const gridSelectionColumnDef = useMemo(() => ({
+    pinned: 'left' as const,
+    resizable: false,
+    suppressMovable: true,
+    width: 42,
+  }), []);
+  const getGridRowId = useCallback((params: { data: BatchRow }) => params.data.id, []);
+  const getGridRowHeight = useCallback((params: { data?: BatchRow }) => (
+    params.data?.id === GRID_ADD_ROW_ID ? 44 : undefined
+  ), []);
+  const isGridFullWidthRow = useCallback((params: { rowNode: { data?: BatchRow } }) => (
+    params.rowNode.data?.id === GRID_ADD_ROW_ID
+  ), []);
+  const isGridRowSelectable = useCallback((node: { data?: BatchRow }) => {
+    const row = node.data;
+    if (!row) return false;
+    return row.id !== GRID_ADD_ROW_ID && !['queued', 'running'].includes(row.executionStatus);
+  }, []);
+  const renderFullWidthRow = useCallback(() => (
+    <div className="batch-generation-grid-add-row">
+      <Button
+        disabled={rowsLengthRef.current >= MAX_ROWS}
+        icon={<Plus size={16} />}
+        onClick={() => addRowActionRef.current()}
+        type="dashed"
+      >
+        新增一行
+      </Button>
+    </div>
+  ), []);
+  const handleGridBodyScroll = useCallback(() => {
+    setActiveGridCanvas(null);
+    setActiveVideoCanvas(null);
+    setActiveGridSelect(null);
+    setActivePromptEditor(null);
+    setActiveGridTooltip(null);
+  }, []);
+  const handleGridSelectionChanged = useCallback((event: { api: { getSelectedRows: () => BatchRow[] } }) => {
+    setSelectedRowIds(event.api.getSelectedRows().map((row) => row.id));
+  }, []);
 
   const showGridTooltip = useCallback((target: HTMLElement, title: string) => {
     const rect = target.getBoundingClientRect();
@@ -443,6 +502,7 @@ export function BatchGenerationPage() {
       sheetSwitchFrameRef.current = null;
       syncActiveSheetLocation(sheetId);
       setActiveGridCanvas(null);
+      setActiveVideoCanvas(null);
       setActiveGridSelect(null);
       setActivePromptEditor(null);
       setActiveGridTooltip(null);
@@ -538,6 +598,7 @@ export function BatchGenerationPage() {
       .map((row) => row.id));
     if (!executingRowIds.size) return;
     setActiveGridCanvas((current) => current && executingRowIds.has(current.rowId) ? null : current);
+    setActiveVideoCanvas((current) => current && executingRowIds.has(current.rowId) ? null : current);
     setActiveGridSelect((current) => current && executingRowIds.has(current.rowId) ? null : current);
     setActivePromptEditor((current) => current && executingRowIds.has(current.rowId) ? null : current);
     setSelectedRowIds((current) => {
@@ -560,7 +621,7 @@ export function BatchGenerationPage() {
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (target.closest('.batch-generation-grid-canvas-cell')) return;
-      if (target.closest('.batch-generation-grid-canvas-popover')) return;
+      if (target.closest('.batch-generation-grid-canvas-popover, .batch-generation-grid-canvas-popover__content')) return;
       closeCanvas();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -575,6 +636,31 @@ export function BatchGenerationPage() {
       window.removeEventListener('resize', closeCanvas);
     };
   }, [activeGridCanvas]);
+
+  useEffect(() => {
+    if (!activeVideoCanvas) return;
+    const closeCanvas = () => setActiveVideoCanvas(null);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('.batch-generation-grid-video-size-trigger')) return;
+      if (target.closest('.batch-generation-grid-video-canvas-popover, .batch-generation-grid-video-canvas-popover__content')) return;
+      closeCanvas();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCanvas();
+    };
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('resize', closeCanvas);
+    window.addEventListener('scroll', closeCanvas, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('resize', closeCanvas);
+      window.removeEventListener('scroll', closeCanvas, true);
+    };
+  }, [activeVideoCanvas]);
 
   useEffect(() => {
     if (!activeGridSelect) return;
@@ -797,6 +883,7 @@ export function BatchGenerationPage() {
         .map((row) => [row.id, row.executionStatus] as const),
     );
     setActiveGridCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
+    setActiveVideoCanvas((current) => current && targetRowIds.has(current.rowId) ? null : current);
     setActiveGridSelect((current) => current && targetRowIds.has(current.rowId) ? null : current);
     setActivePromptEditor((current) => current && targetRowIds.has(current.rowId) ? null : current);
     setRows((current) => current.map((row) => targetRowIds.has(row.id)
@@ -957,6 +1044,7 @@ export function BatchGenerationPage() {
     onCopyRow: copyRow,
     onHideTooltip: hideGridTooltip,
     onOpenCanvas: (nextCanvas) => {
+      setActiveVideoCanvas(null);
       setActiveGridSelect(null);
       setActivePromptEditor(null);
       setActiveGridCanvas(nextCanvas);
@@ -966,6 +1054,7 @@ export function BatchGenerationPage() {
       const cell = anchor.closest('.ag-cell') || anchor;
       const rect = cell.getBoundingClientRect();
       setActiveGridCanvas(null);
+      setActiveVideoCanvas(null);
       setActiveGridSelect(null);
       if (mode === 'fullscreen') {
         setActivePromptEditor({
@@ -990,7 +1079,16 @@ export function BatchGenerationPage() {
     },
     onOpenSelect: (nextSelect) => {
       setActiveGridCanvas(null);
+      setActiveVideoCanvas(null);
       setActiveGridSelect(nextSelect);
+    },
+    onOpenVideoCanvas: (nextCanvas) => {
+      if (nextCanvas) {
+        setActiveGridCanvas(null);
+        setActiveGridSelect(null);
+        setActivePromptEditor(null);
+      }
+      setActiveVideoCanvas(nextCanvas);
     },
     onPreviewAssets: (current, items) => setActiveAssetPreview({ current, items }),
     onRemoveRow: (row) => { void removeRow(row); },
@@ -1289,59 +1387,21 @@ export function BatchGenerationPage() {
               animateRows={false}
               columnDefs={columns}
               suppressColumnMoveAnimation
-            defaultColDef={{
-              resizable: true,
-              sortable: false,
-                suppressMovable: true,
-                suppressHeaderMenuButton: true,
-              }}
-              fullWidthCellRenderer={() => (
-                <div className="batch-generation-grid-add-row">
-                  <Button
-                    disabled={rows.length >= MAX_ROWS}
-                    icon={<Plus size={16} />}
-                    onClick={() => void addRow()}
-                    type="dashed"
-                  >
-                    新增一行
-                  </Button>
-                </div>
-              )}
-              getRowId={(params) => params.data.id}
-              getRowHeight={(params) => params.data?.id === GRID_ADD_ROW_ID ? 44 : undefined}
+              defaultColDef={gridDefaultColDef}
+              fullWidthCellRenderer={renderFullWidthRow}
+              getRowId={getGridRowId}
+              getRowHeight={getGridRowHeight}
               headerHeight={42}
-              isFullWidthRow={(params) => params.rowNode.data?.id === GRID_ADD_ROW_ID}
-              isRowSelectable={(node) => {
-                const row = node.data;
-                if (!row) return false;
-                return row.id !== GRID_ADD_ROW_ID
-                  && !['queued', 'running'].includes(row.executionStatus);
-              }}
+              isFullWidthRow={isGridFullWidthRow}
+              isRowSelectable={isGridRowSelectable}
               loading={loading || switchingSheet}
-            onBodyScroll={() => {
-              setActiveGridCanvas(null);
-              setActiveGridSelect(null);
-              setActivePromptEditor(null);
-              hideGridTooltip();
-            }}
-            onSelectionChanged={(event) => {
-              setSelectedRowIds(event.api.getSelectedRows().map((row) => row.id));
-            }}
+            onBodyScroll={handleGridBodyScroll}
+            onSelectionChanged={handleGridSelectionChanged}
             overlayNoRowsTemplate="暂无表格行"
               rowData={gridRows}
-            rowHeight={56}
-            rowSelection={{
-              checkboxes: true,
-              enableClickSelection: false,
-              headerCheckbox: true,
-              mode: 'multiRow',
-            }}
-            selectionColumnDef={{
-              pinned: 'left',
-              resizable: false,
-              suppressMovable: true,
-              width: 42,
-            }}
+              rowHeight={56}
+            rowSelection={gridRowSelection}
+            selectionColumnDef={gridSelectionColumnDef}
               stopEditingWhenCellsLoseFocus
               theme={batchGridTheme}
           />
@@ -1355,6 +1415,17 @@ export function BatchGenerationPage() {
           onResolutionChange={(rowId, resolution) => {
             updateRowParams(rowId, 'resolution', resolution);
             setActiveGridCanvas((current) => current?.rowId === rowId ? { ...current, resolution } : current);
+          }}
+        />
+        <GridVideoCanvasOverlay
+          activeCanvas={activeVideoCanvas}
+          onAspectRatioChange={(rowId, aspectRatio) => {
+            updateRowParams(rowId, 'aspectRatio', aspectRatio);
+            setActiveVideoCanvas((current) => current?.rowId === rowId ? { ...current, aspectRatio } : current);
+          }}
+          onResolutionChange={(rowId, resolution) => {
+            updateRowParams(rowId, 'resolution', resolution);
+            setActiveVideoCanvas((current) => current?.rowId === rowId ? { ...current, resolution } : current);
           }}
         />
         <GridSelectOverlay

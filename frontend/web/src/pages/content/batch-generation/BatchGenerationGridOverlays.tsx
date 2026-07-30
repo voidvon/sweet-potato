@@ -9,6 +9,11 @@ import {
   type ImageResolution,
 } from '../../../components/ImageOutputSizePicker'
 import {
+  VideoOutputSizePicker,
+  type VideoAspectRatio,
+  type VideoResolution,
+} from '../../../components/VideoOutputSizePicker'
+import {
   MentionRichTextarea,
   type MentionRichTextareaOption,
   type MentionRichTextareaRef,
@@ -17,6 +22,7 @@ import type {
   ActiveGridCanvas,
   ActiveGridSelect,
   ActiveGridTooltip,
+  ActiveGridVideoCanvas,
   ActivePromptEditor,
 } from './batchGenerationGrid.types'
 
@@ -35,13 +41,15 @@ export function GridCanvasOverlay({
       arrow={false}
       classNames={{ root: 'image-output-size-popover batch-generation-grid-canvas-popover' }}
       content={(
-        <ImageOutputSizePicker
-          aspectRatio={activeCanvas.aspectRatio}
-          model={activeCanvas.model}
-          onAspectRatioChange={(aspectRatio) => onAspectRatioChange(activeCanvas.rowId, aspectRatio)}
-          onResolutionChange={(resolution) => onResolutionChange(activeCanvas.rowId, resolution)}
-          resolution={activeCanvas.resolution}
-        />
+        <div className="batch-generation-grid-canvas-popover__content">
+          <ImageOutputSizePicker
+            aspectRatio={activeCanvas.aspectRatio}
+            model={activeCanvas.model}
+            onAspectRatioChange={(aspectRatio) => onAspectRatioChange(activeCanvas.rowId, aspectRatio)}
+            onResolutionChange={(resolution) => onResolutionChange(activeCanvas.rowId, resolution)}
+            resolution={activeCanvas.resolution}
+          />
+        </div>
       )}
       open
       placement="bottomLeft"
@@ -49,6 +57,47 @@ export function GridCanvasOverlay({
     >
       <span
         className="batch-generation-grid-canvas-anchor"
+        style={{
+          height: activeCanvas.anchor.height,
+          left: activeCanvas.anchor.left,
+          top: activeCanvas.anchor.top,
+          width: activeCanvas.anchor.width,
+        }}
+      />
+    </Popover>
+  )
+}
+
+export function GridVideoCanvasOverlay({
+  activeCanvas,
+  onAspectRatioChange,
+  onResolutionChange,
+}: {
+  activeCanvas: ActiveGridVideoCanvas | null
+  onAspectRatioChange: (rowId: string, aspectRatio: VideoAspectRatio) => void
+  onResolutionChange: (rowId: string, resolution: VideoResolution) => void
+}) {
+  if (!activeCanvas) return null
+  return (
+    <Popover
+      arrow={false}
+      classNames={{ root: 'video-output-size-popover batch-generation-grid-video-canvas-popover' }}
+      content={(
+        <div className="batch-generation-grid-video-canvas-popover__content">
+          <VideoOutputSizePicker
+            aspectRatio={activeCanvas.aspectRatio}
+            onAspectRatioChange={(aspectRatio) => onAspectRatioChange(activeCanvas.rowId, aspectRatio)}
+            onResolutionChange={(resolution) => onResolutionChange(activeCanvas.rowId, resolution)}
+            resolution={activeCanvas.resolution}
+          />
+        </div>
+      )}
+      open
+      placement="bottomLeft"
+      trigger={[]}
+    >
+      <span
+        className="batch-generation-grid-video-canvas-anchor"
         style={{
           height: activeCanvas.anchor.height,
           left: activeCanvas.anchor.left,
