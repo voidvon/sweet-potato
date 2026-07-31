@@ -449,10 +449,33 @@ export function GridAssetCell({
   )
 }
 
-export function GridBooleanCell({ checked, disabled, onChange }: { checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }) {
+export function GridBooleanCell({ checked, disabled, isOverridden, onChange, onReset }: {
+  checked: boolean
+  disabled: boolean
+  isOverridden?: boolean
+  onChange: (checked: boolean) => void
+  onReset?: () => void
+}) {
   return (
     <span className="batch-generation-grid-boolean-cell">
       <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
+      {isOverridden && !disabled && onReset ? (
+        <Tooltip title="重置为跟随全局参数">
+          <button
+            aria-label="重置为跟随全局参数"
+            className="batch-generation-grid-select-cell__reset"
+            onClick={(event) => {
+              event.stopPropagation()
+              onReset()
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" size={12} />
+            <span>重置</span>
+          </button>
+        </Tooltip>
+      ) : null}
     </span>
   )
 }

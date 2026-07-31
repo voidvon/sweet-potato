@@ -86,6 +86,7 @@ function normalizeVideoParams(params: Record<string, unknown>, modelConfig: AiMo
   const duration = stringValue(params.duration) || formatDurationLabel(option.durationPolicy.defaultSeconds);
   const quality = stringValue(params.quality) || stringValue(params.resolution) || '标清 (720p)';
   const ratio = stringValue(params.ratio) || stringValue(params.aspectRatio) || '9:16';
+  const referenceAudioIds = stringArray(params.referenceAudioIds);
   return {
     ...params,
     prompt: stringValue(params.prompt),
@@ -97,8 +98,8 @@ function normalizeVideoParams(params: Record<string, unknown>, modelConfig: AiMo
     ratio,
     referenceImageIds: stringArray(params.referenceImageIds),
     referenceVideoIds: stringArray(params.referenceVideoIds),
-    referenceAudioIds: stringArray(params.referenceAudioIds),
-    generateAudio: params.generateAudio !== false,
+    referenceAudioIds,
+    generateAudio: referenceAudioIds.length > 0 || params.generateAudio !== false,
   };
 }
 

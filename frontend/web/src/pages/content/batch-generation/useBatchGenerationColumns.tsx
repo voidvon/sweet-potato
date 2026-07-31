@@ -384,14 +384,21 @@ export function useBatchGenerationColumns({
                 )
                 : <span>-</span>
               : null
-            : field.valueType === 'boolean'
-              ? (params: ICellRendererParams<BatchRow>) => params.data ? (
+          : field.valueType === 'boolean'
+            ? (params: ICellRendererParams<BatchRow>) => {
+              if (!params.data) return null
+              const hasReferenceAudio = field.key === 'generateAudio'
+                && stringArray(valueAt(params.data.params, 'referenceAudioIds')).length > 0
+              return (
                 <GridBooleanCell
-                  checked={effectiveValue(params.data) === true}
-                  disabled={isFieldDisabled(params.data)}
+                  checked={hasReferenceAudio || effectiveValue(params.data) === true}
+                  disabled={isFieldDisabled(params.data) || hasReferenceAudio}
+                  isOverridden={!hasReferenceAudio && valueAt(params.data.params, field.key) !== undefined}
                   onChange={(checked) => actionsRef.current.onUpdateRow(params.data!.id, field.key, checked)}
+                  onReset={() => actionsRef.current.onUpdateRow(params.data!.id, field.key, undefined)}
                 />
-              ) : null
+              )
+            }
               : isVideoAspectRatio
                 ? (params: ICellRendererParams<BatchRow>) => {
                   if (!params.data) return null
