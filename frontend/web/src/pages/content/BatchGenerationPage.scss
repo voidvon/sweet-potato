@@ -84,13 +84,18 @@
 .sheet-remaining { color: #8ba0bd; font-size: 11px; }
 .sheet-global-settings__divider, .sheet-toolbar > i, .sheet-task-stats > i { background: #dbe4f0; display: block; height: 22px; width: 1px; }
 .sheet-global-settings__field { align-items: center; color: #526984; display: flex; font-size: 13px; font-weight: 600; gap: 10px; }
-.sheet-global-settings .ant-select { color: #04546e; flex: none; font-size: 13px; font-weight: 700; min-width: 0; width: auto; }
-.sheet-global-settings .ant-select-selector { padding-inline-end: 26px !important; width: fit-content !important; }
-.sheet-global-settings .ant-select-selection-item { flex: none; }
+.batch-generation-model-select { color: #04546e; display: inline-flex; flex: none; font-size: 13px; font-weight: 700; max-width: none; min-width: 0; width: fit-content; }
+.batch-generation-model-select .ant-select-selector { min-width: 0; padding-inline-end: 26px !important; width: auto !important; }
+.batch-generation-model-select .ant-select-selection-item { flex: 0 0 auto; }
+.batch-generation-grid-select-anchor .batch-generation-model-select,
+.batch-generation-grid-select-anchor .batch-generation-model-select .ant-select-selector { min-width: 0; width: 100%; }
+.batch-generation-grid-select-anchor .batch-generation-model-select { min-width: 0; }
 .sheet-global-settings .sheet-global-size-button { color: #04546e; font-size: 13px; font-weight: 700; gap: 5px; height: 28px; padding-inline: 7px; }
 .sheet-global-settings .sheet-global-size-button .ant-btn-icon { display: inline-flex; }
 .video-output-size-popover .ant-popover-inner { padding: 16px; }
 .video-output-size-popover .ant-popover-inner-content { padding: 0; }
+.video-duration-popover .ant-popover-inner { padding: 14px; }
+.video-duration-popover .ant-popover-inner-content { padding: 0; }
 
 .sheet-toolbar { border-bottom: 1px solid #e8edf5; box-sizing: border-box; color: #8ba0bd; font-size: 14px; gap: 8px; height: 40px; min-height: 40px; padding: 4px 24px; }
 .sheet-toolbar > span:first-child { font-size: 12px; }
@@ -129,6 +134,7 @@
 .sheet-grid .batch-generation-grid-index-cell { align-items: center; display: flex; justify-content: center; }
 .sheet-grid .batch-generation-grid-status-cell { align-items: center; display: flex; }
 .sheet-grid .batch-generation-grid-credits-cell { align-items: center; display: flex; }
+.batch-generation-grid-boolean-cell { align-items: center; display: flex; height: 100%; width: 100%; }
 .batch-generation-grid-credit-value {
   align-items: center;
   color: var(--color-text-tertiary);
@@ -268,7 +274,6 @@
 .sheet-grid .ant-space { max-width: 100%; }
 .batch-generation-grid-select-cell {
   align-items: center;
-  cursor: pointer;
   display: flex;
   gap: 6px;
   height: 100%;
@@ -276,14 +281,49 @@
   width: 100%;
 }
 .batch-generation-grid-select-cell--disabled { cursor: not-allowed; opacity: .55; }
+.batch-generation-grid-select-cell__trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 0 1 auto;
+  font: inherit;
+  gap: 6px;
+  height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  text-align: left;
+  width: fit-content;
+}
+.batch-generation-grid-select-cell__trigger:disabled { cursor: not-allowed; }
 .batch-generation-grid-select-cell__value {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.batch-generation-grid-select-cell > svg { color: #8295ad; flex: none; }
+.batch-generation-grid-select-cell__reset {
+  align-items: center;
+  background: #eef3f9;
+  border: 0;
+  border-radius: 6px;
+  color: #617995;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font: inherit;
+  font-size: 11px;
+  gap: 3px;
+  height: 24px;
+  padding: 0 6px;
+}
+.batch-generation-grid-select-cell__reset:hover { background: #e2eaf4; color: #304b6a; }
+.batch-generation-grid-select-cell__reset:focus-visible { outline: 2px solid #8db9ff; outline-offset: 1px; }
+.batch-generation-grid-select-cell__trigger > svg { color: #8295ad; flex: none; }
 .batch-generation-grid-canvas-cell {
   align-items: center;
   cursor: pointer;
@@ -459,6 +499,18 @@
 .batch-generation-grid-select-anchor .ant-select,
 .batch-generation-grid-select-anchor .ant-select-selector { height: 100% !important; width: 100%; }
 .batch-generation-grid-select-popup { min-width: 160px; }
+.batch-generation-grid-duration-picker {
+  background: var(--color-white);
+  border: 1px solid #e8edf5;
+  border-radius: 12px;
+  box-sizing: border-box;
+  box-shadow: 0 12px 30px rgb(27 42 66 / 0.14);
+  padding: 10px;
+  position: fixed;
+  z-index: 1030;
+  width: min(340px, calc(100vw - 16px));
+}
+.batch-generation-grid-duration-picker .video-duration-picker { width: 100%; }
 .batch-generation-grid-canvas-anchor {
   pointer-events: none;
   position: fixed;

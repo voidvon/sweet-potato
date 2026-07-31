@@ -1,0 +1,59 @@
+.video-duration-picker {
+  background: var(--color-white);
+  box-sizing: border-box;
+  display: grid;
+  gap: 10px;
+  padding: 2px;
+  width: min(320px, calc(100vw - 32px));
+}
+
+.video-duration-picker h3 {
+  color: #8ba0bd;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.video-duration-picker__grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.video-duration-picker__option {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  color: #415672;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  height: 34px;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 8px;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.video-duration-picker__option:hover {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+  color: var(--color-brand-active);
+}
+
+.video-duration-picker__option.is-selected {
+  background: var(--color-brand-soft-strong);
+  border-color: var(--color-brand-active);
+  color: var(--color-brand-active);
+  box-shadow: inset 0 0 0 1px var(--color-brand-active);
+}
+
+@media (max-width: 560px) {
+  .video-duration-picker__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

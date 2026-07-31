@@ -17,6 +17,7 @@ export type GridAnchor = {
 }
 
 export type GridSelectOption = {
+  disabled?: boolean
   label: string
   value: string | number
 }

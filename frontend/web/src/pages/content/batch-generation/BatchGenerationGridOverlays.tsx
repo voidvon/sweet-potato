@@ -13,6 +13,7 @@ import {
   type VideoAspectRatio,
   type VideoResolution,
 } from '../../../components/VideoOutputSizePicker'
+import { VideoDurationPicker } from '../../../components/VideoDurationPicker'
 import {
   MentionRichTextarea,
   type MentionRichTextareaOption,
@@ -117,7 +118,27 @@ export function GridSelectOverlay({
   onChange: (rowId: string, fieldKey: string, value: unknown) => void
 }) {
   if (!activeSelect) return null
-  return (
+  if (activeSelect.fieldKey === 'duration') {
+    const durationPickerWidth = Math.min(340, Math.max(0, window.innerWidth - 16))
+    const durationPickerLeft = Math.max(
+      8,
+      Math.min(activeSelect.anchor.left, window.innerWidth - durationPickerWidth - 8),
+    )
+    return createPortal(
+      <div
+        className="batch-generation-grid-duration-picker"
+        style={{ left: durationPickerLeft, top: activeSelect.anchor.top + activeSelect.anchor.height }}
+      >
+        <VideoDurationPicker
+          onChange={(value) => onChange(activeSelect.rowId, activeSelect.fieldKey, value)}
+          options={activeSelect.options.map((option) => ({ label: option.label, value: String(option.value) }))}
+          value={typeof activeSelect.value === 'string' ? activeSelect.value : ''}
+        />
+      </div>,
+      document.body,
+    )
+  }
+  return createPortal(
     <div
       className="batch-generation-grid-select-anchor"
       key={`${activeSelect.rowId}:${activeSelect.fieldKey}`}
@@ -130,21 +151,22 @@ export function GridSelectOverlay({
     >
       <Select<string | number>
         autoFocus
+        className={activeSelect.fieldKey === 'modelConfigId' ? 'batch-generation-model-select' : undefined}
         onChange={(nextValue) => onChange(
           activeSelect.rowId,
           activeSelect.fieldKey,
           nextValue === '' ? undefined : nextValue,
         )}
         open
-        options={[
-          { label: '使用全局设置', value: '' },
-          ...activeSelect.options,
-        ]}
+        options={activeSelect.fieldKey === 'modelConfigId'
+          ? activeSelect.options
+          : [{ label: '使用全局设置', value: '' }, ...activeSelect.options]}
         popupClassName="ag-custom-component-popup batch-generation-grid-select-popup"
-        popupMatchSelectWidth={Math.max(activeSelect.anchor.width, 160)}
+        popupMatchSelectWidth={activeSelect.fieldKey === 'modelConfigId' ? false : Math.max(activeSelect.anchor.width, 160)}
         value={activeSelect.value ?? ''}
       />
-    </div>
+    </div>,
+    document.body,
   )
 }
 

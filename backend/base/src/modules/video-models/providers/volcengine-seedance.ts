@@ -56,7 +56,6 @@ export const volcengineSeedanceProvider: VideoModelProvider = {
       id: 'doubao-seedance-2-0-mini-260615',
       name: 'Seedance 2.0 Mini',
       description: '2.0 轻量版，支持多模态参考生视频，可同时使用参考图、参考视频、参考音频。',
-      disabled: true,
       supportedReferenceTypes: ['image', 'video', 'audio'],
       referencePolicy: {
         imageMode: 'reference_images',

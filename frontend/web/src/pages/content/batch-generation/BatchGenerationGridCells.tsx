@@ -1,8 +1,8 @@
 import { memo, type ReactNode } from 'react'
-import { Button, Image, Popconfirm, Space, Switch, Tag, Typography } from 'antd'
+import { Button, Image, Popconfirm, Space, Switch, Tag, Tooltip, Typography } from 'antd'
 import { CreditIcon } from '@shared/components/CreditIcon'
 import { formatCreditAmount } from '@shared/utils/credits'
-import { ChevronDown, Copy, ExternalLink, Maximize2, Play, Plus, Scan, Trash2, UploadCloud, X } from 'lucide-react'
+import { ChevronDown, Copy, ExternalLink, Maximize2, Play, Plus, RotateCcw, Scan, Trash2, UploadCloud, X } from 'lucide-react'
 import type {
   BatchAttempt,
   BatchExecutionStatus,
@@ -38,32 +38,52 @@ const MemoBatchVideoReferencePicker = memo(BatchVideoReferencePicker, (previous,
 
 export function GridSelectCell({
   disabled,
+  isOverridden,
   label,
   onOpen,
+  onReset,
 }: {
   disabled?: boolean
+  isOverridden?: boolean
   label: string
   onOpen: (anchor: HTMLElement) => void
+  onReset?: () => void
 }) {
   return (
     <div
       aria-disabled={disabled}
       className={`batch-generation-grid-select-cell${disabled ? ' batch-generation-grid-select-cell--disabled' : ''}`}
-      onKeyDown={(event) => {
-        if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
-          event.preventDefault()
-          onOpen(event.currentTarget)
-        }
-      }}
-      onPointerDown={(event) => {
-        event.stopPropagation()
-        if (!disabled) onOpen(event.currentTarget)
-      }}
-      role="button"
-      tabIndex={disabled ? -1 : 0}
     >
-      <span className="batch-generation-grid-select-cell__value">{label}</span>
-      <ChevronDown aria-hidden="true" size={14} />
+      <button
+        aria-label={`选择${label}`}
+        className="batch-generation-grid-select-cell__trigger"
+        disabled={disabled}
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          if (!disabled) onOpen(event.currentTarget)
+        }}
+        type="button"
+      >
+        <span className="batch-generation-grid-select-cell__value">{label}</span>
+        <ChevronDown aria-hidden="true" size={14} />
+      </button>
+      {isOverridden && !disabled && onReset ? (
+        <Tooltip title="重置为跟随全局参数">
+          <button
+            aria-label="重置为跟随全局参数"
+            className="batch-generation-grid-select-cell__reset"
+            onClick={(event) => {
+              event.stopPropagation()
+              onReset()
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" size={12} />
+            <span>重置</span>
+          </button>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
@@ -71,12 +91,16 @@ export function GridSelectCell({
 export function GridVideoOutputSizeCell({
   aspectRatio,
   disabled,
+  isOverridden,
   onOpen,
+  onReset,
   resolution,
 }: {
   aspectRatio: VideoAspectRatio
   disabled?: boolean
+  isOverridden?: boolean
   onOpen: (anchor: HTMLElement) => void
+  onReset?: () => void
   resolution: VideoResolution
 }) {
   return (
@@ -97,17 +121,38 @@ export function GridVideoOutputSizeCell({
       tabIndex={disabled ? -1 : 0}
     >
       <span className="batch-generation-grid-select-cell__value">{aspectRatio} · {resolution}</span>
+      {isOverridden && !disabled && onReset ? (
+        <Tooltip title="重置为跟随全局参数">
+          <button
+            aria-label="重置为跟随全局参数"
+            className="batch-generation-grid-select-cell__reset"
+            onClick={(event) => {
+              event.stopPropagation()
+              onReset()
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" size={12} />
+            <span>重置</span>
+          </button>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
 export function GridCanvasCell({
   disabled,
+  isOverridden,
   label,
   onOpen,
+  onReset,
 }: {
   disabled?: boolean
+  isOverridden?: boolean
   label: string
   onOpen: (anchor: HTMLElement) => void
+  onReset?: () => void
 }) {
   return (
     <div
@@ -129,6 +174,23 @@ export function GridCanvasCell({
       <Scan aria-hidden="true" size={13} />
       <span>{label}</span>
       <ChevronDown aria-hidden="true" size={14} />
+      {isOverridden && !disabled && onReset ? (
+        <Tooltip title="重置为跟随全局参数">
+          <button
+            aria-label="重置为跟随全局参数"
+            className="batch-generation-grid-select-cell__reset"
+            onClick={(event) => {
+              event.stopPropagation()
+              onReset()
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            <RotateCcw aria-hidden="true" size={12} />
+            <span>重置</span>
+          </button>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
@@ -383,7 +445,11 @@ export function GridAssetCell({
 }
 
 export function GridBooleanCell({ checked, disabled, onChange }: { checked: boolean; disabled: boolean; onChange: (checked: boolean) => void }) {
-  return <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
+  return (
+    <span className="batch-generation-grid-boolean-cell">
+      <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
+    </span>
+  )
 }
 
 export function GridStatusCell({ status }: { status: BatchExecutionStatus }) {

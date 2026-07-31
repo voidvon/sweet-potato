@@ -22,7 +22,8 @@ export const imageResolutionOptions = [
 export const videoResolutionOptions = imageResolutionOptions
 export const aspectRatioOptions = ['auto', '1:1', '3:4', '4:3', '9:16', '16:9'].map((value) => ({ label: value, value }))
 export const outputCountOptions = [1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }))
-export const durationOptions = [5, 10, 15].map((value) => ({ label: `${value}s`, value: `${value}秒` }))
+export const durationOptions = Array.from({ length: 12 }, (_, index) => index + 4)
+  .map((value) => ({ label: `${value}s`, value: `${value}秒` }))
 
 export const statusMeta: Record<BatchExecutionStatus, { label: string; tone: 'done' | 'processing' | 'failed' | 'pending' }> = {
   idle: { label: '待提交', tone: 'pending' },

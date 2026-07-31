@@ -77,6 +77,7 @@ import {
   type VideoAspectRatio,
   type VideoResolution,
 } from '../../components/VideoOutputSizePicker';
+import { VideoDurationPicker } from '../../components/VideoDurationPicker';
 import { AppImage } from '../../components/AppImage';
 import { CompactButton } from '../../components/CompactButton';
 import type { MentionRichTextareaRef } from '../../components/MentionRichTextarea';
@@ -819,6 +820,7 @@ export function BatchGenerationPage() {
       if (!(target instanceof Element)) return;
       if (target.closest('.batch-generation-grid-select-cell')) return;
       if (target.closest('.batch-generation-grid-select-popup')) return;
+      if (target.closest('.batch-generation-grid-duration-picker')) return;
       closeSelect();
     };
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -912,13 +914,22 @@ export function BatchGenerationPage() {
       : attemptForRow(row.id)?.status || row.executionStatus
   ), [attemptForRow]);
 
-  function updateRowParams(rowId: string, key: string, value: unknown) {
+  function updateRowParamsValues(rowId: string, values: Record<string, unknown>) {
     const row = rows.find((item) => item.id === rowId);
     if (!row || ['queued', 'running', 'completed'].includes(row.executionStatus)) return;
     setRows((current) => current.map((row) => row.id === rowId
-      ? { ...row, params: withValue(row.params, key, value), validationStatus: 'draft', validationErrors: [] }
+      ? {
+        ...row,
+        params: Object.entries(values).reduce((params, [key, value]) => withValue(params, key, value), row.params),
+        validationStatus: 'draft',
+        validationErrors: [],
+      }
       : row));
     setDirtyRowIds((current) => current.includes(rowId) ? current : [...current, rowId]);
+  }
+
+  function updateRowParams(rowId: string, key: string, value: unknown) {
+    updateRowParamsValues(rowId, { [key]: value });
   }
 
   function closePromptEditor(revert = false) {
@@ -1237,7 +1248,7 @@ export function BatchGenerationPage() {
     assets,
     getAttempt: attemptForRow,
     globalParams,
-    modelOptions,
+    modelOptions: availableModelOptions,
     onAssetReady: (asset) => setAssets((current) => ({ ...current, [asset.id]: asset })),
     onCopyRow: copyRow,
     onHideTooltip: hideGridTooltip,
@@ -1290,6 +1301,14 @@ export function BatchGenerationPage() {
     },
     onPreviewAssets: (current, items) => setActiveAssetPreview({ current, items }),
     onRemoveRow: (row) => { void removeRow(row); },
+    onResetCanvas: (rowId) => updateRowParamsValues(rowId, {
+      aspectRatio: undefined,
+      resolution: undefined,
+    }),
+    onResetModel: (rowId) => updateRowParamsValues(rowId, {
+      modelConfigId: undefined,
+      videoModelId: undefined,
+    }),
     onRunRow: (row) => { void runRows([row.id], 'row'); },
     onShowTooltip: showGridTooltip,
     onUpload: (row, field, files) => uploadUploadedAssets(row, field, files),
@@ -1433,6 +1452,7 @@ export function BatchGenerationPage() {
     if (field.key === 'modelConfigId') {
       return (
         <Select
+          className="batch-generation-model-select"
           onChange={(modelSelectionId) => {
             const nextModel = availableGlobalModels.find((model) => model.id === modelSelectionId);
             if (!nextModel) return;
@@ -1445,6 +1465,7 @@ export function BatchGenerationPage() {
           }}
           options={activeModelOptions}
           placeholder="选择模型"
+          popupMatchSelectWidth={false}
           value={selectedGlobalModel?.id}
         />
       );
@@ -1509,7 +1530,27 @@ export function BatchGenerationPage() {
     }
     if (field.key === 'aspectRatio') return <Select onChange={update} options={aspectRatioOptions} placeholder="画面比例" value={value as string | undefined} />;
     if (field.key === 'outputCount') return <Select onChange={update} options={outputCountOptions} placeholder="张数" value={value as number | undefined} />;
-    if (field.key === 'duration') return <Select onChange={update} options={durationOptions} placeholder="时长" value={value as string | undefined} />;
+    if (field.key === 'duration') {
+      return (
+        <Popover
+          arrow={false}
+          classNames={{ root: 'video-duration-popover' }}
+          content={(
+            <VideoDurationPicker
+              onChange={update}
+              options={durationOptions}
+              value={currentDuration}
+            />
+          )}
+          placement="bottomLeft"
+          trigger="click"
+        >
+          <Button className="sheet-global-size-button" size="small" type="text">
+            {currentDuration.replace('秒', 's')}<ChevronDown size={12} />
+          </Button>
+        </Popover>
+      );
+    }
     if (field.key === 'generateAudio') return <Switch checked={value === true} onChange={update} size="small" />;
     return <Input onChange={(event) => update(event.target.value)} value={String(value || '')} />;
   }
@@ -1652,7 +1693,17 @@ export function BatchGenerationPage() {
         <GridSelectOverlay
           activeSelect={activeGridSelect}
           onChange={(rowId, fieldKey, value) => {
-            updateRowParams(rowId, fieldKey, value);
+            if (fieldKey === 'modelConfigId' && activeCapability?.mediaKind === 'video') {
+              const selectedModel = availableModelOptions.find((model) => model.type === 'video' && model.id === value);
+              if (selectedModel) {
+                updateRowParamsValues(rowId, {
+                  modelConfigId: selectedModel.configId || selectedModel.id,
+                  videoModelId: selectedModel.model,
+                });
+              }
+            } else {
+              updateRowParams(rowId, fieldKey, value);
+            }
             setActiveGridSelect(null);
           }}
         />

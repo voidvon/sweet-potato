@@ -56,7 +56,7 @@ type UseBatchGenerationColumnsOptions = {
   assets: Record<string, ContentAsset>
   getAttempt: (rowId: string) => BatchAttempt | undefined
   globalParams: Record<string, unknown>
-  modelOptions: BatchGenerationModelOption[]
+  modelOptions: Array<BatchGenerationModelOption & { configId?: string; disabled?: boolean }>
   onAssetReady: (asset: ContentAsset) => void
   onCopyRow: (row: BatchRow) => void
   onHideTooltip: () => void
@@ -68,6 +68,8 @@ type UseBatchGenerationColumnsOptions = {
   onPreviewAssets: (current: number, items: Array<{ alt: string; src: string }>) => void
   onUpload: (row: BatchRow, field: CreativeCapabilityField, files: File[]) => Promise<ContentAsset[]>
   onRemoveRow: (row: BatchRow) => void
+  onResetCanvas: (rowId: string) => void
+  onResetModel: (rowId: string) => void
   onRunRow: (row: BatchRow) => void
   onShowTooltip: (target: HTMLElement, title: string) => void
   onUpdateRow: (rowId: string, fieldKey: string, value: unknown) => void
@@ -92,6 +94,8 @@ export function useBatchGenerationColumns({
   onPreviewAssets,
   onUpload,
   onRemoveRow,
+  onResetCanvas,
+  onResetModel,
   onRunRow,
   onShowTooltip,
   onUpdateRow,
@@ -109,6 +113,8 @@ export function useBatchGenerationColumns({
     onOpenSelect,
     onPreviewAssets,
     onRemoveRow,
+    onResetCanvas,
+    onResetModel,
     onRunRow,
     onShowTooltip,
     onUpdateRow,
@@ -125,6 +131,8 @@ export function useBatchGenerationColumns({
     onOpenSelect,
     onPreviewAssets,
     onRemoveRow,
+    onResetCanvas,
+    onResetModel,
     onRunRow,
     onShowTooltip,
     onUpdateRow,
@@ -168,14 +176,27 @@ export function useBatchGenerationColumns({
                 : 300
       const effectiveValue = (row: BatchRow) => {
         const rowValue = valueAt(row.params, field.key)
-        return rowValue === undefined && 'isGlobalOverride' in field
+        const fallbackValue = rowValue === undefined && 'isGlobalOverride' in field
           ? valueAt(globalParams, field.key)
           : rowValue
+        if (field.key !== 'modelConfigId' || activeCapability?.mediaKind !== 'video') return fallbackValue
+        const modelConfigId = String(fallbackValue ?? '')
+        const rowVideoModelId = valueAt(row.params, 'videoModelId')
+        const videoModelId = String(
+          rowVideoModelId ?? (rowValue === undefined ? valueAt(globalParams, 'videoModelId') : '') ?? '',
+        )
+        return modelOptions.find((model) => model.type === 'video'
+          && (model.configId || model.id) === modelConfigId
+          && (!videoModelId || model.model === videoModelId))?.id || fallbackValue
       }
       const selectOptions = field.key === 'modelConfigId'
         ? modelOptions
           .filter((model) => model.type === activeCapability?.mediaKind)
-          .map((model) => ({ label: model.name, value: model.id as string | number }))
+          .map((model) => ({
+            disabled: model.disabled,
+            label: model.name,
+            value: model.id as string | number,
+          }))
         : field.key === 'resolution' ? imageResolutionOptions
           : field.key === 'aspectRatio' ? aspectRatioOptions
             : field.key === 'outputCount' ? outputCountOptions
@@ -248,6 +269,8 @@ export function useBatchGenerationColumns({
               : isVideoAspectRatio
                 ? (params: ICellRendererParams<BatchRow>) => {
                   if (!params.data) return null
+                  const rowAspectRatio = valueAt(params.data.params, 'aspectRatio')
+                  const rowResolution = valueAt(params.data.params, 'resolution')
                   const aspectRatio = videoAspectRatioOptions.includes(effectiveValue(params.data) as VideoAspectRatio)
                     ? effectiveValue(params.data) as VideoAspectRatio
                     : '9:16'
@@ -260,6 +283,7 @@ export function useBatchGenerationColumns({
                     <GridVideoOutputSizeCell
                       aspectRatio={aspectRatio}
                       disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+                      isOverridden={rowAspectRatio !== undefined || rowResolution !== undefined}
                       onOpen={(anchor) => {
                         const cell = anchor.closest('.ag-cell') || anchor
                         const rect = cell.getBoundingClientRect()
@@ -273,6 +297,7 @@ export function useBatchGenerationColumns({
                           }
                         })
                       }}
+                      onReset={() => actionsRef.current.onResetCanvas(params.data!.id)}
                       resolution={resolution}
                     />
                   )
@@ -281,21 +306,36 @@ export function useBatchGenerationColumns({
                 ? (params: ICellRendererParams<BatchRow>) => params.data ? (
                   <GridSelectCell
                     disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+                    isOverridden={field.key === 'modelConfigId'
+                      && activeCapability?.mediaKind === 'video'
+                      ? valueAt(params.data.params, 'modelConfigId') !== undefined
+                        || valueAt(params.data.params, 'videoModelId') !== undefined
+                      : field.key === 'duration'
+                        && activeCapability?.mediaKind === 'video'
+                        && valueAt(params.data.params, 'duration') !== undefined}
                     label={selectLabels.get(effectiveValue(params.data) as string | number)
                       || String(effectiveValue(params.data) ?? '-')}
                     onOpen={(anchor) => {
                       const rect = anchor.getBoundingClientRect()
                       actionsRef.current.onOpenSelect((current) => {
                         if (current?.rowId === params.data!.id && current.fieldKey === field.key) return null
+                        const rowValue = valueAt(params.data!.params, field.key)
                         return {
                           anchor: { height: rect.height, left: rect.left, top: rect.top, width: rect.width },
                           fieldKey: field.key,
                           options: selectOptions,
                           rowId: params.data!.id,
-                          value: valueAt(params.data!.params, field.key) as string | number | undefined,
+                          value: (field.key === 'modelConfigId' && activeCapability?.mediaKind === 'video' && rowValue !== undefined
+                            ? effectiveValue(params.data!)
+                            : rowValue) as string | number | undefined,
                         }
                       })
                     }}
+                    onReset={field.key === 'modelConfigId' && activeCapability?.mediaKind === 'video'
+                      ? () => actionsRef.current.onResetModel(params.data!.id)
+                      : field.key === 'duration' && activeCapability?.mediaKind === 'video'
+                        ? () => actionsRef.current.onUpdateRow(params.data!.id, field.key, undefined)
+                        : undefined}
                   />
                 ) : null
                 : undefined,
@@ -326,6 +366,8 @@ export function useBatchGenerationColumns({
       const canvasColumn: ColDef<BatchRow> = {
         cellRenderer: (params: ICellRendererParams<BatchRow>) => {
           if (!params.data) return null
+          const rowAspectRatio = valueAt(params.data.params, 'aspectRatio')
+          const rowResolution = valueAt(params.data.params, 'resolution')
           const modelConfigId = String(valueAt(params.data.params, 'modelConfigId') ?? globalParams.modelConfigId ?? '')
           const model = modelOptions.find((option) => option.type === 'image' && option.id === modelConfigId)
           const resolutions = getImageResolutionOptions(model)
@@ -340,6 +382,7 @@ export function useBatchGenerationColumns({
           return (
             <GridCanvasCell
               disabled={['queued', 'running', 'completed'].includes(params.data.executionStatus)}
+              isOverridden={rowAspectRatio !== undefined || rowResolution !== undefined}
               label={`${aspectRatio}${resolutions.length ? ` · ${resolution}` : ''}`}
               onOpen={(anchor) => {
                 const cell = anchor.closest('.ag-cell') || anchor
@@ -355,6 +398,7 @@ export function useBatchGenerationColumns({
                   }
                 })
               }}
+              onReset={() => actionsRef.current.onResetCanvas(params.data!.id)}
             />
           )
         },
