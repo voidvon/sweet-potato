@@ -1,27 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import {
-  getBillingSettings,
   releaseReservedFixedBillableUsage,
   reserveFixedBillableUsage,
 } from '../billing/billing.service.js';
 import { contentRepository, emptyVideoParseResult } from '../content/content.repository.js';
 import { contentService } from '../content/content.service.js';
 import {
-  billedReferenceVideoDurationSeconds,
+  estimateDanceRemakeAssetPrice,
   materializeRemoteVideo,
-  probeDuration,
-  resolveDanceRemakePrice,
 } from './dance-remake.service.js';
 import { VideoSourceError } from './video-source.types.js';
-
-const subjectTypes = new Set(['model', 'clothing', 'face', 'background', 'product']);
-const supportedModelIds = new Set([
-  'doubao-seedance-2-0-260128',
-  'doubao-seedance-2-0-fast-260128',
-  'doubao-seedance-2-0-mini-260615',
-]);
-
-type SubjectReplaceType = 'model' | 'clothing' | 'face' | 'background' | 'product';
+import { isSeedanceVideoModelId } from './seedance-video.config.js';
+import { isSubjectReplaceType, type SubjectReplaceType } from './subject-replace.config.js';
 
 type SubjectReplaceInput = {
   imageAssetIds: string[];
@@ -40,10 +30,10 @@ type SubjectReplaceInput = {
 
 export const subjectReplaceService = {
   async create(input: SubjectReplaceInput) {
-    if (!subjectTypes.has(input.subjectType)) {
+    if (!isSubjectReplaceType(input.subjectType)) {
       throw new VideoSourceError('请选择正确的图片类型');
     }
-    if (!supportedModelIds.has(input.videoModelId)) {
+    if (!isSeedanceVideoModelId(input.videoModelId)) {
       throw new VideoSourceError('当前模型不支持主体替换');
     }
     const expectedMaxImages = input.subjectType === 'clothing' ? 2 : 1;
@@ -115,15 +105,12 @@ async function prepareSubjectReplace(
         updatedAt: new Date().toISOString(),
       },
     });
-    const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(video.filePath));
-    const settings = getBillingSettings();
-    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
-    const price = resolveDanceRemakePrice({
-      durationSeconds,
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: video.filePath,
       quality: input.quality,
-      settings,
       videoModelId: input.videoModelId,
     });
+    const { durationSeconds } = price;
     const billingSourceId = `subject-replace:${randomUUID()}`;
     const reservation = reserveFixedBillableUsage({
       userId: input.userId,

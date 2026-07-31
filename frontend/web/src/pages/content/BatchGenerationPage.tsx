@@ -5,7 +5,7 @@ import {
   themeQuartz,
 } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
-import { useSearchParams } from 'react-router-dom';
+import { useBlocker, useSearchParams } from 'react-router-dom';
 import {
   Button,
   Dropdown,
@@ -23,6 +23,7 @@ import {
   message,
 } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
+import { formatCreditAmount } from '@shared/utils/credits';
 import {
   ChevronDown,
   Columns3,
@@ -39,6 +40,8 @@ import {
   deleteBatchSheet,
   getBatchRun,
   getBatchGenerationAsset,
+  getBatchVideoUpscaleEstimate,
+  getBatchVideoSourceEstimate,
   getBatchSheet,
   listBatchCapabilities,
   listBatchGenerationModelOptions,
@@ -87,6 +90,15 @@ import {
 } from '../../events/appRealtimeEvents';
 import type { ContentAsset } from '../../types';
 import {
+  danceRemakeDefaults,
+  danceRemakeModeOptions,
+  preferredVideoModelId,
+  qualityOptions as sharedVideoQualityOptions,
+  subjectReplaceDefaults,
+  subjectReplaceTypeOptions,
+  videoModelDefinitions,
+} from './shared/videoGenerationOptions';
+import {
   GridCanvasOverlay,
   GridVideoCanvasOverlay,
   GridPromptEditorOverlay,
@@ -111,6 +123,7 @@ import {
   promptMentionOptions,
   stringArray,
   valueAt,
+  videoSourceEstimateInput,
 } from './batch-generation/batchGenerationGrid.utils';
 import { useBatchGenerationColumns } from './batch-generation/useBatchGenerationColumns';
 import './BatchGenerationPage.scss';
@@ -120,7 +133,7 @@ const BATCH_RUNNABLE_STATUSES = new Set<BatchRow['executionStatus']>(['idle', 'f
 const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
-const PREFERRED_VIDEO_MODEL_ID = 'doubao-seedance-2-0-260128';
+const PREFERRED_VIDEO_MODEL_ID = preferredVideoModelId;
 const DEFAULT_SHEET_NAME = '批量';
 
 const gridAddRow: BatchRow = {
@@ -361,6 +374,23 @@ function defaultGlobalParamsForCapability(
   capability: CreativeCapability,
   availableModels: AvailableBatchModelOption[],
 ) {
+  if (capability.key === 'video.upscale') return {};
+  if (capability.key === 'video.dance_remake') {
+    return {
+      danceRemakeMode: 'standard',
+      preserveAudio: danceRemakeDefaults.preserveAudio,
+      quality: danceRemakeDefaults.quality,
+      videoModelId: danceRemakeDefaults.videoModelId,
+    };
+  }
+  if (capability.key === 'video.subject_replace') {
+    return {
+      preserveAudio: subjectReplaceDefaults.preserveAudio,
+      quality: subjectReplaceDefaults.quality,
+      subjectReplaceType: subjectReplaceDefaults.subjectType,
+      videoModelId: subjectReplaceDefaults.videoModelId,
+    };
+  }
   const model = capability.mediaKind === 'video'
     ? availableModels.find((item) => item.type === 'video' && item.model === PREFERRED_VIDEO_MODEL_ID)
       || availableModels.find((item) => item.type === 'video')
@@ -438,6 +468,8 @@ export function BatchGenerationPage() {
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [latestRun, setLatestRun] = useState<BatchRunDetail | null>(null);
   const [assets, setAssets] = useState<Record<string, ContentAsset>>({});
+  const [videoUpscaleEstimates, setVideoUpscaleEstimates] = useState<Record<string, number>>({});
+  const [videoSourceEstimates, setVideoSourceEstimates] = useState<Record<string, number>>({});
   const [modelOptions, setModelOptions] = useState<BatchGenerationModelOption[]>([]);
   const [videoModelProviders, setVideoModelProviders] = useState<VideoModelProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -556,6 +588,9 @@ export function BatchGenerationPage() {
   const activeSheet = sheets.find((sheet) => sheet.id === activeSheetId);
   const selectedRows = rows.filter((row) => selectedRowIds.includes(row.id));
   const hasUnsavedChanges = globalDirty || dirtyRowIds.length > 0;
+  const routeBlocker = useBlocker(({ currentLocation, nextLocation }) => (
+    hasUnsavedChanges && currentLocation.pathname !== nextLocation.pathname
+  ));
   const switchingSheet = Boolean(switchingSheetRequest);
   const activePromptRow = activePromptEditor
     ? rows.find((row) => row.id === activePromptEditor.rowId)
@@ -566,6 +601,53 @@ export function BatchGenerationPage() {
   const activePromptValue = activePromptRow && activePromptEditor
     ? String(valueAt(activePromptRow.params, activePromptEditor.fieldKey) ?? '')
     : '';
+
+  useEffect(() => {
+    if (activeCapability?.key !== 'video.upscale') return;
+    const assetIds = [...new Set(rows.flatMap((row) => stringArray(valueAt(row.params, 'referenceVideoIds'))))];
+    const missingIds = assetIds.filter((assetId) => videoUpscaleEstimates[assetId] === undefined);
+    if (!missingIds.length) return;
+    let canceled = false;
+    void Promise.all(missingIds.map(async (assetId) => {
+      try {
+        const estimate = await getBatchVideoUpscaleEstimate(assetId);
+        return [assetId, estimate.estimatedCredits] as const;
+      } catch {
+        return [assetId, 0] as const;
+      }
+    })).then((estimates) => {
+      if (canceled) return;
+      setVideoUpscaleEstimates((current) => ({
+        ...current,
+        ...Object.fromEntries(estimates),
+      }));
+    });
+    return () => { canceled = true; };
+  }, [activeCapability?.key, rows, videoUpscaleEstimates]);
+
+  useEffect(() => {
+    if (!['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) return;
+    const inputs = rows
+      .map((row) => videoSourceEstimateInput(row, activeCapability?.key, globalParams))
+      .filter((input): input is NonNullable<typeof input> => Boolean(input));
+    const missingInputs = [...new Map(inputs
+      .filter((input) => videoSourceEstimates[input.cacheKey] === undefined)
+      .map((input) => [input.cacheKey, input])).values()];
+    if (!missingInputs.length) return;
+    let canceled = false;
+    void Promise.all(missingInputs.map(async (input) => {
+      try {
+        const estimate = await getBatchVideoSourceEstimate(input);
+        return [input.cacheKey, estimate.estimatedCredits] as const;
+      } catch {
+        return [input.cacheKey, 0] as const;
+      }
+    })).then((estimates) => {
+      if (canceled) return;
+      setVideoSourceEstimates((current) => ({ ...current, ...Object.fromEntries(estimates) }));
+    });
+    return () => { canceled = true; };
+  }, [activeCapability?.key, globalParams, rows, videoSourceEstimates]);
 
   const loadAssetsById = useCallback(async (ids: string[]) => {
     const uniqueIds = [...new Set(ids.filter(Boolean))];
@@ -713,6 +795,15 @@ export function BatchGenerationPage() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (routeBlocker.state !== 'blocked') return;
+    if (window.confirm('当前页面有未保存的修改，确定离开吗？')) {
+      routeBlocker.proceed();
+      return;
+    }
+    routeBlocker.reset();
+  }, [routeBlocker]);
 
   useEffect(() => () => {
     if (sheetSwitchFrameRef.current !== null) cancelAnimationFrame(sheetSwitchFrameRef.current);
@@ -1313,8 +1404,11 @@ export function BatchGenerationPage() {
     onShowTooltip: showGridTooltip,
     onUpload: (row, field, files) => uploadUploadedAssets(row, field, files),
     onUpdateRow: updateRowParams,
+    rows,
     rowsLength: rows.length,
     uploadingCell,
+    videoSourceEstimates,
+    videoUpscaleEstimates,
   });
   const configuredGridWidth = useMemo(() => columns.reduce(
     (total, column) => total + (column.initialWidth ?? column.width ?? 200),
@@ -1388,6 +1482,7 @@ export function BatchGenerationPage() {
 
   useEffect(() => {
     if (!activeCapability || !selectedGlobalModel) return;
+    if (['video.upscale', 'video.dance_remake'].includes(activeCapability.key)) return;
     const isImage = activeCapability.mediaKind === 'image';
     const resolution = isImage && globalImageResolutions.length ? currentResolution : undefined;
     const hasOutputCount = activeCapability.globalFields.some((field) => field.key === 'outputCount');
@@ -1469,6 +1564,48 @@ export function BatchGenerationPage() {
           value={selectedGlobalModel?.id}
         />
       );
+    }
+    if (field.key === 'danceRemakeMode') {
+      return (
+        <Select
+          onChange={update}
+          options={[...danceRemakeModeOptions]}
+          value={value === 'enhanced' ? 'enhanced' : 'standard'}
+        />
+      );
+    }
+    if (field.key === 'subjectReplaceType' && activeCapability?.key === 'video.subject_replace') {
+      return (
+        <Select
+          onChange={update}
+          options={subjectReplaceTypeOptions.map((option) => ({ label: option.label, value: option.value }))}
+          value={typeof value === 'string' ? value : subjectReplaceDefaults.subjectType}
+        />
+      );
+    }
+    if (field.key === 'videoModelId'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
+      return (
+        <Select
+          onChange={update}
+          options={videoModelDefinitions.map((option) => ({ label: option.label, value: option.id }))}
+          value={typeof value === 'string' ? value : danceRemakeDefaults.videoModelId}
+        />
+      );
+    }
+    if (field.key === 'quality'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
+      return (
+        <Select
+          onChange={update}
+          options={sharedVideoQualityOptions.map((option) => ({ label: option.label, value: option.label }))}
+          value={value === '480P' || value === '普清 (480p)' ? '480P' : '720P'}
+        />
+      );
+    }
+    if (field.key === 'preserveAudio'
+      && ['video.dance_remake', 'video.subject_replace'].includes(activeCapability?.key || '')) {
+      return <Switch checked={value !== false} onChange={update} size="small" />;
     }
     if (field.key === 'resolution') return null;
     if (field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image') {
@@ -1604,18 +1741,28 @@ export function BatchGenerationPage() {
       />
 
       <section className="sheet-global-settings" aria-label="全局参数">
-        <div className="sheet-global-settings__intro"><strong>全局参数</strong><span>应用到所有行，行内可覆盖</span></div>
+        <div className="sheet-global-settings__intro">
+          <strong>全局参数</strong>
+          <span>应用到所有行，行内可覆盖</span>
+        </div>
         <div className="sheet-global-settings__divider" />
-        {(activeCapability?.globalFields || [])
-          .filter((field) => field.key !== 'resolution')
-          .map((field) => (
-            <div className="sheet-global-settings__field" key={field.key}>
-              {field.key === 'aspectRatio' && activeCapability?.mediaKind === 'video' ? null : (
-                <span>{field.key === 'aspectRatio' && activeCapability?.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
-              )}
-              {renderGlobalField(field)}
-            </div>
-          ))}
+        {activeCapability?.globalFields.length ? (
+          activeCapability.globalFields
+            .filter((field) => field.key !== 'resolution'
+              && (activeCapability.key !== 'video.dance_remake'
+                || field.key === 'danceRemakeMode'
+                || globalParams.danceRemakeMode === 'enhanced'))
+            .map((field) => (
+              <div className="sheet-global-settings__field" key={field.key}>
+                {field.key === 'aspectRatio' && activeCapability.mediaKind === 'video' ? null : (
+                  <span>{field.key === 'aspectRatio' && activeCapability.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
+                )}
+                {renderGlobalField(field)}
+              </div>
+            ))
+        ) : (
+          <span className="sheet-global-settings__empty">此功能无全局参数</span>
+        )}
       </section>
 
       <section className="sheet-toolbar" aria-label="表格工具栏">
@@ -1785,7 +1932,7 @@ export function BatchGenerationPage() {
         <span className="sheet-task-stats__processing"><span className="sheet-task-stats__dot" />处理中 <strong>{rowStats.processing}</strong></span>
         <span className="sheet-task-stats__failed"><span className="sheet-task-stats__dot" />失败 <strong>{rowStats.failed}</strong></span>
         <span className="sheet-task-stats__pending"><span className="sheet-task-stats__dot" />待提交 <strong>{rowStats.pending}</strong></span>
-        <i /><span>累计消耗 <strong>{detail?.stats.actualCredits || 0}</strong> 积分</span>
+        <i /><span>累计消耗 <strong>{formatCreditAmount(detail?.stats.actualCredits || 0)}</strong> 积分</span>
         {hasUnsavedChanges ? <><i /><span className="sheet-task-stats__unsaved">有未保存的改动</span></> : null}
       </footer>
     </main>

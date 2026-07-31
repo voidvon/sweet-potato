@@ -6,6 +6,9 @@
 
 - 所有接口要求 `web.module.content.batch_generation` 权限。
 - `GET /api/batch-generation/capabilities`：返回可创建表格的图片/视频功能定义、参数字段和 Schema 版本。
+- `video.upscale`（视频高清放大）不包含全局参数，行参数仅包含必填的单视频素材字段 `referenceVideoIds`；批量执行默认调用现有视频增强服务输出 `1080p` 视频。
+- `video.dance_remake`（跳舞复刻）以 `danceRemakeMode` 作为全局生成模式，每行生成模式默认继承全局值且可覆盖；所有行包含必填的人物图与单参考视频。增强模式在全局参数中增加模型、清晰度和是否保留参考视频音乐，并允许每行继承或覆盖这些参数；标准模式固定使用 Seedance 2.0 Mini 与 480P。
+- `video.subject_replace`（模特 / 商品替换）以 `subjectReplaceType` 作为全局图片类型，每行默认继承且可覆盖；模型、清晰度和保留音乐同样支持全局配置与逐行覆盖。模特、人脸、背景和商品类型各需要一张对应图片，服饰类型需要正面图并可选反面图，所有类型都需要单个参考视频。
 - `GET /api/batch-generation/model-options`：返回批量页面可选的图片/视频模型，只包含 `id`、`type`、`name`、`isDefault`，不返回 API Key、服务地址或模型私有配置。
 - `GET /api/batch-generation/sheets`：返回当前用户的顶部 Tab 摘要，包括行数与执行状态统计。
 - `POST /api/batch-generation/sheets`：创建表格，请求体为 `{ name, capabilityKey, globalParams? }`。
@@ -22,10 +25,11 @@
 - `GET /api/batch-generation/events`：SSE；同一用户会收到 `run` 事件，payload 为最新 Run 详情，可用于行状态、统计和结果即时刷新。
 - `POST /api/batch-generation/assets/upload`：上传当前表格的图片、视频或音频参考素材，使用 `multipart/form-data` 的 `file`、`sheetId` 和 `fieldKey` 字段。
 - `GET /api/batch-generation/assets/:assetId`：读取当前用户拥有的批量参考素材或结果素材元数据。
+- `GET /api/batch-generation/assets/:assetId/video-upscale-estimate`：按当前高清放大固定价格和该视频素材的 VOD 上传大小返回 `{ estimatedCredits }`；批量页在视频上传或回填后调用，用于即时刷新消耗积分。
 - `revision` 不匹配时返回 `409`；资源不存在或不属于当前用户时返回 `404`。
 - 图片能力现已接入异步执行：Attempt 会冻结合并后的行/全局参数和不含 API Key 的模型身份快照；图片结果写入 `content_assets` 后作为 Output 关联。图片计费来源标记为 `batch_generation`。
 - 批量调度在单服务进程内最多并发执行 2 个 Attempt；服务启动时会恢复 queued/running Run。供应商调用按同一 Attempt ID 恢复，调用方仍应把执行视为至少一次语义。
-- 通用“视频生成”能力现已接入同一执行队列。其内部 `video_task_id` 会持久化到 Attempt，在服务重启后继续等待和轮询同一个供应商任务；视频放大、跳舞复刻和主体替换仍需各自的专用参数适配，当前启动会返回明确错误。
+- 通用“视频生成”、视频高清放大、跳舞复刻和模特 / 商品替换能力已接入同一执行队列。其内部 `video_task_id` 会持久化到 Attempt，在服务重启后继续等待和轮询同一个供应商任务。
 
 ## 2026-07-27 权限变更强制重新登录
 

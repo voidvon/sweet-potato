@@ -1,4 +1,14 @@
 import type { FilterGroup, FilterValues, MaterialKind, ToolOption } from './types';
+import { ratioOptions } from '../shared/videoGenerationOptions';
+
+export {
+  durationOptions,
+  modelDescriptions,
+  modelOptionIds,
+  modelOptions,
+  qualityOptions,
+  ratioOptions,
+} from '../shared/videoGenerationOptions';
 
 export const defaultMaterials: MaterialKind[] = [
   { key: 'image', label: '参考图', hint: '最多 9 张', maxCount: 9, meta: '可选' },
@@ -130,29 +140,6 @@ export const toolOptions: ToolOption[] = [
     },
   },
 ];
-
-export const modelOptions = ['Seedance 2.0', 'Seedance 2.0 Fast', 'Seedance 2.0 Mini'];
-
-export const modelDescriptions: Record<string, string> = {
-  'Seedance 2.0': '适合画面表现、音画生成和通用短视频创作。',
-  'Seedance 2.0 Fast': '适合更快出片和高频尝试。',
-  'Seedance 2.0 Mini': '更轻量的 Seedance 档位，适合海量短片快速产出。',
-};
-
-export const modelOptionIds: Record<string, string> = {
-  'Seedance 2.0': 'doubao-seedance-2-0-260128',
-  'Seedance 2.0 Fast': 'doubao-seedance-2-0-fast-260128',
-  'Seedance 2.0 Mini': 'doubao-seedance-2-0-mini-260615',
-};
-
-export const ratioOptions = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'];
-
-export const qualityOptions = [
-  { label: '480P', description: '更快出片，适合草稿预览。' },
-  { label: '720P', description: '更清晰，适合常规发布。' },
-];
-
-export const durationOptions = ['4s', '5s', '6s', '7s', '8s', '9s', '10s', '11s', '12s', '13s', '14s', '15s'];
 
 export const audioOptions = ['推荐音频男1', '推荐音频女1', '推荐音频男2', '推荐音频女2', '推荐音频男3', '推荐音频女3', '推荐音频男4', '推荐音频女4'];
 

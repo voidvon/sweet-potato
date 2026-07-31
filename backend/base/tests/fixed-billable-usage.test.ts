@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { db } from '../src/db/database.js';
 import { migrateDatabase } from '../src/db/schema.js';
 import {
+  billedVodUploadMegabytes,
   findReservedFixedBillableUsage,
   estimateSubtitleRemovalPrice,
   estimateVideoGenerationPrice,
@@ -60,6 +61,13 @@ test('billing settings include default Seedance prices by model and resolution',
   assert.equal(settings.seedance2MiniCreditsPerSecond480p, 7);
 });
 
+test('VOD uploads bill every started megabyte as a full megabyte', () => {
+  assert.equal(billedVodUploadMegabytes(0), 0);
+  assert.equal(billedVodUploadMegabytes(1), 1);
+  assert.equal(billedVodUploadMegabytes(1024 * 1024), 1);
+  assert.equal(billedVodUploadMegabytes(1024 * 1024 + 1), 2);
+});
+
 test('video operation estimates use configured model, resolution, duration, and enabled modes', () => {
   assert.deepEqual(estimateVideoGenerationPrice({
     durationSeconds: 5,
@@ -69,6 +77,16 @@ test('video operation estimates use configured model, resolution, duration, and 
     credits: 60,
     creditsPerSecond: 12,
     durationSeconds: 5,
+    resolution: '480p',
+  });
+  assert.deepEqual(estimateVideoGenerationPrice({
+    durationSeconds: 5.1,
+    modelId: 'doubao-seedance-2-0-260128',
+    resolution: '480P',
+  }), {
+    credits: 72,
+    creditsPerSecond: 12,
+    durationSeconds: 6,
     resolution: '480p',
   });
   assert.deepEqual(estimateSubtitleRemovalPrice(5.1), {

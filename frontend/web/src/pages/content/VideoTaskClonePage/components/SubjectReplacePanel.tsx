@@ -1,5 +1,6 @@
 import { Checkbox } from 'antd';
 import { useMemo } from 'react';
+import { subjectReplaceTypeOptions } from '../../shared/videoGenerationOptions';
 import type { SubjectReplaceType } from '../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import { MaterialPanel } from './MaterialPanel';
@@ -12,13 +13,11 @@ type SubjectReplacePanelProps = {
   state: VideoTaskCloneState;
 };
 
-const subjectTypes: Array<{ key: SubjectReplaceType; label: string; uploadLabel: string }> = [
-  { key: 'model', label: '模特', uploadLabel: '模特图' },
-  { key: 'clothing', label: '服饰', uploadLabel: '服饰图' },
-  { key: 'face', label: '人脸', uploadLabel: '人脸图' },
-  { key: 'background', label: '背景', uploadLabel: '背景图' },
-  { key: 'product', label: '商品', uploadLabel: '商品图' },
-];
+const subjectTypes = subjectReplaceTypeOptions.map((option) => ({
+  key: option.value as SubjectReplaceType,
+  label: option.label,
+  uploadLabel: option.uploadLabel,
+}));
 
 export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
   const subjectType = state.subjectReplaceType;

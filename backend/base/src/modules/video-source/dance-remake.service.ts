@@ -20,16 +20,9 @@ import {
   inputMediaRelativePath,
 } from '../content/internals/content-common.js';
 import { safeFetch } from './video-source.http.js';
+import { danceRemakeDefaults, isDanceRemakeModelId } from './dance-remake.config.js';
 import { videoSourceService } from './video-source.service.js';
 import { VideoSourceError } from './video-source.types.js';
-
-const danceRemakeModelIds = new Set([
-  'doubao-seedance-2-0-260128',
-  'doubao-seedance-2-0-fast-260128',
-  'doubao-seedance-2-0-mini-260615',
-]);
-const standardDanceRemakeModelId = 'doubao-seedance-2-0-mini-260615';
-const standardDanceRemakeQuality = '普清 (480p)';
 
 type DanceRemakeInput = {
   characterImageAssetId: string;
@@ -50,7 +43,7 @@ type DanceRemakeInput = {
 export const danceRemakeService = {
   async create(input: DanceRemakeInput) {
     const generationOptions = resolveDanceRemakeGenerationOptions(input);
-    if (!danceRemakeModelIds.has(generationOptions.videoModelId)) {
+    if (!isDanceRemakeModelId(generationOptions.videoModelId)) {
       throw new VideoSourceError('当前模型不支持跳舞复刻');
     }
     const imageAsset = ownAsset(input.characterImageAssetId, input.userId, 'image');
@@ -103,16 +96,12 @@ async function prepareDanceRemake(
         ? await materializeRemoteVideo({ ...input.remoteVideo, userId: input.userId })
         : null;
     if (!videoAsset) throw new VideoSourceError('请选择参考视频');
-    const duration = await probeDuration(videoAsset.filePath);
-    const durationSeconds = billedReferenceVideoDurationSeconds(duration);
-    const settings = getBillingSettings();
-    if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
-    const price = resolveDanceRemakePrice({
-      durationSeconds,
+    const price = await estimateDanceRemakeAssetPrice({
+      filePath: videoAsset.filePath,
       quality: generationOptions.quality,
-      settings,
       videoModelId: generationOptions.videoModelId,
     });
+    const { durationSeconds } = price;
     const billingSourceId = `dance-remake:${randomUUID()}`;
     const reservation = reserveFixedBillableUsage({
       userId: input.userId,
@@ -201,8 +190,8 @@ function failDanceRemakePreparation(taskId: string, error: unknown) {
 export function resolveDanceRemakeGenerationOptions(input: Pick<DanceRemakeInput, 'mode' | 'quality' | 'videoModelId'>) {
   if (input.mode === 'standard') {
     return {
-      quality: standardDanceRemakeQuality,
-      videoModelId: standardDanceRemakeModelId,
+      quality: danceRemakeDefaults.standardQuality,
+      videoModelId: danceRemakeDefaults.standardModelId,
     };
   }
   return {
@@ -248,6 +237,25 @@ export function resolveDanceRemakePrice(input: {
       400,
     );
   }
+}
+
+export async function estimateDanceRemakeAssetPrice(input: {
+  filePath: string;
+  quality: string;
+  videoModelId: string;
+}) {
+  const settings = getBillingSettings();
+  if (!settings) throw new VideoSourceError('系统计费配置不存在', 500);
+  const durationSeconds = billedReferenceVideoDurationSeconds(await probeDuration(input.filePath));
+  return {
+    durationSeconds,
+    ...resolveDanceRemakePrice({
+      durationSeconds,
+      quality: input.quality,
+      settings,
+      videoModelId: input.videoModelId,
+    }),
+  };
 }
 
 function ownAsset(id: string, userId: string, kind: 'image' | 'video') {

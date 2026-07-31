@@ -7,6 +7,11 @@ import type {
 } from './creative-capability.types.js';
 
 const globalParamsSchema = z.object({
+  danceRemakeMode: z.enum(['standard', 'enhanced']).optional(),
+  preserveAudio: z.boolean().optional(),
+  quality: z.string().trim().min(1).optional(),
+  subjectReplaceType: z.enum(['model', 'clothing', 'face', 'background', 'product']).optional(),
+  videoModelId: z.string().trim().min(1).optional(),
   modelConfigId: z.string().trim().min(1).optional(),
   resolution: z.string().trim().min(1).optional(),
   aspectRatio: z.string().trim().min(1).optional(),
@@ -16,6 +21,7 @@ const globalParamsSchema = z.object({
 }).passthrough();
 
 const rowParamsSchema = z.object({
+  characterImageAssetId: z.string().trim().min(1).optional(),
   prompt: z.string().optional(),
   referenceAssetIds: z.array(z.string().trim().min(1)).optional(),
   referenceGroups: z.record(z.string(), z.array(z.string().trim().min(1))).optional(),
@@ -45,6 +51,41 @@ const videoRowFields: CreativeCapabilityField[] = [
   { key: 'referenceVideoIds', label: '参考视频', valueType: 'asset-list' },
   { key: 'referenceAudioIds', label: '参考音频', valueType: 'asset-list' },
 ];
+
+const videoCapabilityRowFields: Record<string, CreativeCapabilityField[]> = {
+  'video.upscale': [
+    { key: 'referenceVideoIds', label: '视频素材', valueType: 'asset-list', required: true },
+  ],
+  'video.dance_remake': [
+    { key: 'characterImageAssetId', label: '人物图', valueType: 'asset', required: true },
+    { key: 'referenceVideoIds', label: '参考视频', valueType: 'asset-list', required: true },
+  ],
+  'video.subject_replace': [
+    { key: 'subjectModelImageAssetId', label: '模特图', valueType: 'asset', required: true },
+    { key: 'subjectClothingFrontAssetId', label: '服饰正面图', valueType: 'asset', required: true },
+    { key: 'subjectClothingBackAssetId', label: '服饰反面图', valueType: 'asset' },
+    { key: 'subjectFaceImageAssetId', label: '人脸图', valueType: 'asset', required: true },
+    { key: 'subjectBackgroundImageAssetId', label: '背景图', valueType: 'asset', required: true },
+    { key: 'subjectProductImageAssetId', label: '商品图', valueType: 'asset', required: true },
+    { key: 'referenceVideoIds', label: '参考视频', valueType: 'asset-list', required: true },
+  ],
+};
+
+const videoCapabilityGlobalFields: Record<string, CreativeCapabilityField[]> = {
+  'video.upscale': [],
+  'video.dance_remake': [
+    { key: 'danceRemakeMode', label: '生成模式', valueType: 'string', overridable: true },
+    { key: 'videoModelId', label: '模型', valueType: 'string', overridable: true },
+    { key: 'quality', label: '清晰度', valueType: 'string', overridable: true },
+    { key: 'preserveAudio', label: '保留音乐', valueType: 'boolean', overridable: true },
+  ],
+  'video.subject_replace': [
+    { key: 'subjectReplaceType', label: '图片类型', valueType: 'string', overridable: true },
+    { key: 'videoModelId', label: '模型', valueType: 'string', overridable: true },
+    { key: 'quality', label: '清晰度', valueType: 'string', overridable: true },
+    { key: 'preserveAudio', label: '保留音乐', valueType: 'boolean', overridable: true },
+  ],
+};
 
 const imageCapabilityRowFields: Record<string, CreativeCapabilityField[]> = {
   'image.dialog': [
@@ -94,12 +135,14 @@ const selectableImageOutputCountCapabilities = new Set(['image.dialog', 'image.o
 function defineCapability(input: Pick<CreativeCapabilityDefinition, 'key' | 'label' | 'mediaKind'>) {
   const globalFields = input.mediaKind === 'image'
     ? imageGlobalFields.filter((field) => field.key !== 'outputCount' || selectableImageOutputCountCapabilities.has(input.key))
-    : videoGlobalFields;
+    : videoCapabilityGlobalFields[input.key] || videoGlobalFields;
   return {
     ...input,
     schemaVersion: 1,
     globalFields,
-    rowFields: input.mediaKind === 'image' ? imageCapabilityRowFields[input.key] || [] : videoRowFields,
+    rowFields: input.mediaKind === 'image'
+      ? imageCapabilityRowFields[input.key] || []
+      : videoCapabilityRowFields[input.key] || videoRowFields,
     globalParamsSchema,
     rowParamsSchema,
   } satisfies CreativeCapabilityDefinition;

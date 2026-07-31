@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import { Button, Image, Popconfirm, Space, Switch, Tag, Tooltip, Typography } from 'antd'
 import { CreditIcon } from '@shared/components/CreditIcon'
 import { formatCreditAmount } from '@shared/utils/credits'
@@ -12,9 +12,14 @@ import type {
 import { resolveAssetUrl } from '../../../api/request'
 import { BatchAudioReferencePicker } from '../../../components/BatchAudioReferencePicker'
 import { BatchVideoReferencePicker } from '../../../components/BatchVideoReferencePicker'
+import { BatchVideoThumbnail } from '../../../components/BatchVideoThumbnail'
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea'
 import type { VideoAspectRatio, VideoResolution } from '../../../components/VideoOutputSizePicker'
 import type { ContentAsset } from '../../../types'
+import {
+  ResultVideoPreviewModal,
+  type ResultVideoPreview,
+} from '../VideoTaskClonePage/components/ResultVideoPreviewModal'
 import {
   MAX_REFERENCE_IMAGE_COUNT,
   assetAccept,
@@ -475,6 +480,7 @@ export function GridResultCell({
   onPreview: (current: number, items: Array<{ alt: string; src: string }>) => void
   onShowTooltip: (target: HTMLElement, title: string) => void
 }) {
+  const [previewVideo, setPreviewVideo] = useState<ResultVideoPreview | null>(null)
   if (!attempt?.outputs.length) {
     return attempt?.errorMessage ? (
       <Typography.Text
@@ -535,23 +541,55 @@ export function GridResultCell({
             </div>
           )
         }
+        if (asset?.mimeType.startsWith('video/') && url) {
+          const name = asset.name || asset.originalFileName || '生成视频'
+          return (
+            <div className="batch-generation-grid-asset" key={output.id}>
+              <BatchVideoThumbnail
+                alt={name}
+                onPreview={() => setPreviewVideo({
+                  completedAt: attempt.completedAt || undefined,
+                  createdAt: attempt.startedAt || attempt.queuedAt,
+                  duration: assetDurationSeconds(asset.metadata),
+                  name,
+                  posterUrl: assetPosterUrl(asset.metadata),
+                  taskId: attempt.generationJobId || undefined,
+                  videoUrl: url,
+                })}
+                src={url}
+              />
+            </div>
+          )
+        }
         return (
-          <Button
-            disabled={!url}
-            href={url || undefined}
-            icon={<ExternalLink size={14} />}
-            key={output.id}
-            rel="noreferrer"
-            size="small"
-            target="_blank"
-            type="link"
-          >
-            查看
-          </Button>
+          <Typography.Text key={output.id} type="secondary">-</Typography.Text>
         )
       })}
+      {previewVideo ? (
+        <ResultVideoPreviewModal
+          initiallyMuted={false}
+          onClose={() => setPreviewVideo(null)}
+          video={previewVideo}
+        />
+      ) : null}
     </div>
   )
+}
+
+function assetDurationSeconds(metadata: Record<string, unknown>) {
+  const durationMs = Number(metadata.durationMs)
+  if (Number.isFinite(durationMs) && durationMs > 0) return durationMs / 1000
+  for (const value of [metadata.durationSeconds, metadata.durationSecond, metadata.duration]) {
+    const matched = String(value || '').match(/[\d.]+/)
+    const duration = matched ? Number(matched[0]) : 0
+    if (Number.isFinite(duration) && duration > 0) return duration
+  }
+  return undefined
+}
+
+function assetPosterUrl(metadata: Record<string, unknown>) {
+  const value = metadata.coverUrl || metadata.posterUrl || metadata.generatedCoverUrl
+  return typeof value === 'string' && value.trim() ? resolveAssetUrl(value) : undefined
 }
 
 export function GridCreditsCell({ value }: { value: number }) {

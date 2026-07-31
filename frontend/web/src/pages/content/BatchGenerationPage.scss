@@ -81,6 +81,7 @@
 .sheet-global-settings__intro { align-items: baseline; display: flex; gap: 11px; }
 .sheet-global-settings__intro strong { font-size: 13px; }
 .sheet-global-settings__intro span { color: #8ba0bd; font-size: 11px; }
+.sheet-global-settings__empty { color: #8ba0bd; font-size: 12px; }
 .sheet-remaining { color: #8ba0bd; font-size: 11px; }
 .sheet-global-settings__divider, .sheet-toolbar > i, .sheet-task-stats > i { background: #dbe4f0; display: block; height: 22px; width: 1px; }
 .sheet-global-settings__field { align-items: center; color: #526984; display: flex; font-size: 13px; font-weight: 600; gap: 10px; }
@@ -134,7 +135,13 @@
 .sheet-grid .batch-generation-grid-index-cell { align-items: center; display: flex; justify-content: center; }
 .sheet-grid .batch-generation-grid-status-cell { align-items: center; display: flex; }
 .sheet-grid .batch-generation-grid-credits-cell { align-items: center; display: flex; }
-.batch-generation-grid-boolean-cell { align-items: center; display: flex; height: 100%; width: 100%; }
+.batch-generation-grid-boolean-cell {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+}
 .batch-generation-grid-credit-value {
   align-items: center;
   color: var(--color-text-tertiary);

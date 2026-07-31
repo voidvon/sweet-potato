@@ -485,13 +485,18 @@ function bytesToMb(byteCount: number) {
   return Math.max(0, byteCount) / (1024 * 1024);
 }
 
+export function billedVodUploadMegabytes(fileSizeBytes: number) {
+  if (!Number.isFinite(fileSizeBytes) || fileSizeBytes <= 0) return 0;
+  return Math.ceil(fileSizeBytes / (1024 * 1024));
+}
+
 function minutesFromSeconds(durationSeconds: number) {
   return Math.max(0, durationSeconds) / 60;
 }
 
 export function estimateVodUploadCredits(fileSizeBytes: number) {
   const settings = assertSystemBillingReady();
-  return roundCredits(bytesToMb(fileSizeBytes) * settings.videoUploadCreditsPerMb);
+  return roundCredits(billedVodUploadMegabytes(fileSizeBytes) * settings.videoUploadCreditsPerMb);
 }
 
 export function estimateVodUnderstandingCredits(tokenCount: number) {
@@ -502,6 +507,10 @@ export function estimateVodUnderstandingCredits(tokenCount: number) {
 export function estimateVideoUpscaleCredits() {
   const settings = assertSystemBillingReady();
   return roundCredits(Math.max(0, settings.videoUpscaleCreditsPerRequest));
+}
+
+export function estimateVideoUpscaleAssetCredits(fileSizeBytes: number) {
+  return roundCredits(estimateVideoUpscaleCredits() + estimateVodUploadCredits(fileSizeBytes));
 }
 
 export function estimateSubtitleRemovalPrice(durationSeconds: number) {
@@ -1562,9 +1571,8 @@ export function estimateVideoGenerationPrice(input: {
   resolution?: string;
 }) {
   const settings = assertSystemBillingReady();
-  const durationSeconds = Math.max(1, Math.round(input.durationSeconds));
   return resolveSeedanceVideoPrice({
-    durationSeconds,
+    durationSeconds: input.durationSeconds,
     modelId: input.modelId,
     modelName: input.modelName,
     resolution: input.resolution,
@@ -1607,10 +1615,10 @@ export function resolveSeedanceVideoPrice(input: {
   if (!Number.isFinite(creditsPerSecond) || creditsPerSecond < 0) {
     throw new Error(`视频模型「${input.modelName || input.modelId}」的 ${resolution} 计费价格无效`);
   }
-  const durationSeconds = Math.max(0, input.durationSeconds);
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+  if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) {
     throw new Error('视频时长无效');
   }
+  const durationSeconds = Math.max(1, Math.ceil(input.durationSeconds));
   return {
     credits: roundCredits(durationSeconds * creditsPerSecond),
     creditsPerSecond,
@@ -1695,6 +1703,7 @@ export function recordVodUploadUsage(input: {
 }) {
   const settings = assertSystemBillingReady();
   const fileSizeMb = bytesToMb(input.fileSizeBytes);
+  const billedSizeMb = billedVodUploadMegabytes(input.fileSizeBytes);
   const creditCost = estimateVodUploadCredits(input.fileSizeBytes);
   return persistBillableUsageCharge({
     userId: input.userId,
@@ -1708,7 +1717,9 @@ export function recordVodUploadUsage(input: {
     pricingMode: 'per_mb',
     quantitySnapshot: {
       fileSizeBytes: input.fileSizeBytes,
-      sizeMb: roundCredits(fileSizeMb),
+      actualSizeMb: roundCredits(fileSizeMb),
+      billedSizeMb,
+      sizeMb: billedSizeMb,
       priceSource: 'system-billing-settings',
       configuredCreditsPerMb: settings.videoUploadCreditsPerMb,
     },
