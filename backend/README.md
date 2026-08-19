@@ -1,8 +1,8 @@
 # Go 单文件服务
 
 这是项目唯一的服务端运行时。HTTP API、SSE、WebSocket、SQLite、文件服务、视频模型
-调用以及 Web/Admin 静态资源都由一个 Go 进程提供。静态资源已经放入
-`internal/httpapi/static/`，构建时使用 `embed.FS` 打进可执行文件。
+调用以及包含 `/admin` 的统一 Web 静态资源都由一个 Go 进程提供。静态资源在构建时
+临时放入 `internal/httpapi/static/`，并使用 `embed.FS` 打进可执行文件。
 
 ## 构建与运行
 
@@ -15,13 +15,13 @@ make build
 ./backend/bin/ai-marketing
 ```
 
-`make build` 会先构建 `frontend/web` 和 `frontend/admin`，临时复制到 Go 的
+`make build` 会构建唯一的 `frontend/web` 项目，临时复制到 Go 的
 `embed.FS` 目录并编译，构建退出时自动删除临时目录。前端产物不会提交到 Git，
 也不会作为运行时文件分发。
 
 ## 开发环境
 
-在仓库根目录统一启动 Go、Web 和 Admin 网页开发环境：
+在仓库根目录启动 Go 和统一网页开发环境：
 
 ```bash
 make dev
@@ -33,9 +33,8 @@ make dev
 make dev-electron
 ```
 
-脚本默认使用 `7072`、`9527`、`9528` 三个端口，并将本地数据写入仓库根目录的
-`data/`。Web/Admin 端口冲突时会自动顺延；如果 `7072` 已运行健康的 Go 服务则会
-直接复用。
+脚本默认使用后端端口 `7072` 和前端端口 `9527`，并将本地数据写入仓库根目录的
+`data/`。前端端口冲突时会自动顺延；如果 `7072` 已运行健康的 Go 服务则会直接复用。
 
 也可以在本目录执行：
 
@@ -46,7 +45,7 @@ CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o ./bin/ai-marketing ./cmd/ai
 ```
 
 直接执行 `go build` 只适合后端开发或 API 检查；由于没有临时嵌入前端资源，
-生成的二进制不会提供 Web/Admin 页面。交付时请使用仓库根目录的 `make build`。
+生成的二进制不会提供前端页面。交付时请使用仓库根目录的 `make build`。
 
 运行时只需要这个可执行文件和可写数据目录，不需要额外的服务进程。默认监听
 `127.0.0.1:7072`，根路径提供 Web 页面，`/admin/` 提供管理页面，`/api/` 提供 API，

@@ -87,7 +87,7 @@ import type { MentionRichTextareaRef } from '../../components/MentionRichTextare
 import {
   appRealtimeEventNames,
   type AppBatchGenerationRunUpdatedDetail,
-} from '../../events/appRealtimeEvents';
+} from '@/app/AppRealtimeEvents';
 import type { ContentAsset } from '../../types';
 import {
   danceRemakeDefaults,

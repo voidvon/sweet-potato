@@ -5,13 +5,11 @@ const path = require("node:path");
 const { spawn, execFileSync } = require("node:child_process");
 
 const preferredPort = Number(process.env.FRONTEND_PORT || 9527);
-const preferredAdminPort = Number(process.env.ADMIN_FRONTEND_PORT || 9528);
 const preferredBackendPort = Number(process.env.BACKEND_PORT || process.env.PORT || 7072);
 const rootDir = path.resolve(__dirname, "..");
 const projectRootDir = path.resolve(rootDir, "..");
 const backendDir = path.join(projectRootDir, "backend");
 const webDir = path.join(rootDir, "web");
-const adminDir = path.join(rootDir, "admin");
 const electronSourceDir = path.join(rootDir, "electron");
 const electronPublicDir = path.join(rootDir, "public", "electron");
 const viteCli = path.join(rootDir, "node_modules", "vite", "bin", "vite.js");
@@ -55,7 +53,7 @@ function isPortAvailable(port) {
     const server = net.createServer();
     server.once("error", () => resolve(false));
     server.once("listening", () => server.close(() => resolve(true)));
-    server.listen(port, "127.0.0.1");
+    server.listen(port, "0.0.0.0");
   });
 }
 
@@ -439,21 +437,11 @@ function spawnTracked(name, command, args, cwd, env) {
 
 async function main() {
   const port = await findAvailablePort(preferredPort);
-  const adminPort = await findAvailablePort(
-    preferredAdminPort,
-    new Set([port]),
-  );
   if (port !== preferredPort) {
     log(
       `[dev] Port ${preferredPort} is in use, using ${port} for both Vite and Electron.`,
     );
   }
-  if (adminPort !== preferredAdminPort) {
-    log(
-      `[dev] Admin port ${preferredAdminPort} is in use, using ${adminPort}.`,
-    );
-  }
-
   registerCleanup();
 
   const backendBaseUrl = process.env.VITE_API_BASE_URL
@@ -461,10 +449,8 @@ async function main() {
   const backendHealthUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/health`;
   const env = {
     ...process.env,
-    ADMIN_FRONTEND_PORT: String(adminPort),
     DATA_DIR: process.env.DATA_DIR || path.join(projectRootDir, "data"),
     ELECTRON_USER_DATA_DIR: userDataDir,
-    FRONTEND_ADMIN_PORT: String(adminPort),
     FRONTEND_PORT: String(port),
     GO_SERVER_ADDR: process.env.GO_SERVER_ADDR || `127.0.0.1:${preferredBackendPort}`,
     VITE_API_BASE_URL: backendBaseUrl,
@@ -489,24 +475,6 @@ async function main() {
     );
     await waitForHttp(backendHealthUrl, 30000);
   }
-
-  log(`[dev] Starting Admin dev server at http://127.0.0.1:${adminPort}/admin/`);
-  spawnTracked(
-    "admin vite",
-    process.execPath,
-    [
-      viteCli,
-      "--configLoader",
-      "runner",
-      "--host",
-      "0.0.0.0",
-      "--port",
-      String(adminPort),
-    ],
-    adminDir,
-    env,
-  );
-  await waitForHttp(`http://127.0.0.1:${adminPort}/admin/`, 30000);
 
   log("[dev] Starting Vite dev server");
   spawnTracked(

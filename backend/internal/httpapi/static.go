@@ -7,27 +7,17 @@ import (
 	"strings"
 )
 
-// The web and admin bundles are copied here during the release build. Keeping
-// both bundles in the same filesystem makes the executable self-contained.
+// The unified Web bundle is copied here during the release build and serves
+// both the main application and /admin routes.
 //
 //go:embed static
 var embeddedStatic embed.FS
 
 func (s *Server) staticHandler() http.Handler {
 	webFS, _ := fs.Sub(embeddedStatic, "static/web")
-	adminFS, _ := fs.Sub(embeddedStatic, "static/admin")
 	webServer := http.FileServer(http.FS(webFS))
-	adminServer := http.FileServer(http.FS(adminFS))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/admin" || strings.HasPrefix(r.URL.Path, "/admin?") {
-			http.Redirect(w, r, "/admin/", http.StatusPermanentRedirect)
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, "/admin/") {
-			serveEmbeddedSPA(w, r, "/admin/", adminFS, adminServer)
-			return
-		}
 		serveEmbeddedSPA(w, r, "/", webFS, webServer)
 	})
 }

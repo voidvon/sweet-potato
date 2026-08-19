@@ -14,7 +14,7 @@ Go HTTP server
   ├── internal/auth      token 和密码校验
   ├── internal/video     视频模型 HTTP 客户端和异步任务轮询
   ├── internal/vod       VOD SDK、V4 签名、TOS 上传和视频处理任务
-  └── embed.FS           Web/Admin 预构建资源
+  └── embed.FS           统一 Web 预构建资源（包含 /admin）
 ```
 
 通过 `CGO_ENABLED=0 go build` 可以生成不依赖动态运行库的单一可执行文件。运行时只需
@@ -33,7 +33,7 @@ Go HTTP server
   本地产物落库。
 - 火山引擎 VOD 视频高清放大、字幕擦除和 AI 视频翻译，包含本地源视频上传、任务恢复、
   结果下载、本地产物落库以及临时素材引用保护。
-- Web 页面、Admin 页面、`/api/`、`/files/` 由同一进程提供。
+- 单一 Web 应用的普通页面、`/admin` 管理页面以及 `/api/`、`/files/` 由同一进程提供。
 
 旧数据库中的已删除业务表仍按历史 schema 保留，以便升级时不破坏已有数据；已经移除的
 达人自动化和爆款复刻接口不会重新注册。

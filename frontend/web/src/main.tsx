@@ -3,8 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import 'antd/dist/reset.css';
-import App from './App';
+import App from './app/App';
 import './styles.scss';
+
+const isAdminRoute = window.location.pathname === '/admin'
+  || window.location.pathname.startsWith('/admin/');
+
+if (isAdminRoute) {
+  document.title = '萌猫 AI 后台';
+}
 
 function resolveCssColor(token: string) {
   const probe = document.createElement('span');

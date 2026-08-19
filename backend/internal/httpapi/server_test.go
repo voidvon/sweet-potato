@@ -64,7 +64,7 @@ func TestEmbeddedStaticFallbackWithoutFrontendBundle(t *testing.T) {
 	}
 	defer server.Close()
 
-	for _, path := range []string{"/", "/admin/"} {
+	for _, path := range []string{"/", "/admin", "/admin/login", "/app/discover"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
 		response := httptest.NewRecorder()
 		server.Handler().ServeHTTP(response, request)

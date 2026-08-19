@@ -1,6 +1,5 @@
 packages:
   - 'web'
-  - 'admin'
 
 allowBuilds:
   '@parcel/watcher': true

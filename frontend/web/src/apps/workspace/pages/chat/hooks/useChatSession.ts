@@ -14,7 +14,7 @@ import {
   uploadChatAttachment,
 } from '../../../api/chat';
 import { resolveAssetUrl } from '../../../api/request';
-import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '../../../events/appRealtimeEvents';
+import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '@/app/AppRealtimeEvents';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
 

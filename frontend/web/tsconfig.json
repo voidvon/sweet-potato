@@ -28,13 +28,12 @@
         "./src/*"
       ],
       "@shared/*": [
-        "../src/shared/*"
+        "./src/shared/*"
       ]
     }
   },
   "include": [
-    "src",
-    "../src/shared"
+    "src"
   ],
   "references": []
 }

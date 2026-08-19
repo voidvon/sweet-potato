@@ -14,10 +14,7 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "接口不存在")
 		return
 	}
-	if parts[0] == "categories" {
-		if _, ok := s.requireUser(w, r); !ok {
-			return
-		}
+	if len(parts) == 1 && parts[0] == "categories" && r.Method == http.MethodGet {
 		categories, err := s.store.ListDiscoverCategories(false)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "发现分类读取失败")
@@ -34,9 +31,6 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 1 && r.Method == http.MethodGet {
-		if _, ok := s.requireUser(w, r); !ok {
-			return
-		}
 		page, pageSize := queryPage(r, 1, 20)
 		_, result, err := s.store.ListDiscoverItems(true, page, pageSize, r.URL.Query().Get("categoryId"), r.URL.Query().Get("mediaType"), r.URL.Query().Get("search"))
 		if err != nil {
@@ -46,15 +40,12 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, result)
 		return
 	}
-	if len(parts) == 2 && (parts[1] == "like" || parts[1] == "view") && r.Method == http.MethodPost {
-		if _, ok := s.requireUser(w, r); !ok {
-			return
-		}
+	if len(parts) == 3 && (parts[2] == "like" || parts[2] == "view") && r.Method == http.MethodPost {
 		column := "like_count"
-		if parts[1] == "view" {
+		if parts[2] == "view" {
 			column = "view_count"
 		}
-		counts, found, err := s.store.IncrementDiscoverCount(parts[0], column)
+		counts, found, err := s.store.IncrementDiscoverCount(parts[1], column)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "发现内容计数更新失败")
 			return

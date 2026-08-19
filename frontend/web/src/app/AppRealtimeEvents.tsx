@@ -1,9 +1,10 @@
 import { useEffect, type ReactNode } from 'react';
 import { getCurrentUser } from '@shared/api/user';
-import { API_BASE_URL } from '../api/request';
-import type { BatchRunDetail } from '../api/batch-generation';
-import { withAuthToken } from '../utils/session';
-import type { ChatMessage, User } from '../types';
+import { API_BASE_URL } from '@shared/api/core/request';
+import { withAuthToken } from '@shared/utils/session';
+import type { User } from '@shared/types';
+import type { BatchRunDetail } from '../apps/workspace/api/batch-generation';
+import type { ChatMessage } from '../apps/workspace/types';
 
 export type AppGenerationJobUpdatedDetail = {
   userId?: string;

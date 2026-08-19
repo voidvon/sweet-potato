@@ -36,14 +36,14 @@ function AuthRouteFrame({ children }: { children: ReactNode }) {
 
 function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRouteHandlers): AppRouteObject[] {
   return getVisibleWorkspacePages(currentUser).map((route) => ({
-    id: route.key,
+    id: `admin-${route.key}`,
     path: route.path,
     element: route.element(currentUser, handlers),
     handle: route.handle,
   }));
 }
 
-export function createAppRouteObjects({
+export function createAdminRouteObjects({
   currentUser,
   onAuthed,
   onLogout,
@@ -51,13 +51,13 @@ export function createAppRouteObjects({
 }: AppRouteBuildParams): AppRouteObject[] {
   const protectedChildren: AppRouteObject[] = currentUser ? [
     {
-      id: 'app-index',
+      id: 'admin-app-index',
       index: true,
       element: <Navigate to={getDefaultAppPath(currentUser)} replace />,
     },
     ...createProtectedRouteObjects(currentUser, { onLogout, onUserUpdated }),
     {
-      id: 'app-fallback',
+      id: 'admin-app-fallback',
       path: '*',
       element: <Navigate to={getDefaultAppPath(currentUser)} replace />,
     },
@@ -65,7 +65,7 @@ export function createAppRouteObjects({
 
   return [
     {
-      id: 'login',
+      id: 'admin-login',
       path: routePaths.login,
       element: currentUser ? (
         <Navigate to={getDefaultAppPath(currentUser)} replace />
@@ -74,7 +74,7 @@ export function createAppRouteObjects({
       ),
     },
     {
-      id: 'app',
+      id: 'admin-app',
       path: routePaths.appRoot,
       element: currentUser ? (
         <AdminProtectedLayout currentUser={currentUser} onLogout={onLogout} />
@@ -84,8 +84,8 @@ export function createAppRouteObjects({
       children: protectedChildren,
     },
     {
-      id: 'root-fallback',
-      path: '*',
+      id: 'admin-root-fallback',
+      path: '/admin/*',
       element: <Navigate to={currentUser ? getDefaultAppPath(currentUser) : routePaths.login} replace />,
     },
   ];

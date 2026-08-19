@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal, Spin } from 'antd';
 import { getCurrentUser } from '@shared/api/user';
 import { getLoginRoute, getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
-import { AppRealtimeEventsProvider, type AppPermissionUpdatedDetail } from './events/appRealtimeEvents';
-import { AppRoutes } from './routes/AppRoutes';
+import { AppRealtimeEventsProvider, type AppPermissionUpdatedDetail } from './AppRealtimeEvents';
+import { AppRouter } from './AppRouter';
 import type { AuthSession, User } from '@shared/types';
 
 function App() {
@@ -65,6 +65,17 @@ function App() {
     setCurrentUser(user);
   }, []);
 
+  const handleCreditBalanceUpdated = useCallback((userId: string, creditBalance: number) => {
+    setCurrentUser((user) => {
+      if (!user || user.id !== userId || user.creditBalance === creditBalance) {
+        return user;
+      }
+      const nextUser = { ...user, creditBalance };
+      storeUser(nextUser);
+      return nextUser;
+    });
+  }, []);
+
   const handlePermissionUpdated = useCallback((detail: AppPermissionUpdatedDetail) => {
     setPermissionNotice((current) => {
       if (!current) {
@@ -96,6 +107,7 @@ function App() {
   return (
     <AppRealtimeEventsProvider
       currentUser={currentUser}
+      onCreditBalanceUpdated={handleCreditBalanceUpdated}
       onPermissionUpdated={handlePermissionUpdated}
       onUserUpdated={handleUserUpdated}
     >
@@ -114,7 +126,8 @@ function App() {
       >
         当前账号权限已变更，需要重新登录后继续使用。
       </Modal>
-      <AppRoutes
+      <AppRouter
+        key={currentUser?.id || 'anonymous'}
         currentUser={currentUser}
         onAuthed={handleAuthed}
         onLogout={handleLogout}

@@ -1,0 +1,18 @@
+export const routePaths = {
+  login: '/admin/login',
+  appRoot: '/admin',
+  defaultLanding: '/admin/users/accounts',
+  account: '/admin/account',
+  allWorks: '/admin/works',
+  discover: '/admin/discover',
+  modelSettings: '/admin/models',
+  billingSettings: '/admin/billing',
+  routeResourceManagement: '/admin/system/routes',
+  fileManagement: '/admin/system/files',
+  temporaryAssetCleanup: '/admin/system/temporary-assets',
+  systemSettings: '/admin/system/settings',
+  siteAccessLogs: '/admin/system/access-logs',
+  userManagement: '/admin/users',
+  roleManagement: '/admin/users/roles',
+  accountManagement: '/admin/users/accounts',
+};
