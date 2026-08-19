@@ -5,8 +5,13 @@ const path = require("node:path");
 const { spawn, execFileSync } = require("node:child_process");
 
 const preferredPort = Number(process.env.FRONTEND_PORT || 9527);
-const rootDir = process.cwd();
+const preferredAdminPort = Number(process.env.ADMIN_FRONTEND_PORT || 9528);
+const preferredBackendPort = Number(process.env.BACKEND_PORT || process.env.PORT || 7072);
+const rootDir = path.resolve(__dirname, "..");
+const projectRootDir = path.resolve(rootDir, "..");
+const backendDir = path.join(projectRootDir, "backend");
 const webDir = path.join(rootDir, "web");
+const adminDir = path.join(rootDir, "admin");
 const electronSourceDir = path.join(rootDir, "electron");
 const electronPublicDir = path.join(rootDir, "public", "electron");
 const viteCli = path.join(rootDir, "node_modules", "vite", "bin", "vite.js");
@@ -16,6 +21,7 @@ const userDataDir = path.join(
   ".codex-run",
   "electron-user-data-dev",
 );
+const electronEnabled = process.argv.includes("--electron");
 
 function resolveElectronExecutable() {
   try {
@@ -53,9 +59,9 @@ function isPortAvailable(port) {
   });
 }
 
-async function findAvailablePort(startPort) {
+async function findAvailablePort(startPort, reservedPorts = new Set()) {
   for (let port = startPort; port < startPort + 100; port += 1) {
-    if (await isPortAvailable(port)) {
+    if (!reservedPorts.has(port) && await isPortAvailable(port)) {
       return port;
     }
   }
@@ -63,6 +69,17 @@ async function findAvailablePort(startPort) {
   throw new Error(
     `No available frontend port found from ${startPort} to ${startPort + 99}`,
   );
+}
+
+function isHttpReady(url, timeoutMs = 1000) {
+  return new Promise((resolve) => {
+    const request = http.get(url, (response) => {
+      response.resume();
+      resolve(response.statusCode >= 200 && response.statusCode < 300);
+    });
+    request.setTimeout(timeoutMs, () => request.destroy());
+    request.on("error", () => resolve(false));
+  });
 }
 
 function waitForHttp(url, timeoutMs) {
@@ -77,7 +94,7 @@ function waitForHttp(url, timeoutMs) {
 
       request.on("error", () => {
         if (Date.now() - startedAt > timeoutMs) {
-          reject(new Error(`Frontend did not become ready in time: ${url}`));
+          reject(new Error(`Service did not become ready in time: ${url}`));
           return;
         }
         setTimeout(tryOnce, 500);
@@ -181,7 +198,7 @@ async function terminateProcess(child, options = {}) {
 }
 
 function isElectronWatchTarget(filePath = "") {
-  return /\.(js|json|py)$/i.test(filePath);
+  return /\.(js|json)$/i.test(filePath);
 }
 
 function clearElectronRestartTimer() {
@@ -422,20 +439,74 @@ function spawnTracked(name, command, args, cwd, env) {
 
 async function main() {
   const port = await findAvailablePort(preferredPort);
+  const adminPort = await findAvailablePort(
+    preferredAdminPort,
+    new Set([port]),
+  );
   if (port !== preferredPort) {
     log(
       `[dev] Port ${preferredPort} is in use, using ${port} for both Vite and Electron.`,
     );
   }
+  if (adminPort !== preferredAdminPort) {
+    log(
+      `[dev] Admin port ${preferredAdminPort} is in use, using ${adminPort}.`,
+    );
+  }
 
   registerCleanup();
 
+  const backendBaseUrl = process.env.VITE_API_BASE_URL
+    || `http://127.0.0.1:${preferredBackendPort}`;
+  const backendHealthUrl = `${backendBaseUrl.replace(/\/$/, "")}/api/health`;
   const env = {
     ...process.env,
+    ADMIN_FRONTEND_PORT: String(adminPort),
+    DATA_DIR: process.env.DATA_DIR || path.join(projectRootDir, "data"),
     ELECTRON_USER_DATA_DIR: userDataDir,
+    FRONTEND_ADMIN_PORT: String(adminPort),
     FRONTEND_PORT: String(port),
+    GO_SERVER_ADDR: process.env.GO_SERVER_ADDR || `127.0.0.1:${preferredBackendPort}`,
+    VITE_API_BASE_URL: backendBaseUrl,
   };
   sharedEnv = env;
+
+  if (await isHttpReady(backendHealthUrl)) {
+    log(`[dev] Reusing Go backend at ${backendBaseUrl}`);
+  } else {
+    if (!await isPortAvailable(preferredBackendPort)) {
+      throw new Error(
+        `Backend port ${preferredBackendPort} is in use, but ${backendHealthUrl} is not healthy.`,
+      );
+    }
+    log(`[dev] Starting Go backend at ${backendBaseUrl}`);
+    spawnTracked(
+      "Go backend",
+      "go",
+      ["run", "./cmd/aimarketing"],
+      backendDir,
+      env,
+    );
+    await waitForHttp(backendHealthUrl, 30000);
+  }
+
+  log(`[dev] Starting Admin dev server at http://127.0.0.1:${adminPort}/admin/`);
+  spawnTracked(
+    "admin vite",
+    process.execPath,
+    [
+      viteCli,
+      "--configLoader",
+      "runner",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      String(adminPort),
+    ],
+    adminDir,
+    env,
+  );
+  await waitForHttp(`http://127.0.0.1:${adminPort}/admin/`, 30000);
 
   log("[dev] Starting Vite dev server");
   spawnTracked(
@@ -455,6 +526,12 @@ async function main() {
   );
 
   await waitForHttp(`http://127.0.0.1:${port}/`, 30000);
+
+  log(`[dev] Web ready at http://127.0.0.1:${port}/`);
+  if (!electronEnabled) {
+    log(`[dev] Admin ready at http://127.0.0.1:${port}/admin/`);
+    return;
+  }
 
   watchElectronSource();
   startElectronShell(env);

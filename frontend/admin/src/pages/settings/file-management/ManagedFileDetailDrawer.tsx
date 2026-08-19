@@ -15,8 +15,7 @@ export function ManagedFileDetailDrawer({ file, onClose }: ManagedFileDetailDraw
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="文件名">{file.originalFileName || file.name}</Descriptions.Item>
           <Descriptions.Item label="文件 ID"><Typography.Text copyable>{file.id}</Typography.Text></Descriptions.Item>
-          <Descriptions.Item label="存储位置">{file.storageProvider === 'tos' ? 'TOS 对象存储' : '本地存储'}</Descriptions.Item>
-          {file.storageBucket ? <Descriptions.Item label="存储桶">{file.storageBucket}</Descriptions.Item> : null}
+          <Descriptions.Item label="存储位置">本地存储</Descriptions.Item>
           <Descriptions.Item label="存储 Key"><Typography.Text copyable>{file.storageKey || '-'}</Typography.Text></Descriptions.Item>
           <Descriptions.Item label="文件类型">{file.mimeType || '未知'}</Descriptions.Item>
           <Descriptions.Item label="文件大小">{formatBytes(file.fileSize)}</Descriptions.Item>

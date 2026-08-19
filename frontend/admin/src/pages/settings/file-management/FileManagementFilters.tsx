@@ -1,5 +1,5 @@
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, DatePicker, Form, Input, Select, Space, Tooltip, Typography } from 'antd';
+import { Button, DatePicker, Form, Input, Select, Space, Typography } from 'antd';
 import type { FormInstance } from 'antd';
 import type { ManagedFileListFilters } from '../../../api/file-management';
 
@@ -13,7 +13,6 @@ type DateValue = {
 
 export type FileFilterForm = {
   search?: string;
-  storageProvider?: ManagedFileListFilters['storageProvider'];
   mediaType?: ManagedFileListFilters['mediaType'];
   lifecycleStatus?: ManagedFileListFilters['lifecycleStatus'];
   createdAt?: [DateValue, DateValue];
@@ -23,8 +22,6 @@ type FileManagementFiltersProps = {
   form: FormInstance<FileFilterForm>;
   loading: boolean;
   summaryText: string;
-  tosSummaryError: string;
-  tosSummaryLoading: boolean;
   onApply: (values: FileFilterForm) => void;
   onRefresh: () => void;
   onReset: () => void;
@@ -34,8 +31,6 @@ export function FileManagementFilters({
   form,
   loading,
   summaryText,
-  tosSummaryError,
-  tosSummaryLoading,
   onApply,
   onRefresh,
   onReset,
@@ -45,14 +40,6 @@ export function FileManagementFilters({
       <Form form={form} layout="inline" onFinish={onApply}>
         <Form.Item name="search">
           <Input allowClear placeholder="搜索文件名或所属用户" prefix={<SearchOutlined />} style={{ width: 240 }} />
-        </Form.Item>
-        <Form.Item name="storageProvider">
-          <Select
-            allowClear
-            options={[{ label: '本地存储', value: 'local' }, { label: 'TOS 对象存储', value: 'tos' }]}
-            placeholder="存储位置"
-            style={{ width: 150 }}
-          />
         </Form.Item>
         <Form.Item name="mediaType">
           <Select
@@ -85,17 +72,11 @@ export function FileManagementFilters({
           <Space>
             <Button htmlType="submit" icon={<SearchOutlined />} loading={loading} type="primary">查询</Button>
             <Button onClick={onReset}>重置</Button>
-            <Button icon={<ReloadOutlined />} loading={loading || tosSummaryLoading} onClick={onRefresh}>刷新</Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={onRefresh}>刷新</Button>
           </Space>
         </Form.Item>
       </Form>
-      {tosSummaryError ? (
-        <Tooltip title={tosSummaryError}><Typography.Text type="danger">TOS 容量读取失败</Typography.Text></Tooltip>
-      ) : (
-        <Typography.Text className="file-management-summary" type="secondary">
-          {tosSummaryLoading ? '正在读取存储容量' : summaryText}
-        </Typography.Text>
-      )}
+      <Typography.Text className="file-management-summary" type="secondary">{summaryText}</Typography.Text>
     </div>
   );
 }

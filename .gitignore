@@ -19,4 +19,6 @@ dist/
 .codex-run
 .codex-dev*.log
 .version-release.lock/
-backend/go/bin/
+backend/bin/
+backend/internal/httpapi/static/web/
+backend/internal/httpapi/static/admin/

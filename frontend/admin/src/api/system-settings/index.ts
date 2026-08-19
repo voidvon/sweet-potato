@@ -21,7 +21,7 @@ export type IpBlacklistSettings = {
 
 export type FileStorageSettings = {
   enabled: boolean;
-  provider: 'local' | 'tos';
+  provider: 'local';
   endpoint: string;
   bucket: string;
   region: string;

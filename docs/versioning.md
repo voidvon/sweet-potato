@@ -19,7 +19,7 @@ make check
 make build
 ```
 
-发布产物是 `backend/go/bin/ai-marketing`。版本号不通过包管理器同步，也不需要额外的
+发布产物是 `backend/bin/ai-marketing`。版本号不通过包管理器同步，也不需要额外的
 前端、桌面或服务进程参与构建。
 
 Web/Admin 页面会在入口加载各自的 `version.js`，用于显示构建版本。发布前应确认两个

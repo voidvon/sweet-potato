@@ -2,15 +2,17 @@
 
 ## Project Structure & Module Organization
 
-本仓库由一个 Go 服务组成：`backend/go/cmd/aimarketing/` 是可执行文件入口，`backend/go/internal/httpapi/` 提供 HTTP、SSE、WebSocket、静态资源和文件服务，`backend/go/internal/store/` 负责 SQLite 持久化，`backend/go/internal/auth/` 负责鉴权，`backend/go/internal/video/` 负责视频模型客户端。Web/Admin 浏览器产物位于 `backend/go/internal/httpapi/static/`，通过 `embed.FS` 编译进可执行文件；`docs/` 保存接口与迁移文档。
+本仓库由一个 Go 服务组成：`backend/cmd/aimarketing/` 是可执行文件入口，`backend/internal/httpapi/` 提供 HTTP、SSE、WebSocket、静态资源和文件服务，`backend/internal/store/` 负责 SQLite 持久化，`backend/internal/auth/` 负责鉴权，`backend/internal/video/` 负责视频模型客户端。Web/Admin 浏览器产物位于 `backend/internal/httpapi/static/`，通过 `embed.FS` 编译进可执行文件；`docs/` 保存接口与迁移文档。
 
 ## Build, Test, and Development Commands
 
-- `make build`：构建无 CGO 的单个 Go 可执行文件到 `backend/go/bin/ai-marketing`。
+- `make dev` 或 `make dev-web`：统一启动 Go、Web 和 Admin 网页开发环境。
+- `make dev-electron`：统一启动 Go、Web、Admin 和 Electron 开发环境。
+- `make build`：构建无 CGO 的单个 Go 可执行文件到 `backend/bin/ai-marketing`。
 - `make run`：启动 Go 服务，默认监听 `127.0.0.1:7072`。
 - `make test`：运行全部 Go 单元测试和 HTTP 契约测试。
 - `make vet`：运行 Go 静态检查。
-- `cd backend/go && gofmt -w cmd internal`：格式化 Go 源码。
+- `cd backend && gofmt -w cmd internal`：格式化 Go 源码。
 
 ## Coding Style & Naming Conventions
 

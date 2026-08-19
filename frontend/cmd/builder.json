@@ -16,7 +16,6 @@
     "!logs/",
     "!out/",
     "!go/",
-    "!python/",
     "!build/",
     "!scripts/"
   ],

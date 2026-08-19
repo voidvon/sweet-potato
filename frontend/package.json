@@ -6,7 +6,9 @@
   "scripts": {
     "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm install'); process.exit(1); }\"",
     "dev": "node ./scripts/dev.cjs",
-    "dev:web": "pnpm --dir web run dev",
+    "dev:web": "node ./scripts/dev.cjs --web",
+    "dev:electron": "node ./scripts/dev.cjs --electron",
+    "dev:web-only": "pnpm --dir web run dev",
     "dev:admin": "pnpm --dir admin run dev",
     "build:web": "pnpm --dir web run build",
     "build:admin": "pnpm --dir admin run build",

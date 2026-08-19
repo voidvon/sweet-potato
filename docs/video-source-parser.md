@@ -2,7 +2,7 @@
 
 ## 模块边界
 
-`backend/go/internal/httpapi/video_source_handlers.go` 负责从平台分享内容中解析视频地址和元数据，不负责下载文件或视频生成业务。调用方可按需使用真实地址、发布者、标题、封面、音乐和互动数据。
+`backend/internal/httpapi/video_source_handlers.go` 负责从平台分享内容中解析视频地址和元数据，不负责下载文件或视频生成业务。调用方可按需使用真实地址、发布者、标题、封面、音乐和互动数据。
 
 调用链：
 

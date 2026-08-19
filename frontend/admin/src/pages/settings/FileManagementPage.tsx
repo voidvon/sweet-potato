@@ -2,17 +2,14 @@ import { DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Button, Form, Popconfirm, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { CSSProperties } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { resolveAssetUrl } from '@shared/api/core/request';
 import {
   deleteManagedFile,
-  getTosStorageSummary,
   listManagedFiles,
-  listTosObjects,
   type ManagedFile,
   type ManagedFileListFilters,
   type ManagedFileSummary,
-  type TosStorageSummary,
 } from '../../api/file-management';
 import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail';
 import { useTableBodyHeight } from '../../hooks/useTableBodyHeight';
@@ -34,17 +31,12 @@ const emptySummary: ManagedFileSummary = {
   totalBytes: 0,
   localCount: 0,
   localBytes: 0,
-  tosCount: 0,
-  tosBytes: 0,
 };
 
 export function FileManagementPage() {
   const [form] = Form.useForm<FileFilterForm>();
   const [files, setFiles] = useState<ManagedFile[]>([]);
   const [recordSummary, setRecordSummary] = useState<ManagedFileSummary>(emptySummary);
-  const [tosStorageSummary, setTosStorageSummary] = useState<TosStorageSummary | null>(null);
-  const [tosSummaryError, setTosSummaryError] = useState('');
-  const [tosSummaryLoading, setTosSummaryLoading] = useState(false);
   const [filters, setFilters] = useState<ManagedFileListFilters>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -61,9 +53,7 @@ export function FileManagementPage() {
   ) => {
     setLoading(true);
     try {
-      const result = nextFilters.storageProvider === 'tos'
-        ? await listTosObjects(nextPage, nextPageSize, nextFilters)
-        : await listManagedFiles(nextPage, nextPageSize, nextFilters);
+      const result = await listManagedFiles(nextPage, nextPageSize, nextFilters);
       setFiles(result.items);
       setPage(result.page);
       setPageSize(result.pageSize);
@@ -76,37 +66,13 @@ export function FileManagementPage() {
     }
   }, [filters, page, pageSize]);
 
-  const loadTosSummary = useCallback(async () => {
-    setTosSummaryLoading(true);
-    setTosSummaryError('');
-    try {
-      setTosStorageSummary(await getTosStorageSummary());
-    } catch (error) {
-      setTosStorageSummary(null);
-      setTosSummaryError(error instanceof Error ? error.message : 'TOS 存储容量读取失败');
-    } finally {
-      setTosSummaryLoading(false);
-    }
-  }, []);
-
-  const summary = useMemo<ManagedFileSummary>(() => tosStorageSummary ? {
-    totalCount: recordSummary.localCount + tosStorageSummary.objectCount,
-    totalBytes: recordSummary.localBytes + tosStorageSummary.totalBytes,
-    localCount: recordSummary.localCount,
-    localBytes: recordSummary.localBytes,
-    tosCount: tosStorageSummary.objectCount,
-    tosBytes: tosStorageSummary.totalBytes,
-  } : recordSummary, [recordSummary, tosStorageSummary]);
-
   useEffect(() => {
     void loadFiles(1, 20, {});
-    void loadTosSummary();
   }, []);
 
   function applyFilters(values: FileFilterForm) {
     const nextFilters: ManagedFileListFilters = {
       search: values.search?.trim() || undefined,
-      storageProvider: values.storageProvider,
       mediaType: values.mediaType,
       lifecycleStatus: values.lifecycleStatus,
       createdAtFrom: values.createdAt?.[0]?.startOf('day').toISOString(),
@@ -122,12 +88,6 @@ export function FileManagementPage() {
     void loadFiles(1, pageSize, {});
   }
 
-  function filterByStorage(storageProvider?: 'local' | 'tos') {
-    const nextValues = { ...form.getFieldsValue(), storageProvider };
-    form.setFieldsValue(nextValues);
-    applyFilters(nextValues);
-  }
-
   async function handleDelete(file: ManagedFile) {
     setDeletingFileId(file.id);
     try {
@@ -136,7 +96,6 @@ export function FileManagementPage() {
       message.success('文件已删除');
       await Promise.all([
         loadFiles(files.length === 1 && page > 1 ? page - 1 : page, pageSize),
-        loadTosSummary(),
       ]);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '文件删除失败');
@@ -169,7 +128,7 @@ export function FileManagementPage() {
       title: '存储位置',
       dataIndex: 'storageProvider',
       width: 110,
-      render: (value: ManagedFile['storageProvider']) => <Tag color={value === 'tos' ? 'blue' : 'default'}>{value === 'tos' ? 'TOS' : '本地'}</Tag>,
+      render: () => <Tag>本地</Tag>,
     },
     { title: '文件大小', dataIndex: 'fileSize', width: 110, align: 'right', render: formatBytes },
     {
@@ -212,21 +171,15 @@ export function FileManagementPage() {
     <ContentStudioLayout>
       <section className="settings-page file-management-page">
         <FileManagementSummaryCards
-          onStorageFilter={filterByStorage}
-          summary={summary}
-          tosStorageSummary={tosStorageSummary}
-          tosSummaryError={tosSummaryError}
-          tosSummaryLoading={tosSummaryLoading}
+          summary={recordSummary}
         />
         <FileManagementFilters
           form={form}
           loading={loading}
           onApply={applyFilters}
-          onRefresh={() => { void loadFiles(); void loadTosSummary(); }}
+          onRefresh={() => { void loadFiles(); }}
           onReset={resetFilters}
-          summaryText={`共 ${summary.totalCount} 个文件 / ${formatBytes(summary.totalBytes)}`}
-          tosSummaryError={tosSummaryError}
-          tosSummaryLoading={tosSummaryLoading}
+          summaryText={`共 ${recordSummary.totalCount} 个文件 / ${formatBytes(recordSummary.totalBytes)}`}
         />
         <div
           className="file-management-table-viewport"

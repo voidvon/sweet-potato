@@ -215,10 +215,10 @@ export function SystemSettingsPage() {
           </Card>
           <Card title="文件存储" style={{ marginTop: 18 }}>
             <Typography.Paragraph>
-              系统默认使用本地文件系统保存上传文件。需要扩展存储空间时，可以启用火山引擎 TOS 对象存储。
+              当前版本统一使用本机文件系统保存上传文件，TOS 对象存储暂未启用。
             </Typography.Paragraph>
-            <Form.Item label="使用火山引擎 TOS" name="objectStorageEnabled" valuePropName="checked">
-              <Switch />
+            <Form.Item label="使用火山引擎 TOS" name="objectStorageEnabled" valuePropName="checked" extra="TOS 支持暂未启用，文件会保存在应用数据目录。">
+              <Switch disabled />
             </Form.Item>
             <Form.Item noStyle shouldUpdate={(previous, current) => previous.objectStorageEnabled !== current.objectStorageEnabled}>
               {({ getFieldValue }) => getFieldValue('objectStorageEnabled') ? (

@@ -1,0 +1,2 @@
+Frontend build output is generated here temporarily by `make build` and embedded into the Go binary.
+Do not commit the generated web/ or admin/ directories.

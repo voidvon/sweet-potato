@@ -1,6 +1,6 @@
 import { request } from '@shared/api/core/request';
 
-export type ManagedFileStorageProvider = 'local' | 'tos';
+export type ManagedFileStorageProvider = 'local';
 export type ManagedFileMediaType = 'image' | 'video' | 'audio' | 'document' | 'other';
 
 export type ManagedFile = {
@@ -16,7 +16,6 @@ export type ManagedFile = {
   lifecycleStatus: 'temporary' | 'retained' | 'permanent';
   storageProvider: ManagedFileStorageProvider;
   storageKey: string;
-  storageBucket: string;
   mediaType: ManagedFileMediaType;
   referenceCount: number;
   userId: string;
@@ -30,17 +29,6 @@ export type ManagedFileSummary = {
   totalBytes: number;
   localCount: number;
   localBytes: number;
-  tosCount: number;
-  tosBytes: number;
-};
-
-export type TosStorageSummary = {
-  bucket: string;
-  keyPrefix: string;
-  objectCount: number;
-  totalBytes: number;
-  prefixObjectCount: number;
-  prefixBytes: number;
 };
 
 export type ManagedFileListResult = {
@@ -53,7 +41,6 @@ export type ManagedFileListResult = {
 
 export type ManagedFileListFilters = {
   search?: string;
-  storageProvider?: ManagedFileStorageProvider;
   mediaType?: ManagedFileMediaType;
   lifecycleStatus?: ManagedFile['lifecycleStatus'];
   createdAtFrom?: string;
@@ -66,18 +53,6 @@ export function listManagedFiles(page = 1, pageSize = 20, filters: ManagedFileLi
     if (value) params.set(key, value);
   });
   return request<ManagedFileListResult>(`/api/file-management?${params.toString()}`, { dedupe: false });
-}
-
-export function getTosStorageSummary() {
-  return request<TosStorageSummary>('/api/file-management/tos-summary', { dedupe: false });
-}
-
-export function listTosObjects(page = 1, pageSize = 20, filters: ManagedFileListFilters = {}) {
-  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value && key !== 'storageProvider') params.set(key, value);
-  });
-  return request<ManagedFileListResult>(`/api/file-management/tos-objects?${params.toString()}`, { dedupe: false });
 }
 
 export function deleteManagedFile(file: Pick<ManagedFile, 'id' | 'storageKey'>) {

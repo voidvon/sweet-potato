@@ -44,7 +44,7 @@
 - `editableParseResult.videoGenerationResult.coverUrl` 继续保留以兼容现有调用方；封面生成成功后与 `generatedCoverUrl` 指向同一持久化资源。
 - 封面生成失败不改变视频任务的成功状态，调用方应允许 `generatedCoverUrl` 为空。
 - 发现页 `DiscoverItem` 提供 `coverUrl`；发布时保存来源作品的封面快照，历史条目迁移回填，并用于视频卡片及全屏预览的 `poster`。
-- `GET /api/admin/works` 与 `GET /api/file-management` 的视频条目提供 `coverUrl`；没有封面或非业务 TOS 对象时返回空字符串，后台表格统一优先展示封面图。
+- `GET /api/admin/works` 与 `GET /api/file-management` 的视频条目提供 `coverUrl`；没有封面时返回空字符串，后台表格统一优先展示封面图。文件管理接口当前只返回本地素材。
 
 ## 2026-07-23 发现管理
 
