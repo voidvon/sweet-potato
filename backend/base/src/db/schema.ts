@@ -723,22 +723,6 @@ export function migrateDatabase() {
       updated_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS xingtu_search_drafts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      profile_id TEXT NOT NULL,
-      keyword TEXT NOT NULL,
-      search_mode TEXT NOT NULL,
-      criteria TEXT NOT NULL DEFAULT '[]',
-      automation_filters TEXT,
-      source_text TEXT,
-      status TEXT NOT NULL DEFAULT 'draft',
-      last_run_task_id TEXT,
-      last_result_summary TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS video_remake_sessions (
       id TEXT PRIMARY KEY,
       task_id TEXT,
@@ -846,9 +830,6 @@ export function migrateDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_video_generation_tasks_user_created
     ON video_generation_tasks(user_id, created_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_xingtu_search_drafts_user_updated
-    ON xingtu_search_drafts(user_id, updated_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_video_remake_sessions_user_updated
     ON video_remake_sessions(user_id, updated_at DESC);
@@ -1153,8 +1134,6 @@ export function migrateDatabase() {
     CREATE INDEX IF NOT EXISTS idx_video_generation_tasks_user_ratio_created
     ON video_generation_tasks(user_id, aspect_ratio, created_at DESC)
   `);
-  addColumnIfMissing('xingtu_search_drafts', 'automation_filters', 'automation_filters TEXT');
-
   migrateContentFilesDirectory();
   backfillSettledContentPlanningLedgerTypes();
 

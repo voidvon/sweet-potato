@@ -84,7 +84,7 @@ export type ChatMessage = {
   conversationId: string;
   role: 'user' | 'assistant';
   content: string;
-  capability?: 'xingtu_creator_search' | 'image_generation';
+  capability?: 'image_generation';
   capabilityContext?: SendChatPayload['capabilityContext'];
   imageModelConfigId?: string | null;
   generationJobId?: string | null;
@@ -108,14 +108,6 @@ export type ChatConversation = {
   modelConfigId?: string | null;
   metadata?: {
     previewText?: string;
-    capabilityState?: {
-      xingtu?: {
-        draftId?: string;
-        profileId?: string;
-        lastPage?: number;
-        pendingConfirmation?: boolean;
-      };
-    };
   };
   createdAt: string;
   updatedAt: string;
@@ -136,7 +128,6 @@ export type SendChatPayload = {
   attachments?: ChatAttachment[];
   content: string;
   capabilityContext?: {
-    xingtuProfileId?: string | null;
     imageGeneration?: {
       modeKey?: string;
       modeTitle?: string;
@@ -158,7 +149,7 @@ export type SendChatPayload = {
       }>;
     };
   };
-  requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
+  requestedCapabilities?: Array<'image_generation'>;
 };
 
 export type ChatStreamEvent =

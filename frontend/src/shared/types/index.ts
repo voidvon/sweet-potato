@@ -463,14 +463,6 @@ export type ChatConversation = {
   modelConfigId?: string | null;
   metadata?: {
     previewText?: string;
-    capabilityState?: {
-      xingtu?: {
-        draftId?: string;
-        profileId?: string;
-        lastPage?: number;
-        pendingConfirmation?: boolean;
-      };
-    };
   };
   createdAt: string;
   updatedAt: string;
@@ -492,9 +484,8 @@ export type SendChatPayload = {
   content: string;
   capabilityContext?: {
     imageModelConfigId?: string | null;
-    xingtuProfileId?: string | null;
   };
-  requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
+  requestedCapabilities?: Array<'image_generation'>;
 };
 
 export type ChatStreamEvent =

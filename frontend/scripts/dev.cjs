@@ -196,7 +196,6 @@ function syncElectronSourceToPublic() {
     "config",
     "controller",
     "preload",
-    "python",
     "service",
     "main.js",
   ];

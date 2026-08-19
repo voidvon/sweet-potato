@@ -39,12 +39,6 @@ export const env = {
   port: Number(process.env.PORT || 7072),
 };
 
-export const desktopAutomationBridge = {
-  baseUrl: String(process.env.DESKTOP_AUTOMATION_BASE_URL || 'http://127.0.0.1:7074').trim().replace(/\/+$/, ''),
-  taskTimeoutMs: Number(process.env.DESKTOP_AUTOMATION_TASK_TIMEOUT_MS || 180000),
-  pollIntervalMs: Number(process.env.DESKTOP_AUTOMATION_POLL_INTERVAL_MS || 1000),
-};
-
 export const authTokenSecret = String(
   process.env.JWT_SECRET
   || process.env.AUTH_TOKEN_SECRET

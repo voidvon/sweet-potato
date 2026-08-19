@@ -4,8 +4,6 @@ const { app: electronApp } = require("electron");
 const { restoreMainWindow } = require("ee-core/electron/window");
 const { Lifecycle } = require("./preload/lifecycle");
 const { preload } = require("./preload");
-const { startAutomationBridgeServer } = require("./service/browser-automation/bridge-server");
-const { prepareCdpRuntime } = require("./service/browser-automation/cdp-runtime");
 
 electronApp.disableHardwareAcceleration();
 electronApp.commandLine.appendSwitch('persist-session-cookies');
@@ -42,9 +40,6 @@ function restoreDockMainWindow() {
 }
 
 async function bootstrap() {
-  await prepareCdpRuntime();
-  await startAutomationBridgeServer();
-
   electronApp.on("activate", restoreDockMainWindow);
   electronApp.on("second-instance", restoreDockMainWindow);
 

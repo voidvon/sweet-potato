@@ -8,11 +8,6 @@ export const routePaths = {
   contentRoot: '/app/content',
   contentDefault: '/app/content/create_video',
   contentModule: (moduleCode = ':moduleCode') => `/app/content/${moduleCode}`,
-  xingtuCreators: '/app/creator-ops/xingtu',
-  buyinCreators: '/app/creator-ops/buyin',
-  douyinCreators: '/app/creator-ops/douyin',
-  creatorFavorites: '/app/creator-ops/favorites',
-  wechatOps: '/app/creator-ops/wechat',
   account: '/app/account',
   noPermission: '/app/no-permission',
 };

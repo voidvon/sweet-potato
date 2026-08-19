@@ -4,9 +4,6 @@ const { logger } = require('ee-core/log');
 const { getConfig } = require('ee-core/config');
 const { getMainWindow } = require('ee-core/electron');
 const { app, Menu, session } = require('electron');
-const { stopAutomationBridgeServer } = require('../service/browser-automation/bridge-server');
-const { closeCdpRuntime } = require('../service/browser-automation/cdp-runtime');
-const { flushAllAutomationProfiles } = require('../service/browser-automation/automation-window');
 
 let isQuitting = false;
 
@@ -127,16 +124,6 @@ class Lifecycle {
   async beforeClose() {
     logger.info('[lifecycle] before-close');
     isQuitting = true;
-    try {
-      await flushAllAutomationProfiles();
-      logger.info('[lifecycle] automation profiles flushed');
-    } catch (error) {
-      logger.warn(`[lifecycle] automation profile flush failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    await Promise.allSettled([
-      stopAutomationBridgeServer(),
-      closeCdpRuntime(),
-    ]);
   }
 }
 Lifecycle.toString = () => '[class Lifecycle]';

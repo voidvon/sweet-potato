@@ -33,7 +33,6 @@ import { createUserRouter } from './modules/users/user.routes.js';
 import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
 import { createVideoSourceRouter } from './modules/video-source/video-source.routes.js';
 import { createVideoUnderstandingRouter } from './modules/video-understanding/video-understanding.routes.js';
-import { createXingtuSearchDraftRouter } from './modules/xingtu-search-drafts/xingtu-search-draft.routes.js';
 import { requireAuth } from './shared/auth.middleware.js';
 
 const filesStaticMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
@@ -76,7 +75,6 @@ export function createApp() {
   app.use('/api/video-remake', createVideoRemakeRouter());
   app.use('/api/video-source', createVideoSourceRouter());
   app.use('/api/video-understanding', createVideoUnderstandingRouter());
-  app.use('/api/xingtu/search-drafts', createXingtuSearchDraftRouter());
   app.use('/api/billing', createBillingRouter());
   app.use('/api/site-config', createSiteConfigRouter());
   app.use('/api/access-logs', createSiteAccessLogRouter());

@@ -17,7 +17,6 @@ import { resolveAssetUrl } from '../../../api/request';
 import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '../../../events/appRealtimeEvents';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
-import { resolveChatCapabilityPayload } from '../chatCapabilities';
 
 const defaultChatAgent: AiAgent = {
   id: 'quick-answer',
@@ -539,7 +538,7 @@ export function useChatSession() {
     editMessageId?: string;
     capabilityContext?: SendChatPayload['capabilityContext'];
     imageModelConfigId?: string | null;
-    requestedCapabilities?: Array<'xingtu_creator_search' | 'image_generation'>;
+    requestedCapabilities?: Array<'image_generation'>;
   }) => {
     const content = (override?.content ?? input).trim();
     const messageAttachments = override?.attachments ?? attachments;
@@ -553,14 +552,10 @@ export function useChatSession() {
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
-    const capabilityPayload = resolveChatCapabilityPayload(content);
-    const requestedCapabilities = override?.requestedCapabilities || capabilityPayload.requestedCapabilities;
+    const requestedCapabilities = override?.requestedCapabilities;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
     const contentForSend = content || (isImageGenerationRequest ? '' : '请分析附件内容');
-    const resolvedCapabilityContext = {
-      ...(capabilityPayload.capabilityContext || {}),
-      ...(override?.capabilityContext || {}),
-    };
+    const resolvedCapabilityContext = override?.capabilityContext || {};
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
     const imageGenerationExpectedCount = isImageGenerationRequest
       ? Math.max(1, resolvedCapabilityContext.imageGeneration?.outputCount || 0)
@@ -623,7 +618,6 @@ export function useChatSession() {
           agentId: activeAgent.id,
           attachments: sendingAttachments,
           content: contentForSend,
-          ...capabilityPayload,
           capabilityContext: resolvedCapabilityContext,
           imageModelConfigId: resolvedImageModelConfigId,
           requestedCapabilities,
@@ -658,7 +652,6 @@ export function useChatSession() {
           agentId: activeAgent.id,
           attachments: sendingAttachments,
           content: contentForSend,
-          ...capabilityPayload,
           capabilityContext: resolvedCapabilityContext,
           imageModelConfigId: resolvedImageModelConfigId,
           requestedCapabilities,

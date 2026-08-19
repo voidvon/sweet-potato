@@ -2,10 +2,9 @@ import type { AiAgent } from '../agents/agent.types.js';
 import type { AiModelConfig } from '../model-configs/model-config.types.js';
 import type { ChatAttachment, ChatConversation, ChatImageGenerationFailure, ChatMessage, ChatMessageAction } from './chat.types.js';
 
-export type ChatCapabilityName = 'xingtu_creator_search' | 'image_generation';
+export type ChatCapabilityName = 'image_generation';
 
 export type ChatCapabilityContext = {
-  xingtuProfileId?: string | null;
   imageModelConfigId?: string | null;
   imageGeneration?: {
     modeKey?: string;
@@ -33,14 +32,6 @@ export type ChatRequestedCapability = ChatCapabilityName;
 
 export type ChatConversationMetadata = {
   previewText?: string;
-  capabilityState?: {
-    xingtu?: {
-      draftId?: string;
-      profileId?: string;
-      lastPage?: number;
-      pendingConfirmation?: boolean;
-    };
-  };
 };
 
 export type ChatCapabilityInvocation = {

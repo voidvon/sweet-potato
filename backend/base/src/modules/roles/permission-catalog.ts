@@ -4,7 +4,7 @@ export type PermissionCatalogEntry = {
   key: string;
   label: string;
   description: string;
-  group: 'chat' | 'content' | 'creator_ops' | 'system';
+  group: 'chat' | 'content' | 'system';
   moduleCodes?: readonly ContentModuleCode[];
   resourceTypes?: readonly ContentResourceType[];
 };
@@ -94,30 +94,6 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
     label: '批量',
     description: '允许访问图片和视频批量生成任务页面。',
     group: 'content',
-  },
-  {
-    key: 'web.module.creator_ops.xingtu',
-    label: '星图达人',
-    description: '允许访问星图达人搜索草稿与执行能力。',
-    group: 'creator_ops',
-  },
-  {
-    key: 'web.module.creator_ops.buyin',
-    label: '精选联盟',
-    description: '允许访问精选联盟模块。',
-    group: 'creator_ops',
-  },
-  {
-    key: 'web.module.creator_ops.douyin',
-    label: '抖音达人',
-    description: '允许访问抖音达人搜索入口，并在 Electron 中打开抖音 PC 版搜索页。',
-    group: 'creator_ops',
-  },
-  {
-    key: 'web.module.creator_ops.wechat',
-    label: '微信运营',
-    description: '允许访问微信运营模块。',
-    group: 'creator_ops',
   },
 ] as const;
 

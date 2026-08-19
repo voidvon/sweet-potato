@@ -24,99 +24,6 @@
   position: relative;
 }
 
-.chat-mention-dropdown {
-  animation: chat-mention-dropdown-enter 160ms cubic-bezier(0.22, 1, 0.36, 1);
-  background: var(--color-white);
-  border: 1px solid var(--color-neutral-200);
-  border-radius: 14px;
-  box-shadow: 0 18px 40px rgb(var(--color-shadow-rgb) / 0.14);
-  display: grid;
-  gap: 4px;
-  left: 0;
-  max-width: min(420px, calc(100vw - 48px));
-  min-width: 280px;
-  padding: 8px;
-  position: absolute;
-  top: calc(100% + 10px);
-  z-index: 20;
-}
-
-.chat-mention-dropdown.floating {
-  animation-name: chat-mention-dropdown-enter-floating;
-  top: auto;
-  bottom: calc(100% + 12px);
-}
-
-.chat-mention-option.ant-btn {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  height: auto;
-  justify-content: flex-start;
-  min-width: 0;
-  text-align: left;
-  width: 100%;
-}
-
-.chat-mention-option-title {
-  flex: 0 0 auto;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.3;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-mention-option-description {
-  color: var(--color-neutral-500);
-  flex: 1 1 auto;
-  font-size: 12px;
-  line-height: 1.45;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@keyframes chat-mention-dropdown-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes chat-mention-dropdown-enter-floating {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-mention-dropdown,
-  .chat-mention-dropdown.floating {
-    animation: none;
-  }
-}
-
-.chat-capability-strip {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-
 .chat-composer-toolbar,
 .chat-composer-toolbar .ant-space {
   align-items: center;
@@ -327,12 +234,6 @@
 @media (max-width: 960px) {
   .chat-page .video-workbench-footer {
     padding: 0 14px 24px;
-  }
-
-  .chat-mention-dropdown {
-    max-width: calc(100vw - 40px);
-    min-width: 0;
-    width: 100%;
   }
 
   .chat-floating-toolbar .chat-composer-toolbar {

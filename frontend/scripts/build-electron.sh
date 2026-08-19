@@ -199,22 +199,6 @@ if (copied > 0) {
 NODE
 }
 
-sync_electron_runtime_assets() {
-  local source_schema="../backend/base/src/shared/xingtu-creator-filter-schema.json"
-  local target_dir="public/electron/service/browser-automation/adapters/xingtu"
-  local target_schema="$target_dir/xingtu-creator-filter-schema.json"
-
-  if [ ! -f "$source_schema" ]; then
-    echo "  ✗ 星图筛选 schema 不存在: $source_schema" >&2
-    exit 1
-  fi
-
-  mkdir -p "$target_dir"
-  cp "$source_schema" "$target_schema"
-  node -e "const schema=require('./$target_schema'); if (!Array.isArray(schema) || schema.length === 0) { throw new Error('Invalid xingtu creator filter schema'); }"
-  echo "  ✓ 星图筛选 schema 已复制到 Electron 运行时资源"
-}
-
 begin_release_version "$ROOT_DIR"
 
 echo "==== Electron 打包流程 ===="
@@ -235,7 +219,6 @@ echo "  ✓ 前端产物已复制"
 
 echo "[1.6/6] 同步 Electron 主进程代码..."
 pnpm exec ee-bin build --cmds=electron
-sync_electron_runtime_assets
 
 # 2. 清理并备份 pnpm node_modules
 echo "[2/6] 备份 pnpm 环境..."
@@ -273,7 +256,6 @@ APP_BUNDLE="$(app_bundle_path)"
 if [ -n "$APP_BUNDLE" ] && [ -d "$APP_BUNDLE" ]; then
   APP_PATH="$APP_BUNDLE/Contents/Resources/app"
   repair_and_verify_app_dependencies "$APP_PATH"
-  node -e "const path=require('node:path'); const appPath=path.resolve('$APP_PATH'); require(path.join(appPath, 'public/electron/service/browser-automation/adapters/xingtu/creator-market.js')); console.log('  ✓ 星图达人市场 adapter 可从打包产物加载');"
   if [ -f "$APP_PATH/.dependencies-repaired" ]; then
     REPACK_ARGS="$(electron_builder_repack_args)"
     if [ -n "$REPACK_ARGS" ]; then

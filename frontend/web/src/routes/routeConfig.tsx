@@ -16,8 +16,6 @@ import {
   ProductOutlined,
   RobotFilled,
   RobotOutlined,
-  StarFilled,
-  StarOutlined,
   TableOutlined,
   ThunderboltFilled,
   ThunderboltOutlined,
@@ -38,7 +36,6 @@ import {
   ImmersiveRouteFallback,
   WorkspaceRouteFallback,
 } from '../components/RouteLoadingFallback';
-import { isElectronEgg } from '../ipc';
 import { ProtectedLayout } from '../layouts/ProtectedLayout';
 import { AuthPage } from '../pages/auth/AuthPage';
 import { NoPermissionPage } from '../pages/NoPermissionPage';
@@ -52,10 +49,6 @@ const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenc
 const BatchGenerationPage = lazy(() => import('../pages/content/BatchGenerationPage').then((m) => ({ default: m.BatchGenerationPage })));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const DiscoverPage = lazy(() => import('../pages/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
-const XingtuCreatorPage = lazy(() => import('../pages/creator-ops/XingtuCreatorPage').then((m) => ({ default: m.XingtuCreatorPage })));
-const DouyinCreatorSearchPage = lazy(() => import('../pages/creator-ops/DouyinCreatorSearchPage').then((m) => ({ default: m.DouyinCreatorSearchPage })));
-const CreatorFavoritesPage = lazy(() => import('../pages/creator-ops/CreatorFavoritesPage').then((m) => ({ default: m.CreatorFavoritesPage })));
-const WechatAutomationPage = lazy(() => import('../pages/creator-ops/WechatAutomationPage').then((m) => ({ default: m.WechatAutomationPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
 
 type WorkspaceRouteHandlers = {
@@ -68,7 +61,7 @@ type AppRouteBuildParams = WorkspaceRouteHandlers & {
   onAuthed: (session: AuthSession) => void;
 };
 
-type SidebarGroupKey = 'material' | 'video' | 'creatorOps';
+type SidebarGroupKey = 'material' | 'video';
 type WorkspaceSurface = 'default' | 'studio' | 'immersive';
 type RouteTitle = string | ((pathname: string) => string | null);
 
@@ -84,7 +77,6 @@ type SidebarMenuMeta = {
 const sidebarGroupResourceKeys: Record<SidebarGroupKey, string> = {
   material: 'web.root.content',
   video: 'web.root.video',
-  creatorOps: 'web.root.creator_ops',
 };
 
 type RouteResourceType = 'directory' | 'menu';
@@ -189,11 +181,6 @@ const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string
     icon: <VideoCameraOutlined />,
     label: '视频生成',
     selectedIcon: <VideoCameraFilled />,
-  },
-  creatorOps: {
-    icon: <StarOutlined />,
-    label: '达人运营',
-    selectedIcon: <StarFilled />,
   },
 };
 
@@ -468,109 +455,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
         code: 'create_video',
       },
     },
-  },
-  {
-    key: 'creator-ops-xingtu',
-    path: 'creator-ops/xingtu',
-    fullPath: routePaths.xingtuCreators,
-    element: () => withSuspense(<XingtuCreatorPage />),
-    routeResource: {
-      permissionCode: 'web.module.creator_ops.xingtu',
-      protected: true,
-      resourceKey: 'web.module.creator_ops.xingtu',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '星图达人',
-      sidebar: {
-        groupKey: 'creatorOps',
-        icon: <StarOutlined />,
-        selectedIcon: <StarFilled />,
-      },
-    },
-    visible: () => isElectronEgg,
-  },
-  {
-    key: 'creator-ops-buyin',
-    path: 'creator-ops/buyin',
-    fullPath: routePaths.buyinCreators,
-    element: () => withSuspense(<XingtuCreatorPage platform="buyin" />),
-    routeResource: {
-      permissionCode: 'web.module.creator_ops.buyin',
-      protected: true,
-      resourceKey: 'web.module.creator_ops.buyin',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '精选联盟',
-      sidebar: {
-        groupKey: 'creatorOps',
-        icon: <StarOutlined />,
-        selectedIcon: <StarFilled />,
-      },
-    },
-    visible: () => isElectronEgg,
-  },
-  {
-    key: 'creator-ops-douyin',
-    path: 'creator-ops/douyin',
-    fullPath: routePaths.douyinCreators,
-    element: () => withSuspense(<DouyinCreatorSearchPage />),
-    routeResource: {
-      permissionCode: 'web.module.creator_ops.douyin',
-      protected: true,
-      resourceKey: 'web.module.creator_ops.douyin',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '抖音达人',
-      sidebar: {
-        groupKey: 'creatorOps',
-        icon: <StarOutlined />,
-        selectedIcon: <StarFilled />,
-      },
-    },
-    visible: () => isElectronEgg,
-  },
-  {
-    key: 'creator-ops-favorites',
-    path: 'creator-ops/favorites',
-    fullPath: routePaths.creatorFavorites,
-    element: () => withSuspense(<CreatorFavoritesPage />),
-    routeResource: {
-      protected: false,
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '达人收藏',
-      sidebar: {
-        groupKey: 'creatorOps',
-        icon: <StarOutlined />,
-        selectedIcon: <StarFilled />,
-      },
-    },
-    visible: () => isElectronEgg,
-  },
-  {
-    key: 'creator-ops-wechat',
-    path: 'creator-ops/wechat',
-    fullPath: routePaths.wechatOps,
-    element: () => withSuspense(<WechatAutomationPage />),
-    routeResource: {
-      permissionCode: 'web.module.creator_ops.wechat',
-      protected: true,
-      resourceKey: 'web.module.creator_ops.wechat',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '微信',
-      sidebar: {
-        groupKey: 'creatorOps',
-        icon: <StarOutlined />,
-        selectedIcon: <StarFilled />,
-      },
-    },
-    visible: () => isElectronEgg,
   },
   {
     key: 'account',

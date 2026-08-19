@@ -207,11 +207,10 @@ export function parseCapabilityContext(value: unknown): SendChatPayload['capabil
   if (!value || typeof value !== 'object') {
     return undefined;
   }
-  const source = value as { imageGeneration?: unknown; imageModelConfigId?: unknown; xingtuProfileId?: unknown };
+  const source = value as { imageGeneration?: unknown; imageModelConfigId?: unknown };
   return {
     imageModelConfigId: typeof source.imageModelConfigId === 'string' ? source.imageModelConfigId.trim() : undefined,
     imageGeneration: parseImageGenerationContext(source.imageGeneration),
-    xingtuProfileId: typeof source.xingtuProfileId === 'string' ? source.xingtuProfileId.trim() : undefined,
   };
 }
 
