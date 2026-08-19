@@ -8,7 +8,7 @@ const preferredBackendPort = Number(process.env.BACKEND_PORT || process.env.PORT
 const rootDir = path.resolve(__dirname, "..");
 const projectRootDir = path.resolve(rootDir, "..");
 const backendDir = path.join(projectRootDir, "backend");
-const webDir = path.join(rootDir, "web");
+const webDir = rootDir;
 const viteCli = path.join(rootDir, "node_modules", "vite", "bin", "vite.js");
 
 const childProcesses = [];
@@ -48,7 +48,7 @@ function isHttpReady(url, timeoutMs = 1000) {
   });
 }
 
-function waitForHttp(url, timeoutMs) {
+function waitForHttp(url, timeoutMs, child) {
   const startedAt = Date.now();
   return new Promise((resolve, reject) => {
     const tryOnce = () => {
@@ -57,6 +57,10 @@ function waitForHttp(url, timeoutMs) {
         resolve();
       });
       request.on("error", () => {
+        if (child && child.exitCode !== null) {
+          reject(new Error(`Go backend exited before becoming ready (code ${child.exitCode})`));
+          return;
+        }
         if (Date.now() - startedAt > timeoutMs) {
           reject(new Error(`Service did not become ready in time: ${url}`));
           return;
@@ -188,7 +192,7 @@ async function main() {
     DATA_DIR: process.env.DATA_DIR || path.join(projectRootDir, "data"),
     FRONTEND_PORT: String(port),
     GO_SERVER_ADDR: process.env.GO_SERVER_ADDR || `127.0.0.1:${preferredBackendPort}`,
-    VITE_API_BASE_URL: backendBaseUrl,
+    BACKEND_PROXY_TARGET: backendBaseUrl,
   };
 
   if (await isHttpReady(backendHealthUrl)) {
@@ -198,8 +202,14 @@ async function main() {
       throw new Error(`Backend port ${preferredBackendPort} is in use, but ${backendHealthUrl} is not healthy.`);
     }
     log(`[dev] Starting Go backend at ${backendBaseUrl}`);
-    spawnTracked("Go backend", "go", ["run", "./cmd/aimarketing"], backendDir, env);
-    await waitForHttp(backendHealthUrl, 30000);
+    const backendProcess = spawnTracked(
+      "Go backend",
+      "go",
+      ["run", "./cmd/aimarketing"],
+      backendDir,
+      { ...env, GOTOOLCHAIN: process.env.GOTOOLCHAIN || "auto" },
+    );
+    await waitForHttp(backendHealthUrl, 120000, backendProcess);
   }
 
   log("[dev] Starting Vite dev server");

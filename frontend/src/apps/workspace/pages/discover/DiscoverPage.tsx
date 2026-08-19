@@ -114,7 +114,7 @@ export function DiscoverPage() {
     })
       .then((result) => {
         if (!active || requestId !== listRequestIdRef.current) return
-        setItems(result.items)
+        setItems(Array.isArray(result.items) ? result.items : [])
         setPage(result.page)
         setTotal(result.total)
       })
@@ -140,9 +140,10 @@ export function DiscoverPage() {
         mediaType: mediaType === 'all' ? undefined : mediaType,
       })
       if (requestId !== listRequestIdRef.current) return
+      const nextItems = Array.isArray(result.items) ? result.items : []
       setItems((current) => {
         const knownIds = new Set(current.map((item) => item.id))
-        return [...current, ...result.items.filter((item) => !knownIds.has(item.id))]
+        return [...current, ...nextItems.filter((item) => !knownIds.has(item.id))]
       })
       setPage(result.page)
       setTotal(result.total)

@@ -283,6 +283,9 @@ func (s *Server) handleContentGroups(w http.ResponseWriter, r *http.Request, par
 				return
 			}
 			if pageResult != nil {
+				if pageResult["items"] == nil {
+					pageResult["items"] = []store.ContentAssetGroup{}
+				}
 				writeJSON(w, http.StatusOK, pageResult)
 			} else {
 				if groups == nil {
@@ -889,6 +892,9 @@ func (s *Server) handleVideoContent(w http.ResponseWriter, r *http.Request, part
 			return
 		}
 		if pageResult != nil {
+			if pageResult["items"] == nil {
+				pageResult["items"] = []store.VideoGenerationTask{}
+			}
 			writeJSON(w, http.StatusOK, pageResult)
 		} else {
 			writeJSON(w, http.StatusOK, tasks)
@@ -1232,6 +1238,9 @@ func (s *Server) handleStoryboard(w http.ResponseWriter, r *http.Request, parts 
 			writeError(w, http.StatusInternalServerError, "营销视频分镜历史获取失败")
 			return
 		}
+		if items == nil {
+			items = []map[string]any{}
+		}
 		writeJSON(w, http.StatusOK, items)
 		return
 	}
@@ -1502,7 +1511,8 @@ func (s *Server) listStoryboards(userID string) ([]map[string]any, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []map[string]any
+	// Keep empty history responses as JSON arrays for clients that iterate them.
+	result := make([]map[string]any, 0)
 	for rows.Next() {
 		var id, title, productName, category, points, additional, prompt, refs, modelConfigID, modelName, status string
 		var imageAssetID, imageURL, videoTaskID, reservationID, errorMessage sql.NullString

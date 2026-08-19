@@ -87,7 +87,7 @@ func (s *Store) ListAgents() ([]Agent, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []Agent
+	result := make([]Agent, 0)
 	for rows.Next() {
 		item, err := scanAgent(rows)
 		if err != nil {
@@ -130,7 +130,8 @@ func (s *Store) ListChatConversations(userID string) ([]ChatConversation, error)
 		return nil, err
 	}
 	defer rows.Close()
-	var result []ChatConversation
+	// Keep empty conversation history responses as JSON arrays.
+	result := make([]ChatConversation, 0)
 	for rows.Next() {
 		item, err := scanConversation(rows)
 		if err != nil {
@@ -203,7 +204,8 @@ func (s *Store) ListChatMessages(conversationID string) ([]ChatMessage, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []ChatMessage
+	// Keep empty message history responses as JSON arrays.
+	result := make([]ChatMessage, 0)
 	for rows.Next() {
 		item, err := scanMessage(rows)
 		if err != nil {

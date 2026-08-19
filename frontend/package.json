@@ -3,16 +3,14 @@
   "version": "0.1.52",
   "private": true,
   "description": "AI marketing automation web app based on React",
-  "workspaces": [
-    "web"
-  ],
   "scripts": {
     "dev": "node ./scripts/dev.cjs",
     "dev:web": "node ./scripts/dev.cjs",
-    "dev:web-only": "npm --workspace web run dev",
-    "build:web": "npm --workspace web run build",
-    "build-web": "npm run build:web",
-    "typecheck:web": "npm --workspace web run typecheck"
+    "dev:web-only": "vite --config vite.config.js .",
+    "build": "vite build --config vite.config.js .",
+    "build:web": "npm run build",
+    "build-web": "npm run build",
+    "typecheck:web": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [
     "React",
@@ -67,6 +65,12 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router": "^7.18.2",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "@tiptap/core": "3.27.1",
+    "@tiptap/extension-mention": "3.27.1",
+    "@tiptap/extension-placeholder": "3.27.1",
+    "@tiptap/react": "3.27.1",
+    "@tiptap/starter-kit": "3.27.1",
+    "@tiptap/suggestion": "3.27.1"
   }
 }

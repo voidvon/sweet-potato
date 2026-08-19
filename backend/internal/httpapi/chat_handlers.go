@@ -126,6 +126,9 @@ func (s *Server) handleChatConversations(w http.ResponseWriter, r *http.Request,
 			writeError(w, http.StatusInternalServerError, "对话列表读取失败")
 			return
 		}
+		if items == nil {
+			items = []store.ChatConversation{}
+		}
 		writeJSON(w, http.StatusOK, items)
 		return
 	}

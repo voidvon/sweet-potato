@@ -458,7 +458,7 @@ func (s *Store) ListRoles() ([]Role, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	var result []Role
+	result := make([]Role, 0)
 	for _, item := range rowsData {
 		role := item.role
 		role.IsSystem, role.IsDefault = item.isSystem != 0, item.isDefault != 0
@@ -704,7 +704,7 @@ func (s *Store) ListRouteResources(includeDisabled bool, platform string) ([]Rou
 		return nil, fmt.Errorf("list route resources: %w", err)
 	}
 	defer rows.Close()
-	var result []RouteResource
+	result := make([]RouteResource, 0)
 	for rows.Next() {
 		resource, err := scanRouteResource(rows)
 		if err != nil {
@@ -939,7 +939,7 @@ func (s *Store) ListModelConfigs(modelType string) ([]ModelConfig, error) {
 		return nil, fmt.Errorf("list model configs: %w", err)
 	}
 	defer rows.Close()
-	var result []ModelConfig
+	result := make([]ModelConfig, 0)
 	for rows.Next() {
 		var model ModelConfig
 		var settings string
@@ -1062,7 +1062,7 @@ func (s *Store) ListPricing() ([]LlmModelPricing, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []LlmModelPricing
+	result := make([]LlmModelPricing, 0)
 	for rows.Next() {
 		var item LlmModelPricing
 		if err := rows.Scan(&item.ID, &item.Provider, &item.ProviderName, &item.Model, &item.DisplayName, &item.DefaultBaseURL, &item.Currency, &item.InputPricePer1M, &item.OutputPricePer1M, &item.CachedInputPricePer1M, &item.PriceSource, &item.PriceUpdatedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
@@ -1163,7 +1163,7 @@ func (s *Store) ListLedger(userID string, limit int) ([]CreditLedgerEntry, error
 		return nil, err
 	}
 	defer rows.Close()
-	var result []CreditLedgerEntry
+	result := make([]CreditLedgerEntry, 0)
 	for rows.Next() {
 		var item CreditLedgerEntry
 		var sourceType, sourceID sql.NullString
@@ -1214,7 +1214,7 @@ func (s *Store) ListUsage(userID string, limit int) ([]UsageRecord, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []UsageRecord
+	result := make([]UsageRecord, 0)
 	for rows.Next() {
 		var item UsageRecord
 		if err := rows.Scan(&item.ID, &item.UserID, &item.ModelConfigID, &item.SourceType, &item.PromptTokens, &item.CompletionTokens, &item.CachedPromptTokens, &item.CreditCost, &item.Status, &item.CreatedAt); err != nil {
@@ -1240,7 +1240,7 @@ func (s *Store) ListBillableUsage(userID string, limit int) ([]BillableUsageReco
 		return nil, err
 	}
 	defer rows.Close()
-	var result []BillableUsageRecord
+	result := make([]BillableUsageRecord, 0)
 	for rows.Next() {
 		var item BillableUsageRecord
 		if err := rows.Scan(&item.ID, &item.UserID, &item.Category, &item.Provider, &item.Model, &item.SourceType, &item.PricingMode, &item.CreditCost, &item.Status, &item.CreatedAt); err != nil {

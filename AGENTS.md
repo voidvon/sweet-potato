@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-本仓库由一个 Go 服务和一个 React 应用组成：`backend/cmd/aimarketing/` 是可执行文件入口，`backend/internal/httpapi/` 提供 HTTP、SSE、WebSocket、静态资源和文件服务；`frontend/web/` 是唯一的 Vite 项目，普通端与管理端分别位于 `src/apps/workspace/`、`src/apps/admin/`，共用代码位于 `src/shared/`。统一前端产物通过 `embed.FS` 编译进 Go 可执行文件；`docs/` 保存接口与迁移文档。
+本仓库由一个 Go 服务和一个 React 应用组成：`backend/cmd/aimarketing/` 是可执行文件入口，`backend/internal/httpapi/` 提供 HTTP、SSE、WebSocket、静态资源和文件服务；`frontend/` 是唯一的 Vite 项目，普通端与管理端分别位于 `src/apps/workspace/`、`src/apps/admin/`，共用代码位于 `src/shared/`。统一前端产物通过 `embed.FS` 编译进 Go 可执行文件；`docs/` 保存接口与迁移文档。
 
 ## Build, Test, and Development Commands
 

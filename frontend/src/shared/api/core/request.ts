@@ -5,6 +5,22 @@ function resolveApiBaseUrl() {
   // 使用构建时的环境变量
   const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
   if (configuredBaseUrl !== undefined && configuredBaseUrl !== '') {
+    // Keep local development cookies on the same host as the page. `localhost`
+    // and `127.0.0.1` are different cookie hosts even when they use the same port.
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(configuredBaseUrl);
+        const pageHostname = window.location.hostname;
+        const isLoopbackHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+        const isLoopbackPage = pageHostname === 'localhost' || pageHostname === '127.0.0.1' || pageHostname === '::1';
+        if (isLoopbackHost && isLoopbackPage) {
+          url.hostname = pageHostname;
+          return url.toString().replace(/\/$/, '');
+        }
+      } catch {
+        // Fall back to the configured value when it is not an absolute URL.
+      }
+    }
     return configuredBaseUrl;
   }
 

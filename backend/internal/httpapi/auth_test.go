@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,6 +65,14 @@ func TestAuthRegisterLoginAndCurrentUser(t *testing.T) {
 	}
 	if response.Header().Get("Set-Cookie") == "" {
 		t.Fatalf("current user did not receive session cookie")
+	}
+
+	conversationsRequest := httptest.NewRequest(http.MethodGet, "/api/chat/conversations", nil)
+	conversationsRequest.Header.Set("Authorization", "Bearer "+loggedIn.Token)
+	conversationsResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(conversationsResponse, conversationsRequest)
+	if conversationsResponse.Code != http.StatusOK || strings.TrimSpace(conversationsResponse.Body.String()) != "[]" {
+		t.Fatalf("empty conversations response = %d %q, want 200 []", conversationsResponse.Code, conversationsResponse.Body.String())
 	}
 }
 

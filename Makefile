@@ -1,8 +1,8 @@
 ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_DIR := $(ROOT_DIR)/backend
 GO_BIN := $(GO_DIR)/bin/ai-marketing
-FRONTEND_WEB_DIR := $(ROOT_DIR)/frontend/web
-FRONTEND_DIST_DIR := $(FRONTEND_WEB_DIR)/dist
+FRONTEND_DIR := $(ROOT_DIR)/frontend
+FRONTEND_DIST_DIR := $(FRONTEND_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
@@ -16,10 +16,10 @@ build:
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/ai-marketing ./cmd/aimarketing
 
 embed-static:
-	cd "$(FRONTEND_WEB_DIR)" && npm run build
+	cd "$(FRONTEND_DIR)" && npm run build
 	rm -rf "$(STATIC_WEB_DIR)"
 	mkdir -p "$(STATIC_WEB_DIR)"
-	cp -R "$(FRONTEND_WEB_DIR)/dist/." "$(STATIC_WEB_DIR)/"
+	cp -R "$(FRONTEND_DIR)/dist/." "$(STATIC_WEB_DIR)/"
 
 clean-embedded-static:
 	rm -rf "$(STATIC_WEB_DIR)"

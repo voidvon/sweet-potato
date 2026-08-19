@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-import { versionAssetPlugin } from '../scripts/version-asset-plugin.mjs'
+import { versionAssetPlugin } from './scripts/version-asset-plugin.mjs'
 
 import { fileURLToPath } from 'url'
 import path from 'path'
@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename)
 export default defineConfig(() => {
   const base = process.env.VITE_ASSET_BASE || '/'
   const devPort = Number(process.env.FRONTEND_PORT || 9527)
+  const backendProxyTarget = process.env.BACKEND_PROXY_TARGET || `http://127.0.0.1:${process.env.BACKEND_PORT || process.env.PORT || 7072}`
 
   return {
     plugins: [
@@ -24,6 +25,10 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: devPort,
       strictPort: true,
+      proxy: {
+        '/api': { target: backendProxyTarget, changeOrigin: true },
+        '/files': { target: backendProxyTarget, changeOrigin: true },
+      },
     },
     publicDir: 'public',
     resolve: {
@@ -34,9 +39,9 @@ export default defineConfig(() => {
         'react-router-dom',
       ],
       alias: {
-        react: path.resolve(__dirname, '../node_modules/react'),
-        'react-dom': path.resolve(__dirname, '../node_modules/react-dom'),
-        'react/jsx-runtime': path.resolve(__dirname, '../node_modules/react/jsx-runtime.js'),
+        react: path.resolve(__dirname, 'node_modules/react'),
+        'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+        'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime.js'),
         '@': path.resolve(__dirname, 'src'),
         '@shared': path.resolve(__dirname, 'src/shared'),
       },

@@ -15,7 +15,7 @@ make build
 ./backend/bin/ai-marketing
 ```
 
-`make build` 会构建唯一的 `frontend/web` 项目，临时复制到 Go 的
+`make build` 会构建唯一的 `frontend` Web 项目，临时复制到 Go 的
 `embed.FS` 目录并编译，构建退出时自动删除临时目录。前端产物不会提交到 Git，
 也不会作为运行时文件分发。
 

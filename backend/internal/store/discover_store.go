@@ -28,7 +28,7 @@ func (s *Store) ListDiscoverCategories(includeDisabled bool) ([]DiscoverCategory
 		return nil, err
 	}
 	defer rows.Close()
-	var result []DiscoverCategory
+	result := make([]DiscoverCategory, 0)
 	for rows.Next() {
 		var item DiscoverCategory
 		if err := rows.Scan(&item.ID, &item.Name, &item.Slug, &item.SortOrder, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
@@ -167,7 +167,8 @@ func (s *Store) ListDiscoverItems(public bool, page, pageSize int, categoryID, m
 		return nil, nil, err
 	}
 	defer rows.Close()
-	var result []DiscoverItem
+	// Keep collection responses as JSON arrays even when the query has no rows.
+	result := make([]DiscoverItem, 0)
 	for rows.Next() {
 		item, err := scanDiscoverItem(rows)
 		if err != nil {

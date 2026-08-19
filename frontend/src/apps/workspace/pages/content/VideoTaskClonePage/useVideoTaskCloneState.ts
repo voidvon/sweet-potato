@@ -318,10 +318,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
   const loadMarketingStoryboards = useCallback(async (silent = false) => {
     if (!silent) setIsLoadingMarketingStoryboards(true);
-    try {
-      const tasks = await listMarketingVideoStoryboards();
-      setMarketingStoryboards(tasks);
-      return tasks;
+	try {
+		const tasks = await listMarketingVideoStoryboards();
+		const normalizedTasks = Array.isArray(tasks) ? tasks : [];
+		setMarketingStoryboards(normalizedTasks);
+		return normalizedTasks;
     } catch (error) {
       if (!silent) {
         message.error(error instanceof Error ? error.message : '分镜历史加载失败');
@@ -413,11 +414,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       if (requestVersion !== productionRequestVersionRef.current) {
         return [];
       }
-      setVideoProductions(result.items);
-      loadedProductionCountRef.current = result.items.length;
-      loadedProductionPageRef.current = Math.ceil(result.items.length / videoProductionsPageSize);
-      setHasMoreVideoProductions(result.items.length < result.total);
-      return result.items;
+      const productionItems = Array.isArray(result.items) ? result.items : [];
+      setVideoProductions(productionItems);
+      loadedProductionCountRef.current = productionItems.length;
+      loadedProductionPageRef.current = Math.ceil(productionItems.length / videoProductionsPageSize);
+      setHasMoreVideoProductions(productionItems.length < result.total);
+      return productionItems;
     } catch (error) {
       if (!silent && requestVersion === productionRequestVersionRef.current) {
         message.error(error instanceof Error ? error.message : '生成记录加载失败');
@@ -450,11 +452,12 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       if (requestVersion !== productionRequestVersionRef.current) {
         return;
       }
+      const productionItems = Array.isArray(result.items) ? result.items : [];
       loadedProductionPageRef.current = page;
       setHasMoreVideoProductions(page * videoProductionsPageSize < result.total);
       setVideoProductions((current) => {
         const knownIds = new Set(current.map((task) => task.id));
-        const next = [...current, ...result.items.filter((task) => !knownIds.has(task.id))];
+        const next = [...current, ...productionItems.filter((task) => !knownIds.has(task.id))];
         loadedProductionCountRef.current = next.length;
         return next;
       });

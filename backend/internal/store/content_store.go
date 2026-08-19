@@ -163,7 +163,7 @@ func (s *Store) ListContentGroups(userID, resourceType string, page, pageSize in
 		return nil, nil, fmt.Errorf("list content groups: %w", err)
 	}
 	defer rows.Close()
-	var result []ContentAssetGroup
+	result := make([]ContentAssetGroup, 0)
 	for rows.Next() {
 		var group ContentAssetGroup
 		var metadata string
@@ -299,7 +299,7 @@ func (s *Store) ListContentAssets(userID, groupID, resourceType string, page, pa
 		return nil, nil, err
 	}
 	defer rows.Close()
-	var result []ContentAsset
+	result := make([]ContentAsset, 0)
 	for rows.Next() {
 		asset, err := scanContentAsset(rows)
 		if err != nil {
@@ -543,7 +543,8 @@ func (s *Store) ListVideoProductions(userID string, filters map[string]string, p
 		return nil, nil, err
 	}
 	defer rows.Close()
-	var result []VideoGenerationTask
+	// Keep empty production history responses as JSON arrays.
+	result := make([]VideoGenerationTask, 0)
 	for rows.Next() {
 		task, err := scanVideoTask(rows)
 		if err != nil {
@@ -566,7 +567,7 @@ func (s *Store) ListVideoTasks(userID string) ([]VideoGenerationTask, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []VideoGenerationTask
+	result := make([]VideoGenerationTask, 0)
 	for rows.Next() {
 		task, err := scanVideoTask(rows)
 		if err != nil {
@@ -583,7 +584,7 @@ func (s *Store) ListGeneratingVideoTasks() ([]VideoGenerationTask, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []VideoGenerationTask
+	result := make([]VideoGenerationTask, 0)
 	for rows.Next() {
 		task, err := scanVideoTask(rows)
 		if err != nil {

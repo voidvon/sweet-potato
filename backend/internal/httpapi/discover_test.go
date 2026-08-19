@@ -23,6 +23,9 @@ func TestDiscoverPublicEndpointsAllowAnonymousAccess(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Fatalf("%s status = %d, want %d: %s", path, response.Code, http.StatusOK, response.Body.String())
 		}
+		if path == "/api/discover/items" && !strings.Contains(response.Body.String(), `"items":[]`) {
+			t.Fatalf("%s returned a non-array empty collection: %s", path, response.Body.String())
+		}
 	}
 }
 

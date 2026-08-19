@@ -127,7 +127,7 @@ func (s *Store) ListRateLimitRules() ([]RateLimitRule, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []RateLimitRule
+	result := make([]RateLimitRule, 0)
 	for rows.Next() {
 		var item RateLimitRule
 		if err := rows.Scan(&item.ID, &item.URLPattern, &item.MaxRequests, &item.IntervalSeconds, &item.TargetUser); err != nil {
@@ -288,7 +288,7 @@ func (s *Store) ListAccessLogs(page, pageSize int, ip, username, method string) 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AccessLog
+	items := make([]AccessLog, 0)
 	for rows.Next() {
 		var item AccessLog
 		var id int64

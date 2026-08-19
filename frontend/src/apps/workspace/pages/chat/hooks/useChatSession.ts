@@ -220,7 +220,7 @@ export function useChatSession() {
         return null;
       }
       setActiveConversationId(detail.conversation.id);
-      setMessages(detail.messages);
+      setMessages(Array.isArray(detail.messages) ? detail.messages : []);
       if (options?.syncUrl !== false) {
         syncConversationUrl(detail.conversation.id);
       }
@@ -254,8 +254,9 @@ export function useChatSession() {
       return [];
     }
     const rows = await listChatConversations(currentUserId);
-    setConversations(rows);
-    return rows;
+    const normalizedRows = Array.isArray(rows) ? rows : [];
+    setConversations(normalizedRows);
+    return normalizedRows;
   }, [currentUserId]);
 
   useEffect(() => {
