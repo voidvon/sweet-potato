@@ -1,0 +1,1 @@
+import{f as i}from"./index-CYQ7rM5f.js";function n(){return i("/api/site-config")}function a(r=200){const t=new URLSearchParams({limit:String(r)});return i(`/api/billing/me/ledger?${t.toString()}`)}function g(){return i("/api/billing/me/summary")}export{n as a,g,a as l};

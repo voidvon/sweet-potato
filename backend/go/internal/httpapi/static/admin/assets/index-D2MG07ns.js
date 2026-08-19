@@ -1,0 +1,1 @@
+import{x as o}from"./index-CpABqC3Y.js";function i(){return o("/api/roles")}function n(e){return o("/api/roles",{method:"POST",body:JSON.stringify(e)})}function s(e,t){return o(`/api/roles/${e}`,{method:"PUT",body:JSON.stringify(t)})}function a(e){return o(`/api/roles/${e}`,{method:"DELETE"})}export{n as c,a as d,i as l,s as u};

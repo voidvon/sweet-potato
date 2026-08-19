@@ -1,1 +1,0 @@
-export { ProductAssetsPage } from './ProductAssetsPage';

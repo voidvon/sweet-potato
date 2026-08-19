@@ -2,43 +2,40 @@
 
 ## Project Structure & Module Organization
 
-本仓库的主应用由三部分组成：`frontend/` 是 Electron 外壳，`frontend/web/` 是 React + Vite 页面；`backend/base/` 是 TypeScript/Express API，核心代码在 `src/modules/`、数据库在 `src/db/`、通用工具在 `src/shared/`；`backend/ai-worker/` 是 Python 视频/AI worker，入口为 `worker.py`，业务代码在 `ai_worker/`。`docs/` 保存接口与设计文档，`build/` 保存本地运行包脚本。
+本仓库由一个 Go 服务组成：`backend/go/cmd/aimarketing/` 是可执行文件入口，`backend/go/internal/httpapi/` 提供 HTTP、SSE、WebSocket、静态资源和文件服务，`backend/go/internal/store/` 负责 SQLite 持久化，`backend/go/internal/auth/` 负责鉴权，`backend/go/internal/video/` 负责视频模型客户端。Web/Admin 浏览器产物位于 `backend/go/internal/httpapi/static/`，通过 `embed.FS` 编译进可执行文件；`docs/` 保存接口与迁移文档。
 
 ## Build, Test, and Development Commands
 
-- `pnpm install`：安装所有依赖。
-- Node 依赖统一使用 `pnpm`；仓库已禁止 `npm install`，避免锁文件和 `node_modules` 状态混用。
-- `bash scripts/dev.sh`：同时启动 Python worker、Node 后端和前端/Electron 开发环境，默认端口为 `7073`、`7072`、`9527`。
-- `bash scripts/dev-web.sh`：启动 Python worker、Node 后端和网页前端开发环境，不启动 Electron，并在前端就绪后自动打开浏览器，默认端口为 `7073`、`7072`、`9527`。
-- `cd backend/base && pnpm run dev`：仅启动后端热更新服务。
-- `cd backend/base && pnpm run build`：编译 TypeScript 到 `dist/`。
-- `cd frontend/web && pnpm run build`：构建 Vite 前端产物。
-- `cd frontend/web && pnpm run typecheck`：运行前端 TypeScript 类型检查。
+- `make build`：构建无 CGO 的单个 Go 可执行文件到 `backend/go/bin/ai-marketing`。
+- `make run`：启动 Go 服务，默认监听 `127.0.0.1:7072`。
+- `make test`：运行全部 Go 单元测试和 HTTP 契约测试。
+- `make vet`：运行 Go 静态检查。
+- `cd backend/go && gofmt -w cmd internal`：格式化 Go 源码。
 
 ## Coding Style & Naming Conventions
 
-TypeScript 代码启用 `strict`，使用 ES module 语法、2 空格缩进、单引号和无分号风格（仅在避免 ASI 语义歧义时保留必要的前置分号）。React 组件使用 `PascalCase.tsx`，API 封装按模块放在 `frontend/web/src/api/<module>/`。后端模块遵循 `*.routes.ts`、`*.service.ts`、`*.repository.ts`、`*.types.ts` 的分层命名。Python worker 使用清晰的领域分层：`domain/` 放纯业务逻辑，`services/` 放外部流程编排。
+Go 代码使用 `gofmt`，包按 `cmd/`、`internal/` 分层，领域逻辑放在内部包中，错误应保留上下文并在 HTTP 边界统一转换。标准库优先；仅使用纯 Go SQLite 驱动，保持跨平台无 CGO 构建能力。
 
 ## Testing Guidelines
 
-当前主应用没有统一测试脚本；提交前至少运行相关构建和类型检查。新增测试时，建议按功能就近放置，命名为 `*.test.ts`、`*.test.tsx` 或 `test_*.py`，并在对应 `package.json` 或 README 中补充运行命令。涉及 API 契约、视频生成流程或上传逻辑的改动，应补充最小可复现用例或手动验证步骤。
+测试按 Go 包就近放置，命名为 `*_test.go`。涉及 API 契约、视频生成流程或上传逻辑的改动，应补充 HTTP 契约测试、SQLite 回归测试或最小手动验证步骤。
 
 ## Commit & Pull Request Guidelines
 
-提交历史使用 Conventional Commits，例如 `feat: ...`、`fix(preload): ...`、`build(frontend): ...`、`chore: ...`。保持提交聚焦，scope 优先使用受影响区域，如 `backend`、`frontend`、`ai-worker`。PR 应包含变更摘要、验证命令、相关 issue/计划链接；前端 UI 改动附截图或录屏，接口变更同步更新 `docs/api-contracts.md` 或相关设计文档。
+提交历史使用 Conventional Commits，例如 `feat: ...`、`fix(httpapi): ...`、`build(go): ...`、`chore: ...`。保持提交聚焦，scope 优先使用受影响区域，如 `go`、`store`、`httpapi`。PR 应包含变更摘要、验证命令和相关接口文档。
 
 ## Security & Configuration Tips
 
-不要提交 `.env`、密钥、运行日志、上传文件和生成的视频数据。后端环境变量优先放在 `backend/base/.env`，AI worker 配置放在 `backend/ai-worker/.env`。涉及火山引擎、上传回调或公开资源 URL 的改动，确认本地和 Electron 两种运行路径都能解析。
+不要提交 `.env`、密钥、运行日志、上传文件和生成的视频数据。环境变量可放在运行目录 `.env` 或通过进程环境传入。涉及火山引擎、上传回调或公开资源 URL 的改动，确认单进程服务和历史 SQLite 数据目录都能解析。
 
 ## Codex Execution Fast Path
 
 - 简单任务（通常不超过 2 个文件、无接口/依赖/构建配置变化）只读取直接相关代码和最近邻样式；除非用户明确指定或触发规则强制要求，不启动重型 skill、多代理或全仓扫描。
 - 同一轮已经读取过的大文件、截图目录和 `.workflow/` 产物不得重复读取；后续只读取新的行区间或复用已有结论。
-- 验证按风险递进：纯文案/CSS/图标修改先运行 `git diff --check`；局部 TypeScript/React 修改批量完成后运行一次相关 `typecheck` 或就近测试；有针对性测试时优先运行对应测试文件。
+- 验证按风险递进：文档或静态资源修改先运行 `git diff --check`；Go 代码批量完成后运行一次相关测试和 `vet`；有针对性测试时优先运行对应测试文件。
 - 仅在跨模块契约、依赖或锁文件、Vite/TypeScript/打包配置发生变化，或准备发布/用户明确要求时运行完整 build。发现局部检查无法覆盖风险时必须升级验证，不得为了速度跳过必要检查。
 - 命令成功时只保留退出码和一行摘要；失败时只回传首个可执行错误及末尾必要上下文，避免把完整构建文件清单、重复警告或长日志写入会话。
-- 优先复用已经运行的 `7072`/`7073`/`9527` 服务和当前页面；先确认端口状态，不为简单 UI 修改重复启动服务或新浏览器会话。
+- 优先复用已经运行的 `7072` Go 服务和当前页面；先确认端口状态，不为简单修改重复启动服务或新浏览器会话。
 - 多个小修改合并后只做一次同级验证，避免每个单行修改都重复 typecheck/build；用户中途改变要求时，以最终状态统一验证。
 - 长线程出现多个独立问题、重复上下文或显著 token 膨胀时，先生成不超过 15 行的 handoff，包含目标、已改文件、未提交状态、验证结果和下一步，再在新任务继续；不得让后续简单任务重复携带完整历史。
 - 默认高能力模型与推理档不变。只有用户或调用方显式选择 `--profile fast` / `--profile balanced` 时，才使用对应低/中推理档；复杂架构、疑难调试、安全、数据迁移和高风险发布继续使用默认 high。

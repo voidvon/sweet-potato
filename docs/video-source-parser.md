@@ -2,7 +2,7 @@
 
 ## 模块边界
 
-`backend/base/src/modules/video-source/` 负责从平台分享内容中解析视频地址和元数据，不负责下载文件或视频生成业务。调用方可按需使用真实地址、发布者、标题、封面、音乐和互动数据。
+`backend/go/internal/httpapi/video_source_handlers.go` 负责从平台分享内容中解析视频地址和元数据，不负责下载文件或视频生成业务。调用方可按需使用真实地址、发布者、标题、封面、音乐和互动数据。
 
 调用链：
 
@@ -27,12 +27,12 @@ POST /api/video-source/dance-remakes
 
 ## 扩展平台
 
-每个平台实现 `VideoSourceProvider`：
+每个平台遵循统一的 provider 解析边界：
 
 - `supports(url)`：识别平台域名。
 - `resolve(url)`：返回统一的 `ResolvedVideoSource`，包括真实下载地址、平台视频 ID、标题、作者与封面。
 
-新增其他平台时，只需增加 provider 并注册到 `video-source.service.ts` 的 provider 列表；路由、统一返回结构和 SSRF 防护保持不变。
+新增其他平台时，只需增加 provider 并注册到 Go 视频源处理器；路由、统一返回结构和 SSRF 防护保持不变。
 
 快手解析使用移动端分享页：短链逐跳解析到快手分享域名，再从页面 `window.INIT_STATE` 的视频记录中读取真实播放地址、封面、标题、作者、时长和互动数据。请求需保留通用的 `Accept: */*`；仅声明 HTML 类型时，快手会返回不含视频记录的精简状态。
 
