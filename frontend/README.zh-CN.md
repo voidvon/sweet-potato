@@ -9,7 +9,6 @@
 <br>
 
 <div align=center>
-<img src="./public/images/example/logo.png" width="150" height="150" />
 </div>
 
 <div align=center>
@@ -41,12 +40,9 @@
 - 🍨 **github：** https://github.com/dromara/electron-egg **2500+**
 - 🍰 **gitcode：** https://gitcode.com/dromara/electron-egg 
 - 🏆 码云最有价值开源项目
-    ![](./public/images/example/ee-zs.png)  
-    ![](./public/images/example/ee-zs2.jpg)  
 
 ## 📚 文档
 - 快速体验：[教程文档](https://www.kaka996.com/)
-    ![](./public/images/example/v3-home.png) 
 
 ## 📦 特性
 1. 🍄 跨平台：一套代码，可以打包成windows版、Mac版、Linux版、国产UOS、Deepin、麒麟等
@@ -64,30 +60,23 @@
 ### 1. 🚀 常规桌面软件
 - 🚖 windows平台
 
-    ![](./public/images/example/ee-win-home.png)
 
 - 🚍 macOS平台    
-    ![](./public/images/example/ee-mac-home.png)
 
 - 🚔 linux平台 - 国产UOS、Deepin
-    ![](./public/images/example/uos-home.png)
 
 - 🚔 linux平台 - ubuntu
-    ![](./public/images/example/ubuntu-db.png)
 
 ### 🚐 2. vue、react、angular、web 转换成桌面软件
 - 🚙 vue-ant-design（本地）
 
-    ![](./public/images/example/vue-antd.png)
 
 - 🚙 禅道项目管理（web项目地址）
 
-    ![](./public/images/example/ee-project-7.png)
 
 ### 🚂 3. 游戏（h5相关技术开发）
 - 🚊 忍者100层
 
-    ![](./public/images/example/ee_game_1.png)
 
 
 ## 📒 开始使用
@@ -100,38 +89,26 @@
 ### 🐸 知识笔记
 
 - [概言](https://gaiyan.net?from=electron-egg) 
-![](./public/images/example/gaiyan-1.jpg)
-![](./public/images/example/gaiyan-2.png)
 
 ### 🐸 远控
 
 - RQ Center
-![](./public/images/example/rq-1.png)
-![](./public/images/example/rq-2.png)
 
 ### 🐸 云盘
 
 - FM Cloud
-![](./public/images/example/fm-p2.png)
-![](./public/images/example/fm-p1.png)
-![](./public/images/example/fm-p4.png)
 
 ### 🐸 IM
 
 - Cede IM
-![](./public/images/example/im-p1.png)
-![](./public/images/example/im-p5.png)
-![](./public/images/example/im-p1.png)
 
 ### 🐸 壁纸
 
 - warpar
-![](./public/images/example/aw-3.png)
 
 ### 🐸 英雄联盟助手
 
 - Serendlplty
-![](./public/images/example/lol-zhanji.png)
 
 ### 🐸 更多
 

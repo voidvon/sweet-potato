@@ -7,7 +7,6 @@
 ## Build, Test, and Development Commands
 
 - `make dev` 或 `make dev-web`：启动 Go 和单一 Vite 网页开发环境，包含 `/admin`。
-- `make dev-electron`：启动 Go、单一 Vite 应用和 Electron 开发环境。
 - `make build`：构建无 CGO 的单个 Go 可执行文件到 `backend/bin/ai-marketing`。
 - `make run`：启动 Go 服务，默认监听 `127.0.0.1:7072`。
 - `make test`：运行全部 Go 单元测试和 HTTP 契约测试。

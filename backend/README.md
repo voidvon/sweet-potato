@@ -27,11 +27,7 @@ make build
 make dev
 ```
 
-`make dev-web` 是相同模式的显式别名。需要同时启动 Electron 时执行：
-
-```bash
-make dev-electron
-```
+`make dev-web` 是相同模式的显式别名。
 
 脚本默认使用后端端口 `7072` 和前端端口 `9527`，并将本地数据写入仓库根目录的
 `data/`。前端端口冲突时会自动顺延；如果 `7072` 已运行健康的 Go 服务则会直接复用。

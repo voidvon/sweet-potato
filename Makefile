@@ -6,7 +6,7 @@ FRONTEND_DIST_DIR := $(FRONTEND_WEB_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
-.PHONY: build embed-static clean-embedded-static run dev dev-web dev-electron test vet fmt check
+.PHONY: build embed-static clean-embedded-static run dev dev-web test vet fmt check
 
 build:
 	set -e; \
@@ -16,7 +16,7 @@ build:
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/ai-marketing ./cmd/aimarketing
 
 embed-static:
-	cd "$(FRONTEND_WEB_DIR)" && pnpm run build
+	cd "$(FRONTEND_WEB_DIR)" && npm run build
 	rm -rf "$(STATIC_WEB_DIR)"
 	mkdir -p "$(STATIC_WEB_DIR)"
 	cp -R "$(FRONTEND_WEB_DIR)/dist/." "$(STATIC_WEB_DIR)/"
@@ -35,10 +35,7 @@ dev:
 	bash "$(ROOT_DIR)/scripts/dev.sh"
 
 dev-web:
-	bash "$(ROOT_DIR)/scripts/dev.sh" --web
-
-dev-electron:
-	bash "$(ROOT_DIR)/scripts/dev.sh" --electron
+	bash "$(ROOT_DIR)/scripts/dev.sh"
 
 test:
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go test ./...

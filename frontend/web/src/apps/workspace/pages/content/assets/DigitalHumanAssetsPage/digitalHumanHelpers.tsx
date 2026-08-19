@@ -2,7 +2,6 @@ import { Image, Spin, message } from 'antd'
 import type { UploadFile } from 'antd'
 import type { ContentAsset } from '../../../../types'
 import { API_BASE_URL } from '../../../../api/request'
-import { isElectronEgg, saveAssetFile } from '../../../../ipc'
 
 export function fileUrl(asset: ContentAsset) {
   const localMirrorUrl = metadataUrl(asset, 'localMirrorUrl')
@@ -94,26 +93,6 @@ export async function downloadAsset(
     .replace(/[-:]/g, '')
     .replace(/\..+$/, '')
   const fileName = `${label}三视图-${safeDownloadName(groupName)}-${time}${extension}`
-  if (isElectronEgg) {
-    const result = await saveAssetFile({
-      fileName,
-      sourcePath: asset.filePath,
-      url: /^https?:\/\//i.test(url) ? url : undefined,
-    })
-    if (result.canceled) return
-    if (!result.ok) {
-      const pickerResult = await pickerDownload(url, fileName)
-      if (pickerResult === 'saved') {
-        message.success('文件已保存')
-        return
-      }
-      if (pickerResult === 'canceled') return
-      browserDownload(url, fileName)
-      return
-    }
-    message.success('文件已保存')
-    return
-  }
   browserDownload(url, fileName)
 }
 
@@ -124,38 +103,6 @@ function browserDownload(url: string, fileName: string) {
   document.body.appendChild(link)
   link.click()
   link.remove()
-}
-
-async function pickerDownload(
-  url: string,
-  fileName: string,
-): Promise<'saved' | 'canceled' | 'unsupported'> {
-  if (!window.showSaveFilePicker) return 'unsupported'
-  try {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: fileName,
-      types: [
-        {
-          description: '图片文件',
-          accept: {
-            'image/png': ['.png'],
-            'image/jpeg': ['.jpg', '.jpeg'],
-            'image/webp': ['.webp'],
-          },
-        },
-      ],
-    })
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`下载失败：${response.status}`)
-    const writable = await handle.createWritable()
-    await writable.write(await response.blob())
-    await writable.close()
-    return 'saved'
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError')
-      return 'canceled'
-    throw error
-  }
 }
 
 function safeDownloadName(value: string) {

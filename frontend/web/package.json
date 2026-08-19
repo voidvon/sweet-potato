@@ -1,15 +1,14 @@
 {
-  "name": "ai-marketing-desktop-frontend",
+  "name": "ai-marketing-web-frontend",
   "version": "0.1.52",
   "private": true,
   "scripts": {
-    "preinstall": "node -e \"const ua = process.env.npm_config_user_agent || ''; const execPath = process.env.npm_execpath || ''; if (!ua.includes('pnpm/') && !execPath.includes('pnpm')) { console.error('检测到正在使用 npm。请使用 pnpm install'); process.exit(1); }\"",
-    "dev": "pnpm --dir .. exec vite --config web/vite.config.js web",
-    "serve": "pnpm --dir .. exec vite --config web/vite.config.js web",
-    "build-staging": "pnpm --dir .. exec vite build --config web/vite.config.js web --mode staging",
-    "build": "pnpm --dir .. exec vite build --config web/vite.config.js web",
-    "typecheck": "pnpm --dir .. exec tsc --noEmit -p web/tsconfig.json",
-    "preview": "pnpm --dir .. exec vite preview --config web/vite.config.js web"
+    "dev": "vite --config vite.config.js .",
+    "serve": "vite --config vite.config.js .",
+    "build-staging": "vite build --config vite.config.js . --mode staging",
+    "build": "vite build --config vite.config.js .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "vite preview --config vite.config.js ."
   },
   "dependencies": {
     "@tiptap/core": "3.27.1",
