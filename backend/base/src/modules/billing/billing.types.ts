@@ -9,7 +9,6 @@ export type BillingSettings = {
   seedance2MiniCreditsPerSecond720p: number;
   seedance2MiniCreditsPerSecond480p: number;
   videoUploadCreditsPerMb: number;
-  videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;
   contentPlanningGenerationCreditsPerRequest: number;
   talkingVideoPromptCreditsPerRequest: number;
@@ -100,8 +99,7 @@ export type BillableUsageCategory =
   | 'video_upscale'
   | 'voice_clone'
   | 'speech_synthesis'
-  | 'vod_upload'
-  | 'vod_understanding';
+  | 'vod_upload';
 
 export type BillableUsagePricingMode =
   | 'per_request'

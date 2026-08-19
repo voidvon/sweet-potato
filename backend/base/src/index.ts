@@ -6,7 +6,6 @@ import { attachChatWebSocketServer } from './modules/chat/chat-stream.service.js
 import { contentService } from './modules/content/content.service.js';
 import { contentPlanningService } from './modules/content-planning/content-planning.service.js';
 import { recoverInterruptedImageGenerations } from './modules/generation/generation-recovery.service.js';
-import { videoRemakeService } from './modules/video-remake/video-remake.service.js';
 import { logger } from './shared/logger.js';
 import { siteAccessLogService } from './modules/site-access-logs/site-access-log.service.js';
 
@@ -25,8 +24,6 @@ server.listen(env.port, () => {
   contentService.resumeRunningVideoGenerations();
   contentPlanningService.resumeInterruptedGenerationsOnStartup();
   contentService.resumePendingGeneratedVideoMirrors();
-  videoRemakeService.resumeIncompleteSessionsOnStartup();
-  videoRemakeService.startGenerationMonitorScheduler();
   contentService.startVirtualPortraitMirrorSyncScheduler();
   contentService.startTemporaryAssetCleanupScheduler();
   siteAccessLogService.startCleanupScheduler();

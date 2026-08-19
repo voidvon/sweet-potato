@@ -79,7 +79,7 @@ export function createEmptyPlanningMaterialBundle(): ContentPlanningMaterialBund
 
 export function createEmptyPlanningAnalysis(): ContentPlanningAnalysis {
   return {
-    viralBreakdown: null,
+    referenceBreakdown: null,
     materialCaptions: [],
     productInsights: {
       productName: '',
@@ -91,6 +91,20 @@ export function createEmptyPlanningAnalysis(): ContentPlanningAnalysis {
     },
     confirmed: false,
     notes: [],
+  };
+}
+
+function parsePlanningAnalysis(value: string): ContentPlanningAnalysis {
+  const parsed = parseJson<Partial<ContentPlanningAnalysis> & {
+    viralBreakdown?: ContentPlanningAnalysis['referenceBreakdown'];
+  }>(value, {});
+  const { viralBreakdown: legacyBreakdown, ...analysisWithoutLegacy } = parsed;
+  return {
+    ...createEmptyPlanningAnalysis(),
+    ...analysisWithoutLegacy,
+    referenceBreakdown: parsed.referenceBreakdown ?? legacyBreakdown ?? null,
+    materialCaptions: parsed.materialCaptions || [],
+    notes: parsed.notes || [],
   };
 }
 
@@ -141,7 +155,7 @@ function serializeSession(row: ContentPlanningSessionRow): ContentPlanningSessio
       ...materialBundle,
       imageMaterials: materialBundle.imageMaterials || [],
     },
-    analysis: parseJson(row.analysis, createEmptyPlanningAnalysis()),
+    analysis: parsePlanningAnalysis(row.analysis),
     settings: parseJson(row.settings, createDefaultPlanningSettings()),
     generation: {
       ...createEmptyPlanningGeneration(),

@@ -499,11 +499,6 @@ export function estimateVodUploadCredits(fileSizeBytes: number) {
   return roundCredits(billedVodUploadMegabytes(fileSizeBytes) * settings.videoUploadCreditsPerMb);
 }
 
-export function estimateVodUnderstandingCredits(tokenCount: number) {
-  const settings = assertSystemBillingReady();
-  return roundCredits(Math.max(0, tokenCount) / 1_000_000 * settings.videoUnderstandingCreditsPer1MTokens);
-}
-
 export function estimateVideoUpscaleCredits() {
   const settings = assertSystemBillingReady();
   return roundCredits(Math.max(0, settings.videoUpscaleCreditsPerRequest));
@@ -1025,17 +1020,6 @@ function completionTextFromMessages(messages: BillingChatMessage[]) {
 export function normalizeBillingSettings(input: Partial<BillingSettings> & Record<string, unknown>, fallback?: BillingSettings): BillingSettings {
   const now = new Date().toISOString();
   const fallbackRecord = (fallback || {}) as Record<string, unknown>;
-  const legacyUsdToCreditRate = normalizeNumber(input.usdToCreditRate, 0);
-  const fallbackLegacyUsdToCreditRate = normalizeNumber(fallbackRecord.usdToCreditRate, 0);
-  const hasDirectVideoUnderstandingCreditsPer1MTokens = Object.prototype.hasOwnProperty.call(
-    input,
-    'videoUnderstandingCreditsPer1MTokens',
-  );
-  const nextVideoUnderstandingCreditsPer1MTokens = normalizeNumber(input.videoUnderstandingCreditsPer1MTokens, 0);
-  const fallbackVideoUnderstandingCreditsPer1MTokens = normalizeNumber(
-    fallbackRecord.videoUnderstandingCreditsPer1MTokens,
-    0,
-  );
 
   return {
     id: 1,
@@ -1067,16 +1051,6 @@ export function normalizeBillingSettings(input: Partial<BillingSettings> & Recor
       numberFromRecord(input, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']),
       numberFromRecord(fallbackRecord, ['videoUploadCreditsPerMb', 'videoUploadCreditsPerSecond']) || 0,
     ),
-    videoUnderstandingCreditsPer1MTokens: hasDirectVideoUnderstandingCreditsPer1MTokens
-      ? nextVideoUnderstandingCreditsPer1MTokens
-      : normalizeNumber(
-        numberFromRecord(input, ['videoUnderstandingUsdPer1MTokens']) * legacyUsdToCreditRate,
-        fallbackVideoUnderstandingCreditsPer1MTokens
-          || normalizeNumber(
-            numberFromRecord(fallbackRecord, ['videoUnderstandingUsdPer1MTokens']) * fallbackLegacyUsdToCreditRate,
-            0,
-          ),
-      ),
     contentPlanningAnalysisCreditsPerRequest: normalizeNumber(
       input.contentPlanningAnalysisCreditsPerRequest,
       normalizeNumber(fallbackRecord.contentPlanningAnalysisCreditsPerRequest, 2),
@@ -1261,7 +1235,6 @@ export function saveBillingSettings(settings: BillingSettings) {
     settings.seedance2MiniCreditsPerSecond720p,
     settings.seedance2MiniCreditsPerSecond480p,
     settings.videoUploadCreditsPerMb,
-    settings.videoUnderstandingCreditsPer1MTokens,
     settings.contentPlanningAnalysisCreditsPerRequest,
     settings.contentPlanningGenerationCreditsPerRequest,
     settings.talkingVideoPromptCreditsPerRequest,
@@ -1739,105 +1712,6 @@ export function recordVodUploadUsage(input: {
       directCreditPricing: true,
     },
   });
-}
-
-export function recordVodUnderstandingUsage(input: {
-  userId: string;
-  sourceType: string;
-  sourceId: string;
-  taskId?: string;
-  sessionId?: string;
-  runId?: string;
-  inputTokens: number;
-  outputTokens: number;
-  requestSnapshot?: Record<string, unknown>;
-  responseSnapshot?: Record<string, unknown>;
-  usageRaw?: Record<string, unknown>;
-}) {
-  const settings = assertSystemBillingReady();
-  const normalizedInputTokens = Math.max(0, Math.floor(Number(input.inputTokens) || 0));
-  const normalizedOutputTokens = Math.max(0, Math.floor(Number(input.outputTokens) || 0));
-  const totalTokens = normalizedInputTokens + normalizedOutputTokens;
-  const creditBaseCost = roundCredits(totalTokens / 1_000_000 * settings.videoUnderstandingCreditsPer1MTokens);
-  const creditBilledCost = creditBaseCost;
-  const creditCost = creditBilledCost;
-  const now = new Date().toISOString();
-  const transaction = db.transaction(() => {
-    const user = userRepository.findById(input.userId);
-    if (!user) {
-      throw new Error('用户不存在');
-    }
-    if (creditCost > 0 && user.creditBalance < creditCost) {
-      throw new InsufficientStepCreditsError({
-        step: 'vod_understanding',
-        stepLabel: '视频理解',
-        currentCredits: user.creditBalance,
-        requiredCredits: creditCost,
-      });
-    }
-    const nextCreditBalance = creditCost > 0
-      ? roundCredits(user.creditBalance - creditCost)
-      : roundCredits(user.creditBalance);
-    if (creditCost > 0) {
-      userRepository.updateCreditBalance(user.id, nextCreditBalance);
-      billingRepository.createLedgerEntry({
-        id: randomBytes(12).toString('hex'),
-        userId: user.id,
-        type: 'usage_debit',
-        creditDelta: -creditCost,
-        creditBalanceAfter: nextCreditBalance,
-        creditBaseCost,
-        creditBilledCost,
-        sourceType: input.sourceType,
-        sourceId: input.sourceId,
-        snapshot: {
-          category: 'vod_understanding',
-          pricingMode: 'per_1m_tokens',
-          quantitySnapshot: {
-            inputTokens: normalizedInputTokens,
-            outputTokens: normalizedOutputTokens,
-            totalTokens,
-            configuredCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
-          },
-          requestSnapshot: input.requestSnapshot || {},
-          responseSnapshot: input.responseSnapshot || {},
-          usageRaw: input.usageRaw || {},
-        },
-        createdAt: now,
-      });
-    }
-    const record: BillableUsageRecord = {
-      id: randomBytes(12).toString('hex'),
-      userId: input.userId,
-      category: 'vod_understanding',
-      modelConfigId: null,
-      provider: 'volcengine-vod',
-      model: 'vod_understanding',
-      sourceType: input.sourceType,
-      sourceId: input.sourceId,
-      taskId: input.taskId || null,
-      sessionId: input.sessionId || null,
-      groupId: null,
-      pricingMode: 'per_1m_tokens',
-      quantitySnapshot: {
-        inputTokens: normalizedInputTokens,
-        outputTokens: normalizedOutputTokens,
-        totalTokens,
-        configuredCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
-      },
-      usageRaw: input.usageRaw || {},
-      requestSnapshot: input.requestSnapshot || {},
-      responseSnapshot: input.responseSnapshot || {},
-      creditBaseCost,
-      creditBilledCost,
-      creditCost,
-      status: 'completed',
-      createdAt: now,
-    };
-    billingRepository.createBillableUsageRecord(record);
-    return record;
-  });
-  return runCreditTransaction(input.userId, transaction);
 }
 
 export function adjustUserCredits(input: {

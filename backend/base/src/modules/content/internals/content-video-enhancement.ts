@@ -17,8 +17,7 @@ import { resolveSourceVideoAspectRatio } from './content-video-aspect-ratio.js';
 import { assertCreateVideoSourceDuration } from './content-video-duration.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
-import { aiWorkerUrl } from './content-viral-analysis.js';
-import { uploadLocalVideoToVodWithWorker } from './content-viral-director.js';
+import { aiWorkerUrl, uploadLocalVideoToVodWithWorker } from './content-worker-client.js';
 import { ensureContentAssetLocalFile } from './content-asset-local-cache.js';
 
 type EnhancementWorkerResult = {

@@ -184,3 +184,53 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.chat-sidebar-section {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.chat-session-item {
+  display: block;
+  position: relative;
+}
+
+.chat-session-item .video-workbench-list-main {
+  gap: 7px;
+}
+
+.chat-session-meta {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+  width: 100%;
+}
+
+.chat-session-time {
+  color: var(--color-neutral-300);
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.chat-session-title-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-session-title-row .video-workbench-list-title {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

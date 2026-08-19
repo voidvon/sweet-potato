@@ -53,7 +53,7 @@ export type PlanningProductInsights = {
   useScenarios: string[];
 };
 
-export type PlanningViralBreakdown = {
+export type PlanningReferenceBreakdown = {
   tags: string[];
   structureFramework: string;
   emotionCurve: string;
@@ -67,7 +67,7 @@ export type PlanningViralBreakdown = {
 };
 
 export type PlanningAnalysis = {
-  viralBreakdown?: PlanningViralBreakdown | null;
+  referenceBreakdown?: PlanningReferenceBreakdown | null;
   materialCaptions: PlanningMaterialCaption[];
   productInsights: PlanningProductInsights;
   confirmed: boolean;
@@ -288,7 +288,7 @@ export function analyzePlanningSession(payload: {
 export function updatePlanningConfirmation(payload: {
   userId: string;
   sessionId: string;
-  viralBreakdown?: PlanningViralBreakdown | null;
+  referenceBreakdown?: PlanningReferenceBreakdown | null;
   materialCaptions: PlanningMaterialCaption[];
   productInsights: PlanningProductInsights;
   referencePolicy: PlanningSettings['referencePolicy'];

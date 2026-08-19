@@ -136,7 +136,7 @@ def _safe_vod_file_name(file_name: str, fallback_suffix: str, unique_name: str =
     safe_suffix = re.sub(r"[^A-Za-z0-9.]+", "", suffix) or ".mp4"
     if not safe_suffix.startswith("."):
         safe_suffix = f".{safe_suffix}"
-    return f"viral-replication/{safe_stem}{safe_suffix}"
+    return f"video-uploads/{safe_stem}{safe_suffix}"
 
 
 def _vod_upload_request_diagnostics(req: Any, path: Path) -> dict:

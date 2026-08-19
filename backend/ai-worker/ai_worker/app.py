@@ -3,22 +3,17 @@ import json
 
 from ai_worker.config import settings
 from ai_worker.domain.errors import ValidationError, WorkerError
-from ai_worker.infra.cookie_pool import cookie_pool
 from ai_worker.infra import logger
-from ai_worker.services.video_inspection_service import VideoInspectionService
 from ai_worker.services.vod_upload_service import VodUploadService
 from ai_worker.services.vod_enhancement_service import VodEnhancementService
 from ai_worker.services.vod_subtitle_removal_service import VodSubtitleRemovalService
 from ai_worker.services.vod_video_translation_service import VodVideoTranslationService
-from ai_worker.services.vod_understanding_service import VodUnderstandingService
 
 
-video_inspection_service = VideoInspectionService()
 vod_upload_service = VodUploadService()
 vod_enhancement_service = VodEnhancementService()
 vod_subtitle_removal_service = VodSubtitleRemovalService()
 vod_video_translation_service = VodVideoTranslationService()
-vod_understanding_service = VodUnderstandingService()
 
 
 class AiWorkerHandler(BaseHTTPRequestHandler):
@@ -42,19 +37,14 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
                 "ok": True,
                 "service": "python-ai-worker",
                 "version": 1,
-                "douyinCookiePool": cookie_pool.stats(),
             })
             return
         if self.path == "/vod/credentials":
             payload = vod_upload_service.credentials_diagnostics()
-            payload["understanding"] = vod_understanding_service.diagnostics()
             payload["enhancement"] = vod_enhancement_service.diagnostics()
             payload["subtitleRemoval"] = vod_subtitle_removal_service.diagnostics()
             payload["videoTranslation"] = vod_video_translation_service.diagnostics()
             self._send_json(200, payload)
-            return
-        if self.path == "/vod/understanding/agents":
-            self._send_json(200, vod_understanding_service.agents())
             return
         if self.path.startswith("/vod/upload/progress"):
             upload_id = self.path.split("uploadId=", 1)[1].split("&", 1)[0] if "uploadId=" in self.path else ""
@@ -63,17 +53,8 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"ok": False, "message": "Not found"})
 
     def do_POST(self):
-        if self.path == "/video/inspect":
-            self._handle_video_inspect()
-            return
         if self.path == "/vod/upload":
             self._handle_vod_upload()
-            return
-        if self.path == "/vod/understanding/start":
-            self._handle_vod_understanding_start()
-            return
-        if self.path == "/vod/understanding/get":
-            self._handle_vod_understanding_get()
             return
         if self.path == "/vod/enhancement/start":
             self._handle_vod_enhancement_start()
@@ -98,23 +79,6 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"ok": False, "message": "Not found"})
 
-    def _handle_video_inspect(self):
-        trace_id = self.headers.get("X-Trace-Id", "")
-        try:
-            payload = self._read_json()
-            url = str(payload.get("url") or "").strip()
-            if not url:
-                raise ValidationError("缺少视频 URL")
-            logger.info("http video inspect request received", {"traceId": trace_id, "url": url})
-            result = video_inspection_service.inspect_url(url, trace_id=trace_id)
-            self._send_json(200, result.to_dict())
-        except WorkerError as error:
-            logger.warning("http video inspect request failed", {"traceId": trace_id, "error": str(error), "statusCode": error.status_code})
-            self._send_json(error.status_code, {"ok": False, "message": str(error)})
-        except Exception as error:
-            logger.error("http video inspect request crashed", {"traceId": trace_id, "error": str(error)})
-            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
-
     def _handle_vod_upload(self):
         trace_id = self.headers.get("X-Trace-Id", "")
         try:
@@ -135,45 +99,6 @@ class AiWorkerHandler(BaseHTTPRequestHandler):
             self._send_json(error.status_code, {"ok": False, "message": str(error)})
         except Exception as error:
             logger.error("http vod upload request crashed", {"traceId": trace_id, "error": str(error)})
-            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
-
-    def _handle_vod_understanding_start(self):
-        trace_id = self.headers.get("X-Trace-Id", "")
-        try:
-            payload = self._read_json()
-            vid = str(payload.get("vid") or "").strip()
-            space_name = str(payload.get("spaceName") or "").strip()
-            file_path = str(payload.get("filePath") or "").strip()
-            roles = payload.get("roles")
-            logger.info("http vod understanding start request received", {
-                "traceId": trace_id,
-                "vid": vid,
-                "spaceName": space_name,
-                "hasFilePath": bool(file_path),
-                "rolesCount": len(roles) if isinstance(roles, list) else 0,
-            })
-            result = vod_understanding_service.start(vid=vid, roles=roles, space_name=space_name, file_path=file_path)
-            self._send_json(200, result)
-        except WorkerError as error:
-            logger.warning("http vod understanding start request failed", {"traceId": trace_id, "error": str(error), "statusCode": error.status_code})
-            self._send_json(error.status_code, {"ok": False, "message": str(error)})
-        except Exception as error:
-            logger.error("http vod understanding start request crashed", {"traceId": trace_id, "error": str(error)})
-            self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
-
-    def _handle_vod_understanding_get(self):
-        trace_id = self.headers.get("X-Trace-Id", "")
-        try:
-            payload = self._read_json()
-            run_id = str(payload.get("runId") or "").strip()
-            logger.info("http vod understanding get request received", {"traceId": trace_id, "runId": run_id})
-            result = vod_understanding_service.get_execution(run_id=run_id)
-            self._send_json(200, result)
-        except WorkerError as error:
-            logger.warning("http vod understanding get request failed", {"traceId": trace_id, "error": str(error), "statusCode": error.status_code})
-            self._send_json(error.status_code, {"ok": False, "message": str(error)})
-        except Exception as error:
-            logger.error("http vod understanding get request crashed", {"traceId": trace_id, "error": str(error)})
             self._send_json(500, {"ok": False, "message": str(error) or "AI Worker 内部错误"})
 
     def _handle_vod_enhancement_start(self):
@@ -309,7 +234,6 @@ def run():
         "host": settings.host,
         "port": settings.port,
         "vodCredentials": vod_upload_service.credentials_diagnostics(),
-        "vodUnderstanding": vod_understanding_service.diagnostics(),
         "vodEnhancement": vod_enhancement_service.diagnostics(),
         "vodSubtitleRemoval": vod_subtitle_removal_service.diagnostics(),
         "vodVideoTranslation": vod_video_translation_service.diagnostics(),

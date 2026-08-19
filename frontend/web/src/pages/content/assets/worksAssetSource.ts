@@ -1,6 +1,6 @@
 import type { ContentAsset } from '../../../types';
 
-export type VideoWorkSource = 'video_creation' | 'talking_video' | 'video_remake' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
+export type VideoWorkSource = 'video_creation' | 'talking_video' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
 
 export function getVideoWorkSourceFromMode(value: unknown): VideoWorkSource {
   const mode = typeof value === 'string' ? value.trim().replaceAll('-', '_') : '';
@@ -9,9 +9,6 @@ export function getVideoWorkSourceFromMode(value: unknown): VideoWorkSource {
   }
   if (mode === 'talking_video') {
     return 'talking_video';
-  }
-  if (mode.startsWith('viral_replication_') || mode.startsWith('video_remake_')) {
-    return 'video_remake';
   }
   if (mode === 'video_upscale') {
     return 'video_upscale';
@@ -40,14 +37,6 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
   if (generatedBy !== 'video_model' && generatedBy !== 'video_enhancement' && generatedBy !== 'video_subtitle_removal') {
     return null;
   }
-  const modeTitle = stringMetadataValue(asset, 'modeTitle');
-  if (
-    mode.startsWith('viral_replication_')
-    || mode.startsWith('video_remake_')
-    || modeTitle.includes('爆款复刻')
-  ) {
-    return 'video_remake';
-  }
   return getVideoWorkSourceFromMode(
     generatedBy === 'video_enhancement'
       ? 'video_upscale'
@@ -63,9 +52,6 @@ export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   }
   if (source === 'talking_video') {
     return '口播视频生成';
-  }
-  if (source === 'video_remake') {
-    return '爆款复刻';
   }
   if (source === 'video_upscale') {
     return '高清放大';

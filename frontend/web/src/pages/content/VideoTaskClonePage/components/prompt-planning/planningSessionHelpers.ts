@@ -210,7 +210,7 @@ export function getAnalyzeLoadingCopy(jobStage: PlanningJobStage, references: { 
   if (jobStage === 'analyzing_reference_video') {
     return {
       title: '商品图识别完成，正在拆解参考视频',
-      description: '正在解析镜头/节奏/结构，脚本会照参考视频结构复刻，请勿关闭',
+      description: '正在解析镜头/节奏/结构，脚本会参考视频结构，请勿关闭',
     };
   }
   if (!references.hasVideo) {

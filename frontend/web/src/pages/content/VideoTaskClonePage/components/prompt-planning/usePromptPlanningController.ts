@@ -700,7 +700,7 @@ export function usePromptPlanningController({
       const next = await updatePlanningConfirmation({
         userId: currentUser.id,
         sessionId: session.id,
-        viralBreakdown: analysisDraft.useBreakdown ? session.analysis.viralBreakdown : null,
+        referenceBreakdown: analysisDraft.useBreakdown ? session.analysis.referenceBreakdown : null,
         materialCaptions: analysisDraft.materialCaptions.map((caption, index) => ({
           ...caption,
           label: `图片${index + 1}`,

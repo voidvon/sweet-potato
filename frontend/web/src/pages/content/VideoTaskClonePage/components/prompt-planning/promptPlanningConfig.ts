@@ -21,17 +21,17 @@ export type PlanningStageItem = {
 
 export const modalCopy: Record<PromptPanelKind, { title: string; subtitle: string; action: string }> = {
   marketing: {
-    title: '爆款策划',
+    title: '内容策划',
     subtitle: '上传商品图，AI 帮你策划这条电商视频的脚本',
     action: '开始识别',
   },
   reverse: {
-    title: '爆款策划',
+    title: '内容策划',
     subtitle: '上传商品图，AI 帮你策划这条电商视频的脚本',
     action: '开始识别',
   },
   write: {
-    title: '爆款策划',
+    title: '内容策划',
     subtitle: '上传商品图，AI 帮你策划这条电商视频的脚本',
     action: '开始识别',
   },

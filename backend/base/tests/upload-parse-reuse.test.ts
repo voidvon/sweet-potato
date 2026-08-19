@@ -17,22 +17,12 @@ async function waitFor<T>(read: () => T, accept: (value: T) => boolean, timeoutM
   return value;
 }
 
-async function readJson(req: IncomingMessage) {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const text = Buffer.concat(chunks).toString('utf8');
-  return text ? JSON.parse(text) : {};
-}
-
 test('duplicate uploaded video reuses VOD Vid but creates a fresh task id', async (t) => {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'upload-parse-reuse-'));
   const dataDir = path.join(tempRoot, 'data');
   mkdirSync(dataDir, { recursive: true });
   let appServer: ReturnType<ReturnType<typeof createServer>['listen']> | null = null;
 
-  const workerRunIds: string[] = [];
   const worker = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const url = req.url || '';
     if (req.method === 'POST' && url === '/vod/upload') {
@@ -56,65 +46,6 @@ test('duplicate uploaded video reuses VOD Vid but creates a fresh task id', asyn
       res.end(JSON.stringify({ progress: 100, message: 'done' }));
       return;
     }
-    if (req.method === 'GET' && url === '/vod/understanding/agents') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        ok: true,
-        agents: [
-          { key: 'audio_expert', name: '音频理解专家', mode: 'audio', prompt: 'audio prompt' },
-          { key: 'video_expert', name: '视频理解专家', mode: 'multimodal', prompt: 'video prompt' },
-          { key: 'picture_in_picture_expert', name: '画中画解析专家', mode: 'multimodal', prompt: 'pip prompt' },
-        ],
-      }));
-      return;
-    }
-    if (req.method === 'POST' && url === '/vod/understanding/start') {
-      const body = await readJson(req);
-      const roles = Array.isArray(body.roles) ? body.roles : [];
-      const executions = roles.map((role: { key?: string; name?: string }) => {
-        const runId = `run-${role.key || 'unknown'}-${workerRunIds.length + 1}`;
-        workerRunIds.push(runId);
-        return {
-          role: role.key || 'unknown',
-          roleName: role.name || role.key || 'unknown',
-          mode: role.key === 'audio_expert' ? 'audio' : 'multimodal',
-          runId,
-        };
-      });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        ok: true,
-        vid: body.vid || 'vid-reused-001',
-        spaceName: body.spaceName || 'space-A',
-        executions,
-      }));
-      return;
-    }
-    if (req.method === 'POST' && url === '/vod/understanding/get') {
-      const body = await readJson(req);
-      const runId = String(body.runId || '');
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      if (runId.includes('audio_expert')) {
-        res.end(JSON.stringify({ ok: true, runId, status: 'completed', content: 'audio done' }));
-        return;
-      }
-      if (runId.includes('picture_in_picture_expert')) {
-        res.end(JSON.stringify({
-          ok: true,
-          runId,
-          status: 'completed',
-          content: 'pip done',
-          pictureInPicture: {
-            appeared: false,
-            summary: '未检测到画中画',
-            items: [],
-          },
-        }));
-        return;
-      }
-      res.end(JSON.stringify({ ok: true, runId, status: 'completed', content: 'video done' }));
-      return;
-    }
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, message: `Unhandled ${req.method} ${url}` }));
   });
@@ -126,8 +57,6 @@ test('duplicate uploaded video reuses VOD Vid but creates a fresh task id', asyn
   try {
     process.env.DATA_DIR = dataDir;
     process.env.PYTHON_AI_WORKER_URL = `http://127.0.0.1:${workerPort}`;
-    process.env.VIRAL_UNDERSTANDING_POLL_INTERVAL_MS = '5';
-    process.env.VIRAL_UNDERSTANDING_POLL_MAX_ATTEMPTS = '2';
     process.env.CONTENT_PUBLIC_BASE_URL = 'http://127.0.0.1:1';
 
     const [{ createApp }, { contentRepository }] = await Promise.all([
@@ -187,10 +116,8 @@ test('duplicate uploaded video reuses VOD Vid but creates a fresh task id', asyn
       const secondTask = contentRepository.findVideoTask(second.task.id);
       assert.ok(secondTask);
       const uploadedVideo = secondTask?.expertContext?.uploadedVideo as Record<string, unknown> | undefined;
-      const viralUnderstanding = secondTask?.expertContext?.viralUnderstanding as Record<string, unknown> | undefined;
       assert.equal(uploadedVideo?.reusedFromTaskId, firstTaskId);
       assert.equal(uploadedVideo?.reusedReason, 'sha256');
-      assert.equal(viralUnderstanding?.vid, 'vid-reused-001');
     });
   } finally {
     appServer?.closeAllConnections?.();

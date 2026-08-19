@@ -9,7 +9,7 @@ import type {
   ContentPlanningAssetRef,
   ContentPlanningMaterialCaption,
   ContentPlanningProductInsights,
-  ContentPlanningViralBreakdown,
+  ContentPlanningReferenceBreakdown,
 } from './content-planning.types.js';
 
 export type ContentPlanningAnalysisAsset = ContentPlanningAssetRef & {
@@ -33,7 +33,7 @@ export type ProductMaterialAnalysis = Pick<ContentPlanningAnalysis, 'materialCap
 
 export interface ContentPlanningAnalysisProvider {
   analyzeProduct(input: ProductMaterialAnalysisInput): Promise<ProductMaterialAnalysis>;
-  analyzeReference(input: ReferenceMaterialAnalysisInput): Promise<ContentPlanningViralBreakdown>;
+  analyzeReference(input: ReferenceMaterialAnalysisInput): Promise<ContentPlanningReferenceBreakdown>;
 }
 
 const productAnalysisSchema = z.object({
@@ -52,7 +52,7 @@ const productAnalysisSchema = z.object({
   }),
 });
 
-const viralBreakdownSchema = z.object({
+const referenceBreakdownSchema = z.object({
   tags: z.array(z.string()),
   structureFramework: z.string(),
   emotionCurve: z.string(),
@@ -340,12 +340,12 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
     };
   }
 
-  async analyzeReference(input: ReferenceMaterialAnalysisInput): Promise<ContentPlanningViralBreakdown> {
+  async analyzeReference(input: ReferenceMaterialAnalysisInput): Promise<ContentPlanningReferenceBreakdown> {
     const content: VideoUnderstandingContent[] = [
       {
         type: 'input_text',
         text: [
-          '你是短视频爆款结构分析师。拆解随后提供的参考视频，并给出可迁移到新商品脚本的节奏、镜头、结构和口播风格。',
+          '你是短视频结构分析师。拆解随后提供的参考视频，并给出可迁移到新商品脚本的节奏、镜头、结构和口播风格。',
           `目标商品：${input.productName || input.productInsights.productName || '未填写'}`,
           `商品洞察：${JSON.stringify(input.productInsights)}`,
           `用户要求：${input.prompt || '无'}`,
@@ -356,7 +356,7 @@ class ArkContentPlanningAnalysisProvider implements ContentPlanningAnalysisProvi
       },
       ...(input.video ? [{ type: 'video_url' as const, video_url: { ...mediaSource(input.video), fps: 2 } }] : []),
     ];
-    const parsed = await collectParsedContentPlanningUnderstanding(content, viralBreakdownSchema, 'reference_video');
+        const parsed = await collectParsedContentPlanningUnderstanding(content, referenceBreakdownSchema, 'reference_video');
     return {
       ...parsed,
       segments: parsed.segments.map((segment) => ({
@@ -388,7 +388,7 @@ export class DeterministicContentPlanningAnalysisProvider implements ContentPlan
     };
   }
 
-  async analyzeReference(): Promise<ContentPlanningViralBreakdown> {
+  async analyzeReference(): Promise<ContentPlanningReferenceBreakdown> {
     return {
       tags: ['clear hook', 'product proof', 'direct call to action'],
       structureFramework: 'hook -> proof -> conversion',

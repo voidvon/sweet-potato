@@ -624,7 +624,7 @@ export class DeterministicContentPlanningAgentProvider implements ContentPlannin
       audienceAngle: index === 0 ? 'busy buyers who want quick proof' : index === 1 ? 'curious buyers with a specific pain point' : 'comparison-oriented buyers',
       emotionalArc: index === 0 ? 'curiosity to confidence' : index === 1 ? 'friction to relief' : 'doubt to preference',
       summary: `A ${directions[index % directions.length] || 'product'} route for ${session.materialBundle.productName || 'the product'}.`,
-      followReferenceStructure: Boolean(session.settings.referencePolicy.useBreakdown && session.analysis.viralBreakdown),
+      followReferenceStructure: Boolean(session.settings.referencePolicy.useBreakdown && session.analysis.referenceBreakdown),
       tags: session.settings.styleKeywords.slice(0, 4),
     }));
   }
@@ -762,7 +762,7 @@ class ConfiguredLlmContentPlanningAgentProvider implements ContentPlanningAgentP
         '你是短视频策划系统的 Strategy Agent。',
         '根据 Planner brief 设计真正差异化的创意路线，数量必须等于 candidateCount。',
         '每条路线的总时长必须精确等于 settings.durationSeconds；summary 中出现逐段时间时，第一段从 0 开始，最后一段必须结束于该目标秒数。',
-        '每条路线要有不同钩子、受众角度和情绪曲线；有参考视频时遵守是否复刻其结构的设置。',
+        '每条路线要有不同钩子、受众角度和情绪曲线；有参考视频时遵守是否使用其结构参考的设置。',
         '短视频必须在首个镜头建立明确钩子，后续用商品证据承接，结尾完成记忆或转化；禁止只改文案而复用同一创意结构。',
         '当前成片不使用字幕或屏幕文字，不得把弹窗大字、字幕卡、价格贴纸等作为策略核心，信息应通过画面和口播表达。',
       ].join('\n'),
@@ -1212,7 +1212,7 @@ function planningStageInput(context: PlanningRuntimeContext) {
         mimeType: material.mimeType,
       })),
     },
-    referenceVideoBreakdown: session.settings.referencePolicy.useBreakdown ? session.analysis.viralBreakdown : null,
+    referenceVideoBreakdown: session.settings.referencePolicy.useBreakdown ? session.analysis.referenceBreakdown : null,
     settings: session.settings,
     webSearch: context.webSearchContext || {
       enabled: session.settings.webSearch,

@@ -92,9 +92,9 @@ export function useContentResourceLibraryController({
     if (resourceType !== 'finished_video') return undefined;
     const source = new EventSource(withAuthToken(`${API_BASE_URL}/api/content/events`));
     const handleComplete = () => { void loadData(); };
-    source.addEventListener('viral-video-analysis-complete', handleComplete);
+    source.addEventListener('video-generation-complete', handleComplete);
     return () => {
-      source.removeEventListener('viral-video-analysis-complete', handleComplete);
+      source.removeEventListener('video-generation-complete', handleComplete);
       source.close();
     };
   }, [currentUser.id, loadData, resourceType]);

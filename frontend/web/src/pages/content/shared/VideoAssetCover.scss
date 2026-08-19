@@ -89,10 +89,6 @@
   background: rgb(var(--color-purple-rgb) / 0.46);
 }
 
-.video-asset-cover__type--video_remake {
-  background: rgb(var(--color-teal-rgb) / 0.42);
-}
-
 .video-asset-cover__type--video_translation {
   background: rgb(var(--color-purple-rgb) / 0.46);
 }
@@ -111,10 +107,6 @@
 
 .video-asset-cover__type--talking_video::before {
   background: var(--color-brand-border);
-}
-
-.video-asset-cover__type--video_remake::before {
-  background: var(--color-success-border);
 }
 
 .video-asset-cover__type--video_translation::before {

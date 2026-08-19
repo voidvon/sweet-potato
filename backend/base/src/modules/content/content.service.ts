@@ -58,14 +58,14 @@ import {
 
 import { RealPersonAssetFile, UploadedAssetFile, assertHttpAssetUrl, assertRealPersonGroupAccess, assertUserId, assertVirtualPortraitGroupAccess, buildRealPersonCallbackUrl, contentFilePathForRelativePath, contentFilesDir, createContentAssetRecord, deleteRemoteRealPersonAsset, deleteRemoteVirtualPortraitAsset, deleteRemoteVirtualPortraitGroup, ensureVirtualPortraitRemoteGroup, errorLogContext, execFileAsync, generatedMediaRelativePath, inferPrivateAssetType, inferRealPersonAssetType, isResourceType, listVirtualPortraitRemoteAssets, logVirtualPortraitAsset, normalizeMetadata, originalNameFromUrl, privateAssetGroupId, privateAssetId, privateAssetProjectName, privateAssetUri, realPersonAssetUri, realPersonBytedToken, realPersonCallbackResult, realPersonProjectName, realPersonValidationExpiresInSeconds, realPersonVolcAssetId, realPersonVolcGroupId, refreshVirtualPortraitAssetsForGroup, remoteAssetGroupId, remoteAssetGroupName, remoteAssetMimeType, remoteAssetName, resolveLocalContentFilePathFromUrl, stringMetadataField, upsertVirtualPortraitRemoteGroup, virtualPortraitAssetMetadataFromRemote, virtualPortraitUpdateAssetUrl } from './internals/content-common.js';
 import { buildThreeViewPrompt, createFinishedVideoAsset, deleteContentAssetFile, editImageWithConfiguredModel, extensionForMimeType, isThreeViewFailureAsset, isThreeViewResultAsset, isThreeViewRunningAsset, linkedVideoTaskId } from './internals/content-image-assets.js';
-import { callConfiguredVideoModel, formatDurationLabel, isSegmentedVideoGenerationState, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, seedanceDurationSeconds, userFacingVideoGenerationError } from './internals/content-video-generation.js';
+import { callConfiguredVideoModel, formatDurationLabel, persistPendingVideoGenerationResult, resolveConfiguredVideoOption, resolveConfiguredVideoProvider, resolveDefaultVideoModel, seedanceDurationSeconds, userFacingVideoGenerationError } from './internals/content-video-generation.js';
 import { backfillMissingGeneratedVideoCovers, mirrorGeneratedVideoToLocalInBackground, schedulePendingGeneratedVideoMirrors } from './internals/content-video-local-mirror.js';
 import { createVideoEnhancementTask, refreshVideoEnhancementTask, resumeVideoEnhancementTasks } from './internals/content-video-enhancement.js';
 import { assertCreateVideoSourcesDuration } from './internals/content-video-duration.js';
 import { createSubtitleRemovalTask, refreshSubtitleRemovalTask, resumeSubtitleRemovalTasks } from './internals/content-subtitle-removal.js';
 import { createVideoTranslationTask, refreshVideoTranslationTask, resumeVideoTranslationTasks } from './internals/content-video-translation.js';
 import { composeVideoProductionPrompt, generationResultForTask, pollRunningVideoGenerationTask, refreshVideoTaskGenerationStatus, resolveVideoMaterialContext, updateVideoTaskParseResult } from './internals/content-video-task-runtime.js';
-import { buildImmediateVideoProductionParseResult, flattenNegativePrompts, isRecord, normalizeParseResult } from './internals/content-viral-analysis.js';
+import { buildImmediateVideoProductionParseResult, isRecord, normalizeParseResult } from './internals/content-video-task-utils.js';
 import { toVideoProductionView } from './internals/content-video-production-view.js';
 import { absolutizeMaterialUrl, cloneVoiceLibrary, fileUrlFor } from './internals/content-voice-clone.js';
 
@@ -87,16 +87,6 @@ export function temporaryContentAssetExpiresAt(now = Date.now()) {
 
 function temporaryAssetCleanupSettings(): TemporaryAssetCleanupSettings {
   return { retentionHours: temporaryContentAssetTtlMs / 3_600_000, cleanupIntervalMinutes: temporaryContentAssetCleanupIntervalMs / 60_000 };
-}
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableJson).join(',')}]`;
-  }
-  if (isRecord(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
 }
 
 function localAssetFilePaths(asset: ContentAsset) {
@@ -430,39 +420,6 @@ async function cleanupChatGeneratedImageInputs(finishedAsset: ContentAsset, inpu
       }
     }
   }
-}
-
-function segmentedVideoRequestFingerprint(input: {
-  title: string;
-  prompt: string;
-  negativePrompts: string[];
-  ratio: string;
-  resolution?: string;
-  totalSeconds: number;
-  maxSegmentSeconds: number;
-  materialContext: Record<string, unknown>;
-  providerId: string;
-  modelId: string;
-  seedanceOptions: Record<string, unknown>;
-}) {
-  return stableJson({
-    title: input.title,
-    prompt: input.prompt,
-    negativePrompts: input.negativePrompts,
-    ratio: input.ratio,
-    resolution: input.resolution,
-    totalSeconds: input.totalSeconds,
-    maxSegmentSeconds: input.maxSegmentSeconds,
-    materialContext: input.materialContext,
-    providerId: input.providerId,
-    modelId: input.modelId,
-    seedanceOptions: input.seedanceOptions,
-  });
-}
-
-function resumeThrottleDelayMs() {
-  const raw = Number(process.env.VIDEO_GENERATION_RESUME_SCAN_DELAY_MS || 1500);
-  return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : 1500;
 }
 
 async function waitMs(ms: number) {
@@ -2951,10 +2908,6 @@ export const contentService = {
         || task.expertContext?.mode === 'video_translation') {
         return false;
       }
-      const segmentState = task.expertContext?.videoGenerationSegments;
-      if (isSegmentedVideoGenerationState(segmentState) && segmentState.status === 'running') {
-        return true;
-      }
       const result = generationResultForTask(task);
       return Boolean(result?.jobId && (result.status === 'pending' || result.status === 'running'));
     });
@@ -2966,13 +2919,10 @@ export const contentService = {
       count: resumable.length,
       taskIds: resumable.map((task) => task.id),
     });
-    const delayMs = resumeThrottleDelayMs();
     void (async () => {
       for (const [index, task] of resumable.entries()) {
         try {
-          if (index > 0) {
-            await waitMs(delayMs);
-          }
+          if (index > 0) await waitMs(1500);
           await pollRunningVideoGenerationTask(task.id);
         } catch (error) {
           logger.warn('resume video generation polling failed', {
@@ -3282,20 +3232,18 @@ export const contentService = {
       throw new Error('无权操作该视频任务');
     }
     retainVideoTaskInputAssets(current);
-    const replicationPlan = payload.replicationPlan || current.editableParseResult.replicationPlan;
     let taskContext = isRecord(current.expertContext) ? current.expertContext : {};
     const voiceContext = isRecord(taskContext.voice) ? taskContext.voice : {};
-    const ratio = String(taskContext.ratio || current.editableParseResult.viralAnalysis?.dimensions.formatQuality.details.ratio || '9:16');
-    const duration = String(replicationPlan ? '25秒' : taskContext.duration || '30秒');
-    const prompt = replicationPlan?.visualPrompt
-      || [
-        current.editableParseResult.spokenContent,
-        current.editableParseResult.scene,
-        current.editableParseResult.shotLanguage,
-        current.editableParseResult.product,
-      ].filter(Boolean).join('\n');
+    const ratio = String(taskContext.ratio || '9:16');
+    const duration = String(taskContext.duration || '30秒');
+    const prompt = [
+      current.editableParseResult.spokenContent,
+      current.editableParseResult.scene,
+      current.editableParseResult.shotLanguage,
+      current.editableParseResult.product,
+    ].filter(Boolean).join('\n');
     if (!prompt.trim()) {
-      throw new Error('缺少视频生成提示词，请先完成解析或复刻计划');
+      throw new Error('缺少视频生成提示词，请先完成视频创作配置');
     }
     contentRepository.markVideoTaskGenerating(id);
     let providerResult: Awaited<ReturnType<typeof callConfiguredVideoModel>>;
@@ -3364,8 +3312,7 @@ export const contentService = {
         taskId: id,
         title: current.title,
         prompt,
-        negativePrompts: replicationPlan?.negativePrompts
-          || (current.editableParseResult.viralAnalysis ? flattenNegativePrompts(current.editableParseResult.viralAnalysis) : []),
+        negativePrompts: [],
         ratio,
         duration,
         audioUrl,
@@ -3471,7 +3418,6 @@ export const contentService = {
         ratio,
         sourceType: String(taskContext.billingSourceType || 'video_generation').trim() || 'video_generation',
         audioSource: audioUrl ? 'confirmed_audio' : 'silent_fallback',
-        usedReplicationPlan: replicationPlan,
       });
     } catch (error) {
       const failureReason = userFacingVideoGenerationError(error);
@@ -3500,7 +3446,6 @@ export const contentService = {
         errorMessage: failureReason,
         duration,
         ratio,
-        usedReplicationPlan: replicationPlan,
         generatedAt: new Date().toISOString(),
       };
       this.updateVideoParseResult(id, {
@@ -3559,7 +3504,6 @@ export const contentService = {
       coverUrl: providerResult.coverUrl,
       duration,
       ratio,
-      usedReplicationPlan: replicationPlan,
       renderMode: 'provider_generation',
       renderStatus: providerResult.status === 'completed' ? 'rendered' : 'queued',
       audioSource: typeof voiceContext.audioUrl === 'string' ? 'confirmed_audio' : 'silent_fallback',

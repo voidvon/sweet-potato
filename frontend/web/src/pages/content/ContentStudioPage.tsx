@@ -2,13 +2,11 @@ import { type ReactNode, Suspense, lazy } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import {
   ContentStudioRouteFallback,
-  ImmersiveRouteFallback,
 } from '../../components/RouteLoadingFallback';
 import { getContentDefaultPath } from '../../routes/routeConfig';
 import type { ContentResourceType, CreativeModuleCode, User } from '../../types';
 
 const ContentResourceLibraryPage = lazy(() => import('./ContentResourceLibraryPage').then((m) => ({ default: m.ContentResourceLibraryPage })));
-const VideoRemakePage = lazy(() => import('./VideoRemakePage').then((m) => ({ default: m.VideoRemakePage })));
 const VideoTaskClonePage = lazy(() => import('./VideoTaskClonePage').then((m) => ({ default: m.VideoTaskClonePage })));
 const DigitalHumanAssetsPage = lazy(() => import('./assets/DigitalHumanAssetsPage').then((m) => ({ default: m.DigitalHumanAssetsPage })));
 const RealPersonAssetsPage = lazy(() => import('./assets/RealPersonAssetsPage').then((m) => ({ default: m.RealPersonAssetsPage })));
@@ -26,9 +24,6 @@ const moduleResourceType: Partial<Record<CreativeModuleCode, ContentResourceType
 };
 
 function routeFallbackFor(code: CreativeModuleCode | undefined) {
-  if (code === 'video_remake') {
-    return <ImmersiveRouteFallback />;
-  }
   return <ContentStudioRouteFallback />;
 }
 
@@ -38,9 +33,7 @@ export function ContentStudioPage({ currentUser, moduleCode: moduleCodeProp }: C
 
   let page: ReactNode = null;
 
-  if (code === 'video_remake') {
-    page = <VideoRemakePage currentUser={currentUser} />;
-  } else if (code === 'create_video') {
+  if (code === 'create_video') {
     page = <VideoTaskClonePage currentUser={currentUser} />;
   } else if (code === 'digital_human') {
     page = <DigitalHumanAssetsPage currentUser={currentUser} />;

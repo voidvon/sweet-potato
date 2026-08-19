@@ -217,8 +217,7 @@ function fileUrlForContentFile(fileName: string) {
 
 function isInputAssetUpload(metadata: Record<string, unknown>) {
   return metadata.kind === 'video_create_reference_upload'
-    || metadata.kind === 'voice_source'
-    || metadata.uploadedFrom === 'video_remake';
+    || metadata.kind === 'voice_source';
 }
 
 async function moveUploadedFileToInputMediaDirectory(file: Express.Multer.File, metadata: Record<string, unknown>) {

@@ -20,12 +20,6 @@ export const permissionCatalog: PermissionCatalogEntry[] = [
     group: 'chat',
   },
   {
-    key: 'web.module.content.video_remake',
-    label: '爆款复刻',
-    description: '允许访问视频复刻工作流。',
-    group: 'content',
-  },
-  {
     key: 'web.module.content.create_video',
     label: '视频创作',
     description: '允许访问视频创作与生成记录。',

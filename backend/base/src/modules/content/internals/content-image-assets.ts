@@ -25,7 +25,7 @@ generatedMediaRelativePath,
 threeViewImageSize
 } from './content-common.js';
 import { resolveDefaultImageModel } from './content-video-generation.js';
-import { isRecord } from './content-viral-analysis.js';
+import { isRecord } from './content-video-task-utils.js';
 
 type ImageModelConfig = ReturnType<typeof resolveDefaultImageModel>;
 

@@ -52,7 +52,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
           <FieldHeading title="内容类型 · 拍摄方式" subtitle="" />
           <div className="video-task-epa-locked-note">
             <Check aria-hidden="true" size={15} />
-            <span>已由参考视频决定，脚本将照其结构与镜头复刻，无需手动选择</span>
+            <span>已由参考视频决定，脚本将参考其结构与镜头，无需手动选择</span>
           </div>
         </section>
       ) : (

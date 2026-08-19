@@ -88,10 +88,9 @@ function worksFunctionOptionOf(asset: ContentAsset): WorksFunctionOption | null 
   const source = getVideoWorkSource(asset);
   if (source === 'video_creation') return videoWorksFunctionOptions[1];
   if (source === 'talking_video') return videoWorksFunctionOptions[2];
-  if (source === 'video_remake') return videoWorksFunctionOptions[3];
-  if (source === 'video_upscale') return videoWorksFunctionOptions[4];
-  if (source === 'subtitle_removal') return videoWorksFunctionOptions[5];
-  if (source === 'video_translation') return videoWorksFunctionOptions[6];
+  if (source === 'video_upscale') return videoWorksFunctionOptions[3];
+  if (source === 'subtitle_removal') return videoWorksFunctionOptions[4];
+  if (source === 'video_translation') return videoWorksFunctionOptions[5];
   return videoWorksFunctionOptions[0];
 }
 
@@ -100,7 +99,6 @@ export function matchesWorksFunction(asset: ContentAsset, functionKey: string) {
   const sourceByKey: Record<string, ReturnType<typeof getVideoWorkSource>> = {
     'video:creation': 'video_creation',
     'video:talking-video': 'talking_video',
-    'video:remake': 'video_remake',
     'video:upscale': 'video_upscale',
     'video:subtitle-removal': 'subtitle_removal',
     'video:translation': 'video_translation',

@@ -30,7 +30,6 @@ import { createSiteAccessLogRouter } from './modules/site-access-logs/site-acces
 import { siteAccessLogMiddleware } from './modules/site-access-logs/site-access-log.middleware.js';
 import { createTalkingVideoRouter } from './modules/talking-video/talking-video.routes.js';
 import { createUserRouter } from './modules/users/user.routes.js';
-import { createVideoRemakeRouter } from './modules/video-remake/video-remake.routes.js';
 import { createVideoSourceRouter } from './modules/video-source/video-source.routes.js';
 import { createVideoUnderstandingRouter } from './modules/video-understanding/video-understanding.routes.js';
 import { requireAuth } from './shared/auth.middleware.js';
@@ -72,7 +71,6 @@ export function createApp() {
   app.use('/api/batch-generation', createBatchGenerationRouter());
   app.use('/api/content', createContentRouter());
   app.use('/api/content-planning', createContentPlanningRouter());
-  app.use('/api/video-remake', createVideoRemakeRouter());
   app.use('/api/video-source', createVideoSourceRouter());
   app.use('/api/video-understanding', createVideoUnderstandingRouter());
   app.use('/api/billing', createBillingRouter());

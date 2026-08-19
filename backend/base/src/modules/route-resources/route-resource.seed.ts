@@ -8,7 +8,6 @@ type SeedRouteResource = RouteResourceInput & {
 
 const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['key']>([
   'web.module.chat',
-  'web.module.content.video_remake',
   'web.module.content.create_video',
   'web.module.content.virtual_portrait_assets',
   'web.module.content.ai_voice',
@@ -21,9 +20,6 @@ const routeResourcePermissionKeys = new Set<(typeof permissionCatalog)[number]['
 const webRouteMetaByPermission = {
   'web.module.chat': {
     path: '/app/image',
-  },
-  'web.module.content.video_remake': {
-    path: '/app/content/video_remake',
   },
   'web.module.content.create_video': {
     path: '/app/content/create_video',
@@ -96,7 +92,6 @@ export const seededRouteResources: SeedRouteResource[] = [
       if (
         entry.key === 'web.module.content.finished_assets'
         || entry.key === 'web.module.content.batch_generation'
-        || entry.key === 'web.module.content.video_remake'
         || entry.key === 'web.module.content.create_video'
       ) {
         return undefined;
@@ -111,7 +106,6 @@ export const seededRouteResources: SeedRouteResource[] = [
       'web.module.content.product_assets': 40,
       'web.module.content.finished_assets': 50,
       'web.module.content.batch_generation': 40,
-      'web.module.content.video_remake': 30,
       'web.module.content.create_video': 20,
     };
     return {

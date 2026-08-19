@@ -162,7 +162,7 @@ test('fixed billable usage reserves credits and settles one completed record', (
       sessionId: 'planning-session-test',
       credits: 2,
       step: 'content_planning_analysis',
-      stepLabel: '爆款策划素材识别',
+      stepLabel: '内容策划素材识别',
       requestSnapshot: { imageCount: 1, hasReferenceVideo: true },
     });
     assert.equal(userRepository.findById(userId)?.creditBalance, 8);
@@ -201,7 +201,7 @@ test('fixed billable usage releases reserved credits after failure', () => {
       sourceId: `${userId}:analysis`,
       credits: 2,
       step: 'content_planning_analysis',
-      stepLabel: '爆款策划素材识别',
+      stepLabel: '内容策划素材识别',
     });
     assert.equal(userRepository.findById(userId)?.creditBalance, 8);
 
@@ -265,7 +265,7 @@ test('fixed billable usage recovers a reserved generation charge by session', ()
       sessionId,
       credits: 3,
       step: 'content_planning_generation',
-      stepLabel: '爆款策划脚本生成',
+      stepLabel: '内容策划脚本生成',
     });
 
     assert.equal(findReservedFixedBillableUsage({
@@ -290,7 +290,7 @@ test('migration backfills settled content planning reserve ledger as usage debit
       sessionId,
       credits: 3,
       step: 'content_planning_generation',
-      stepLabel: '爆款策划脚本生成',
+      stepLabel: '内容策划脚本生成',
     });
     billingRepository.updateReservationStatus(reservation.id, 'settled', new Date().toISOString());
     assert.equal(billingRepository.listLedgerEntries({ userId }).at(0)?.type, 'reserve_debit');
@@ -317,7 +317,7 @@ test('fixed billable usage rejects insufficient credits before reservation', () 
         sourceId: `${userId}:analysis`,
         credits: 2,
         step: 'content_planning_analysis',
-        stepLabel: '爆款策划素材识别',
+        stepLabel: '内容策划素材识别',
       }),
       InsufficientStepCreditsError,
     );

@@ -14,7 +14,7 @@ import {
   fileUrlForContentRelativePath,
   generatedMediaRelativePath,
 } from './content-common.js';
-import { isRecord, normalizeParseResult } from './content-viral-analysis.js';
+import { isRecord, normalizeParseResult } from './content-video-task-utils.js';
 
 type MirrorGeneratedVideoInput = {
   taskId: string;

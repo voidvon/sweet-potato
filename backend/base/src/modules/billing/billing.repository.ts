@@ -64,9 +64,6 @@ type BillingSettingsRow = {
   seedance_2_mini_credits_per_second_480p: number;
   video_upload_credits_per_mb: number;
   video_upload_credits_per_second?: number;
-  video_understanding_credits_per_1m_tokens?: number;
-  video_understanding_usd_per_1m_tokens?: number;
-  usd_to_credit_rate?: number;
   content_planning_analysis_credits_per_request: number;
   content_planning_generation_credits_per_request: number;
   talking_video_prompt_credits_per_request: number;
@@ -157,11 +154,6 @@ type BillableUsageRecordRow = {
 };
 
 function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
-  const understandingCreditsPer1MTokens = typeof row.video_understanding_credits_per_1m_tokens === 'number'
-    ? Number(row.video_understanding_credits_per_1m_tokens || 0)
-    : typeof row.video_understanding_usd_per_1m_tokens === 'number'
-      ? Number(row.video_understanding_usd_per_1m_tokens || 0) * Number(row.usd_to_credit_rate || 0)
-      : 0;
   return {
     id: 1,
     seedance2CreditsPerSecond720p: Number(row.seedance_2_credits_per_second_720p ?? 20),
@@ -173,7 +165,6 @@ function parseBillingSettings(row: BillingSettingsRow): BillingSettings {
     videoUploadCreditsPerMb: typeof row.video_upload_credits_per_mb === 'number'
       ? Number(row.video_upload_credits_per_mb || 0)
       : Number(row.video_upload_credits_per_second || 0),
-    videoUnderstandingCreditsPer1MTokens: understandingCreditsPer1MTokens,
     contentPlanningAnalysisCreditsPerRequest: Number(row.content_planning_analysis_credits_per_request ?? 2),
     contentPlanningGenerationCreditsPerRequest: Number(row.content_planning_generation_credits_per_request ?? 3),
     talkingVideoPromptCreditsPerRequest: Number(row.talking_video_prompt_credits_per_request ?? 3),
@@ -304,7 +295,7 @@ export const billingRepository = {
         id, seedance_2_credits_per_second_720p, seedance_2_credits_per_second_480p,
         seedance_2_fast_credits_per_second_720p, seedance_2_fast_credits_per_second_480p,
         seedance_2_mini_credits_per_second_720p, seedance_2_mini_credits_per_second_480p,
-        video_upload_credits_per_mb, video_understanding_credits_per_1m_tokens,
+        video_upload_credits_per_mb,
         content_planning_analysis_credits_per_request, content_planning_generation_credits_per_request,
         talking_video_prompt_credits_per_request,
         marketing_video_credits_per_request, marketing_video_storyboard_model_config_id,
@@ -317,7 +308,7 @@ export const billingRepository = {
         @id, @seedance2CreditsPerSecond720p, @seedance2CreditsPerSecond480p,
         @seedance2FastCreditsPerSecond720p, @seedance2FastCreditsPerSecond480p,
         @seedance2MiniCreditsPerSecond720p, @seedance2MiniCreditsPerSecond480p,
-        @videoUploadCreditsPerMb, @videoUnderstandingCreditsPer1MTokens,
+        @videoUploadCreditsPerMb,
         @contentPlanningAnalysisCreditsPerRequest, @contentPlanningGenerationCreditsPerRequest,
         @talkingVideoPromptCreditsPerRequest,
         @marketingVideoCreditsPerRequest, @marketingVideoStoryboardModelConfigId,
@@ -334,7 +325,6 @@ export const billingRepository = {
         seedance_2_mini_credits_per_second_720p = excluded.seedance_2_mini_credits_per_second_720p,
         seedance_2_mini_credits_per_second_480p = excluded.seedance_2_mini_credits_per_second_480p,
         video_upload_credits_per_mb = excluded.video_upload_credits_per_mb,
-        video_understanding_credits_per_1m_tokens = excluded.video_understanding_credits_per_1m_tokens,
         content_planning_analysis_credits_per_request = excluded.content_planning_analysis_credits_per_request,
         content_planning_generation_credits_per_request = excluded.content_planning_generation_credits_per_request,
         talking_video_prompt_credits_per_request = excluded.talking_video_prompt_credits_per_request,
@@ -356,7 +346,6 @@ export const billingRepository = {
       seedance2MiniCreditsPerSecond720p: settings.seedance2MiniCreditsPerSecond720p,
       seedance2MiniCreditsPerSecond480p: settings.seedance2MiniCreditsPerSecond480p,
       videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
-      videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
       contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
       contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
       talkingVideoPromptCreditsPerRequest: settings.talkingVideoPromptCreditsPerRequest,

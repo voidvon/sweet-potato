@@ -39,7 +39,6 @@ bash package-docker.sh                # build Docker run dir + compose files
 cd backend/base && pnpm run dev       # tsx watch hot-reload
 cd backend/base && pnpm run build     # tsc -> dist/
 cd backend/base && pnpm test          # tsx --test tests/**/*.test.ts
-cd backend/base && pnpm test tests/video-remake.service.test.ts   # single test file
 
 # frontend/web
 cd frontend/web && pnpm run build     # vite build
@@ -56,7 +55,6 @@ There is no unified test runner across the three tiers. Before committing, at mi
 - Routers are wired in `src/app.ts` via `create<Feature>Router()` factories. `requireAuth` middleware guards everything except `/api/health` and the static `/files/*` mounts.
 - **ESM with explicit `.js` import specifiers**: source is `.ts` but imports reference the compiled output, e.g. `import { dataDir } from './db/database.js'`. Match this — do not drop the `.js` extension.
 - `migrateDatabase()` runs on app creation; schema lives in `src/db/schema.ts`.
-- The `video-remake` module is LangGraph-based (`*.langgraph.ts`, `*.workflow.ts`, `*.node-adapters.ts`) — study its existing graph wiring before modifying nodes.
 
 ## AI worker conventions (backend/ai-worker/ai_worker/)
 

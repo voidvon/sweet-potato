@@ -31,7 +31,6 @@ export const videoWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'video:all', label: '视频生成', modeKeys: [], modeTitles: [] },
   { key: 'video:creation', label: '视频生成-视频创作', modeKeys: [], modeTitles: [] },
   { key: 'video:talking-video', label: '视频生成-口播视频生成', modeKeys: [], modeTitles: [] },
-  { key: 'video:remake', label: '视频生成-爆款复刻', modeKeys: [], modeTitles: [] },
   { key: 'video:upscale', label: '视频生成-高清放大', modeKeys: [], modeTitles: [] },
   { key: 'video:subtitle-removal', label: '视频生成-字幕擦除', modeKeys: [], modeTitles: [] },
   { key: 'video:translation', label: '视频生成-视频翻译', modeKeys: [], modeTitles: [] },

@@ -723,57 +723,6 @@ export function migrateDatabase() {
       updated_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS video_remake_sessions (
-      id TEXT PRIMARY KEY,
-      task_id TEXT,
-      user_id TEXT NOT NULL,
-      filename TEXT,
-      status TEXT NOT NULL,
-      current_step TEXT NOT NULL,
-      invalid_artifacts TEXT NOT NULL DEFAULT '[]',
-      artifacts TEXT NOT NULL DEFAULT '{}',
-      workflow_state TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      cancelled_at TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS video_remake_cards (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      card_id TEXT NOT NULL,
-      card_type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      status TEXT NOT NULL,
-      data TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS video_remake_events (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS video_remake_final_segments (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      card_id TEXT NOT NULL,
-      version_label TEXT NOT NULL DEFAULT '',
-      version_number INTEGER NOT NULL DEFAULT 0,
-      segment_index INTEGER NOT NULL,
-      video_url TEXT,
-      file_path TEXT,
-      status TEXT NOT NULL DEFAULT 'completed',
-      prompt TEXT NOT NULL DEFAULT '{}',
-      data TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-
     CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_updated
     ON chat_conversations(user_id, updated_at DESC);
 
@@ -831,9 +780,6 @@ export function migrateDatabase() {
     CREATE INDEX IF NOT EXISTS idx_video_generation_tasks_user_created
     ON video_generation_tasks(user_id, created_at DESC);
 
-    CREATE INDEX IF NOT EXISTS idx_video_remake_sessions_user_updated
-    ON video_remake_sessions(user_id, updated_at DESC);
-
     CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_created
     ON credit_reservations(user_id, created_at DESC);
 
@@ -845,18 +791,6 @@ export function migrateDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_billable_usage_records_user_created
     ON billable_usage_records(user_id, created_at DESC);
-
-    CREATE INDEX IF NOT EXISTS idx_video_remake_cards_session_created
-    ON video_remake_cards(session_id, created_at ASC);
-
-    CREATE INDEX IF NOT EXISTS idx_video_remake_events_session_created
-    ON video_remake_events(session_id, created_at ASC);
-
-    CREATE INDEX IF NOT EXISTS idx_video_remake_final_segments_session_version
-    ON video_remake_final_segments(session_id, card_id, version_label, segment_index ASC);
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_video_remake_final_segments_unique
-    ON video_remake_final_segments(session_id, card_id, version_label, segment_index);
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_model_configs_type_default
     ON model_configs(type)

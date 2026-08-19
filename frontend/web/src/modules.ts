@@ -27,7 +27,7 @@ export const modules: ModuleItem[] = [
     priority: 'P0',
     icon: FileVideo,
     stats: ['文生视频', '图生视频', 'AI数字人', 'AI声音'],
-    description: '支持多模型视频生成、混剪、字幕、配乐和爆款分析。',
+    description: '支持多模型视频生成、混剪、字幕、配乐和内容策划。',
   },
   {
     id: 'account',

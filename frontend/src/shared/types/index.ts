@@ -127,7 +127,6 @@ export type BillingSettings = {
   seedance2MiniCreditsPerSecond720p: number;
   seedance2MiniCreditsPerSecond480p: number;
   videoUploadCreditsPerMb: number;
-  videoUnderstandingCreditsPer1MTokens: number;
   contentPlanningAnalysisCreditsPerRequest: number;
   contentPlanningGenerationCreditsPerRequest: number;
   talkingVideoPromptCreditsPerRequest: number;
@@ -291,9 +290,8 @@ export type BillableUsageRecord = {
     | 'video_generation'
     | 'video_upscale'
     | 'voice_clone'
-    | 'speech_synthesis'
-    | 'vod_upload'
-    | 'vod_understanding';
+  | 'speech_synthesis'
+    | 'vod_upload';
   modelConfigId?: string | null;
   provider?: string | null;
   model?: string | null;
@@ -532,7 +530,6 @@ export type CreativeModuleCode =
   | 'scene_library'
   | 'product_assets'
   | 'finished_assets'
-  | 'video_remake'
   | 'create_video';
 
 export type RealPersonResourceType = 'real_person';
@@ -593,7 +590,6 @@ export type VideoGenerationResult = {
   errorMessage?: string;
   duration: string;
   ratio: string;
-  usedReplicationPlan?: Record<string, unknown>;
   renderMode?: 'local_preview' | 'provider_generation';
   renderStatus?: 'queued' | 'rendering' | 'rendered' | 'failed';
   audioSource?: 'confirmed_audio' | 'provider_audio' | 'silent_fallback';
@@ -638,8 +634,6 @@ export type VideoParseResult = {
     items: Array<{ label: string; value: string }>;
     conclusion: string;
   }>;
-  viralAnalysis?: Record<string, unknown>;
-  replicationPlan?: Record<string, unknown>;
   videoGenerationResult?: VideoGenerationResult;
 };
 

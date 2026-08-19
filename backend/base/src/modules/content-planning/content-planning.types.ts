@@ -54,18 +54,18 @@ export type ContentPlanningMaterialBundle = {
   referenceAudio?: ContentPlanningAssetRef | null;
 };
 
-export type ContentPlanningViralBreakdownSegment = {
+export type ContentPlanningReferenceBreakdownSegment = {
   timeRange: string;
   title: string;
   summary: string;
 };
 
-export type ContentPlanningViralBreakdown = {
+export type ContentPlanningReferenceBreakdown = {
   tags: string[];
   structureFramework: string;
   emotionCurve: string;
   summary: string;
-  segments: ContentPlanningViralBreakdownSegment[];
+  segments: ContentPlanningReferenceBreakdownSegment[];
   replaceableElements: string[];
   keepElements: string[];
   applicableCategories: string[];
@@ -91,7 +91,7 @@ export type ContentPlanningProductInsights = {
 };
 
 export type ContentPlanningAnalysis = {
-  viralBreakdown?: ContentPlanningViralBreakdown | null;
+  referenceBreakdown?: ContentPlanningReferenceBreakdown | null;
   materialCaptions: ContentPlanningMaterialCaption[];
   productInsights: ContentPlanningProductInsights;
   confirmed: boolean;
@@ -327,7 +327,7 @@ export type AnalyzeContentPlanningSessionPayload = {
 export type UpdateContentPlanningConfirmationPayload = {
   userId: string;
   sessionId: string;
-  viralBreakdown?: ContentPlanningViralBreakdown | null;
+  referenceBreakdown?: ContentPlanningReferenceBreakdown | null;
   materialCaptions: ContentPlanningMaterialCaption[];
   productInsights: ContentPlanningProductInsights;
   referencePolicy: ContentPlanningSettings['referencePolicy'];

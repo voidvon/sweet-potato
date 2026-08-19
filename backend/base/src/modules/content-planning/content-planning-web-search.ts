@@ -44,7 +44,7 @@ export function buildContentPlanningWebSearchQueries(session: ContentPlanningSes
   const contentType = session.settings.contentType.trim();
   const baseTerms = [productName, category, sellingPoints].filter(Boolean).join(' ').trim();
   const queries = [
-    [baseTerms, '短视频 爆款 卖点 趋势'].filter(Boolean).join(' '),
+    [baseTerms, '短视频 热门 卖点 趋势'].filter(Boolean).join(' '),
     [productName || category, scenarios, contentType, '用户痛点 使用场景'].filter(Boolean).join(' '),
   ]
     .map((query) => query.replace(/\s+/g, ' ').trim())
@@ -134,7 +134,7 @@ async function fetchArkWebSearchOutput(input: {
               {
                 type: 'input_text',
                 text: [
-                  '你是短视频爆款策划的联网检索助手。',
+                  '你是短视频内容策划的联网检索助手。',
                   '必须使用模型提供的 web_search 工具查询实时信息。',
                   '只返回 JSON，不要 Markdown，不要输出隐藏推理过程。',
                   'JSON 格式：{"summary":"一句话趋势摘要","results":[{"query":"检索词","title":"来源标题","url":"来源 URL","snippet":"与短视频策划相关的趋势、用户关注点或竞品表达"}]}',

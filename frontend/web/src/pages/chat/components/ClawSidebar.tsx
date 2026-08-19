@@ -50,12 +50,12 @@ export function ClawSidebar({
 
   return (
     <>
-      <div className="video-remake-sidebar-section">
+      <div className="chat-sidebar-section">
         {conversations.length ? (
           <div className="video-workbench-list">
             {conversations.map((conversation) => (
               <div
-                className={`video-workbench-list-item video-remake-session-item ${conversation.id === activeConversationId ? 'active' : ''}`}
+                className={`video-workbench-list-item chat-session-item ${conversation.id === activeConversationId ? 'active' : ''}`}
                 key={conversation.id}
                 onClick={() => onOpenConversation(conversation)}
                 onKeyDown={(event) => {
@@ -68,7 +68,7 @@ export function ClawSidebar({
                 tabIndex={0}
               >
                 <div className="video-workbench-list-main">
-                  <span className="video-remake-session-title-row">
+                  <span className="chat-session-title-row">
                     <span className="video-workbench-list-title">{conversation.title || '未命名会话'}</span>
                     <Dropdown
                       menu={{
@@ -80,14 +80,14 @@ export function ClawSidebar({
                     >
                       <Button
                         aria-label="会话操作"
-                        className="video-workbench-item-action video-remake-session-action"
+                        className="video-workbench-item-action chat-session-action"
                         icon={<MoreHorizontal size={18} />}
                         onClick={(event) => event.stopPropagation()}
                         type="text"
                       />
                     </Dropdown>
                   </span>
-                  <span className="video-remake-session-meta">
+                  <span className="chat-session-meta">
                     <small className="chat-session-preview">
                       {conversationPreviewText(conversation, {
                         active: conversation.id === activeConversationId,
@@ -95,7 +95,7 @@ export function ClawSidebar({
                         sending,
                       })}
                     </small>
-                    <time className="video-remake-session-time" dateTime={conversation.updatedAt}>
+                    <time className="chat-session-time" dateTime={conversation.updatedAt}>
                       {formatRelativeCalendarDateTime(conversation.updatedAt)}
                     </time>
                   </span>

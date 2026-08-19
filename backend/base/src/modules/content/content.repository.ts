@@ -18,8 +18,6 @@ import type {
   VideoGenerationTask,
   VideoParseResult,
   VideoTaskStatus,
-  ViralReplicationPlan,
-  ViralVideoAnalysis,
 } from './content.types.js';
 
 type AssetGroupRow = {
@@ -156,8 +154,6 @@ function parseVideoResult(value: string): VideoParseResult {
         }))
         .filter((item) => item.key || item.label || item.items.length || item.conclusion)
       : [],
-    viralAnalysis: parsed.viralAnalysis as ViralVideoAnalysis | undefined,
-    replicationPlan: parsed.replicationPlan as ViralReplicationPlan | undefined,
     videoGenerationResult: parsed.videoGenerationResult as VideoGenerationResult | undefined,
   };
 }
@@ -846,8 +842,6 @@ export const contentRepository = {
       SELECT file_path FROM content_assets WHERE file_path <> ''
       UNION
       SELECT file_path FROM skill_files WHERE file_path <> ''
-      UNION
-      SELECT file_path FROM video_remake_final_segments WHERE file_path IS NOT NULL AND file_path <> ''
     `).all() as Array<{ file_path: string }>;
     return rows.map((row) => row.file_path);
   },
@@ -863,12 +857,6 @@ export const contentRepository = {
       UNION ALL SELECT expert_context FROM video_generation_tasks
       UNION ALL SELECT generated_video_url FROM video_generation_tasks
       UNION ALL SELECT generated_cover_url FROM video_generation_tasks
-      UNION ALL SELECT invalid_artifacts FROM video_remake_sessions
-      UNION ALL SELECT artifacts FROM video_remake_sessions
-      UNION ALL SELECT workflow_state FROM video_remake_sessions
-      UNION ALL SELECT data FROM video_remake_cards
-      UNION ALL SELECT video_url FROM video_remake_final_segments
-      UNION ALL SELECT data FROM video_remake_final_segments
       UNION ALL SELECT attachments FROM chat_messages
       UNION ALL SELECT actions FROM chat_messages
       UNION ALL SELECT capability_context FROM chat_messages
@@ -1007,7 +995,6 @@ export const contentRepository = {
       clauses.push(`lower(coalesce(
         nullif(json_extract(editable_parse_result, '$.videoGenerationResult.ratio'), ''),
         nullif(json_extract(expert_context, '$.videoGenerationResult.ratio'), ''),
-        nullif(json_extract(expert_context, '$.viralUnderstanding.videoGenerationResult.ratio'), ''),
         nullif(json_extract(expert_context, '$.ratio'), ''),
         ''
       )) = @${key}`);

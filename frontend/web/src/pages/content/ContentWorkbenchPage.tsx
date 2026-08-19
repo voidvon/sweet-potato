@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag } from 'antd';
-import { ContactRound, MessageSquareText, Mic2, PlayCircle, RefreshCw, Sparkles, UserRound, Video } from 'lucide-react';
+import { ContactRound, Mic2, PlayCircle, RefreshCw, Sparkles, UserRound, Video } from 'lucide-react';
 import { listContentAssetGroups, listContentAssets, listVideoTasks } from '../../api/content';
 import { API_BASE_URL } from '../../api/request';
 import { getContentNavigationRoutes } from '../../routes/routeConfig';
@@ -65,11 +65,6 @@ const moduleMeta: Record<string, {
     summary: '管理图片创作和视频生成产出的作品',
     resourceType: 'finished_video',
   },
-  video_remake: {
-    accent: 'var(--color-teal)',
-    icon: MessageSquareText,
-    summary: '用聊天卡片确认爆款复刻工作流，支持自然语言调起修改卡片',
-  },
   create_video: {
     accent: 'var(--color-brand-active)',
     icon: Video,
@@ -116,9 +111,9 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
     const handleVideoGenerationComplete = () => {
       void loadWorkbench({ showLoading: false });
     };
-    source.addEventListener('viral-video-analysis-complete', handleVideoGenerationComplete);
+    source.addEventListener('video-generation-complete', handleVideoGenerationComplete);
     return () => {
-      source.removeEventListener('viral-video-analysis-complete', handleVideoGenerationComplete);
+      source.removeEventListener('video-generation-complete', handleVideoGenerationComplete);
       source.close();
     };
   }, [currentUser.id, loadWorkbench]);
@@ -148,14 +143,6 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
         <div className="workbench-hero-actions">
           <Button icon={<RefreshCw size={16} />} loading={isLoading} onClick={() => window.location.reload()}>
             刷新
-          </Button>
-          <Button
-            disabled={!contentNavigationRoutes.some((route) => route.code === 'video_remake')}
-            icon={<MessageSquareText size={16} />}
-            onClick={() => navigate('/app/content/video_remake')}
-            type="primary"
-          >
-            爆款复刻
           </Button>
         </div>
       </section>

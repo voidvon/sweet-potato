@@ -2,12 +2,12 @@ import type { Response } from 'express';
 import type { ContentAsset } from './content.types.js';
 
 export type ContentRealtimeEvent = {
-  type: 'digital-human-three-view-status' | 'viral-video-analysis-status' | 'viral-video-analysis-delta' | 'viral-video-analysis-complete';
+  type: 'digital-human-three-view-status' | 'video-generation-status' | 'video-generation-complete';
   userId: string;
   groupId?: string;
   taskId?: string;
   status?: 'running' | 'success' | 'failed';
-  phase?: 'uploading' | 'vod-uploading' | 'vod-uploaded' | 'submitted' | 'polling' | 'message-start' | 'message-complete' | 'completed' | 'failed' | 'storyboard-ready' | 'storyboard-failed' | 'director-generating' | 'director-completed' | 'director-failed';
+  phase?: 'uploading' | 'vod-uploading' | 'vod-uploaded' | 'submitted' | 'polling' | 'completed' | 'failed';
   progress?: number;
   messageId?: string;
   roleName?: string;

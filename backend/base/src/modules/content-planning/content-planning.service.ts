@@ -79,7 +79,7 @@ const defaultContentPlanningAnalysisBilling: ContentPlanningAnalysisBilling = {
       sessionId: input.sessionId,
       credits: analysisCredits,
       step: 'content_planning_analysis',
-      stepLabel: '爆款策划素材识别',
+      stepLabel: '内容策划素材识别',
       requestSnapshot: {
         imageCount: input.imageCount,
         hasReferenceVideo: input.hasReferenceVideo,
@@ -128,7 +128,7 @@ const defaultContentPlanningGenerationBilling: ContentPlanningGenerationBilling 
       sessionId: input.sessionId,
       credits: generationCredits,
       step: 'content_planning_generation',
-      stepLabel: '爆款策划脚本生成',
+      stepLabel: '内容策划脚本生成',
       requestSnapshot: {
         candidateCount: input.candidateCount,
         deepThink: input.deepThink,
@@ -606,7 +606,7 @@ export class ContentPlanningService {
         jobStage: hasReferenceVideo ? 'analyzing_reference_video' : 'completed',
         analysis,
       }) || session;
-      const viralBreakdown = hasReferenceVideo
+      const referenceBreakdown = hasReferenceVideo
         ? await this.analysisProvider.analyzeReference({
           productName: session.materialBundle.productName,
           prompt: session.materialBundle.prompt,
@@ -620,7 +620,7 @@ export class ContentPlanningService {
         status: 'confirming',
         uiStep: 'step2',
         jobStage: 'completed',
-        analysis: { ...analysis, viralBreakdown },
+        analysis: { ...analysis, referenceBreakdown },
       });
       if (!completed) {
         throw new Error('planning session could not be updated');
@@ -663,7 +663,9 @@ export class ContentPlanningService {
     const session = this.getSession(input.userId, input.sessionId);
     const analysis: ContentPlanningAnalysis = {
       ...session.analysis,
-      viralBreakdown: input.viralBreakdown === undefined ? session.analysis.viralBreakdown : input.viralBreakdown,
+      referenceBreakdown: input.referenceBreakdown === undefined
+        ? session.analysis.referenceBreakdown
+        : input.referenceBreakdown,
       materialCaptions: input.materialCaptions,
       productInsights: input.productInsights,
       confirmed: true,

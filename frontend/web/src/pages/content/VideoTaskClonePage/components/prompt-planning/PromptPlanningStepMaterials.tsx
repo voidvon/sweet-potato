@@ -55,7 +55,7 @@ export function PromptPlanningStepMaterials({ controller }: PromptPlanningStepMa
 
       <FieldHeading
         title="参考视频"
-        subtitle="选填 · 1条 · AI 拆解节奏/镜头/结构，脚本照爆款复刻"
+        subtitle="选填 · 1条 · AI 拆解节奏/镜头/结构，脚本参考其结构"
       />
       {referenceVideoFile ? (
         <ReferenceVideoCard

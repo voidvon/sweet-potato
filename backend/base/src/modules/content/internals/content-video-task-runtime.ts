@@ -12,13 +12,12 @@ VideoGenerationResult
 
 import { privateAssetId,stringMetadataField } from './content-common.js';
 import { appendVideoGenerationResultHistory,createFinishedVideoAsset,markFinishedVideoAssetFailed } from './content-image-assets.js';
-import { isSegmentedVideoGenerationState,queryConfiguredVideoModelTask,recordVideoGenerationUsageIfNeeded,resumeSegmentedSeedanceVideoGeneration } from './content-video-generation.js';
+import { queryConfiguredVideoModelTask, recordVideoGenerationUsageIfNeeded } from './content-video-generation.js';
 import { mirrorGeneratedVideoToLocalInBackground } from './content-video-local-mirror.js';
 import { defaultVideoPollMaxAttempts } from './content-video-polling.js';
-import { isRecord,normalizeParseResult } from './content-viral-analysis.js';
-import { logVideoGenerationFlow } from './content-viral-director.js';
+import { isRecord, normalizeParseResult } from './content-video-task-utils.js';
+import { logVideoGenerationFlow } from './content-video-logging.js';
 import { absolutizeMaterialUrl } from './content-voice-clone.js';
-import { resumeSceneAwareSegmentedSeedanceVideoGeneration } from '../../video-remake/video-remake.segmented-runtime.js';
 
 export const runningVideoGenerationPollingTaskIds = new Set<string>();
 
@@ -27,10 +26,9 @@ export function generationResultForTask(task: ReturnType<typeof contentRepositor
     return undefined;
   }
   const context = isRecord(task.expertContext) ? task.expertContext : {};
-  const viralUnderstanding = isRecord(context.viralUnderstanding) ? context.viralUnderstanding : {};
   return task.editableParseResult.videoGenerationResult
     || (isRecord(context.videoGenerationResult) ? context.videoGenerationResult as VideoGenerationResult : undefined)
-    || (isRecord(viralUnderstanding.videoGenerationResult) ? viralUnderstanding.videoGenerationResult as VideoGenerationResult : undefined);
+    || undefined;
 }
 
 export function updateVideoTaskParseResult(id: string, payload: UpdateVideoParsePayload) {
@@ -67,10 +65,6 @@ export function applyVideoGenerationStatusToTask(
   }
   const result = generationResultForTask(task);
   const taskContext = isRecord(task.expertContext) ? task.expertContext : {};
-  const viralUnderstanding = isRecord(taskContext.viralUnderstanding) ? taskContext.viralUnderstanding : {};
-  const isDirectorGeneration = viralUnderstanding.directorStatus === 'generating'
-    || isRecord(viralUnderstanding.videoGenerationResult);
-
   if (providerResult.status === 'failed') {
     const failureReason = providerResult.errorMessage || '视频生成失败';
     if (typeof taskContext.videoBillingReservationId === 'string') {
@@ -116,29 +110,16 @@ export function applyVideoGenerationStatusToTask(
       requiredUserAction: 'configure_video_model_or_retry',
       updatedAt: new Date().toISOString(),
     };
-    if (isDirectorGeneration) {
-      nextExpertContext.viralUnderstanding = {
-        ...(isRecord(taskWithResult.expertContext.viralUnderstanding) ? taskWithResult.expertContext.viralUnderstanding : {}),
-        directorStatus: 'failed',
-        directorFailureReason: failureReason,
-        videoGenerationResult: failedResult,
-        videoGenerationResults: appendVideoGenerationResultHistory(
-          isRecord(taskWithResult.expertContext.viralUnderstanding) ? taskWithResult.expertContext.viralUnderstanding : {},
-          failedResult,
-        ),
-        updatedAt: new Date().toISOString(),
-      };
-    }
     const failedTask = contentRepository.updateVideoTaskContext(task.id, {
       selectedSkillIds: taskWithResult.selectedSkillIds,
       expertContext: nextExpertContext,
     });
     if (failedTask) {
       publishContentEvent({
-        type: 'viral-video-analysis-complete',
+        type: 'video-generation-complete',
         userId: task.userId,
         taskId: task.id,
-        phase: isDirectorGeneration ? 'director-failed' : 'failed',
+        phase: 'failed',
         status: 'failed',
         message: failureReason,
         task: failedTask,
@@ -235,19 +216,6 @@ export function applyVideoGenerationStatusToTask(
       requiredUserAction: null,
       updatedAt: new Date().toISOString(),
     };
-    if (isDirectorGeneration) {
-      nextExpertContext.viralUnderstanding = {
-        ...(isRecord(taskWithResult.expertContext.viralUnderstanding) ? taskWithResult.expertContext.viralUnderstanding : {}),
-        directorStatus: 'completed',
-        directorStep: 'final',
-        videoGenerationResult: completedResult,
-        videoGenerationResults: appendVideoGenerationResultHistory(
-          isRecord(taskWithResult.expertContext.viralUnderstanding) ? taskWithResult.expertContext.viralUnderstanding : {},
-          completedResult,
-        ),
-        updatedAt: new Date().toISOString(),
-      };
-    }
     const completedTask = contentRepository.updateVideoTaskContext(task.id, {
       selectedSkillIds: taskWithResult.selectedSkillIds,
       expertContext: nextExpertContext,
@@ -262,10 +230,10 @@ export function applyVideoGenerationStatusToTask(
         model: providerResult.model,
       });
       publishContentEvent({
-        type: 'viral-video-analysis-complete',
+        type: 'video-generation-complete',
         userId: task.userId,
         taskId: task.id,
-        phase: isDirectorGeneration ? 'director-completed' : 'completed',
+        phase: 'completed',
         status: 'success',
         message: '视频生成完成',
         task: completedTask,
@@ -312,15 +280,6 @@ export function applyVideoGenerationStatusToTask(
     requiredUserAction: null,
     updatedAt: new Date().toISOString(),
   };
-  if (isDirectorGeneration) {
-    nextExpertContext.viralUnderstanding = {
-      ...(isRecord(taskWithResult.expertContext.viralUnderstanding) ? taskWithResult.expertContext.viralUnderstanding : {}),
-      directorStatus: 'generating',
-      directorStep: 'final',
-      videoGenerationResult: nextRunningResult,
-      updatedAt: new Date().toISOString(),
-    };
-  }
   return contentRepository.updateVideoTaskContext(task.id, {
     selectedSkillIds: taskWithResult.selectedSkillIds,
     expertContext: nextExpertContext,
@@ -355,16 +314,6 @@ export async function pollRunningVideoGenerationTask(taskId: string) {
   runningVideoGenerationPollingTaskIds.add(taskId);
   try {
     const initial = contentRepository.findVideoTask(taskId);
-    const segmentedState = initial?.expertContext?.videoGenerationSegments;
-    if (initial && isSegmentedVideoGenerationState(segmentedState) && segmentedState.status === 'running') {
-      const requestContext = isRecord(segmentedState.request?.context) ? segmentedState.request.context : {};
-      if (Array.isArray(requestContext.videoRemakeSegmentInputs) && requestContext.videoRemakeSegmentInputs.length > 0) {
-        await resumeSceneAwareSegmentedSeedanceVideoGeneration(initial, segmentedState);
-        return;
-      }
-      await resumeSegmentedSeedanceVideoGeneration(initial, segmentedState);
-      return;
-    }
     const intervalMs = Number(process.env.VIDEO_GENERATION_POLL_INTERVAL_MS || 30000);
     const maxAttempts = Math.max(1, Number(
       process.env.VIDEO_GENERATION_POLL_MAX_ATTEMPTS || defaultVideoPollMaxAttempts(intervalMs),

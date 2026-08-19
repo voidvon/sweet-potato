@@ -103,7 +103,7 @@
 - `GET /api/content/temporary-assets/cleanup-candidates` 分页返回带过期时间的临时素材，按计划清理时间升序排列。
 - `GET /api/content/temporary-assets/disk-space` 返回临时素材存储目录所在磁盘的可用空间，格式为 `{ "availableBytes": number }`。
 - `GET /api/content/temporary-assets/cleanup-logs` 返回最近 100 条成功清理记录。
-- `GET /api/content/temporary-assets/orphan-files` 递归扫描 `data/files/`，对比内容素材、技能文件、视频任务、视频复刻会话、聊天附件及生成任务等数据库直接路径和 JSON 文件引用，返回疑似孤立文件数量、体积及最多 500 条明细；该接口只读，不删除文件，并忽略缩略图缓存、日志和符号链接。
+- `GET /api/content/temporary-assets/orphan-files` 递归扫描 `data/files/`，对比内容素材、技能文件、视频任务、聊天附件及生成任务等数据库直接路径和 JSON 文件引用，返回疑似孤立文件数量、体积及最多 500 条明细；该接口只读，不删除文件，并忽略缩略图缓存、日志和符号链接。
 - `POST /api/content/temporary-assets/orphan-files/delete` 接收 `{ "relativePaths": string[] }`，删除最多 500 个疑似孤立文件；删除前会再次校验路径位于 `data/files/`、不在忽略范围内且当前未被数据库文件记录引用。
 - `POST /api/content/temporary-assets/cleanup-selected` 接收 `{ "assetIds": string[] }`，立即删除最多 100 条仍处于临时状态且未被引用的指定素材，返回 `{ "deleted": number }`。
 - `POST /api/content/temporary-assets/cleanup` 立即清理当前已过期且无引用的临时素材，返回 `{ "deleted": number }`。
@@ -192,7 +192,6 @@
 
 ## 2026-05-12 Backend Contract Update
 
-- 爆款复刻现在使用 `/api/video-remake/*`，旧版 `/api/content/video-tasks/*` 复刻接口已移除。
 - 直接创建视频使用 `/api/content/video-productions` 和已配置的默认视频模型。供应商响应可能包含 `videoUrl` 或 `jobId`。
 - 视频模型配置缺失或不完整时返回 `400` 和 `请先配置视频模型`。供应商调用失败时，任务会标记为 `failed`，并记录 `failureReason`，不会创建本地 mp4 兜底文件。
 
@@ -235,7 +234,7 @@ Base 配置使用 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `ARK_VIDEO_MODEL`。`
 
 `GET /api/content-planning/sessions/:id/updates` 同时返回 `reasoningStream`，用于 SSE 断线、关闭弹窗后重新打开以及后台继续生成时恢复最新文本。模型隐藏推理字段不会传给客户端；实时展示内容来自结构化输出中的公开 `auditText`，最终候选结果仍在完整 JSON 解析和 Schema 校验通过后提交。
 
-策划会话可以保存 `referenceAudio`，但参考音色不会发送给策划分析模型。`POST /api/content-planning/sessions/:id/apply` 会在 `allowlist.referenceVideo` 和 `allowlist.referenceAudio` 中返回参考视频与参考音色，供视频创作表单完整回填；参考视频同时参与爆款结构分析。
+策划会话可以保存 `referenceAudio`，但参考音色不会发送给策划分析模型。`POST /api/content-planning/sessions/:id/apply` 会在 `allowlist.referenceVideo` 和 `allowlist.referenceAudio` 中返回参考视频与参考音色，供视频创作表单完整回填；参考视频同时参与短视频结构分析。
 
 `POST /api/content-planning/sessions/:id/analyze` 按一次“开始识别”操作收取固定积分，额度由 Base 环境变量 `CONTENT_PLANNING_ANALYSIS_CREDITS` 配置。请求开始时预扣，商品图识别及可选参考视频拆解全部成功后结算；任一阶段失败会释放预扣积分。
 

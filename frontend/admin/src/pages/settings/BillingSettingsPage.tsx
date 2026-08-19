@@ -14,7 +14,6 @@ type BillingFormValues = Pick<
   | 'seedance2MiniCreditsPerSecond720p'
   | 'seedance2MiniCreditsPerSecond480p'
   | 'videoUploadCreditsPerMb'
-  | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'
   | 'contentPlanningGenerationCreditsPerRequest'
   | 'talkingVideoPromptCreditsPerRequest'
@@ -68,7 +67,6 @@ export function BillingSettingsPage() {
         seedance2MiniCreditsPerSecond720p: settings.seedance2MiniCreditsPerSecond720p,
         seedance2MiniCreditsPerSecond480p: settings.seedance2MiniCreditsPerSecond480p,
         videoUploadCreditsPerMb: settings.videoUploadCreditsPerMb,
-        videoUnderstandingCreditsPer1MTokens: settings.videoUnderstandingCreditsPer1MTokens,
         contentPlanningAnalysisCreditsPerRequest: settings.contentPlanningAnalysisCreditsPerRequest,
         contentPlanningGenerationCreditsPerRequest: settings.contentPlanningGenerationCreditsPerRequest,
         talkingVideoPromptCreditsPerRequest: settings.talkingVideoPromptCreditsPerRequest,
@@ -145,7 +143,6 @@ export function BillingSettingsPage() {
               seedance2MiniCreditsPerSecond720p: 15,
               seedance2MiniCreditsPerSecond480p: 7,
               videoUploadCreditsPerMb: 0,
-              videoUnderstandingCreditsPer1MTokens: 0,
               contentPlanningAnalysisCreditsPerRequest: 2,
               contentPlanningGenerationCreditsPerRequest: 3,
               talkingVideoPromptCreditsPerRequest: 3,
@@ -242,34 +239,23 @@ export function BillingSettingsPage() {
               <InputNumber addonAfter="credit / MB" min={0} precision={6} style={priceInputStyle} />
             </Form.Item>
             <Form.Item
-              label="视频理解单价"
-              extra="按视频理解返回的实际 token 数量直接折算积分。"
-              name="videoUnderstandingCreditsPer1MTokens"
-              rules={[
-                { required: true, message: '请输入视频理解 token 单价' },
-                { validator: nonNegativePriceValidator('视频理解 token 单价') },
-              ]}
-            >
-              <InputNumber addonAfter="credit / 1M tokens" min={0} precision={6} style={priceInputStyle} />
-            </Form.Item>
-            <Form.Item
-              label="爆款策划 · 素材识别"
+              label="内容策划 · 素材识别"
               extra="点击“开始识别”并成功完成素材分析时收取的固定积分。"
               name="contentPlanningAnalysisCreditsPerRequest"
               rules={[
-                { required: true, message: '请输入爆款策划素材识别单次价格' },
-                { validator: nonNegativePriceValidator('爆款策划素材识别单次价格') },
+                { required: true, message: '请输入内容策划素材识别单次价格' },
+                { validator: nonNegativePriceValidator('内容策划素材识别单次价格') },
               ]}
             >
               <InputNumber addonAfter="credit / 次" min={0} precision={6} style={priceInputStyle} />
             </Form.Item>
             <Form.Item
-              label="爆款策划 · 脚本生成"
+              label="内容策划 · 脚本生成"
               extra="点击“生成脚本”并成功完成候选脚本生成时收取的固定积分。"
               name="contentPlanningGenerationCreditsPerRequest"
               rules={[
-                { required: true, message: '请输入爆款策划脚本生成单次价格' },
-                { validator: nonNegativePriceValidator('爆款策划脚本生成单次价格') },
+                { required: true, message: '请输入内容策划脚本生成单次价格' },
+                { validator: nonNegativePriceValidator('内容策划脚本生成单次价格') },
               ]}
             >
               <InputNumber addonAfter="credit / 次" min={0} precision={6} style={priceInputStyle} />

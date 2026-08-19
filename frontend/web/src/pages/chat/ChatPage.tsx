@@ -9,7 +9,6 @@ import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import { VideoWorkbenchLayout } from '../../layouts/VideoWorkbenchLayout';
 import { Button } from 'antd';
 import { Plus } from 'lucide-react';
-import '../content/VideoRemakePage/VideoRemakePage.scss';
 import './ChatPage.scss';
 
 export function ChatPage() {

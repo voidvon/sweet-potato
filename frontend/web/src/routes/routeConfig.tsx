@@ -17,8 +17,6 @@ import {
   RobotFilled,
   RobotOutlined,
   TableOutlined,
-  ThunderboltFilled,
-  ThunderboltOutlined,
   VideoCameraFilled,
   VideoCameraOutlined,
 } from '@ant-design/icons';
@@ -401,32 +399,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       },
       contentNavigation: {
         code: 'finished_assets',
-      },
-    },
-  },
-  {
-    key: 'content-video-remake',
-    path: 'content/video_remake',
-    fullPath: routePaths.contentModule('video_remake'),
-    element: (currentUser) => withImmersiveSuspense(<ContentStudioPage currentUser={currentUser} moduleCode="video_remake" />),
-    routeResource: {
-      permissionCode: 'web.module.content.video_remake',
-      protected: true,
-      resourceKey: 'web.module.content.video_remake',
-      resourceType: 'menu',
-    },
-    handle: {
-      title: '爆款复刻工作流',
-      surface: 'immersive',
-      sidebar: {
-        groupKey: 'video',
-        icon: <ThunderboltOutlined />,
-        label: '爆款复刻',
-        selectedIcon: <ThunderboltFilled />,
-        tag: 'HOT',
-      },
-      contentNavigation: {
-        code: 'video_remake',
       },
     },
   },

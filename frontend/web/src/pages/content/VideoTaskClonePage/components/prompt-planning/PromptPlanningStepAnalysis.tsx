@@ -33,10 +33,10 @@ export function PromptPlanningStepAnalysis({ controller }: PromptPlanningStepAna
       <section className="video-task-epa-analysis-section">
         <div className="video-task-epa-section-head">
           <div>
-            <strong>参考视频爆款拆解</strong>
-            <span>脚本将照这条视频的结构复刻</span>
+            <strong>参考视频拆解</strong>
+            <span>脚本将参考这条视频的结构</span>
           </div>
-          {session.analysis.viralBreakdown ? (
+          {session.analysis.referenceBreakdown ? (
             <button
               className={`video-task-epa-text-action${analysisDraft.useBreakdown ? '' : ' is-muted'}`}
               onClick={() => {
@@ -47,34 +47,34 @@ export function PromptPlanningStepAnalysis({ controller }: PromptPlanningStepAna
               }}
               type="button"
             >
-              {analysisDraft.useBreakdown ? '不复刻这条视频' : '恢复复刻这条视频'}
+              {analysisDraft.useBreakdown ? '不使用参考结构' : '使用参考结构'}
             </button>
           ) : null}
         </div>
         <div className={`video-task-epa-breakdown-card ${!analysisDraft.useBreakdown ? 'video-task-epa-empty-hint' : ''}`}>
-          {session.analysis.viralBreakdown ? (
+          {session.analysis.referenceBreakdown ? (
             <>
-              {session.analysis.viralBreakdown.tags.length ? (
+              {session.analysis.referenceBreakdown.tags.length ? (
                 <div className="video-task-epa-pill-line is-soft">
-                  {session.analysis.viralBreakdown.tags.map((tag) => (
+                  {session.analysis.referenceBreakdown.tags.map((tag) => (
                     <span className="video-task-epa-pill" key={tag}>{tag}</span>
                   ))}
                 </div>
               ) : null}
-              <BreakdownLine label="结构框架" value={session.analysis.viralBreakdown.structureFramework} />
-              <BreakdownLine label="情绪曲线" value={session.analysis.viralBreakdown.emotionCurve} />
-              {session.analysis.viralBreakdown.segments.map((segment) => (
+              <BreakdownLine label="结构框架" value={session.analysis.referenceBreakdown.structureFramework} />
+              <BreakdownLine label="情绪曲线" value={session.analysis.referenceBreakdown.emotionCurve} />
+              {session.analysis.referenceBreakdown.segments.map((segment) => (
                 <BreakdownLine
                   key={`${segment.timeRange}-${segment.title}`}
                   label={formatPlanningTimeRange(segment.timeRange)}
                   value={`${segment.title}${segment.summary ? ` ${segment.summary}` : ''}`}
                 />
               ))}
-              <BreakdownTagLine label="可替换" tags={session.analysis.viralBreakdown.replaceableElements} tone="green" />
-              <BreakdownTagLine label="建议保留" tags={session.analysis.viralBreakdown.keepElements} tone="gray" />
+              <BreakdownTagLine label="可替换" tags={session.analysis.referenceBreakdown.replaceableElements} tone="green" />
+              <BreakdownTagLine label="建议保留" tags={session.analysis.referenceBreakdown.keepElements} tone="gray" />
               <BreakdownLine
                 label="适用品类"
-                value={session.analysis.viralBreakdown.applicableCategories.join('、')}
+                value={session.analysis.referenceBreakdown.applicableCategories.join('、')}
               />
             </>
           ) : (

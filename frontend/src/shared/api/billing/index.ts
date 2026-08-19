@@ -36,7 +36,6 @@ export function updateBillingSettings(payload: Pick<
   | 'seedance2MiniCreditsPerSecond720p'
   | 'seedance2MiniCreditsPerSecond480p'
   | 'videoUploadCreditsPerMb'
-  | 'videoUnderstandingCreditsPer1MTokens'
   | 'contentPlanningAnalysisCreditsPerRequest'
   | 'contentPlanningGenerationCreditsPerRequest'
   | 'talkingVideoPromptCreditsPerRequest'

@@ -76,8 +76,6 @@ export function billableCategoryLabel(category: AdminBillableUsageRecord['catego
       return { color: 'gold', text: '语音合成' };
     case 'vod_upload':
       return { color: 'blue', text: '视频上传' };
-    case 'vod_understanding':
-      return { color: 'purple', text: '视频理解' };
     default:
       return { color: 'default', text: category };
   }

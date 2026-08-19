@@ -6,8 +6,6 @@ import {
   FolderOpenOutlined,
   PictureFilled,
   PictureOutlined,
-  ThunderboltFilled,
-  ThunderboltOutlined,
   UserOutlined,
   VideoCameraFilled,
   VideoCameraOutlined,
@@ -30,7 +28,6 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
   const mobileBottomNavItems: WorkspaceBottomNavItem[] = [
     { key: routePaths.defaultModule, label: '图片创作', icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
     { key: routePaths.contentModule('create_video'), label: '视频创作', icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
-    { key: routePaths.contentModule('video_remake'), label: '爆款复刻', icon: <ThunderboltOutlined />, selectedIcon: <ThunderboltFilled /> },
     { key: routePaths.contentRoot, label: '素材', icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
     { key: routePaths.contentModule('finished_assets'), label: '作品', icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
     { key: routePaths.account, label: '我的', icon: <UserOutlined /> },

@@ -116,96 +116,7 @@ export type VideoParseResult = {
   spokenContent: string;
   extraDetails: string;
   analysisProcess?: VideoAnalysisProcessSection[];
-  viralAnalysis?: ViralVideoAnalysis;
-  replicationPlan?: ViralReplicationPlan;
   videoGenerationResult?: VideoGenerationResult;
-};
-
-export type ViralRoleType = 'human' | 'animal' | 'virtual_avatar' | 'anthropomorphic_object' | 'none';
-
-export type ViralAnalysisDimension<T = Record<string, unknown>> = {
-  key: ViralAnalysisDimensionKey;
-  label: string;
-  priority: 'P0' | 'P1' | 'P2' | 'P3';
-  appeared: boolean;
-  summary: string;
-  skipReason?: string;
-  evidence: string[];
-  details: T;
-};
-
-export type ViralAnalysisDimensionKey =
-  | 'basicInfo'
-  | 'formatQuality'
-  | 'role'
-  | 'scene'
-  | 'product'
-  | 'pip'
-  | 'narrative'
-  | 'camera'
-  | 'colorLighting'
-  | 'audioMood'
-  | 'captionCopy'
-  | 'interaction'
-  | 'cover'
-  | 'sellingPoint'
-  | 'negativePrompts';
-
-export type ViralVideoAnalysis = {
-  version: 1;
-  sourceType: 'url' | 'prompt';
-  sourceValue: string;
-  deterministicSeed: string;
-  dimensions: Record<ViralAnalysisDimensionKey, ViralAnalysisDimension>;
-  role: ViralAnalysisDimension<{
-    roleType: ViralRoleType;
-    human?: { ageRange: string; genderExpression: string; outfit: string; expression: string; action: string };
-    animal?: { species: string; behavior: string; anthropomorphicLevel: string };
-    virtualAvatar?: { style: string; realism: string; brandPersona: string };
-    anthropomorphicObject?: { objectName: string; humanizedTraits: string; movement: string };
-    noRole?: { reason: string; visualFocus: string };
-  }>;
-  narrative: ViralAnalysisDimension<{
-    hookFirst3Seconds: string;
-    timeline: Array<{ timeRange: string; beat: string; purpose: string }>;
-    climaxTurn: string;
-    ending: string;
-  }>;
-  sellingPoint: ViralAnalysisDimension<{
-    coreValue: string;
-    proofPoints: string[];
-    retentionLevers: string[];
-  }>;
-  negativePrompts: ViralAnalysisDimension<{
-    people: string[];
-    scene: string[];
-    props: string[];
-    quality: string[];
-    copyCompliance: string[];
-  }>;
-  createdAt: string;
-};
-
-export type ViralReplacementItem = {
-  dimension: ViralAnalysisDimensionKey;
-  label: string;
-  sourceSummary: string;
-  replacementSuggestion: string;
-  mustKeep: string;
-};
-
-export type ViralReplicationPlan = {
-  version: 1;
-  taskId: string;
-  targetPlatform: string;
-  userBrandOrProduct: string;
-  replacementBrief: string;
-  replacementItems: ViralReplacementItem[];
-  voiceoverScript: Array<{ timeRange: string; text: string; rhythm: string }>;
-  visualPrompt: string;
-  negativePrompts: string[];
-  keepRules: string[];
-  generatedAt: string;
 };
 
 export type VideoGenerationResult = {
@@ -221,7 +132,6 @@ export type VideoGenerationResult = {
   errorMessage?: string;
   duration: string;
   ratio: string;
-  usedReplicationPlan?: ViralReplicationPlan;
   renderMode?: 'local_preview' | 'provider_generation' | 'segmented_ffmpeg';
   renderStatus?: 'queued' | 'rendering' | 'rendered' | 'failed';
   audioSource?: 'confirmed_audio' | 'provider_audio' | 'silent_fallback';
@@ -435,8 +345,4 @@ export type UpdateVideoTaskContextPayload = {
 
 export type GenerateVideoPayload = {
   userId?: string;
-  replicationPlan?: ViralReplicationPlan;
-  confirmedVoice?: Record<string, unknown> | null;
-  confirmedScene?: Record<string, unknown> | null;
-  confirmedDigitalHuman?: Record<string, unknown> | null;
 };
