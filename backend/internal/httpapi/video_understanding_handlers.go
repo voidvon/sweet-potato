@@ -6,7 +6,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
+
+	"ai-marketing-go/internal/store"
 )
 
 func (s *Server) handleVideoUnderstanding(w http.ResponseWriter, r *http.Request) {
@@ -90,41 +91,23 @@ func (s *Server) completeVideoUnderstanding(r *http.Request, input map[string]an
 	if modelConfig == nil || strings.TrimSpace(modelConfig.APIKey) == "" {
 		return fmt.Sprintf("Go 本地视频理解已完成。\n%s\n媒体输入：%s\n请根据以上观察继续组织分镜、角色替换和镜头约束。", prompt, mediaSummary), "已读取视频理解请求，并采用本地结构化分析流程。", nil
 	}
-	baseURL := strings.TrimRight(valueOr(modelConfig.BaseURL, "https://api.openai.com/v1"), "/")
-	messages := []map[string]string{{"role": "system", "content": "你是专业视频理解助手，请输出准确、可执行的中文视频分析。"}, {"role": "user", "content": prompt + "\n媒体输入摘要：" + mediaSummary}}
-	payload := map[string]any{"model": valueOr(modelConfig.Model, requested), "messages": messages, "temperature": modelConfig.Temperature, "stream": false}
-	body, _ := json.Marshal(payload)
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, baseURL+"/chat/completions", strings.NewReader(string(body)))
-	if err != nil {
-		return "", "", err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+modelConfig.APIKey)
-	client := &http.Client{Timeout: 3 * time.Minute}
-	response, err := client.Do(request)
+	result, err := callResponses(store.ModelConfig{
+		APIKey:      modelConfig.APIKey,
+		BaseURL:     modelConfig.BaseURL,
+		Model:       valueOr(modelConfig.Model, requested),
+		Temperature: modelConfig.Temperature,
+	}, []map[string]any{
+		{"role": "system", "content": "你是专业视频理解助手，请输出准确、可执行的中文视频分析。"},
+		{"role": "user", "content": prompt + "\n媒体输入摘要：" + mediaSummary},
+	}, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("调用视频理解模型失败: %w", err)
 	}
-	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
-	if err != nil {
-		return "", "", err
+	answer := responseOutputText(result)
+	if strings.TrimSpace(answer) == "" {
+		return "", "", fmt.Errorf("视频理解模型没有返回有效内容")
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", "", fmt.Errorf("视频理解模型返回 %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
-	}
-	var result struct {
-		Choices []struct {
-			Message struct {
-				Content   string `json:"content"`
-				Reasoning string `json:"reasoning_content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if json.Unmarshal(raw, &result) != nil || len(result.Choices) == 0 {
-		return "", "", fmt.Errorf("视频理解模型响应格式无效")
-	}
-	return result.Choices[0].Message.Content, result.Choices[0].Message.Reasoning, nil
+	return answer, responseReasoningText(result), nil
 }
 
 type storeModelConfigView struct {

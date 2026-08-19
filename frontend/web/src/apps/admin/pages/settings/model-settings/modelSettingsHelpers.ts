@@ -18,9 +18,7 @@ import type {
 } from '../../../types';
 import { defaultFormValues } from './modelSettingsConstants';
 
-export type ModelFormValues = ModelConfig & {
-  llmPricingId?: string;
-};
+export type ModelFormValues = ModelConfig;
 
 export function saveModelConfig(values: ModelConfig) {
   return values.id ? updateModelConfig(values.id, values) : createModelConfig(values);
@@ -37,10 +35,6 @@ export function toTwoDecimalValue(value: unknown, fallback = 0) {
 
 export function findLlmPricing(catalog: LlmModelPricing[], provider: string, model: string) {
   return catalog.find((item) => item.provider === provider && item.model === model);
-}
-
-export function findLlmPricingById(catalog: LlmModelPricing[], id: string) {
-  return catalog.find((item) => item.id === id);
 }
 
 export function llmBillingFromPricing(

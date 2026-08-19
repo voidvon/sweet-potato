@@ -27,6 +27,7 @@ type chatRequest struct {
 	Content               string         `json:"content"`
 	CapabilityContext     map[string]any `json:"capabilityContext"`
 	RequestedCapabilities []string       `json:"requestedCapabilities"`
+	AutoImageGeneration   bool           `json:"autoImageGeneration"`
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +236,7 @@ var errChatAgentNotFound = errors.New("智能体不存在")
 func (s *Server) createChatResponse(user store.User, input chatRequest) (map[string]any, error) {
 	content := strings.TrimSpace(input.Content)
 	imageRequest := isImageGenerationRequest(input)
+	imageDecision := imageGenerationDecision{}
 	if content == "" && len(input.Attachments) == 0 && !imageRequest {
 		return nil, errors.New("消息内容不能为空")
 	}
@@ -302,6 +304,16 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	var assistantAttachments []any
 	var imageModelID *string
 	var imageExpectedCount *int
+	if input.AutoImageGeneration {
+		imageDecision, err = s.decideImageGeneration(model, agent, history, input.CapabilityContext)
+		if err != nil {
+			return nil, err
+		}
+		imageRequest = imageDecision.Generate
+		if imageRequest {
+			input.CapabilityContext = applyImageToolArguments(input.CapabilityContext, imageDecision.Arguments)
+		}
+	}
 	if imageRequest {
 		imageModel := s.resolveImageModelConfig(pointerValue(input.ImageModelConfigID))
 		generation := objectValue(input.CapabilityContext["imageGeneration"])
@@ -321,10 +333,15 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 		for _, asset := range assets {
 			assistantAttachments = append(assistantAttachments, chatAttachmentPayload(asset))
 		}
-		answer = fmt.Sprintf("已生成 %d 张图片。", len(assets))
+		answer = valueOr(imageDecision.Answer, fmt.Sprintf("已生成 %d 张图片。", len(assets)))
 		imageModelID = stringPointer(imageModel.ID)
 		value := count
 		imageExpectedCount = &value
+	} else if input.AutoImageGeneration {
+		answer = imageDecision.Answer
+		if strings.TrimSpace(answer) == "" {
+			answer = "我可以帮你生成图片，请描述想要的画面。"
+		}
 	} else {
 		answer, reasoning, err = s.completeChat(model, agent, history)
 		if err != nil {
@@ -354,6 +371,65 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	_ = userMessage
 	_ = assistantMessage
 	return map[string]any{"conversation": conversation, "messages": messages}, nil
+}
+
+type imageGenerationDecision struct {
+	Generate  bool
+	Arguments map[string]any
+	Answer    string
+}
+
+// decideImageGeneration lets the configured chat model choose whether the
+// image tool is needed. The server still validates and executes the tool.
+func (s *Server) decideImageGeneration(model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
+	messages := make([]map[string]any, 0, len(history)+1)
+	systemPrompt := strings.TrimSpace(agent.SystemPrompt)
+	if systemPrompt == "" {
+		systemPrompt = "你是一个高效、准确的 AI 助手。"
+	}
+	contextJSON, _ := json.Marshal(contextValue)
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。当前工作台上下文：" + string(contextJSON)
+	messages = append(messages, map[string]any{"role": "system", "content": systemPrompt})
+	for _, item := range history {
+		messages = append(messages, map[string]any{"role": item.Role, "content": item.Content})
+	}
+	result, err := callResponses(model, messages, []map[string]any{imageGenerationTool()})
+	if err != nil {
+		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
+	}
+	decision := imageGenerationDecision{Answer: responseOutputText(result)}
+	for _, item := range result.Output {
+		if item.Type != "function_call" || item.Name != "image_generation" {
+			continue
+		}
+		var arguments map[string]any
+		if err := json.Unmarshal([]byte(item.Arguments), &arguments); err != nil {
+			return imageGenerationDecision{}, fmt.Errorf("图片工具参数格式无效: %w", err)
+		}
+		decision.Generate = true
+		decision.Arguments = arguments
+		break
+	}
+	return decision, nil
+}
+
+func applyImageToolArguments(contextValue map[string]any, arguments map[string]any) map[string]any {
+	result := map[string]any{}
+	for key, value := range contextValue {
+		result[key] = value
+	}
+	generation := objectValue(result["imageGeneration"])
+	copyGeneration := map[string]any{}
+	for key, value := range generation {
+		copyGeneration[key] = value
+	}
+	for source, target := range map[string]string{"prompt": "promptText", "count": "outputCount", "size": "outputSize", "aspect_ratio": "aspectRatio", "resolution": "resolution", "background": "outputBackground"} {
+		if value, ok := arguments[source]; ok {
+			copyGeneration[target] = value
+		}
+	}
+	result["imageGeneration"] = copyGeneration
+	return result
 }
 
 func isImageGenerationRequest(input chatRequest) bool {
@@ -391,58 +467,146 @@ func (s *Server) resolveChatConversation(userID string, input chatRequest, agent
 	return conversation, true, nil
 }
 
-func (s *Server) completeChat(model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
+type responsesOutputContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type responsesOutputSummary struct {
+	Text string `json:"text"`
+}
+
+type responsesOutputItem struct {
+	Type      string                   `json:"type"`
+	Name      string                   `json:"name"`
+	Arguments string                   `json:"arguments"`
+	Content   []responsesOutputContent `json:"content"`
+	Summary   []responsesOutputSummary `json:"summary"`
+}
+
+type responsesResult struct {
+	Output     []responsesOutputItem `json:"output"`
+	OutputText string                `json:"output_text"`
+}
+
+func callResponses(model store.ModelConfig, input []map[string]any, tools []map[string]any) (responsesResult, error) {
 	if strings.TrimSpace(model.APIKey) == "" {
-		return "", "", errors.New("LLM 模型未配置 API Key")
+		return responsesResult{}, errors.New("LLM 模型未配置 API Key")
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(model.BaseURL), "/")
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
-	endpoint := baseURL + "/chat/completions"
-	messages := make([]map[string]string, 0, len(history)+1)
-	if strings.TrimSpace(agent.SystemPrompt) != "" {
-		messages = append(messages, map[string]string{"role": "system", "content": agent.SystemPrompt})
+	payload := map[string]any{"model": model.Model, "input": input}
+	if model.Temperature > 0 {
+		payload["temperature"] = model.Temperature
 	}
-	for _, item := range history {
-		messages = append(messages, map[string]string{"role": item.Role, "content": item.Content})
+	if len(tools) > 0 {
+		payload["tools"] = tools
+		payload["tool_choice"] = "auto"
 	}
-	payload := map[string]any{"model": model.Model, "messages": messages, "temperature": model.Temperature, "stream": false}
-	body, _ := json.Marshal(payload)
-	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(body)))
+	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", "", err
+		return responsesResult{}, fmt.Errorf("编码 Responses 请求失败: %w", err)
+	}
+	request, err := http.NewRequest(http.MethodPost, baseURL+"/responses", strings.NewReader(string(body)))
+	if err != nil {
+		return responsesResult{}, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+model.APIKey)
-	client := &http.Client{Timeout: 2 * time.Minute}
-	response, err := client.Do(request)
+	response, err := (&http.Client{Timeout: 2 * time.Minute}).Do(request)
+	if err != nil {
+		return responsesResult{}, err
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	if err != nil {
+		return responsesResult{}, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return responsesResult{}, fmt.Errorf("Responses API 返回 %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	var result responsesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return responsesResult{}, fmt.Errorf("解析 Responses 响应失败: %w", err)
+	}
+	if len(result.Output) == 0 {
+		return responsesResult{}, errors.New("Responses API 没有返回有效 output")
+	}
+	return result, nil
+}
+
+func imageGenerationTool() map[string]any {
+	return map[string]any{
+		"type":        "function",
+		"name":        "image_generation",
+		"description": "根据用户明确的图片创作或编辑意图生成图片。普通聊天不要调用。",
+		"parameters": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"prompt":       map[string]any{"type": "string", "description": "最终图片生成提示词"},
+				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 4},
+				"size":         map[string]any{"type": "string"},
+				"aspect_ratio": map[string]any{"type": "string"},
+				"resolution":   map[string]any{"type": "string"},
+				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "white", "black"}},
+			},
+			"required": []string{"prompt"},
+		},
+	}
+}
+
+func responseOutputText(result responsesResult) string {
+	if strings.TrimSpace(result.OutputText) != "" {
+		return strings.TrimSpace(result.OutputText)
+	}
+	var parts []string
+	for _, item := range result.Output {
+		if item.Type != "message" {
+			continue
+		}
+		for _, content := range item.Content {
+			if content.Type == "output_text" && strings.TrimSpace(content.Text) != "" {
+				parts = append(parts, content.Text)
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, ""))
+}
+
+func responseReasoningText(result responsesResult) string {
+	var parts []string
+	for _, item := range result.Output {
+		if item.Type != "reasoning" {
+			continue
+		}
+		for _, summary := range item.Summary {
+			if strings.TrimSpace(summary.Text) != "" {
+				parts = append(parts, summary.Text)
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, ""))
+}
+
+func (s *Server) completeChat(model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
+	messages := make([]map[string]any, 0, len(history)+1)
+	if strings.TrimSpace(agent.SystemPrompt) != "" {
+		messages = append(messages, map[string]any{"role": "system", "content": agent.SystemPrompt})
+	}
+	for _, item := range history {
+		messages = append(messages, map[string]any{"role": item.Role, "content": item.Content})
+	}
+	result, err := callResponses(model, messages, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("调用模型失败: %w", err)
 	}
-	defer response.Body.Close()
-	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
-	if err != nil {
-		return "", "", err
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", "", fmt.Errorf("模型服务返回 %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
-	}
-	var result struct {
-		Choices []struct {
-			Message struct {
-				Content   string `json:"content"`
-				Reasoning string `json:"reasoning_content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(responseBody, &result); err != nil {
-		return "", "", fmt.Errorf("解析模型响应失败: %w", err)
-	}
-	if len(result.Choices) == 0 || strings.TrimSpace(result.Choices[0].Message.Content) == "" {
+	answer := responseOutputText(result)
+	if strings.TrimSpace(answer) == "" {
 		return "", "", errors.New("模型没有返回有效内容")
 	}
-	return result.Choices[0].Message.Content, result.Choices[0].Message.Reasoning, nil
+	return answer, responseReasoningText(result), nil
 }
 
 func makeChatTitle(content string) string {

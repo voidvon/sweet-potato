@@ -483,6 +483,7 @@ export type SendChatPayload = {
   capabilityContext?: {
     imageModelConfigId?: string | null;
   };
+  autoImageGeneration?: boolean;
   requestedCapabilities?: Array<'image_generation'>;
 };
 

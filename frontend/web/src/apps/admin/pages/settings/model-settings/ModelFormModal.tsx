@@ -12,7 +12,6 @@ import {
   type ModelFormValues,
   audioProviderConfigRow,
   findLlmPricing,
-  findLlmPricingById,
   llmBillingFromPricing,
   normalizeImagePayload,
   normalizedSettingsForForm,
@@ -53,21 +52,6 @@ export function ModelFormModal({
   const videoProvider = activeType === 'video' && editingRecord
     ? videoProviders.find((item) => item.id === editingRecord.provider)
     : undefined;
-  const llmModelOptions = useMemo(() => {
-    const groups = llmModelPricing.reduce<Record<string, { label: string; options: Array<{ label: string; value: string }> }>>(
-      (current, item) => {
-        const groupKey = (item.providerName || item.provider).trim().toLowerCase();
-        const group = current[groupKey] || { label: item.providerName || item.provider, options: [] };
-        group.options.push({
-          label: `${item.displayName} (${item.model})`,
-          value: item.id,
-        });
-        return { ...current, [groupKey]: group };
-      },
-      {},
-    );
-    return Object.values(groups);
-  }, [llmModelPricing]);
   const imageProviderOptions = useMemo(() => imageProviders.map((provider) => ({
     label: provider.name,
     value: provider.id,
@@ -92,7 +76,6 @@ export function ModelFormModal({
     const currentSettings = (form.getFieldValue('settings') || {}) as Record<string, unknown>;
     const currentBilling = ((currentSettings.billing || {}) as Partial<LlmBillingSettings>);
     form.setFieldsValue({
-      llmPricingId: pricing.id,
       provider: pricing.provider,
       model: pricing.model,
       baseUrl: pricing.defaultBaseUrl,
@@ -101,13 +84,6 @@ export function ModelFormModal({
         billing: llmBillingFromPricing(pricing, currentBilling),
       },
     });
-  }
-
-  function handleLlmModelChange(pricingId: string) {
-    const pricing = findLlmPricingById(llmModelPricing, pricingId);
-    if (pricing) {
-      applyLlmPricing(pricing);
-    }
   }
 
   function handleImageProviderChange(providerId: string) {
@@ -159,8 +135,6 @@ export function ModelFormModal({
       const pricing = findLlmPricing(llmModelPricing, provider, model);
       if (pricing) {
         applyLlmPricing(pricing);
-      } else {
-        form.setFieldValue('llmPricingId', undefined);
       }
     } else if (activeType === 'image' && !editingRecord && imageProviders.length) {
       handleImageProviderChange(imageProviders[0].id);
@@ -170,7 +144,7 @@ export function ModelFormModal({
   async function handleSubmit(values: ModelFormValues) {
     setSaving(true);
     try {
-      const { llmPricingId, ...payload } = values;
+      const payload = values;
       if (activeType === 'audio' && editingRecord) {
         if (!audioProvider) {
           throw new Error('音频服务商不存在');
@@ -190,9 +164,18 @@ export function ModelFormModal({
         }));
       } else {
         if (activeType === 'llm') {
-          const pricing = llmPricingId ? findLlmPricingById(llmModelPricing, llmPricingId) : undefined;
+          const pricing = findLlmPricing(llmModelPricing, payload.provider, payload.model);
           if (!pricing) {
-            throw new Error('请选择价格目录中的 LLM 模型');
+            await saveModelConfig({
+              ...defaultFormValues,
+              ...editingRecord,
+              ...payload,
+              type: activeType,
+              settings: payload.settings || {},
+            });
+            message.success('模型配置已保存');
+            onSaved();
+            return;
           }
           const currentBilling = ((payload.settings || {}) as Record<string, unknown>).billing as Partial<LlmBillingSettings> | undefined;
           await saveModelConfig({
@@ -256,9 +239,7 @@ export function ModelFormModal({
             form={form}
             imageModelOptions={imageModelOptions}
             imageProviderOptions={imageProviderOptions}
-            llmModelOptions={llmModelOptions}
             onImageProviderChange={handleImageProviderChange}
-            onLlmModelChange={handleLlmModelChange}
           />
         )}
       </Form>

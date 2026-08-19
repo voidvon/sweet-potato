@@ -149,6 +149,7 @@ export type SendChatPayload = {
       }>;
     };
   };
+  autoImageGeneration?: boolean;
   requestedCapabilities?: Array<'image_generation'>;
 };
 

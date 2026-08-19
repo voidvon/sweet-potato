@@ -197,7 +197,14 @@
 
 ## 视频理解 Agent
 
-`POST /api/video-understanding/stream` 通过 `@volcengine/ark-runtime` 调用火山方舟 Responses API，并以 SSE 事件流返回结果。该接口要求调用方具备聊天权限。
+`POST /api/video-understanding/stream` 通过配置的 Responses API 模型调用视频理解能力，并以 SSE 事件流返回结果。该接口要求调用方具备聊天权限。
+
+## 聊天 Responses API
+
+聊天模型调用统一使用 OpenAI Responses API 的 `/v1/responses`，不再使用旧的
+`/v1/chat/completions`。`/app/image` 请求会携带 `autoImageGeneration: true`，后端向
+模型提供 `image_generation` function tool；模型返回 `function_call` 时才执行图片生成，
+未返回工具调用时按普通聊天处理。图片模型本身仍通过现有的图片生成接口调用。
 
 请求默认使用 Files API 上传，视频 `fps = 2`；两项参数都可以在请求中覆盖：
 

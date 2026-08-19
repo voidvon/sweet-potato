@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, message } from 'antd';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   clearChatConversationMessages,
   createChatMessage,
@@ -65,6 +65,7 @@ const bottomLockThreshold = 4;
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlConversationId = searchParams.get('conversationId')?.trim() || '';
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -539,6 +540,7 @@ export function useChatSession() {
     capabilityContext?: SendChatPayload['capabilityContext'];
     imageModelConfigId?: string | null;
     requestedCapabilities?: Array<'image_generation'>;
+    autoImageGeneration?: boolean;
   }) => {
     const content = (override?.content ?? input).trim();
     const messageAttachments = override?.attachments ?? attachments;
@@ -553,7 +555,9 @@ export function useChatSession() {
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
     const requestedCapabilities = override?.requestedCapabilities;
+    const autoImageGeneration = override?.autoImageGeneration === true;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
+    const usesSynchronousChat = isImageGenerationRequest || autoImageGeneration;
     const contentForSend = content || (isImageGenerationRequest ? '' : '请分析附件内容');
     const resolvedCapabilityContext = override?.capabilityContext || {};
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
@@ -610,7 +614,7 @@ export function useChatSession() {
     scrollToBottom(true);
 
     try {
-      if (isImageGenerationRequest) {
+      if (usesSynchronousChat) {
         const result = await createChatMessage({
           userId: currentUser.id,
           conversationId: activeConversationId,
@@ -621,6 +625,7 @@ export function useChatSession() {
           capabilityContext: resolvedCapabilityContext,
           imageModelConfigId: resolvedImageModelConfigId,
           requestedCapabilities,
+          autoImageGeneration,
         });
         setInput('');
         setAttachments([]);
@@ -786,7 +791,7 @@ export function useChatSession() {
       }
       setSending(false);
     }
-  }, [activeAgent, activeConversationId, attachments, currentUser, input, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
+  }, [activeAgent, activeConversationId, attachments, currentUser, input, location.pathname, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
 
   const sendCurrentMessage = useCallback(async (options?: {
     capabilityContext?: SendChatPayload['capabilityContext'];
@@ -795,7 +800,7 @@ export function useChatSession() {
     await sendMessage({
       capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
-      requestedCapabilities: ['image_generation'],
+      autoImageGeneration: location.pathname === '/app/image',
     });
   }, [sendMessage]);
 
@@ -864,9 +869,9 @@ export function useChatSession() {
       clearComposer: false,
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,
-      requestedCapabilities: ['image_generation'],
+      autoImageGeneration: location.pathname === '/app/image',
     });
-  }, [sendMessage]);
+  }, [location.pathname, sendMessage]);
 
   const continueEditImageMessage = useCallback((messageItem: ChatMessage) => {
     const imageAttachments = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image');

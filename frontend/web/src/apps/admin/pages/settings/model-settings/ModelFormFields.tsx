@@ -1,4 +1,5 @@
 import {
+  AutoComplete,
   Checkbox,
   Form,
   Input,
@@ -119,9 +120,7 @@ type StandardModelFieldsProps = {
   form: FormInstance<ModelFormValues>;
   imageModelOptions: Array<{ label: string; value: string; disabled?: boolean }>;
   imageProviderOptions: Array<{ label: string; value: string }>;
-  llmModelOptions: Array<{ label: string; options: Array<{ label: string; value: string }> }>;
   onImageProviderChange: (providerId: string) => void;
-  onLlmModelChange: (pricingId: string) => void;
 };
 
 export function StandardModelFields({
@@ -129,9 +128,7 @@ export function StandardModelFields({
   form,
   imageModelOptions,
   imageProviderOptions,
-  llmModelOptions,
   onImageProviderChange,
-  onLlmModelChange,
 }: StandardModelFieldsProps) {
   return (
     <div className="antd-form-grid">
@@ -159,26 +156,16 @@ export function StandardModelFields({
       </Form.Item>
       <Form.Item
         label="模型名称"
-        name={activeType === 'llm' ? 'llmPricingId' : 'model'}
-        rules={[{ required: true, message: activeType === 'llm' ? '请选择模型名称' : '请输入模型名称' }]}
+        name="model"
+        rules={[{ required: true, message: '请输入模型名称' }]}
       >
-        {activeType === 'llm' ? (
-          <Select
-            showSearch
-            optionFilterProp="label"
-            options={llmModelOptions}
-            onChange={onLlmModelChange}
-            placeholder="请选择模型"
-          />
-        ) : activeType === 'image' ? (
-          <Select
-            showSearch
-            optionFilterProp="label"
+        {activeType === 'image' ? (
+          <AutoComplete
             options={imageModelOptions}
-            placeholder="请选择图片模型"
+            placeholder="请输入或选择图片模型"
           />
         ) : (
-          <Input placeholder="gpt-image-1 / doubao-seedream-5-0-260128 / flux-pro" />
+          <Input placeholder="gpt-5.6 / doubao-seedream-5-0-260128 / 自定义模型 ID" />
         )}
       </Form.Item>
       {activeType === 'llm' && (
