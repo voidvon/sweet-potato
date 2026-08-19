@@ -137,7 +137,7 @@ export type SendChatPayload = {
       accumulatedCreditCost?: number;
       outputSize?: string;
       outputCount?: number;
-      outputBackground?: 'transparent' | 'white' | 'black';
+      outputBackground?: 'transparent' | 'opaque' | 'auto';
       aspectRatio?: string;
       resolution?: string;
       referenceGroups?: Array<{

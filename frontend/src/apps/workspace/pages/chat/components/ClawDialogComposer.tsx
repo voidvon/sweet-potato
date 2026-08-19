@@ -95,7 +95,7 @@ type ClawModeConfig = {
 type ClawOutputCountStrategy = 'selectable' | 'fixedOne' | 'matchUploadedImages' | 'matchReferenceGroup';
 type ClawToolbarControl = 'model' | 'outputSize' | 'outputCount' | 'background';
 type ClawAspectRatioKey = ImageAspectRatio;
-type ClawBackgroundKey = 'transparent' | 'white' | 'black';
+type ClawBackgroundKey = 'transparent' | 'opaque' | 'auto';
 type ClawResolutionKey = ImageResolution;
 type ClawModeOutputConfig = {
   allowedOutputCounts: number[];
@@ -142,8 +142,8 @@ function renderPromptHint(
 
 const backgroundOptions: Array<{ description: string; key: ClawBackgroundKey; label: string }> = [
   { key: 'transparent', label: '透明背景', description: '保留 alpha 通道，适合继续合成和入库。' },
-  { key: 'white', label: '白底', description: '适合电商主图、目录图和快审稿。' },
-  { key: 'black', label: '黑底', description: '适合暗场氛围、光效测试和封面图。' },
+  { key: 'opaque', label: '不透明背景', description: '生成不透明背景，适合电商主图和目录图。' },
+  { key: 'auto', label: '自动背景', description: '由图片模型自动选择背景处理方式。' },
 ];
 
 const clawModeConfigs: ClawModeConfig[] = [

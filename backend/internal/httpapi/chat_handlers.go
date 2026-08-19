@@ -628,7 +628,7 @@ func imageGenerationTool() map[string]any {
 				"size":         map[string]any{"type": "string"},
 				"aspect_ratio": map[string]any{"type": "string"},
 				"resolution":   map[string]any{"type": "string"},
-				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "white", "black"}},
+				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "opaque", "auto"}},
 			},
 			"required": []string{"prompt"},
 		},

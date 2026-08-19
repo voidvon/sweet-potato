@@ -26,3 +26,20 @@ func TestResponsesOutputTextUsesMessageOutputText(t *testing.T) {
 		t.Fatalf("output text = %q", got)
 	}
 }
+
+func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
+	tool := imageGenerationTool()
+	parameters := tool["parameters"].(map[string]any)
+	properties := parameters["properties"].(map[string]any)
+	background := properties["background"].(map[string]any)
+	enum := background["enum"].([]string)
+	want := []string{"transparent", "opaque", "auto"}
+	if len(enum) != len(want) {
+		t.Fatalf("background enum = %#v, want %#v", enum, want)
+	}
+	for index := range want {
+		if enum[index] != want[index] {
+			t.Fatalf("background enum = %#v, want %#v", enum, want)
+		}
+	}
+}

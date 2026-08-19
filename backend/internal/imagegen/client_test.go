@@ -28,6 +28,9 @@ func TestGenerateOpenAIImageFromBase64(t *testing.T) {
 		if body["model"] != "gpt-image-1" || body["prompt"] != "draw a tree" || body["n"] != float64(2) {
 			t.Fatalf("unexpected request: %#v", body)
 		}
+		if body["background"] != "opaque" {
+			t.Fatalf("background = %#v, want opaque", body["background"])
+		}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
 			map[string]any{"b64_json": base64.StdEncoding.EncodeToString(want)},
@@ -36,7 +39,7 @@ func TestGenerateOpenAIImageFromBase64(t *testing.T) {
 	}))
 	defer server.Close()
 
-	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-1"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree", Count: 2})
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-1"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree", Count: 2, Background: "opaque"})
 	if err != nil {
 		t.Fatalf("generate image: %v", err)
 	}
