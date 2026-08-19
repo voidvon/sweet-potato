@@ -1,0 +1,53 @@
+.photo-upload-antd {
+  background: var(--color-rose-50);
+  border: 1px solid var(--color-rose-200);
+  border-radius: 12px;
+  min-height: 330px;
+  padding: 18px 18px 10px;
+}
+
+.detail-photo-upload {
+  min-height: 210px;
+}
+
+.photo-upload-antd .ant-upload-list {
+  align-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.photo-upload-antd .ant-upload-wrapper,
+.photo-upload-antd .ant-upload-list::before,
+.photo-upload-antd .ant-upload-list::after {
+  display: none;
+}
+
+.photo-upload-antd .ant-upload-list-picture-card .ant-upload-list-item-container,
+.photo-upload-antd .ant-upload.ant-upload-select {
+  aspect-ratio: 1 / 1;
+  flex: 0 0 118px;
+  height: auto;
+  margin: 0;
+  width: 118px;
+}
+
+.photo-upload-antd .ant-upload-list-picture-card .ant-upload-list-item {
+  border-radius: 8px;
+  padding: 0;
+}
+
+.photo-upload-antd .ant-upload-list-picture-card .ant-upload-list-item-thumbnail img {
+  object-fit: cover;
+}
+
+.photo-upload-antd .ant-upload-list-picture-card .ant-upload-list-item-name {
+  background: rgb(var(--color-white-rgb) / 0.94);
+  bottom: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  left: 0;
+  padding: 6px 8px;
+  position: absolute;
+  right: 0;
+}

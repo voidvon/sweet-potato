@@ -375,6 +375,49 @@ func (s *Store) CreateContentAsset(asset ContentAsset) (ContentAsset, error) {
 	return result, err
 }
 
+func (s *Store) RetainContentAssetReference(assetID, userID, referenceType, referenceID string) error {
+	assetID = strings.TrimSpace(assetID)
+	userID = strings.TrimSpace(userID)
+	referenceType = strings.TrimSpace(referenceType)
+	referenceID = strings.TrimSpace(referenceID)
+	if assetID == "" || userID == "" || referenceType == "" || referenceID == "" {
+		return errors.New("素材引用参数不完整")
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var ownerID string
+	if err := tx.QueryRow(`SELECT user_id FROM content_assets WHERE id = ?`, assetID).Scan(&ownerID); errors.Is(err, sql.ErrNoRows) {
+		return errors.New("素材不存在")
+	} else if err != nil {
+		return err
+	} else if ownerID != userID {
+		return errors.New("无权引用该素材")
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO content_asset_references (asset_id, reference_type, reference_id, role, created_at) VALUES (?, ?, ?, 'input', ?)`, assetID, referenceType, referenceID, now); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE content_assets SET lifecycle_status = CASE WHEN lifecycle_status = 'temporary' THEN 'retained' ELSE lifecycle_status END, expires_at = CASE WHEN lifecycle_status = 'temporary' THEN NULL ELSE expires_at END, retained_at = CASE WHEN lifecycle_status = 'temporary' THEN COALESCE(retained_at, ?) ELSE retained_at END, updated_at = ? WHERE id = ?`, now, now, assetID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ReleaseContentAssetReferences(referenceType, referenceID string) error {
+	referenceType = strings.TrimSpace(referenceType)
+	referenceID = strings.TrimSpace(referenceID)
+	if referenceType == "" || referenceID == "" {
+		return nil
+	}
+	_, err := s.db.Exec(`DELETE FROM content_asset_references WHERE reference_type = ? AND reference_id = ?`, referenceType, referenceID)
+	return err
+}
+
 func (s *Store) DeleteContentAsset(id, userID string) (ContentAsset, error) {
 	asset, found, err := s.FindContentAsset(id)
 	if err != nil {
@@ -382,6 +425,13 @@ func (s *Store) DeleteContentAsset(id, userID string) (ContentAsset, error) {
 	}
 	if !found || asset.UserID != userID {
 		return ContentAsset{}, errors.New("素材不存在")
+	}
+	var referenceCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM content_asset_references WHERE asset_id = ?`, id).Scan(&referenceCount); err != nil {
+		return ContentAsset{}, err
+	}
+	if referenceCount > 0 {
+		return ContentAsset{}, errors.New("素材正在被视频任务使用，暂时不能删除")
 	}
 	if _, err := s.db.Exec(`DELETE FROM content_asset_references WHERE asset_id = ?`, id); err != nil {
 		return ContentAsset{}, err
@@ -509,6 +559,23 @@ func (s *Store) ListVideoTasks(userID string) ([]VideoGenerationTask, error) {
 	return result, rows.Err()
 }
 
+func (s *Store) ListGeneratingVideoTasks() ([]VideoGenerationTask, error) {
+	rows, err := s.db.Query(`SELECT id, user_id, source_url, prompt, title, status, raw_parse_result, editable_parse_result, selected_skill_ids, expert_context, selected_digital_human_id, selected_voice_id, selected_scene_id, generated_video_url, generated_cover_url, aspect_ratio, failure_reason, created_at, updated_at FROM video_generation_tasks WHERE status = 'generating' ORDER BY updated_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []VideoGenerationTask
+	for rows.Next() {
+		task, err := scanVideoTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, task)
+	}
+	return result, rows.Err()
+}
+
 func scanVideoTask(scanner rowScanner) (VideoGenerationTask, error) {
 	var task VideoGenerationTask
 	var selectedDigitalHuman, selectedVoice, selectedScene, generatedVideo, generatedCover, failure sql.NullString
@@ -592,6 +659,17 @@ func (s *Store) SaveVideoTask(task VideoGenerationTask, insert bool) (VideoGener
 }
 
 func (s *Store) DeleteVideoTask(id, userID string) error {
+	var ownerID string
+	if err := s.db.QueryRow(`SELECT user_id FROM video_generation_tasks WHERE id = ?`, id).Scan(&ownerID); errors.Is(err, sql.ErrNoRows) {
+		return errors.New("视频任务不存在")
+	} else if err != nil {
+		return err
+	} else if ownerID != userID {
+		return errors.New("视频任务不存在")
+	}
+	if err := s.ReleaseContentAssetReferences("video_generation_task", id); err != nil {
+		return err
+	}
 	result, err := s.db.Exec(`DELETE FROM video_generation_tasks WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		return err

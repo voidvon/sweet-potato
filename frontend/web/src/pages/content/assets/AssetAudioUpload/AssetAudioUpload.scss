@@ -1,0 +1,104 @@
+.audio-upload-antd {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.audio-upload-antd .ant-upload,
+.audio-upload-antd .ant-upload-select,
+.audio-upload-antd .ant-upload-list {
+  width: 100%;
+}
+
+.audio-upload-antd .ant-upload-select {
+  display: block;
+}
+
+.audio-upload-antd .ant-upload-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.audio-upload-antd .ant-upload-list-item-container {
+  height: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.audio-upload-control {
+  align-items: center;
+  background: var(--color-rose-50);
+  border: 1px dashed var(--color-rose-300);
+  border-radius: 8px;
+  color: var(--color-rose-600);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 20px;
+  text-align: center;
+  width: 100%;
+}
+
+.audio-upload-control span {
+  color: var(--color-plum-900);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.audio-upload-control small {
+  color: var(--color-plum-600);
+  font-size: 12px;
+}
+
+.audio-upload-control:hover {
+  background: var(--color-rose-100);
+  border-color: var(--color-rose-500);
+}
+
+.audio-upload-item {
+  align-items: center;
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 430px);
+  min-height: 78px;
+  padding: 12px 14px;
+}
+
+.audio-upload-item > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.audio-upload-item strong {
+  color: var(--color-plum-900);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-upload-item span {
+  color: var(--color-plum-600);
+  font-size: 12px;
+}
+
+.audio-upload-item audio {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  .audio-upload-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}

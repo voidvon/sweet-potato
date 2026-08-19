@@ -37,6 +37,13 @@ CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o ./bin/ai-marketing ./cmd/ai
 - `VIDEO_MODEL_API_KEY`、`VIDEO_MODEL_PROVIDER`、`VIDEO_MODEL_ID`、`VIDEO_MODEL_BASE_URL`：
   默认视频模型配置，也可以在管理端配置模型。
 - `PUBLIC_BASE_URL`：外部视频模型下载本地素材时使用的公开地址。
+- `VOLCENGINE_ACCESS_KEY_ID`、`VOLCENGINE_SECRET_ACCESS_KEY`、`VOLCENGINE_VOD_SPACE_NAME`：
+  VOD 视频高清放大、字幕擦除和视频翻译所需的火山引擎凭证与空间。
+- `VOLCENGINE_VOD_REGION`：VOD 区域，默认 `cn-north-1`。
+- `VOLCENGINE_VOD_PLAYBACK_BASE_URL`：VOD 产物播放/下载域名；当接口只返回
+  `StoreUri` 或 `FileName` 时，Go 服务使用它拼接产物地址并下载到本地。
+- `VOD_POLL_INTERVAL_SECONDS`、`VOD_POLL_MAX_ATTEMPTS`、`VOD_TASK_TIMEOUT_SECONDS`：
+  VOD 任务轮询间隔、最大次数和超时，默认分别为 `10`、`90`、`900`。
 
 服务会从 `ENV_FILE`、`.env`、`config/.env` 和 `backend/go/.env` 依次加载配置；已经存在
 的进程环境变量不会被覆盖。

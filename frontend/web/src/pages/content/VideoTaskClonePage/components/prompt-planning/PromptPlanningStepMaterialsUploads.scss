@@ -1,0 +1,55 @@
+.video-task-epa-upload-bar > div {
+  min-width: 0;
+}
+
+.video-task-epa-upload-strip,
+.video-task-epa-upload-bar,
+.video-task-epa-audio-upload {
+  align-items: center;
+  background: var(--color-neutral-25);
+  border: 1.5px dashed rgb(var(--color-rose-shadow-rgb) / 0.2);
+  border-radius: 14px;
+  background: rgb(var(--color-text-muted-rgb) / 0.051);
+  color: var(--color-neutral-800);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  min-height: 52px;
+  padding: 12px 16px;
+  transition: border-color .2s ease,background .2s ease,color .2s ease;
+}
+
+.video-task-epa-upload-strip:hover,
+.video-task-epa-upload-bar:hover,
+.video-task-epa-audio-upload:hover {
+  background: var(--color-brand-soft);
+  border-color: var(--color-black);
+}
+
+.video-task-epa-upload-strip {
+  flex-direction: column;
+  justify-content: center;
+  min-width: 220px;
+  text-align: center;
+}
+
+.video-task-epa-upload-strip strong,
+.video-task-epa-upload-bar strong,
+.video-task-epa-audio-upload strong {
+  color: var(--color-neutral-800);
+  display: block;
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.video-task-epa-upload-strip span,
+.video-task-epa-upload-bar span,
+.video-task-epa-audio-upload span {
+  color: var(--color-neutral-400);
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 3px;
+}

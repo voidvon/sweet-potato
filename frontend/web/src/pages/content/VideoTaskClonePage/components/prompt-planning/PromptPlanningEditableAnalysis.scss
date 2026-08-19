@@ -1,0 +1,118 @@
+.video-task-epa-caption-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.video-task-epa-caption-card {
+  align-items: stretch;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 20px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 78px 1fr;
+  padding: 14px;
+}
+
+.video-task-epa-caption-card img {
+  border-radius: 10px;
+  height: 82px;
+  object-fit: cover;
+  width: 78px;
+}
+
+.video-task-epa-caption-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-task-epa-caption-tag {
+  color: var(--color-neutral-900);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.video-task-epa-caption-edit textarea {
+  min-height: 52px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.video-task-epa-tag-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-task-epa-tag-field > span {
+  color: var(--color-neutral-800);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.video-task-epa-tag-list {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 8px;
+  min-width: 0;
+}
+
+.video-task-epa-tag-list:empty {
+  display: none;
+}
+
+.video-task-epa-tag-chip {
+  align-items: center;
+  background: var(--color-success-soft);
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-teal);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 5px;
+  line-height: 1.4;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 5px 10px;
+  text-align: left;
+}
+
+.video-task-epa-tag-chip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.video-task-epa-tag-chip svg {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+.video-task-epa-tag-add-input {
+  background: var(--color-white);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 12px;
+  color: var(--color-neutral-900);
+  font: inherit;
+  font-size: 13px;
+  height: 42px;
+  outline: 0;
+  padding: 0 13px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  width: 100%;
+}
+
+.video-task-epa-tag-add-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.video-task-epa-tag-add-input:focus {
+  border-color: var(--color-neutral-900);
+  box-shadow: 0 0 0 1px var(--color-neutral-900), 0 0 0 3px rgb(var(--color-shadow-rgb) / 0.08);
+}

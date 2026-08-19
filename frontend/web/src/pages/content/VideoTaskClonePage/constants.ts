@@ -1,0 +1,169 @@
+import type { FilterGroup, FilterValues, MaterialKind, ToolOption } from './types';
+import { ratioOptions } from '../shared/videoGenerationOptions';
+
+export {
+  durationOptions,
+  modelDescriptions,
+  modelOptionIds,
+  modelOptions,
+  qualityOptions,
+  ratioOptions,
+} from '../shared/videoGenerationOptions';
+
+export const defaultMaterials: MaterialKind[] = [
+  { key: 'image', label: '参考图', hint: '最多 9 张', maxCount: 9, meta: '可选' },
+  { key: 'video', label: '参考视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '可选' },
+  { key: 'audio', label: '参考音频', hint: '最多 3 段', maxCount: 3, meta: '可选' },
+];
+
+export const toolOptions: ToolOption[] = [
+  {
+    key: 'video',
+    label: '视频',
+    description: '文字、图片、视频和音频参考生成短视频。',
+    materialHint: '上传参考素材',
+    materials: defaultMaterials,
+    submitText: '开始生成',
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material', showVoiceToggle: true },
+        { id: 'prompt', type: 'prompt' },
+        { id: 'parameters', type: 'parameters' },
+      ],
+      generate: { handler: 'video-generation' },
+    },
+  },
+  {
+    key: 'video-upscale',
+    label: '视频高清放大',
+    description: '上传已有视频，生成高清版本。',
+    materialHint: '上传待放大视频',
+    materials: [{ key: 'video', label: '待放大视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 }],
+    submitText: '开始高清放大',
+    workspace: { blocks: [{ id: 'material', type: 'material' }], generate: { handler: 'video-upscale' } },
+  },
+  {
+    key: 'talking-video',
+    label: '口播视频生成',
+    description: '解析视频分镜与口播脚本，并继续生成口播视频。',
+    materialHint: '上传口播参考素材',
+    materials: [
+      { key: 'video', label: '口播参考视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'image', label: '图片素材', hint: '总计最多 9 张', maxCount: 9, meta: '必选', minCount: 1 },
+    ],
+    submitText: '生成提示词',
+    workspace: { blocks: [{ id: 'talking-video-form', type: 'talking-video-form' }], generate: { handler: 'pending' } },
+  },
+  {
+    key: 'subject-replace',
+    label: '模特 / 商品替换',
+    description: '解析短视频链接并结合主体图生成同款。',
+    materialHint: '上传替换主体素材',
+    materials: [
+      { key: 'image', label: '模特图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+    ],
+    submitText: '开始替换',
+    workspace: {
+      blocks: [
+        { id: 'subject-replace-form', type: 'subject-replace-form' },
+        { id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false },
+      ],
+      generate: { handler: 'subject-replace' },
+    },
+  },
+  {
+    key: 'dance-remake',
+    label: '跳舞复刻',
+    description: '参考视频动作和音乐，生成主体角色跳舞视频。',
+    materialHint: '上传人物素材',
+    materials: [
+      { key: 'image', label: '人物图', hint: '限 1 张', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'video', label: '参考视频', hint: '限 1 个', maxCount: 1, meta: '必选', minCount: 1 },
+    ],
+    submitText: '开始复刻',
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'dance-remake-form', type: 'dance-remake-form' },
+        { id: 'parameters', type: 'parameters', showDuration: false, showHeader: false, showRatio: false },
+      ],
+      generate: { handler: 'dance-remake' },
+    },
+  },
+  {
+    key: 'marketing-video',
+    label: '营销视频生成',
+    description: '围绕商品图生成分镜和营销视频。',
+    materialHint: '上传商品图',
+    materials: [{ key: 'image', label: '商品图', hint: '1 至 5 张', maxCount: 5, meta: '必选', minCount: 1 }],
+    submitText: '生成营销视频',
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'marketing-video-form', type: 'marketing-video-form' },
+      ],
+      generate: { handler: 'pending' },
+    },
+  },
+  {
+    key: 'subtitle-removal',
+    label: '字幕擦除',
+    description: '上传源视频，擦除画面中的硬字幕。',
+    materialHint: '上传源视频',
+    materials: [{ key: 'video', label: '源视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 }],
+    submitText: '开始擦除',
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'subtitle-removal', type: 'subtitle-removal' },
+      ],
+      generate: { handler: 'subtitle-removal' },
+    },
+  },
+  {
+    key: 'video-translation',
+    label: '视频翻译',
+    description: '上传源视频并选择目标语言，生成翻译视频。',
+    materialHint: '上传源视频',
+    materials: [
+      { key: 'video', label: '源视频', hint: '限 1 个，≤ 15 秒', maxCount: 1, meta: '必选', minCount: 1 },
+      { key: 'audio', label: '参考音频', hint: '最多 1 段', maxCount: 1, meta: '可选' },
+    ],
+    submitText: '开始翻译',
+    workspace: {
+      blocks: [
+        { id: 'material', type: 'material' },
+        { id: 'video-translation', type: 'video-translation' },
+      ],
+      generate: { handler: 'video-translation' },
+    },
+  },
+];
+
+export const audioOptions = ['推荐音频男1', '推荐音频女1', '推荐音频男2', '推荐音频女2', '推荐音频男3', '推荐音频女3', '推荐音频男4', '推荐音频女4'];
+
+export const modelPickerOptions = [
+  '小孩头像 男1', '小孩头像 女1', '男头像 1', '女头像 1',
+  '小孩头像 男2', '小孩头像 女2', '男头像 2', '女头像 2',
+  '小孩头像 男3', '小孩头像 女3', '男头像 3', '女头像 3',
+  '小孩头像 男4', '小孩头像 女4', '男头像 4', '女头像 4',
+  '小孩头像 男5', '小孩头像 女5', '男头像 5', '女头像 5',
+  '小孩头像 男6', '小孩头像 女6', '男头像 6', '女头像 6',
+];
+
+export const filterGroups: FilterGroup[] = [
+  { label: '比例', options: ['全部比例', ...ratioOptions] },
+  { label: '时间', options: ['全部时间', '今天', '近 7 天', '近 30 天'] },
+  { label: '状态', options: ['全部状态', '已完成', '生成中', '失败'] },
+];
+
+export const defaultFilters: FilterValues = {
+  比例: '全部比例',
+  时间: '全部时间',
+  状态: '全部状态',
+};
+
+export const promptPlaceholder = '描述镜头、主体动作、风格和节奏，输入 @ 引用素材';
+
+export const examplePrompt = '主体居中展示，镜头缓慢推进，明亮自然光，节奏轻快，突出产品质感与使用场景。';

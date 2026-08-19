@@ -1,0 +1,35 @@
+{
+  "productName": "萌猫 AI",
+  "appId": "com.bilibili.ee",
+  "copyright": "© 2025 duola Technology Co., Ltd.",
+  "directories": {
+    "output": "out"
+  },
+  "asar": true,
+  "npmRebuild": false,
+  "files": [
+    "**/*",
+    "!cmd/",
+    "!data/",
+    "!electron/",
+    "!web/",
+    "!logs/",
+    "!out/",
+    "!go/",
+    "!python/",
+    "!build/",
+    "!scripts/"
+  ],
+  "publish": [
+    {
+      "provider": "generic",
+      "url": ""
+    }
+  ],
+  "mac": {
+    "icon": "build/icons/icon.icns",
+    "artifactName": "${productName}-${os}-${version}-${arch}.${ext}",
+    "darkModeSupport": true,
+    "hardenedRuntime": false
+  }
+}

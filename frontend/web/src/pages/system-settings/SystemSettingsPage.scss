@@ -1,0 +1,45 @@
+.system-settings-page {
+  padding-bottom: 32px;
+}
+
+.system-settings-card {
+  border-radius: 14px;
+}
+
+.system-settings-card .ant-card-head-title {
+  font-size: 16px;
+}
+
+.system-settings-number {
+  width: 100%;
+}
+
+.rate-rule-list {
+  display: grid;
+  gap: 14px;
+}
+
+.rate-rule {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 10px;
+  padding: 16px 16px 2px;
+}
+
+.rate-rule-heading {
+  color: var(--color-neutral-700);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.system-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .rate-rule {
+    padding: 14px 12px 2px;
+  }
+}

@@ -1,0 +1,60 @@
+/* Keep the planning workspace at the same density as the create-video form. */
+.video-task-epa-modal.ant-modal .ant-modal-content {
+  border-radius: 20px;
+}
+.video-task-epa-head {
+  min-height: 86px;
+  padding: 22px 26px 18px;
+}
+
+.video-task-epa-head-text strong {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.video-task-epa-head-text span {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.video-task-epa-close {
+  height: 36px;
+  width: 36px;
+}
+
+.video-task-epa-rail {
+  flex-basis: 176px;
+  gap: 4px;
+  padding: 20px 12px;
+}
+
+.video-task-epa-body {
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+
+.video-task-epa-rail::before {
+  height: 174px;
+  left: 37px;
+  top: 47px;
+}
+
+.video-task-epa-rail button {
+  border-radius: 12px;
+  font-size: 14px;
+  gap: 10px;
+  grid-template-columns: 30px 1fr;
+  min-height: 54px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.video-task-epa-rail button span {
+  font-size: 13px;
+  height: 30px;
+  width: 30px;
+}
+
+.video-task-epa-main {
+  gap: 16px;
+  padding: 22px 32px 20px 24px;
+}

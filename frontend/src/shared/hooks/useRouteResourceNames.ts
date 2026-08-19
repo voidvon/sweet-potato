@@ -1,0 +1,75 @@
+import { useEffect, useMemo, useState } from 'react';
+import { getPublicRouteResourceTree } from '../api/route-resource';
+import type { ManagedRouteResource, RouteResourcePlatform, RouteResourceVisibilityMode } from '../types';
+
+export type RouteResourceDisplayInfo = {
+  id: string;
+  name: string;
+  orderIndex: number;
+  parentId: string | null;
+  resourceKey: string;
+  permissionCode: string;
+  visibilityMode: RouteResourceVisibilityMode;
+  sortOrder: number;
+};
+
+function flattenResources(resources: ManagedRouteResource[]): ManagedRouteResource[] {
+  return resources.flatMap((resource) => [resource, ...flattenResources(resource.children || [])]);
+}
+
+function normalizeRouteResources(raw: unknown): ManagedRouteResource[] {
+  const source = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object'
+      ? (
+        (raw as { items?: unknown[] }).items
+        || (raw as { list?: unknown[] }).list
+        || (raw as { tree?: unknown[] }).tree
+        || (raw as { data?: unknown[] }).data
+        || []
+      )
+      : [];
+
+  return source as ManagedRouteResource[];
+}
+
+export function useRouteResourceInfoMap(platform: RouteResourcePlatform) {
+  const [resources, setResources] = useState<ManagedRouteResource[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getPublicRouteResourceTree({ platform })
+      .then((response) => {
+        if (!cancelled) {
+          setResources(normalizeRouteResources(response));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResources([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [platform]);
+
+  return useMemo(() => {
+    return new Map(
+      flattenResources(resources)
+        .filter((resource) => resource.resourceKey && resource.name)
+        .map((resource, orderIndex) => [resource.resourceKey, {
+          id: resource.id,
+          name: resource.name,
+          orderIndex,
+          parentId: resource.parentId || null,
+          resourceKey: resource.resourceKey,
+          permissionCode: resource.permissionCode,
+          visibilityMode: resource.visibilityMode || 'permission',
+          sortOrder: Number(resource.sortOrder || 0),
+        }] as const),
+    );
+  }, [resources]);
+}

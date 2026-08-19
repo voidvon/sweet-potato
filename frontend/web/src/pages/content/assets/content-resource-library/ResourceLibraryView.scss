@@ -1,0 +1,92 @@
+.single-library-asset-grid .material-card { cursor: default; }
+
+.single-library-asset-card .material-preview {
+  border: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.single-library-asset-card .material-info {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.single-library-asset-card .material-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.single-library-asset-card .ant-btn {
+  border-radius: 10px;
+  justify-self: flex-start;
+  padding-inline: 10px;
+}
+
+.single-library-asset-card .ant-btn-dangerous {
+  column-gap: 6px;
+  height: 32px;
+}
+
+.single-library-asset-card .ant-btn-dangerous:hover {
+  background: var(--color-danger-soft);
+}
+
+.product-cover-grid img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.product-cover-grid.count-1 { gap: 0; }
+
+.product-cover-grid.count-1 > div:first-child,
+.product-cover-grid.count-2 > div:first-child { flex: 1; }
+
+.asset-library-themed-popconfirm .ant-popover-inner {
+  border: 1px solid var(--color-rose-100);
+  border-radius: 14px;
+  box-shadow: var(--shadow-rose-md);
+  padding: 16px;
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-message-icon,
+.asset-library-themed-popconfirm .ant-popconfirm-message-icon .anticon {
+  color: var(--color-rose-600) !important;
+}
+
+.asset-library-themed-popconfirm .ant-popconfirm-title { color: var(--color-plum-900); }
+.asset-library-themed-popconfirm .ant-popconfirm-buttons { gap: 8px; }
+
+.asset-library-themed-popconfirm .ant-popconfirm-buttons .ant-btn {
+  border-radius: 9px;
+  min-width: 56px;
+  padding-inline: 14px;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn {
+  background: var(--color-white) !important;
+  border-color: var(--color-rose-200) !important;
+  color: var(--color-plum-800) !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn:hover,
+.asset-library-themed-popconfirm .asset-library-popconfirm-cancel.ant-btn:focus-visible {
+  background: var(--color-rose-50) !important;
+  border-color: var(--color-rose-300) !important;
+  color: var(--color-rose-700) !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn {
+  background: var(--color-rose-600) !important;
+  border-color: var(--color-rose-600) !important;
+  color: var(--color-white) !important;
+}
+
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn:hover,
+.asset-library-themed-popconfirm .asset-library-popconfirm-confirm.ant-btn:focus-visible {
+  background: var(--color-rose-500) !important;
+  border-color: var(--color-rose-500) !important;
+  color: var(--color-white) !important;
+}

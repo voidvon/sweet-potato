@@ -11,10 +11,19 @@ import (
 )
 
 type Config struct {
-	Addr               string
-	DataDir            string
-	AuthTokenSecret    string
-	AuthTokenExpiresIn time.Duration
+	Addr                string
+	DataDir             string
+	AuthTokenSecret     string
+	AuthTokenExpiresIn  time.Duration
+	VODAccessKey        string
+	VODSecretKey        string
+	VODSpaceName        string
+	VODRegion           string
+	VODUploadHostPrefer string
+	VODPlaybackBaseURL  string
+	VODPollInterval     time.Duration
+	VODPollMaxAttempts  int
+	VODTaskTimeout      time.Duration
 }
 
 func Load() Config {
@@ -22,10 +31,19 @@ func Load() Config {
 
 	if configuredAddr := strings.TrimSpace(os.Getenv("GO_SERVER_ADDR")); configuredAddr != "" {
 		return Config{
-			Addr:               configuredAddr,
-			DataDir:            resolveDataDir(os.Getenv("DATA_DIR")),
-			AuthTokenSecret:    authTokenSecret(),
-			AuthTokenExpiresIn: authTokenExpiry(),
+			Addr:                configuredAddr,
+			DataDir:             resolveDataDir(os.Getenv("DATA_DIR")),
+			AuthTokenSecret:     authTokenSecret(),
+			AuthTokenExpiresIn:  authTokenExpiry(),
+			VODAccessKey:        firstEnv("VOLCENGINE_ACCESS_KEY_ID", "VOLCENGINE_ACCESS_KEY", "VOLCENGINE_VOD_ACCESS_KEY_ID", "VOLCENGINE_VOD_ACCESS_KEY", "VOLC_ACCESSKEY", "VOLC_ACCESS_KEY", "VOLC_ACCESS_KEY_ID", "VOLC_AK"),
+			VODSecretKey:        firstEnv("VOLCENGINE_SECRET_ACCESS_KEY", "VOLCENGINE_SECRET_KEY", "VOLCENGINE_VOD_SECRET_ACCESS_KEY", "VOLCENGINE_VOD_SECRET_KEY", "VOLC_SECRETKEY", "VOLC_SECRET_KEY", "VOLC_SECRET_ACCESS_KEY", "VOLC_SK"),
+			VODSpaceName:        firstEnv("VOLCENGINE_VOD_SPACE_NAME", "VOD_SPACE_NAME", "VOD_SPACE"),
+			VODRegion:           valueOrEnv("VOLCENGINE_VOD_REGION", "VOLC_REGION", "cn-north-1"),
+			VODUploadHostPrefer: firstEnv("VOLCENGINE_VOD_UPLOAD_HOST_PREFER"),
+			VODPlaybackBaseURL:  firstEnv("VOLCENGINE_VOD_PLAYBACK_BASE_URL"),
+			VODPollInterval:     durationEnv("VOD_POLL_INTERVAL_SECONDS", 10*time.Second),
+			VODPollMaxAttempts:  intEnv("VOD_POLL_MAX_ATTEMPTS", 90),
+			VODTaskTimeout:      durationEnv("VOD_TASK_TIMEOUT_SECONDS", 15*time.Minute),
 		}
 	}
 
@@ -42,11 +60,52 @@ func Load() Config {
 	}
 
 	return Config{
-		Addr:               net.JoinHostPort(host, port),
-		DataDir:            resolveDataDir(os.Getenv("DATA_DIR")),
-		AuthTokenSecret:    authTokenSecret(),
-		AuthTokenExpiresIn: authTokenExpiry(),
+		Addr:                net.JoinHostPort(host, port),
+		DataDir:             resolveDataDir(os.Getenv("DATA_DIR")),
+		AuthTokenSecret:     authTokenSecret(),
+		AuthTokenExpiresIn:  authTokenExpiry(),
+		VODAccessKey:        firstEnv("VOLCENGINE_ACCESS_KEY_ID", "VOLCENGINE_ACCESS_KEY", "VOLCENGINE_VOD_ACCESS_KEY_ID", "VOLCENGINE_VOD_ACCESS_KEY", "VOLC_ACCESSKEY", "VOLC_ACCESS_KEY", "VOLC_ACCESS_KEY_ID", "VOLC_AK"),
+		VODSecretKey:        firstEnv("VOLCENGINE_SECRET_ACCESS_KEY", "VOLCENGINE_SECRET_KEY", "VOLCENGINE_VOD_SECRET_ACCESS_KEY", "VOLCENGINE_VOD_SECRET_KEY", "VOLC_SECRETKEY", "VOLC_SECRET_KEY", "VOLC_SECRET_ACCESS_KEY", "VOLC_SK"),
+		VODSpaceName:        firstEnv("VOLCENGINE_VOD_SPACE_NAME", "VOD_SPACE_NAME", "VOD_SPACE"),
+		VODRegion:           valueOrEnv("VOLCENGINE_VOD_REGION", "VOLC_REGION", "cn-north-1"),
+		VODUploadHostPrefer: firstEnv("VOLCENGINE_VOD_UPLOAD_HOST_PREFER"),
+		VODPlaybackBaseURL:  firstEnv("VOLCENGINE_VOD_PLAYBACK_BASE_URL"),
+		VODPollInterval:     durationEnv("VOD_POLL_INTERVAL_SECONDS", 10*time.Second),
+		VODPollMaxAttempts:  intEnv("VOD_POLL_MAX_ATTEMPTS", 90),
+		VODTaskTimeout:      durationEnv("VOD_TASK_TIMEOUT_SECONDS", 15*time.Minute),
 	}
+}
+
+func firstEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func valueOrEnv(primary, fallback, defaultValue string) string {
+	if value := firstEnv(primary, fallback); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func intEnv(name string, defaultValue int) int {
+	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name)))
+	if err != nil || value <= 0 {
+		return defaultValue
+	}
+	return value
+}
+
+func durationEnv(name string, defaultValue time.Duration) time.Duration {
+	value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name)))
+	if err != nil || value <= 0 {
+		return defaultValue
+	}
+	return time.Duration(value) * time.Second
 }
 
 func authTokenSecret() string {

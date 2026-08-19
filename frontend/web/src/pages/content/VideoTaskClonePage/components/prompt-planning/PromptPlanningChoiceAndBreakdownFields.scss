@@ -1,0 +1,124 @@
+.video-task-epa-pill-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.video-task-epa-pill-line button,
+.video-task-epa-pill {
+  align-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-neutral-800);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 700;
+  gap: 8px;
+  height: 46px;
+  justify-content: center;
+  padding: 0 24px;
+}
+
+.video-task-epa-pill-line button.is-active {
+  background: var(--color-black);
+  color: var(--color-white);
+}
+
+.video-task-epa-step-shell-step3 .video-task-epa-pill-line {
+  gap: 8px;
+}
+
+.video-task-epa-step-shell-step3 .video-task-epa-pill-line button {
+  font-size: 13px;
+  font-weight: 650;
+  gap: 5px;
+  height: 38px;
+  padding: 0 17px;
+}
+
+.video-task-epa-step-shell-step3 .video-task-epa-pill-line.is-wrap button {
+  min-width: 0;
+}
+
+.video-task-epa-pill-line.is-soft .video-task-epa-pill {
+  background: var(--color-success-soft);
+  color: var(--color-neutral-600);
+  font-size: 14px;
+  height: 38px;
+  padding: 0 16px;
+}
+
+.video-task-epa-pill-line.is-wrap button {
+  min-width: 112px;
+}
+
+.video-task-epa-breakdown-line {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 84px 1fr;
+  margin-top: 14px;
+}
+
+.video-task-epa-breakdown-line > span {
+  color: var(--color-neutral-700);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.video-task-epa-breakdown-line p {
+  color: var(--color-neutral-600);
+  font-size: 16px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.video-task-epa-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.video-task-epa-tag-group em {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 15px;
+  font-style: normal;
+  line-height: 1.45;
+  padding: 8px 14px;
+}
+
+.video-task-epa-tag-group.is-green em {
+  background: var(--color-success-soft);
+  color: var(--color-teal);
+}
+
+.video-task-epa-tag-group.is-gray em {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
+}
+
+.video-task-epa-grid-2 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-task-epa-grid-2.is-tags {
+  column-gap: 16px;
+  margin-top: 16px;
+  row-gap: 18px;
+}
+
+.video-task-epa-stack-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.video-task-epa-stack-field span {
+  color: var(--color-neutral-400);
+  font-size: 13px;
+  font-weight: 650;
+}

@@ -1,0 +1,220 @@
+.talking-video-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.video-source-local-upload-label {
+  color: var(--color-neutral-800);
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  padding-left: 4px;
+}
+
+.video-source-panel.is-stacked .video-source-choice {
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 16px;
+  padding: 10px 20px;
+}
+
+.video-source-choice-title {
+  color: var(--color-neutral-500);
+  display: block;
+  font-size: 12px;
+  line-height: 22px;
+  margin-bottom: 10px;
+}
+
+.video-source-choice-row {
+  min-height: 104px;
+}
+
+.video-source-panel.is-stacked .video-source-url-input {
+  margin-top: 16px;
+}
+
+.video-source-panel.is-stacked .video-source-url-input .ant-form-item {
+  margin-bottom: 0;
+}
+
+.talking-video-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.talking-video-deep-think {
+  align-items: center;
+  background: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 11px 13px;
+}
+
+.talking-video-deep-think > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.talking-video-deep-think strong {
+  color: var(--color-neutral-800);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.talking-video-deep-think small {
+  color: var(--color-neutral-500);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.talking-video-images {
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.talking-video-images > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 13px;
+}
+
+.talking-video-images > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.talking-video-images > header strong {
+  color: var(--color-neutral-800);
+  font-size: 13px;
+}
+
+.talking-video-images > header span,
+.talking-video-images > header em,
+.talking-video-images > header p {
+  color: var(--color-neutral-400);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.talking-video-images > header em {
+  white-space: nowrap;
+}
+
+.talking-video-images > header p {
+  line-height: 1.5;
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.talking-video-image-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, 80px);
+  justify-content: start;
+}
+
+.talking-video-image-slot {
+  max-width: 80px;
+  min-width: 80px;
+  text-align: center;
+  width: 80px;
+}
+
+.talking-video-image-slot-main {
+  align-items: center;
+  background: var(--color-neutral-100);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 92px;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 160ms ease, background-color 160ms ease;
+  width: 80px;
+}
+
+.talking-video-image-slot-main:hover {
+  background: var(--color-neutral-50);
+  border-color: var(--color-border);
+}
+
+.talking-video-image-requirement {
+  background: rgb(var(--color-white-rgb) / 0.92);
+  border-radius: 999px;
+  color: var(--color-neutral-400);
+  font-size: 10px;
+  font-weight: 600;
+  left: 6px;
+  line-height: 16px;
+  padding: 0 5px;
+  position: absolute;
+  top: 6px;
+  z-index: 4;
+}
+
+.talking-video-image-requirement.is-required {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.talking-video-image-slot-main .media-attachment-stack-anchor,
+.talking-video-image-slot-main .media-attachment-stack {
+  flex: 0 0 auto;
+  max-width: 100%;
+  width: 80px !important;
+}
+
+.talking-video-image-add {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-height: 58px;
+  min-width: 48px;
+  padding: 4px;
+}
+
+.talking-video-image-add:hover {
+  color: var(--color-brand);
+}
+
+.talking-video-image-add:focus-visible {
+  outline: 2px solid rgb(var(--color-brand-rgb) / 0.28);
+  outline-offset: 2px;
+}
+
+.talking-video-image-add span {
+  color: var(--color-neutral-500);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.talking-video-image-slot-meta {
+  align-items: center;
+  color: var(--color-neutral-400);
+  display: inline-flex;
+  font-size: 11px;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.talking-video-image-slot-meta.is-filled {
+  color: var(--color-success);
+  font-weight: 600;
+}

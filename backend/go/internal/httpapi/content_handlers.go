@@ -875,6 +875,16 @@ func (s *Server) handleVideoContent(w http.ResponseWriter, r *http.Request, part
 		if !ok {
 			return
 		}
+		if resource != "video-productions" {
+			task, err := s.createVODVideoTask(user.ID, resource, input)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			go s.executeVODTask(task)
+			writeJSON(w, http.StatusCreated, task)
+			return
+		}
 		task := buildVideoTask(user.ID, resource, input)
 		created, err := s.store.SaveVideoTask(task, true)
 		if err != nil {

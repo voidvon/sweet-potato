@@ -1,0 +1,54 @@
+@media (max-width: 1280px) {
+  .video-task-epa-panel {
+    height: min(940px, calc(100vh - 24px));
+    max-height: calc(100vh - 24px);
+  }
+
+  .video-task-epa-head {
+    min-height: 104px;
+    padding: 28px 28px 22px;
+  }
+
+  .video-task-epa-rail {
+    flex-basis: 228px;
+    padding: 26px 18px 24px;
+  }
+
+  .video-task-epa-rail::before {
+    left: 43px;
+  }
+
+  .video-task-epa-rail button {
+    font-size: 17px;
+    gap: 14px;
+    grid-template-columns: 36px 1fr;
+    min-height: 68px;
+  }
+
+  .video-task-epa-rail button span {
+    height: 36px;
+    width: 36px;
+  }
+
+  .video-task-epa-main {
+    padding: 24px 24px 0;
+  }
+
+  .video-task-epa-card,
+  .video-task-epa-breakdown-card {
+    padding: 18px;
+  }
+
+  .video-task-epa-footer {
+    flex-wrap: wrap;
+    gap: 14px;
+    min-height: 92px;
+    padding: 16px 24px 18px;
+  }
+
+  .video-task-epa-footer-left,
+  .video-task-epa-footer-right {
+    flex-wrap: wrap;
+  }
+
+}

@@ -1,0 +1,38 @@
+{
+  "productName": "萌猫 AI",
+  "appId": "com.bilibili.ai-marketing-desktop",
+  "copyright": "© 2026 萌猫 AI Technology Co., Ltd.",
+  "directories": {
+    "output": "out"
+  },
+  "asar": true,
+  "npmRebuild": false,
+  "files": [
+    "**/*",
+    "!cmd/",
+    "!data/",
+    "!electron/",
+    "!web/",
+    "!logs/",
+    "!out/",
+    "!go/",
+    "!python/",
+    "!build/",
+    "!scripts/"
+  ],
+  "publish": [
+    {
+      "provider": "generic",
+      "url": ""
+    }
+  ],
+  "linux": {
+    "icon": "build/icons/",
+    "artifactName": "${productName}-${os}-${version}-${arch}.${ext}",
+    "target": [
+      {
+        "target": "AppImage"
+      }
+    ]
+  }
+}

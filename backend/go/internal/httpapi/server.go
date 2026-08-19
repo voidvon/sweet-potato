@@ -14,6 +14,7 @@ import (
 	"ai-marketing-go/internal/auth"
 	"ai-marketing-go/internal/config"
 	"ai-marketing-go/internal/store"
+	"ai-marketing-go/internal/vod"
 )
 
 type Server struct {
@@ -21,6 +22,7 @@ type Server struct {
 	mux    *http.ServeMux
 	store  *store.Store
 	tokens *auth.TokenManager
+	vod    *vod.Client
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -37,6 +39,17 @@ func New(cfg config.Config) (*Server, error) {
 		mux:    http.NewServeMux(),
 		store:  dataStore,
 		tokens: auth.NewTokenManager(cfg.AuthTokenSecret, cfg.AuthTokenExpiresIn),
+		vod: vod.New(vod.Config{
+			AccessKey:        cfg.VODAccessKey,
+			SecretKey:        cfg.VODSecretKey,
+			SpaceName:        cfg.VODSpaceName,
+			Region:           cfg.VODRegion,
+			UploadHostPrefer: cfg.VODUploadHostPrefer,
+			PlaybackBaseURL:  cfg.VODPlaybackBaseURL,
+			PollInterval:     cfg.VODPollInterval,
+			PollMaxAttempts:  cfg.VODPollMaxAttempts,
+			TaskTimeout:      cfg.VODTaskTimeout,
+		}),
 	}
 	server.mux.HandleFunc("GET /api/health", server.handleHealth)
 	server.mux.HandleFunc("GET /health", server.handleHealth)
@@ -102,6 +115,7 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("GET /api/file-management", server.handleFileManagement)
 	server.mux.Handle("/files/", withFileCache(http.StripPrefix("/files/", http.FileServer(http.Dir(filepath.Join(cfg.DataDir, "files"))))))
 	server.mux.Handle("/", server.staticHandler())
+	server.resumeVODTasks()
 	return server, nil
 }
 

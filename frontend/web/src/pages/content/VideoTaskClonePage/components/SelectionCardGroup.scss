@@ -1,0 +1,73 @@
+.selection-card-group {
+  display: grid;
+  gap: 10px;
+}
+
+.selection-card-group.is-2-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selection-card-group.is-3-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.selection-card-group > button {
+  background: var(--color-white);
+  border: 1px solid var(--color-control-border);
+  border-radius: 8px;
+  color: var(--video-task-ink);
+  cursor: pointer;
+  min-width: 0;
+  padding: 9px 10px;
+  text-align: left;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.selection-card-group > button:hover {
+  background: var(--color-neutral-50);
+  border-color: var(--color-neutral-200);
+}
+
+.selection-card-group > button.is-active {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-300);
+  box-shadow: 0 8px 24px rgb(var(--color-shadow-rgb) / 0.08);
+}
+
+.selection-card-group > button.is-read-only {
+  cursor: default;
+}
+
+.selection-card-group strong,
+.selection-card-group span {
+  display: block;
+}
+
+.selection-card-group strong {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.selection-card-group > button.is-active strong {
+  color: var(--color-neutral-800);
+}
+
+.selection-card-group strong em {
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  margin-left: 5px;
+}
+
+.selection-card-group span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+@media (max-width: 560px) {
+  .selection-card-group.is-2-columns,
+  .selection-card-group.is-3-columns {
+    grid-template-columns: 1fr;
+  }
+}
