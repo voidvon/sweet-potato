@@ -76,7 +76,9 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 	options.Prompt = prompt
 	options.Count = count
 	client := imagegen.Client{BaseURL: model.BaseURL, APIKey: model.APIKey, Provider: model.Provider, Model: model.Model, PublicBase: strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")}
-	outputs, err := client.Generate(context.Background(), optionsWithReferences(options, references))
+	ctx, cancel := context.WithTimeout(s.taskContext(), 15*time.Minute)
+	defer cancel()
+	outputs, err := client.Generate(ctx, optionsWithReferences(options, references))
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +117,7 @@ func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.O
 	extension := imageExtension(mimeType)
 	storedName := fmt.Sprintf("%d-image-%s-%d.%s", time.Now().UnixNano(), sanitizeUploadName(randomIDForHTTP()), slotIndex+1, extension)
 	path := filepath.Join(s.config.DataDir, "files", storedName)
-	if err := os.WriteFile(path, output.Bytes, 0o644); err != nil {
+	if err := os.WriteFile(path, output.Bytes, 0o600); err != nil {
 		return store.ContentAsset{}, fmt.Errorf("保存生成图片失败: %w", err)
 	}
 	if title == "" {
@@ -234,6 +236,9 @@ func (s *Server) imageReferences(userID string, attachments []any, contextValue 
 		}
 		if !found || asset.UserID != userID {
 			return nil, errors.New("参考图片素材不存在")
+		}
+		if strings.EqualFold(strings.TrimSpace(asset.MimeType), "application/pdf") {
+			continue
 		}
 		if !strings.HasPrefix(asset.MimeType, "image/") {
 			return nil, errors.New("参考素材必须是图片")

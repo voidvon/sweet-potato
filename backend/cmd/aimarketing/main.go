@@ -32,17 +32,22 @@ func main() {
 		IdleTimeout:       2 * time.Minute,
 	}
 
+	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("Go server listening", "addr", cfg.Addr, "dataDir", cfg.DataDir)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("Go server stopped unexpectedly", "error", err)
-			os.Exit(1)
+			serverErrors <- err
 		}
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	select {
+	case err := <-serverErrors:
+		slog.Error("Go server stopped unexpectedly", "error", err)
+		return
+	case <-stop:
+	}
 
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

@@ -8,7 +8,6 @@ import {
 } from '../../../../api/content'
 import { API_BASE_URL } from '../../../../api/request'
 import type { ContentAsset, User } from '../../../../types'
-import { withAuthToken } from '../../../../utils/session'
 import type { ImagePreview } from '../AssetImageUpload'
 import { useAssetLibrary } from '../useAssetLibrary'
 import { useCardGridPageSize } from '../useCardGridPageSize'
@@ -119,7 +118,7 @@ export function useDigitalHumanAssetsController({
 
   useEffect(() => {
     const source = new EventSource(
-      withAuthToken(`${API_BASE_URL}/api/content/events`),
+      `${API_BASE_URL}/api/content/events`, { withCredentials: true },
     )
     function handleStatus(event: MessageEvent<string>) {
       let data: ThreeViewStatusEvent

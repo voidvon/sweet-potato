@@ -1,5 +1,5 @@
 import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
-import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, MoreOutlined } from '@ant-design/icons';
+import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, FilePdfOutlined, MoreOutlined } from '@ant-design/icons';
 import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
@@ -214,17 +214,19 @@ export function ChatMessageList({
   }
 
   function renderFileAttachment(attachment: ChatAttachment) {
+    const isPDF = attachment.type === 'application/pdf';
     return (
       <a
         className="chat-message-attachment file"
+        download={isPDF ? attachment.name : undefined}
         href={resolveAssetUrl(attachment.url)}
         key={attachment.id}
         rel="noreferrer"
-        target="_blank"
+        target={isPDF ? undefined : '_blank'}
       >
         <>
           <span>
-            <FileOutlined />
+            {attachment.type === 'application/pdf' ? <FilePdfOutlined /> : <FileOutlined />}
           </span>
           <strong>{attachment.name}</strong>
         </>

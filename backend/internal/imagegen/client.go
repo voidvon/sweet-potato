@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"ai-marketing-go/internal/store"
+	"ai-marketing-go/internal/transfer"
 )
 
 type Client struct {
@@ -202,7 +203,7 @@ func (c Client) send(request *http.Request) ([]Output, error) {
 		return nil, fmt.Errorf("call image model: %w", err)
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	raw, err := transfer.ReadAll(response.Body, 20<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +258,10 @@ func (c Client) download(ctx context.Context, rawURL string) ([]byte, string, er
 	if err != nil {
 		return nil, "", err
 	}
-	response, err := c.httpClient().Do(request)
+	if err := transfer.ValidatePublicHTTPURL(parsed.String()); err != nil {
+		return nil, "", err
+	}
+	response, err := transfer.PublicRedirectClient(c.httpClient()).Do(request)
 	if err != nil {
 		return nil, "", fmt.Errorf("download generated image: %w", err)
 	}
@@ -265,7 +269,7 @@ func (c Client) download(ctx context.Context, rawURL string) ([]byte, string, er
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, "", fmt.Errorf("download generated image returned %d", response.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(response.Body, 100<<20))
+	data, err := transfer.ReadAll(response.Body, 100<<20)
 	return data, response.Header.Get("Content-Type"), err
 }
 

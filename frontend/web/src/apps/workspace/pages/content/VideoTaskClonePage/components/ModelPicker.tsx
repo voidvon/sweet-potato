@@ -5,7 +5,6 @@ import { Package, Trees, UserRound, X } from 'lucide-react';
 import { listContentAssetGroups, listContentAssetsPage } from '../../../../api/content';
 import { API_BASE_URL, resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User } from '../../../../types';
-import { withAuthToken } from '../../../../utils/session';
 
 type ModelPickerProps = {
   onClose: () => void;
@@ -331,7 +330,7 @@ function modelPickerThumbnailUrl(asset: ContentAsset) {
     size: '256',
     version: asset.updatedAt,
   });
-  return withAuthToken(`${API_BASE_URL}/api/content/assets/${encodeURIComponent(asset.id)}/thumbnail?${params.toString()}`);
+  return `${API_BASE_URL}/api/content/assets/${encodeURIComponent(asset.id)}/thumbnail?${params.toString()}`;
 }
 
 function handleThumbnailError(event: SyntheticEvent<HTMLImageElement>, fallbackUrl: string) {

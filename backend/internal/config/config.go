@@ -2,6 +2,8 @@ package config
 
 import (
 	"bufio"
+	"crypto/rand"
+	"encoding/base64"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,12 +30,14 @@ type Config struct {
 
 func Load() Config {
 	loadDotEnv()
+	dataDir := resolveDataDir(os.Getenv("DATA_DIR"))
+	secret := authTokenSecret(dataDir)
 
 	if configuredAddr := strings.TrimSpace(os.Getenv("GO_SERVER_ADDR")); configuredAddr != "" {
 		return Config{
 			Addr:                configuredAddr,
-			DataDir:             resolveDataDir(os.Getenv("DATA_DIR")),
-			AuthTokenSecret:     authTokenSecret(),
+			DataDir:             dataDir,
+			AuthTokenSecret:     secret,
 			AuthTokenExpiresIn:  authTokenExpiry(),
 			VODAccessKey:        firstEnv("VOLCENGINE_ACCESS_KEY_ID", "VOLCENGINE_ACCESS_KEY", "VOLCENGINE_VOD_ACCESS_KEY_ID", "VOLCENGINE_VOD_ACCESS_KEY", "VOLC_ACCESSKEY", "VOLC_ACCESS_KEY", "VOLC_ACCESS_KEY_ID", "VOLC_AK"),
 			VODSecretKey:        firstEnv("VOLCENGINE_SECRET_ACCESS_KEY", "VOLCENGINE_SECRET_KEY", "VOLCENGINE_VOD_SECRET_ACCESS_KEY", "VOLCENGINE_VOD_SECRET_KEY", "VOLC_SECRETKEY", "VOLC_SECRET_KEY", "VOLC_SECRET_ACCESS_KEY", "VOLC_SK"),
@@ -61,8 +65,8 @@ func Load() Config {
 
 	return Config{
 		Addr:                net.JoinHostPort(host, port),
-		DataDir:             resolveDataDir(os.Getenv("DATA_DIR")),
-		AuthTokenSecret:     authTokenSecret(),
+		DataDir:             dataDir,
+		AuthTokenSecret:     secret,
 		AuthTokenExpiresIn:  authTokenExpiry(),
 		VODAccessKey:        firstEnv("VOLCENGINE_ACCESS_KEY_ID", "VOLCENGINE_ACCESS_KEY", "VOLCENGINE_VOD_ACCESS_KEY_ID", "VOLCENGINE_VOD_ACCESS_KEY", "VOLC_ACCESSKEY", "VOLC_ACCESS_KEY", "VOLC_ACCESS_KEY_ID", "VOLC_AK"),
 		VODSecretKey:        firstEnv("VOLCENGINE_SECRET_ACCESS_KEY", "VOLCENGINE_SECRET_KEY", "VOLCENGINE_VOD_SECRET_ACCESS_KEY", "VOLCENGINE_VOD_SECRET_KEY", "VOLC_SECRETKEY", "VOLC_SECRET_KEY", "VOLC_SECRET_ACCESS_KEY", "VOLC_SK"),
@@ -108,13 +112,28 @@ func durationEnv(name string, defaultValue time.Duration) time.Duration {
 	return time.Duration(value) * time.Second
 }
 
-func authTokenSecret() string {
+func authTokenSecret(dataDir string) string {
 	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if secret == "" {
 		secret = strings.TrimSpace(os.Getenv("AUTH_TOKEN_SECRET"))
 	}
-	if secret == "" {
-		secret = "ai-marketing-desktop-server-dev-secret"
+	if secret != "" {
+		return secret
+	}
+	path := filepath.Join(dataDir, ".auth-secret")
+	if value, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(value)) != "" {
+		return strings.TrimSpace(string(value))
+	}
+	bytes := make([]byte, 48)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("generate authentication secret: " + err.Error())
+	}
+	secret = base64.RawURLEncoding.EncodeToString(bytes)
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		panic("create authentication data directory: " + err.Error())
+	}
+	if err := os.WriteFile(path, []byte(secret+"\n"), 0o600); err != nil {
+		panic("persist authentication secret: " + err.Error())
 	}
 	return secret
 }

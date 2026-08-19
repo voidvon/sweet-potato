@@ -1,3 +1,4 @@
+import { FilePdfOutlined } from '@ant-design/icons';
 import { ImageOff, LoaderCircle, Pause, Play, Plus, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -12,7 +13,8 @@ export type MediaAttachmentItem = {
   previewSrc?: string;
   src?: string;
   status?: 'uploading';
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'file';
+  previewable?: boolean;
 };
 
 export type MediaAttachmentLeadingAdd = {
@@ -227,6 +229,7 @@ export function MediaAttachmentStack({
     originalIndex: number,
   ) => {
     const sourceKey = item.src || item.id;
+    const canPreview = Boolean(onPreview && item.previewable !== false);
     const unavailable = failedSources.has(sourceKey);
     const showAction = expanded
       || collapsedActionVisibility === 'all'
@@ -252,16 +255,16 @@ export function MediaAttachmentStack({
 
     return (
       <div
-        aria-label={onPreview ? `预览${item.name}` : undefined}
-        className={`media-attachment-stack__item is-${item.type}${expanded ? ' is-expanded' : ''}${collapsedHidden && !expanded && !keepVisibleWhileCollapsing ? ' is-collapsed-hidden' : ''}${onPreview ? ' is-clickable' : ''}`}
+        aria-label={canPreview ? `预览${item.name}` : undefined}
+        className={`media-attachment-stack__item is-${item.type}${expanded ? ' is-expanded' : ''}${collapsedHidden && !expanded && !keepVisibleWhileCollapsing ? ' is-collapsed-hidden' : ''}${canPreview ? ' is-clickable' : ''}`}
         key={item.id}
-        onClick={onPreview ? () => preview(item, originalIndex) : undefined}
-        onKeyDown={onPreview
+        onClick={canPreview ? () => preview(item, originalIndex) : undefined}
+        onKeyDown={canPreview
           ? (event) => handlePreviewKeyDown(event, () => preview(item, originalIndex))
           : undefined}
-        role={onPreview ? 'button' : undefined}
+        role={canPreview ? 'button' : undefined}
         style={{ background: item.background, ...itemStyle }}
-        tabIndex={onPreview ? 0 : undefined}
+        tabIndex={canPreview ? 0 : undefined}
       >
         {item.type === 'image' ? (
           unavailable ? <UnavailableContent /> : (
@@ -287,6 +290,11 @@ export function MediaAttachmentStack({
             <span className="media-attachment-stack__video-play"><Play fill="currentColor" size={14} /></span>
             {showCaption && item.caption ? <span className="media-attachment-stack__caption">{item.caption}</span> : null}
           </>
+        ) : item.type === 'file' ? (
+          <span className="media-attachment-stack__file">
+            <FilePdfOutlined aria-hidden="true" />
+            {showCaption && item.caption ? <span className="media-attachment-stack__caption">{item.caption}</span> : null}
+          </span>
         ) : (
           <span className="media-attachment-stack__audio">
             <span className={`media-attachment-stack__audio-play${item.id === activeItemId ? ' is-playing' : ''}`}>

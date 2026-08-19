@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ai-marketing-go/internal/transfer"
 )
 
 const (
@@ -133,7 +135,7 @@ func (c *Client) legacyRequest(ctx context.Context, action, version string, para
 		return nil, err
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
+	body, err := transfer.ReadAll(response.Body, 8<<20)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +288,7 @@ func (c *Client) doTOS(request *http.Request, operation string) error {
 		}
 		response, err := c.http.Do(request)
 		if err == nil {
-			body, readErr := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+			body, readErr := transfer.ReadAll(response.Body, 2<<20)
 			response.Body.Close()
 			if readErr == nil && response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 				if len(body) == 0 {
@@ -325,7 +327,7 @@ func (c *Client) doTOSJSON(request *http.Request, operation string) (map[string]
 		}
 		response, err := c.http.Do(request)
 		if err == nil {
-			body, readErr := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+			body, readErr := transfer.ReadAll(response.Body, 2<<20)
 			response.Body.Close()
 			if readErr == nil && response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 				var payload map[string]any

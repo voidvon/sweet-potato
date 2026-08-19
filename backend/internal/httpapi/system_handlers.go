@@ -305,13 +305,16 @@ func (s *Server) removeManagedFilePath(path string) error {
 }
 
 func clientIP(r *http.Request) string {
-	value := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
-	if value != "" {
-		return strings.TrimSpace(strings.Split(value, ",")[0])
-	}
 	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	remoteIP := strings.TrimSpace(r.RemoteAddr)
 	if err == nil {
-		return host
+		remoteIP = host
 	}
-	return strings.TrimSpace(r.RemoteAddr)
+	if parsed := net.ParseIP(remoteIP); parsed != nil && parsed.IsLoopback() {
+		value := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+		if value != "" {
+			return strings.TrimSpace(strings.Split(value, ",")[0])
+		}
+	}
+	return remoteIP
 }

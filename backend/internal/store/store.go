@@ -1,6 +1,8 @@
 package store
 
 import (
+	"crypto/hmac"
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -9,9 +11,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
+)
+
+const (
+	passwordHashPrefix     = "pbkdf2-sha256"
+	passwordHashIterations = 600_000
 )
 
 var ErrUserAlreadyExists = errors.New("账号已存在")
@@ -56,7 +65,7 @@ func Open(dataDir string) (*Store, error) {
 		return nil, fmt.Errorf("open sqlite database: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	if _, err := db.Exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;"); err != nil {
+	if _, err := db.Exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("configure sqlite database: %w", err)
 	}
@@ -449,8 +458,11 @@ func (s *Store) UpdateLastLogin(id string, timestamp string) error {
 }
 
 func hashPassword(password string, salt string) string {
-	digest := sha256.Sum256([]byte(salt + ":" + password))
-	return hex.EncodeToString(digest[:])
+	digest, err := pbkdf2.Key(sha256.New, password, []byte(salt), passwordHashIterations, 32)
+	if err != nil {
+		panic("derive password hash: " + err.Error())
+	}
+	return fmt.Sprintf("%s$%d$%s", passwordHashPrefix, passwordHashIterations, hex.EncodeToString(digest))
 }
 
 func randomHex(size int) (string, error) {
@@ -462,7 +474,27 @@ func randomHex(size int) (string, error) {
 }
 
 func VerifyPassword(password string, user User) bool {
-	return hashPassword(password, user.Salt) == user.PasswordHash
+	if strings.HasPrefix(user.PasswordHash, passwordHashPrefix+"$") {
+		parts := strings.Split(user.PasswordHash, "$")
+		if len(parts) != 3 {
+			return false
+		}
+		iterations, err := strconv.Atoi(parts[1])
+		if err != nil || iterations < 100_000 || iterations > 10_000_000 {
+			return false
+		}
+		digest, err := pbkdf2.Key(sha256.New, password, []byte(user.Salt), iterations, 32)
+		if err != nil {
+			return false
+		}
+		return hmac.Equal([]byte(parts[2]), []byte(hex.EncodeToString(digest)))
+	}
+	legacy := sha256.Sum256([]byte(user.Salt + ":" + password))
+	return hmac.Equal([]byte(user.PasswordHash), []byte(hex.EncodeToString(legacy[:])))
+}
+
+func PasswordHashNeedsUpgrade(user User) bool {
+	return !strings.HasPrefix(user.PasswordHash, fmt.Sprintf("%s$%d$", passwordHashPrefix, passwordHashIterations))
 }
 
 func PublicUser(user User) map[string]any {

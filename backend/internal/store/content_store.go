@@ -348,6 +348,24 @@ func (s *Store) FindContentAsset(id string) (ContentAsset, bool, error) {
 	return asset, err == nil, err
 }
 
+func (s *Store) FindContentAssetByStoredFileName(name string) (ContentAsset, bool, error) {
+	var id string
+	err := s.db.QueryRow(`SELECT id FROM content_assets WHERE stored_file_name = ?`, name).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ContentAsset{}, false, nil
+	}
+	if err != nil {
+		return ContentAsset{}, false, err
+	}
+	return s.FindContentAsset(id)
+}
+
+func (s *Store) IsPublicDiscoverFile(name string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM discover_items i JOIN discover_categories c ON c.id = i.category_id AND c.status = 'active' WHERE i.file_url = ? OR i.cover_url = ?`, "/files/"+name, "/files/"+name).Scan(&count)
+	return count > 0, err
+}
+
 func (s *Store) CreateContentAsset(asset ContentAsset) (ContentAsset, error) {
 	if asset.ID == "" {
 		asset.ID = mustRandomID()

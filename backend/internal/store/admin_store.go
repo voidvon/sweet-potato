@@ -280,7 +280,7 @@ func (s *Store) UpdatePassword(id, password string) error {
 	if err != nil {
 		return fmt.Errorf("generate password salt: %w", err)
 	}
-	if _, err := s.db.Exec(`UPDATE users SET password_hash = ?, salt = ? WHERE id = ?`, hashPassword(password, salt), salt, id); err != nil {
+	if _, err := s.db.Exec(`UPDATE users SET password_hash = ?, salt = ?, auth_version = auth_version + 1 WHERE id = ?`, hashPassword(password, salt), salt, id); err != nil {
 		return fmt.Errorf("update password: %w", err)
 	}
 	return nil

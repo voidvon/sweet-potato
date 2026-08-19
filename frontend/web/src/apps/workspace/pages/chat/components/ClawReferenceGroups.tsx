@@ -58,7 +58,13 @@ export function ClawReferenceGroups({
       return;
     }
 
-    const acceptedFiles = files.slice(0, remainingCount);
+    const supportedFiles = files.filter((file) => (
+      file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    ));
+    if (supportedFiles.length < files.length) {
+      message.warning('仅支持图片或 PDF 文件');
+    }
+    const acceptedFiles = supportedFiles.slice(0, remainingCount);
     if (acceptedFiles.length < files.length && group.maxCount) {
       message.warning(`${group.label}最多上传 ${group.maxCount} 张`);
     }
@@ -68,7 +74,7 @@ export function ClawReferenceGroups({
 
   function createReferenceUploadProps(group: ClawReferenceGroupConfig): UploadProps {
     return {
-      accept: 'image/*',
+      accept: 'image/*,.pdf,application/pdf',
       beforeUpload: (file, fileList) => {
         if (file.uid === fileList[0]?.uid) {
           void handleReferenceUpload(group, fileList);
@@ -121,21 +127,26 @@ export function ClawReferenceGroups({
                     collapsedActionVisibility="top"
                     collapsedCaptionVisibility="top"
                     items={groupAttachments.map((attachment, index) => ({
-                      caption: `图${startIndex + index}`,
+                      caption: attachment.kind === 'image'
+                        ? `图${groupAttachments.slice(0, index + 1).filter((item) => item.kind === 'image').length + startIndex - 1}`
+                        : 'PDF',
                       id: attachment.id,
                       name: attachment.name,
-                      previewSrc: resolveAssetUrl(attachment.url),
-                      src: resolveAssetUrl(attachment.previewUrl || attachment.url),
+                      previewSrc: attachment.kind === 'image' ? resolveAssetUrl(attachment.url) : undefined,
+                      previewable: attachment.kind === 'image',
+                      src: attachment.kind === 'image' ? resolveAssetUrl(attachment.previewUrl || attachment.url) : undefined,
                       status: attachment.uploadStatus,
-                      type: 'image',
+                      type: attachment.kind === 'image' ? 'image' : 'file',
                     }))}
                     layout="rotated"
                     maxCollapsedVisible={5}
-                    onPreview={(_item, index) => setPreviewImageGroup({
-                      current: index,
-                      images: groupAttachments,
-                      open: true,
-                    })}
+                    onPreview={(_item, index) => {
+                      const images = groupAttachments.filter((attachment) => attachment.kind === 'image');
+                      const current = groupAttachments
+                        .slice(0, index + 1)
+                        .filter((attachment) => attachment.kind === 'image').length - 1;
+                      setPreviewImageGroup({ current: Math.max(0, current), images, open: true });
+                    }}
                     renderAction={readonly || !onRemoveAttachment ? undefined : (item) => (
                       <button
                         aria-label={`移除 ${item.name}`}

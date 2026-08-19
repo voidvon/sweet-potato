@@ -1,5 +1,5 @@
 import { beginRequestActivity, endRequestActivity } from './requestActivity';
-import { getLoginRoute, getStoredToken, removeStoredUser } from '../../utils/session';
+import { getLoginRoute, getStoredToken, getStoredUser, removeStoredUser } from '../../utils/session';
 
 function resolveApiBaseUrl() {
   // 使用构建时的环境变量
@@ -87,18 +87,29 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
     const requestActivityId = showPageLoading ? beginRequestActivity() : undefined;
     try {
       const response = await fetch(`${API_BASE_URL}${path}`, {
+		credentials: 'include',
         ...requestOptions,
         headers,
       });
 
       const text = await response.text();
-      const data = text ? JSON.parse(text) : null;
+      let data: unknown = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text.slice(0, 500) };
+        }
+      }
 
       if (!response.ok) {
-        if (response.status === 401 && token) {
+        if (response.status === 401 && path !== '/api/users/me' && (token || getStoredUser())) {
           redirectToLogin();
         }
-        throw new Error(data?.message || '服务请求失败');
+        const message = data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
+          ? data.message
+          : '服务请求失败';
+        throw new Error(message);
       }
 
       return data as T;

@@ -107,8 +107,12 @@ func (s *Server) handleRealPerson(w http.ResponseWriter, r *http.Request, parts 
 		groupID := strings.TrimSpace(r.URL.Query().Get("groupId"))
 		userID := strings.TrimSpace(r.URL.Query().Get("userId"))
 		status := valueOr(strings.TrimSpace(r.URL.Query().Get("status")), "verified")
+		if status != "pending" && status != "verified" && status != "failed" {
+			writeError(w, http.StatusBadRequest, "认证状态无效")
+			return
+		}
 		group, found, err := s.store.FindContentGroup(groupID)
-		if err != nil || !found || (userID != "" && group.UserID != userID) {
+		if err != nil || !found || userID == "" || group.UserID != userID {
 			writeError(w, http.StatusNotFound, "认证分组不存在")
 			return
 		}
@@ -210,11 +214,28 @@ func contentPermission(resourceType string) string {
 }
 
 func (s *Server) requireContentUser(w http.ResponseWriter, r *http.Request, resourceType string) (store.User, bool) {
-	permission := contentPermission(resourceType)
-	if permission == "" {
-		return s.requireUser(w, r)
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return store.User{}, false
 	}
-	return s.requireUser(w, r, permission)
+	if !canAccessContentResource(user, resourceType) {
+		writeError(w, http.StatusForbidden, "当前账号无权访问该素材类型")
+		return store.User{}, false
+	}
+	return user, true
+}
+
+func canAccessContentResource(user store.User, resourceType string) bool {
+	permission := contentPermission(resourceType)
+	if permission == "" || user.Role == "admin" {
+		return true
+	}
+	for _, granted := range user.Permissions {
+		if granted == permission {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleContentEvents(w http.ResponseWriter, r *http.Request) {
@@ -473,6 +494,13 @@ func (s *Server) uploadContentAsset(r *http.Request, options uploadOptions) (sto
 	if options.ResourceType == "finished_video" {
 		_ = os.Remove(file.Path)
 		return store.ContentAsset{}, errors.New("成片素材只能由视频生成任务写入")
+	}
+	if options.AssetKind != "file_input" && options.AssetKind != "batch_input" {
+		user, found, findErr := s.store.FindUserByID(options.UserID)
+		if findErr != nil || !found || !canAccessContentResource(user, options.ResourceType) {
+			_ = os.Remove(file.Path)
+			return store.ContentAsset{}, errors.New("当前账号无权访问该素材类型")
+		}
 	}
 	metadata := options.Metadata
 	if metadata == nil {
@@ -775,6 +803,7 @@ func (s *Server) handleContentAssets(w http.ResponseWriter, r *http.Request, par
 			writeError(w, http.StatusNotFound, "素材没有本地预览")
 			return
 		}
+		w.Header().Set("Cache-Control", "private, no-store")
 		http.ServeFile(w, r, asset.FilePath)
 		return
 	}
@@ -881,7 +910,7 @@ func (s *Server) handleVideoContent(w http.ResponseWriter, r *http.Request, part
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			go s.executeVODTask(task)
+			s.startBackgroundTask(func() { s.executeVODTask(task) })
 			writeJSON(w, http.StatusCreated, task)
 			return
 		}
@@ -891,7 +920,7 @@ func (s *Server) handleVideoContent(w http.ResponseWriter, r *http.Request, part
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		go s.executeVideoTask(created)
+		s.startBackgroundTask(func() { s.executeVideoTask(created) })
 		writeJSON(w, http.StatusCreated, created)
 		return
 	}
@@ -1031,7 +1060,9 @@ func (s *Server) executeConfiguredVideoTask(task store.VideoGenerationTask, inpu
 	}
 	remoteVideo, _ := input["remoteVideo"].(map[string]any)
 	client := video.Client{BaseURL: model.BaseURL, APIKey: model.APIKey, Provider: model.Provider, Model: valueOr(stringValue(input, "videoModelId"), model.Model), PublicBase: strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")}
-	result, err := client.Generate(context.Background(), video.GenerateInput{TaskID: task.ID, Prompt: task.Prompt, Ratio: task.AspectRatio, Quality: stringValue(input, "quality"), Duration: stringValue(input, "duration"), GenerateAudio: input["generateAudio"] != false, Images: images, Videos: videos, Audios: audios, RemoteVideo: stringValue(remoteVideo, "input")})
+	ctx, cancel := context.WithTimeout(s.taskContext(), 30*time.Minute)
+	defer cancel()
+	result, err := client.Generate(ctx, video.GenerateInput{TaskID: task.ID, Prompt: task.Prompt, Ratio: task.AspectRatio, Quality: stringValue(input, "quality"), Duration: stringValue(input, "duration"), GenerateAudio: input["generateAudio"] != false, Images: images, Videos: videos, Audios: audios, RemoteVideo: stringValue(remoteVideo, "input")})
 	if err != nil {
 		return store.ContentAsset{}, err
 	}
@@ -1044,7 +1075,7 @@ func (s *Server) executeConfiguredVideoTask(task store.VideoGenerationTask, inpu
 	}
 	storedName := fmt.Sprintf("%d-video-task-%s%s", time.Now().UnixNano(), sanitizeUploadName(task.ID), ext)
 	path := filepath.Join(s.config.DataDir, "files", storedName)
-	fileSize, err := client.Download(context.Background(), result.VideoURL, path)
+	fileSize, err := client.Download(ctx, result.VideoURL, path)
 	if err != nil {
 		return store.ContentAsset{}, err
 	}
@@ -1156,17 +1187,34 @@ func (s *Server) handleReferenceVideo(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 	if len(parts) == 0 && r.Method == http.MethodDelete {
+		user, _ := s.authenticatedUser(r)
 		var input map[string]any
 		if !decodeJSONBody(w, r, &input) {
 			return
 		}
-		stored := strings.TrimSpace(stringValue(input, "storedFileName"))
-		stored = filepath.Base(stored)
-		if stored == "." || stored == "" || strings.Contains(stored, "..") {
-			writeError(w, http.StatusBadRequest, "参考视频文件无效")
+		assetID := strings.TrimSpace(stringValue(input, "assetId"))
+		var asset store.ContentAsset
+		var found bool
+		var err error
+		if assetID != "" {
+			asset, found, err = s.store.FindContentAsset(assetID)
+		} else {
+			stored := filepath.Base(strings.TrimSpace(stringValue(input, "storedFileName")))
+			if stored != "." && stored != "" && !strings.Contains(stored, "..") {
+				asset, found, err = s.store.FindContentAssetByStoredFileName(stored)
+			}
+		}
+		if err != nil || !found || asset.UserID != user.ID {
+			writeError(w, http.StatusNotFound, "参考视频素材不存在")
 			return
 		}
-		_ = os.Remove(filepath.Join(s.config.DataDir, "files", stored))
+		if _, err := s.store.DeleteContentAsset(asset.ID, user.ID); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if asset.FilePath != "" {
+			_ = os.Remove(asset.FilePath)
+		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
@@ -1214,7 +1262,7 @@ func (s *Server) handleStoryboard(w http.ResponseWriter, r *http.Request, parts 
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			go s.executeVideoTask(created)
+			s.startBackgroundTask(func() { s.executeVideoTask(created) })
 			writeJSON(w, http.StatusCreated, created)
 			return
 		}
@@ -1259,6 +1307,12 @@ func (s *Server) prepareLocalDirectUpload(w http.ResponseWriter, r *http.Request
 	if resourceType == "finished_video" {
 		writeError(w, http.StatusBadRequest, "成片素材只能由视频生成任务写入")
 		return
+	}
+	if !strings.HasPrefix(r.URL.Path, "/api/chat/attachments/") {
+		if user, found, findErr := s.store.FindUserByID(user.ID); findErr != nil || !found || !canAccessContentResource(user, resourceType) {
+			writeError(w, http.StatusForbidden, "当前账号无权访问该素材类型")
+			return
+		}
 	}
 	groupID := strings.TrimSpace(stringValue(input, "groupId"))
 	if groupID != "" {
@@ -1321,7 +1375,11 @@ func (s *Server) prepareLocalDirectUpload(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) receiveLocalDirectUpload(w http.ResponseWriter, r *http.Request, intentID string) {
-	intent, found, err := s.store.FindFileUploadIntent(intentID, "")
+	user, ok := s.requireUser(w, r)
+	if !ok {
+		return
+	}
+	intent, found, err := s.store.FindFileUploadIntent(intentID, user.ID)
 	if err != nil || !found {
 		writeError(w, http.StatusNotFound, "上传任务不存在")
 		return

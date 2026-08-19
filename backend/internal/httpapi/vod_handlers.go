@@ -85,6 +85,8 @@ func (s *Server) executeVODTask(task store.VideoGenerationTask) {
 		s.failVODTask(task, errors.New("VOD 服务未初始化"))
 		return
 	}
+	ctx, cancel := context.WithTimeout(s.taskContext(), s.config.VODTaskTimeout)
+	defer cancel()
 
 	task.Status = "generating"
 	contextValue := objectValue(task.ExpertContext)
@@ -111,7 +113,7 @@ func (s *Server) executeVODTask(task store.VideoGenerationTask) {
 	job, hasJob := vodJobFromTask(task)
 	if !hasJob {
 		fileName := valueOr(source.OriginalFileName, source.StoredFileName)
-		upload, uploadErr := s.vod.Upload(context.Background(), source.FilePath, fileName)
+		upload, uploadErr := s.vod.Upload(ctx, source.FilePath, fileName)
 		if uploadErr != nil {
 			s.failVODTask(task, uploadErr)
 			return
@@ -127,7 +129,7 @@ func (s *Server) executeVODTask(task store.VideoGenerationTask) {
 			task = updated
 		}
 
-		job, err = s.startVODJob(context.Background(), stringValue(contextValue, "mode"), upload.Vid, request)
+		job, err = s.startVODJob(ctx, stringValue(contextValue, "mode"), upload.Vid, request)
 		if err != nil {
 			s.failVODTask(task, err)
 			return
@@ -148,7 +150,7 @@ func (s *Server) executeVODTask(task store.VideoGenerationTask) {
 		}
 	}
 
-	result, err := s.vod.Wait(context.Background(), job)
+	result, err := s.vod.Wait(ctx, job)
 	if err != nil {
 		s.failVODTask(task, err)
 		return
@@ -158,7 +160,7 @@ func (s *Server) executeVODTask(task store.VideoGenerationTask) {
 		s.failVODTask(task, err)
 		return
 	}
-	asset, err := s.persistVODOutput(task, source, remoteURL, result)
+	asset, err := s.persistVODOutput(ctx, task, source, remoteURL, result)
 	if err != nil {
 		s.failVODTask(task, err)
 		return
@@ -197,7 +199,7 @@ func (s *Server) resumeVODTasks() {
 			s.failVODTask(task, errors.New("服务重启前 VOD 任务尚未成功提交，请重新发起任务"))
 			continue
 		}
-		go s.executeVODTask(task)
+		s.startBackgroundTask(func() { s.executeVODTask(task) })
 	}
 }
 
@@ -280,7 +282,7 @@ func (s *Server) startVODJob(ctx context.Context, mode, vid string, input map[st
 	}
 }
 
-func (s *Server) persistVODOutput(task store.VideoGenerationTask, source store.ContentAsset, remoteURL string, result vod.Result) (store.ContentAsset, error) {
+func (s *Server) persistVODOutput(ctx context.Context, task store.VideoGenerationTask, source store.ContentAsset, remoteURL string, result vod.Result) (store.ContentAsset, error) {
 	contextValue := objectValue(task.ExpertContext)
 	if assetID := stringValue(contextValue, "outputAssetId"); assetID != "" {
 		if asset, found, err := s.store.FindContentAsset(assetID); err == nil && found && asset.UserID == task.UserID {
@@ -297,7 +299,7 @@ func (s *Server) persistVODOutput(task store.VideoGenerationTask, source store.C
 	}
 	storedName := fmt.Sprintf("%d-vod-%s%s", time.Now().UnixNano(), sanitizeUploadName(task.ID), extension)
 	path := filepath.Join(s.config.DataDir, "files", storedName)
-	fileSize, err := s.vod.Download(context.Background(), remoteURL, path)
+	fileSize, err := s.vod.Download(ctx, remoteURL, path)
 	if err != nil {
 		_ = os.Remove(path)
 		return store.ContentAsset{}, err

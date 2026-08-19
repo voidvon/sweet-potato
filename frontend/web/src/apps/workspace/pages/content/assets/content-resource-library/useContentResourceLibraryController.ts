@@ -11,7 +11,6 @@ import {
 } from '../../../../api/content';
 import { API_BASE_URL } from '../../../../api/request';
 import type { ContentAsset, ContentAssetGroup } from '../../../../types';
-import { withAuthToken } from '../../../../utils/session';
 import type { ImagePreview } from '../AssetImageUpload';
 import { useCardGridPageSize } from '../useCardGridPageSize';
 import {
@@ -68,29 +67,34 @@ export function useContentResourceLibraryController({
   const [worksAssetTab, setWorksAssetTab] = useState<WorksAssetTab>('all');
   const [worksFunctionKey, setWorksFunctionKey] = useState(allWorksFunctionOption.key);
   const [visibleWorksCount, setVisibleWorksCount] = useState(finishedAssetsPageSize);
+  const loadRequestIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
     setIsLoadingLibrary(true);
     try {
       const [groupList, assetList] = await Promise.all([
         listContentAssetGroups(currentUser.id, resourceType),
         listContentAssets({ userId: currentUser.id, resourceType }),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
       setGroups(groupList);
       setAssets(resourceType === 'finished_video' ? assetList.filter(isCompletedGeneratedWorkAsset) : assetList);
       setActiveGroup((current) => groupList.find((group) => group.id === current?.id) || null);
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return;
       message.error(error instanceof Error ? error.message : '素材加载失败');
     } finally {
-      setIsLoadingLibrary(false);
+      if (requestId === loadRequestIdRef.current) setIsLoadingLibrary(false);
     }
   }, [currentUser.id, resourceType]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => () => { loadRequestIdRef.current += 1; }, []);
 
   useEffect(() => {
     if (resourceType !== 'finished_video') return undefined;
-    const source = new EventSource(withAuthToken(`${API_BASE_URL}/api/content/events`));
+    const source = new EventSource(`${API_BASE_URL}/api/content/events`, { withCredentials: true });
     const handleComplete = () => { void loadData(); };
     source.addEventListener('video-generation-complete', handleComplete);
     return () => {

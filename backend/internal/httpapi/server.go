@@ -1,14 +1,19 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"ai-marketing-go/internal/auth"
@@ -18,15 +23,29 @@ import (
 )
 
 type Server struct {
-	config config.Config
-	mux    *http.ServeMux
-	store  *store.Store
-	tokens *auth.TokenManager
-	vod    *vod.Client
+	config       config.Config
+	mux          *http.ServeMux
+	store        *store.Store
+	tokens       *auth.TokenManager
+	vod          *vod.Client
+	rateMu       sync.Mutex
+	rateRules    []store.RateLimitRule
+	rateLoadedAt time.Time
+	rateWindows  map[string]rateLimitWindow
+	ipMu         sync.Mutex
+	ipRules      []string
+	ipLoadedAt   time.Time
+	accessCount  atomic.Uint64
+	taskCtx      context.Context
+	taskCancel   context.CancelFunc
+	taskWG       sync.WaitGroup
 }
 
 func New(cfg config.Config) (*Server, error) {
-	if err := os.MkdirAll(filepath.Join(cfg.DataDir, "files"), 0o755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create data directory: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Join(cfg.DataDir, "files"), 0o700); err != nil {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
 	dataStore, err := store.Open(cfg.DataDir)
@@ -34,6 +53,7 @@ func New(cfg config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	taskCtx, taskCancel := context.WithCancel(context.Background())
 	server := &Server{
 		config: cfg,
 		mux:    http.NewServeMux(),
@@ -50,11 +70,15 @@ func New(cfg config.Config) (*Server, error) {
 			PollMaxAttempts:  cfg.VODPollMaxAttempts,
 			TaskTimeout:      cfg.VODTaskTimeout,
 		}),
+		rateWindows: make(map[string]rateLimitWindow),
+		taskCtx:     taskCtx,
+		taskCancel:  taskCancel,
 	}
 	server.mux.HandleFunc("GET /api/health", server.handleHealth)
 	server.mux.HandleFunc("GET /health", server.handleHealth)
 	server.mux.HandleFunc("POST /api/auth/register", server.handleRegister)
 	server.mux.HandleFunc("POST /api/auth/login", server.handleLogin)
+	server.mux.HandleFunc("POST /api/auth/logout", server.handleLogout)
 	server.mux.HandleFunc("GET /api/users/me", server.handleCurrentUser)
 	server.mux.HandleFunc("GET /api/users", server.handleListUsers)
 	server.mux.HandleFunc("PUT /api/users/{id}/profile", server.handleUpdateProfile)
@@ -113,30 +137,89 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("GET /api/access-logs", server.handleAccessLogs)
 	server.mux.HandleFunc("/api/file-management/", server.handleFileManagement)
 	server.mux.HandleFunc("GET /api/file-management", server.handleFileManagement)
-	server.mux.Handle("/files/", withFileCache(http.StripPrefix("/files/", http.FileServer(http.Dir(filepath.Join(cfg.DataDir, "files"))))))
+	server.mux.Handle("/files/", server.fileHandler())
 	server.mux.Handle("/", server.staticHandler())
 	server.resumeVODTasks()
 	return server, nil
 }
 
 func (s *Server) Close() error {
+	if s.taskCancel != nil {
+		s.taskCancel()
+	}
+	s.taskWG.Wait()
 	return s.store.Close()
+}
+
+func (s *Server) startBackgroundTask(task func()) {
+	s.taskWG.Add(1)
+	go func() {
+		defer s.taskWG.Done()
+		task()
+	}()
+}
+
+func (s *Server) taskContext() context.Context {
+	if s.taskCtx != nil {
+		return s.taskCtx
+	}
+	return context.Background()
 }
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if origin := allowedCORSOrigin(r); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Add("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
 		startedAt := time.Now()
-		s.mux.ServeHTTP(w, r)
-		slog.Info("http request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(startedAt).String())
+		if status, ok := s.applyCSRFGuard(w, r); !ok {
+			user, _ := s.authenticatedUser(r)
+			s.recordAccess(w, r, startedAt, status, user)
+			return
+		}
+		if status, ok := s.applyRequestGuards(w, r); !ok {
+			s.recordAccess(w, r, startedAt, status, store.User{})
+			return
+		}
+		user, _ := s.authenticatedUser(r)
+		request := r.WithContext(withAuthenticatedUser(r.Context(), user))
+		response := &statusResponseWriter{ResponseWriter: w}
+		s.mux.ServeHTTP(response, request)
+		status := response.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		s.recordAccess(response, request, startedAt, status, user)
+		slog.Info("http request", "method", r.Method, "path", r.URL.Path, "status", status, "duration", time.Since(startedAt).String())
 	})
+}
+
+func (s *Server) applyCSRFGuard(w http.ResponseWriter, r *http.Request) (int, bool) {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+		return 0, true
+	}
+	cookie, err := r.Cookie(authCookieName)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		return 0, true
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" || origin == "null" || allowedCORSOrigin(r) != "" {
+		return 0, true
+	}
+	writeError(w, http.StatusForbidden, "请求来源不受信任")
+	return http.StatusForbidden, false
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -175,9 +258,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "创建账号失败")
 		return
 	}
+	token := s.tokens.Create(user.ID, user.Role, user.AuthVersion)
+	s.setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"user":  store.PublicUser(user),
-		"token": s.tokens.Create(user.ID, user.Role, user.AuthVersion),
+		"token": token,
 	})
 }
 
@@ -204,15 +289,33 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "账号已被拉黑，请联系管理员")
 		return
 	}
+	if store.PasswordHashNeedsUpgrade(user) {
+		if err := s.store.UpdatePassword(user.ID, input.Password); err != nil {
+			writeError(w, http.StatusInternalServerError, "登录失败")
+			return
+		}
+		user, found, err = s.store.FindUserByID(user.ID)
+		if err != nil || !found {
+			writeError(w, http.StatusInternalServerError, "登录失败")
+			return
+		}
+	}
 	user.LastLoginAt = time.Now().UTC().Format(time.RFC3339Nano)
 	if err := s.store.UpdateLastLogin(user.ID, user.LastLoginAt); err != nil {
 		writeError(w, http.StatusInternalServerError, "登录失败")
 		return
 	}
+	token := s.tokens.Create(user.ID, user.Role, user.AuthVersion)
+	s.setAuthCookie(w, r, token)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user":  store.PublicUser(user),
-		"token": s.tokens.Create(user.ID, user.Role, user.AuthVersion),
+		"token": token,
 	})
+}
+
+func (s *Server) handleLogout(w http.ResponseWriter, _ *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: authCookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1, Expires: time.Unix(0, 0)})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -221,13 +324,21 @@ func (s *Server) handleCurrentUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "登录状态已失效，请重新登录")
 		return
 	}
+	if token := auth.ExtractBearer(r.Header.Get("Authorization")); token != "" {
+		s.setAuthCookie(w, r, token)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"user": store.PublicUser(user)})
 }
 
 func (s *Server) authenticatedUser(r *http.Request) (store.User, bool) {
+	if user, ok := r.Context().Value(authenticatedUserContextKey{}).(store.User); ok && user.ID != "" {
+		return user, true
+	}
 	token := auth.ExtractBearer(r.Header.Get("Authorization"))
 	if token == "" {
-		token = strings.TrimSpace(r.URL.Query().Get("token"))
+		if cookie, err := r.Cookie(authCookieName); err == nil {
+			token = strings.TrimSpace(cookie.Value)
+		}
 	}
 	claims, err := s.tokens.Verify(token)
 	if err != nil {
@@ -240,6 +351,42 @@ func (s *Server) authenticatedUser(r *http.Request) (store.User, bool) {
 	return user, true
 }
 
+const authCookieName = "ai_marketing_session"
+
+func (s *Server) setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: authCookieName, Value: token, Path: "/", HttpOnly: true,
+		Secure: r.TLS != nil, SameSite: http.SameSiteLaxMode,
+		MaxAge: int(s.config.AuthTokenExpiresIn / time.Second),
+	})
+}
+
+func allowedCORSOrigin(r *http.Request) string {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return ""
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	if strings.EqualFold(parsed.Host, r.Host) {
+		return origin
+	}
+	hostname := strings.TrimSpace(parsed.Hostname())
+	if (strings.EqualFold(hostname, "localhost") || net.ParseIP(hostname) != nil && net.ParseIP(hostname).IsLoopback()) && parsed.Port() == frontendPort() {
+		return origin
+	}
+	return ""
+}
+
+func frontendPort() string {
+	if port := strings.TrimSpace(os.Getenv("FRONTEND_PORT")); port != "" {
+		return port
+	}
+	return "9527"
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -250,11 +397,4 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"message": message})
-}
-
-func withFileCache(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=2592000")
-		next.ServeHTTP(w, r)
-	})
 }

@@ -430,16 +430,16 @@ export function ClawDialogComposer({
   }, [attachmentGroupById, attachments, firstReferenceGroupKey, referenceGroupKeys]);
   const mentionOptions = useMemo(() => {
     let imageIndex = 1;
+    let fileIndex = 1;
     return selectedMode.referenceGroups.flatMap((group) => {
       const groupAttachments = groupedAttachments[group.key] || [];
       return groupAttachments.map((attachment) => {
-        const label = `图${imageIndex}`;
-        imageIndex += 1;
+        const label = attachment.kind === 'image' ? `图${imageIndex++}` : `文件${fileIndex++}`;
         return {
           attachmentId: attachment.id,
           label,
           name: attachment.name,
-          previewUrl: resolveAssetUrl(attachment.url),
+          previewUrl: attachment.kind === 'image' ? resolveAssetUrl(attachment.url) : undefined,
           subtitle: group.label,
           token: `@${label}`,
         };
@@ -447,7 +447,7 @@ export function ClawDialogComposer({
     });
   }, [groupedAttachments, selectedMode.referenceGroups]);
   const missingReferenceGroups = selectedMode.referenceGroups.filter(
-    (group) => group.required && !groupedAttachments[group.key]?.length,
+    (group) => group.required && !groupedAttachments[group.key]?.some((attachment) => attachment.kind === 'image'),
   );
   const hasUploadingAttachments = attachments.some((attachment) => attachment.uploadStatus === 'uploading');
   const generationBlockReason = hasUploadingAttachments

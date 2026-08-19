@@ -6,16 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"ai-marketing-go/internal/store"
+	"ai-marketing-go/internal/transfer"
 )
 
 type Client struct {
@@ -142,7 +141,8 @@ func (c Client) poll(ctx context.Context, result Result) (Result, error) {
 }
 
 func (c Client) Download(ctx context.Context, rawURL, outputPath string) (int64, error) {
-	if strings.HasPrefix(rawURL, "/") && c.PublicBase != "" {
+	localURL := strings.HasPrefix(rawURL, "/")
+	if localURL && c.PublicBase != "" {
 		rawURL = strings.TrimRight(c.PublicBase, "/") + rawURL
 	}
 	parsed, err := url.Parse(rawURL)
@@ -153,33 +153,15 @@ func (c Client) Download(ctx context.Context, rawURL, outputPath string) (int64,
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Minute}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
-	if err != nil {
-		return 0, err
+	if !localURL {
+		if err := transfer.ValidatePublicHTTPURL(parsed.String()); err != nil {
+			return 0, errors.New("视频结果地址不允许访问内网")
+		}
+		client = transfer.PublicRedirectClient(client)
 	}
-	response, err := client.Do(request)
+	written, err := transfer.Download(ctx, client, parsed.String(), outputPath, transfer.MaxMediaBytes)
 	if err != nil {
 		return 0, fmt.Errorf("下载视频结果失败: %w", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, fmt.Errorf("下载视频结果返回 %d", response.StatusCode)
-	}
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return 0, err
-	}
-	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return 0, err
-	}
-	written, copyErr := io.Copy(file, io.LimitReader(response.Body, 2<<30))
-	closeErr := file.Close()
-	if copyErr != nil || closeErr != nil {
-		_ = os.Remove(outputPath)
-		if copyErr != nil {
-			return 0, copyErr
-		}
-		return 0, closeErr
 	}
 	return written, nil
 }
@@ -235,7 +217,7 @@ func (c Client) assetURL(asset store.ContentAsset) (string, error) {
 }
 
 func decodeResponse(response *http.Response) (map[string]any, error) {
-	body, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	body, err := transfer.ReadAll(response.Body, 20<<20)
 	if err != nil {
 		return nil, err
 	}

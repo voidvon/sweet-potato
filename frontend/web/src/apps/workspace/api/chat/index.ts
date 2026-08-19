@@ -7,7 +7,6 @@ import type {
   SendChatPayload,
 } from '../../types';
 import { API_BASE_URL, request } from '../request';
-import { withAuthToken } from '../../utils/session';
 
 enum Api {
   attachmentUpload = '/api/chat/attachments/upload',
@@ -26,11 +25,11 @@ function resolveWebSocketUrl(path: string) {
   if (baseUrl) {
     const url = new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return withAuthToken(url.toString());
+    return url.toString();
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return withAuthToken(`${protocol}//${window.location.host}${path}`);
+  return `${protocol}//${window.location.host}${path}`;
 }
 
 export function listChatConversations(userId: string) {

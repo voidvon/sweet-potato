@@ -113,6 +113,12 @@ func (s *Server) handleUpdatePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "密码更新失败")
 		return
 	}
+	updated, found, err := s.store.FindUserByID(current.ID)
+	if err != nil || !found {
+		writeError(w, http.StatusInternalServerError, "用户读取失败")
+		return
+	}
+	s.setAuthCookie(w, r, s.tokens.Create(updated.ID, updated.Role, updated.AuthVersion))
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -346,7 +352,9 @@ func (s *Server) handleRoleResourceTree(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handlePublicRouteTree(w http.ResponseWriter, r *http.Request) {
-	tree, err := s.store.ListRouteResourceTree(false, validPlatform(r.URL.Query().Get("platform")))
+	// This endpoint is consumed by the public Web shell. Never allow callers to
+	// switch it to the admin platform through a query parameter.
+	tree, err := s.store.ListRouteResourceTree(false, "web")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "资源树读取失败")
 		return
@@ -463,12 +471,12 @@ func (s *Server) handleListModelConfigs(w http.ResponseWriter, r *http.Request) 
 	if user.Role != "admin" && typeName == "image" {
 		result := make([]map[string]any, 0, len(models))
 		for _, model := range models {
-			result = append(result, map[string]any{"id": model.ID, "type": model.Type, "name": model.Name, "provider": model.Provider, "model": model.Model, "settings": model.Settings, "isConfigured": model.APIKey != "", "isDefault": model.IsDefault, "sortOrder": model.SortOrder})
+			result = append(result, redactModelConfig(model))
 		}
 		writeJSON(w, http.StatusOK, result)
 		return
 	}
-	writeJSON(w, http.StatusOK, models)
+	writeJSON(w, http.StatusOK, redactModelConfigs(models))
 }
 
 func (s *Server) handleAIModelConfig(w http.ResponseWriter, r *http.Request) {
@@ -482,16 +490,16 @@ func (s *Server) handleAIModelConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodGet {
 		if len(models) == 0 {
-			writeJSON(w, http.StatusOK, defaultLLMModel())
+			writeJSON(w, http.StatusOK, redactModelConfig(defaultLLMModel()))
 			return
 		}
 		for _, model := range models {
 			if model.IsDefault {
-				writeJSON(w, http.StatusOK, model)
+				writeJSON(w, http.StatusOK, redactModelConfig(model))
 				return
 			}
 		}
-		writeJSON(w, http.StatusOK, models[0])
+		writeJSON(w, http.StatusOK, redactModelConfig(models[0]))
 		return
 	}
 	input, ok := decodeMap(w, r)
@@ -512,7 +520,7 @@ func (s *Server) handleAIModelConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, redactModelConfig(result))
 }
 
 func (s *Server) handleModelProviders(w http.ResponseWriter, r *http.Request) {
@@ -638,7 +646,7 @@ func (s *Server) handleModelConfigMutation(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, result)
+		writeJSON(w, http.StatusOK, redactModelConfig(result))
 		return
 	}
 	if strings.HasSuffix(r.URL.Path, "/order") {
@@ -658,7 +666,7 @@ func (s *Server) handleModelConfigMutation(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		models, _ = s.store.ListModelConfigs(typeName)
-		writeJSON(w, http.StatusOK, models)
+		writeJSON(w, http.StatusOK, redactModelConfigs(models))
 		return
 	}
 	input, ok := decodeMap(w, r)
@@ -675,7 +683,7 @@ func (s *Server) handleModelConfigMutation(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, redactModelConfig(result))
 }
 
 func (s *Server) handleCreateModelConfig(w http.ResponseWriter, r *http.Request) {
@@ -691,7 +699,7 @@ func (s *Server) handleCreateModelConfig(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, result)
+	writeJSON(w, http.StatusCreated, redactModelConfig(result))
 }
 
 func (s *Server) handleBilling(w http.ResponseWriter, r *http.Request) {
@@ -885,6 +893,9 @@ func queryLimit(r *http.Request) int {
 	if value <= 0 {
 		return 100
 	}
+	if value > 1000 {
+		return 1000
+	}
 	return value
 }
 
@@ -910,7 +921,9 @@ func mergeModelInput(current store.ModelConfig, input map[string]any) store.Mode
 		result.Model = stringOr(result.Model, value)
 	}
 	if value, ok := input["apiKey"]; ok {
-		result.APIKey = stringOr(result.APIKey, value)
+		if value := strings.TrimSpace(fmt.Sprint(value)); value != "" {
+			result.APIKey = value
+		}
 	}
 	if value, ok := input["baseUrl"]; ok {
 		result.BaseURL = stringOr(result.BaseURL, value)
@@ -928,6 +941,23 @@ func mergeModelInput(current store.ModelConfig, input map[string]any) store.Mode
 	}
 	if value, ok := input["sortOrder"]; ok {
 		result.SortOrder = int(toNumber(value, float64(result.SortOrder)))
+	}
+	return result
+}
+
+func redactModelConfig(model store.ModelConfig) map[string]any {
+	return map[string]any{
+		"id": model.ID, "type": model.Type, "name": model.Name, "provider": model.Provider,
+		"model": model.Model, "apiKey": "", "isConfigured": strings.TrimSpace(model.APIKey) != "",
+		"baseUrl": model.BaseURL, "temperature": model.Temperature, "settings": model.Settings,
+		"isDefault": model.IsDefault, "sortOrder": model.SortOrder, "createdAt": model.CreatedAt, "updatedAt": model.UpdatedAt,
+	}
+}
+
+func redactModelConfigs(models []store.ModelConfig) []map[string]any {
+	result := make([]map[string]any, 0, len(models))
+	for _, model := range models {
+		result = append(result, redactModelConfig(model))
 	}
 	return result
 }

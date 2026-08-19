@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { getCurrentUser } from '@shared/api/user';
 import { API_BASE_URL } from '@shared/api/core/request';
-import { withAuthToken } from '@shared/utils/session';
 import type { User } from '@shared/types';
 import type { BatchRunDetail } from '../apps/workspace/api/batch-generation';
 import type { ChatMessage } from '../apps/workspace/types';
@@ -78,7 +77,7 @@ export function AppRealtimeEventsProvider({
       return undefined;
     }
 
-    const source = new EventSource(withAuthToken(`${API_BASE_URL}/api/app/events`));
+    const source = new EventSource(`${API_BASE_URL}/api/app/events`, { withCredentials: true });
     const handleOpen = () => {
       void getCurrentUser()
         .then(({ user }) => {

@@ -47,6 +47,17 @@ export default defineConfig(() => {
       assetsInlineLimit: 4096,
       cssCodeSplit: true,
       sourcemap: false,
+      chunkSizeWarningLimit: 500,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router', 'react-router-dom'],
+            'vendor-antd': ['antd', '@ant-design/icons'],
+            'vendor-grid': ['ag-grid-community', 'ag-grid-react'],
+            'vendor-editor': ['@tiptap/core', '@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-mention', '@tiptap/extension-placeholder', '@tiptap/suggestion'],
+          },
+        },
+      },
     },
   }
 })

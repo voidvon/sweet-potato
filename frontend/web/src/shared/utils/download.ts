@@ -1,5 +1,3 @@
-import { API_BASE_URL } from '../api/core/request';
-import { getStoredToken } from './session';
 
 export async function downloadUrlAsFile(url: string, fileName: string) {
   const normalizedUrl = String(url || '').trim();
@@ -8,14 +6,9 @@ export async function downloadUrlAsFile(url: string, fileName: string) {
   }
 
   const headers = new Headers();
-  const token = getStoredToken();
-  if (token && isApplicationUrl(normalizedUrl)) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
   let response: Response;
   try {
-    response = await fetch(normalizedUrl, { headers });
+    response = await fetch(normalizedUrl, { credentials: 'include', headers });
   } catch {
     throw new Error('下载请求失败，请稍后重试');
   }
@@ -37,16 +30,6 @@ export async function downloadUrlAsFile(url: string, fileName: string) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
-
-function isApplicationUrl(url: string) {
-  try {
-    const target = new URL(url, window.location.href);
-    const api = new URL(API_BASE_URL || window.location.origin, window.location.href);
-    return target.origin === window.location.origin || target.origin === api.origin;
-  } catch {
-    return false;
-  }
 }
 
 function normalizedDownloadFileName(value: string) {

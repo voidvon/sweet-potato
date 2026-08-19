@@ -1,4 +1,3 @@
-import { withAuthToken } from '../../utils/session';
 import { API_BASE_URL, request } from '../request';
 
 export type PlanningUiStep = 'step1' | 'step2' | 'step3' | 'step4';
@@ -238,7 +237,7 @@ export function getContentPlanningConfig() {
 }
 
 export function createPlanningEventSource() {
-  return new EventSource(withAuthToken(`${API_BASE_URL}/api/content-planning/events`));
+  return new EventSource(`${API_BASE_URL}/api/content-planning/events`, { withCredentials: true });
 }
 
 export function createPlanningSession(payload: {

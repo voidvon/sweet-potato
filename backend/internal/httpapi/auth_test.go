@@ -62,6 +62,9 @@ func TestAuthRegisterLoginAndCurrentUser(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("me status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
 	}
+	if response.Header().Get("Set-Cookie") == "" {
+		t.Fatalf("current user did not receive session cookie")
+	}
 }
 
 func requestJSON(t *testing.T, server *Server, method string, path string, value any) *httptest.ResponseRecorder {

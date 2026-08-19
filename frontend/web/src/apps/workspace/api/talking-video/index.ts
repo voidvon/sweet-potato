@@ -1,5 +1,4 @@
 import { API_BASE_URL, request } from '../request';
-import { getStoredToken } from '../../utils/session';
 import { createUtf8SseEventParser } from '../talkingVideoSse';
 
 export type TalkingVideoPromptEvent =
@@ -65,12 +64,11 @@ export async function streamTalkingVideoPrompt(taskId: string, payload: {
   }>;
   deepThink: boolean;
 }, onEvent: (event: TalkingVideoPromptEvent) => void, options?: { signal?: AbortSignal }) {
-  const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/api/talking-video/prompt/tasks/${encodeURIComponent(taskId)}/stream`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
     signal: options?.signal,
@@ -79,9 +77,8 @@ export async function streamTalkingVideoPrompt(taskId: string, payload: {
 }
 
 export async function resumeTalkingVideoPrompt(taskId: string, onEvent: (event: TalkingVideoPromptEvent) => void, options?: { signal?: AbortSignal }) {
-  const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/api/talking-video/prompt/tasks/${encodeURIComponent(taskId)}/stream`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
     signal: options?.signal,
   });
   await consumeTalkingVideoPromptStream(response, onEvent);

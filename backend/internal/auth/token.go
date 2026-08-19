@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -27,7 +28,11 @@ type TokenManager struct {
 
 func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
 	if strings.TrimSpace(secret) == "" {
-		secret = "ai-marketing-desktop-server-dev-secret"
+		bytes := make([]byte, 48)
+		if _, err := rand.Read(bytes); err != nil {
+			panic("generate token secret: " + err.Error())
+		}
+		secret = base64.RawURLEncoding.EncodeToString(bytes)
 	}
 	if ttl <= 0 {
 		ttl = 30 * 24 * time.Hour

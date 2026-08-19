@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,5 +114,53 @@ func TestListManagedFilesUsesLocalStorageMetadataAndFilters(t *testing.T) {
 	}
 	if result.Summary.TotalCount != 1 || result.Summary.LocalCount != 1 || result.Summary.TOSCount != 0 || result.Summary.TotalBytes != 5 {
 		t.Fatalf("unexpected managed file summary: %+v", result.Summary)
+	}
+}
+
+func TestNewPasswordUsesVersionedSlowHash(t *testing.T) {
+	dataStore, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer dataStore.Close()
+	user, err := dataStore.CreateUser("hash-user", "password123", "Hash User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if !strings.HasPrefix(user.PasswordHash, passwordHashPrefix+"$") {
+		t.Fatalf("password hash is not versioned: %q", user.PasswordHash)
+	}
+	if !VerifyPassword("password123", user) || VerifyPassword("wrong", user) {
+		t.Fatal("password verification result is incorrect")
+	}
+}
+
+func TestDisabledDiscoverCategoryDoesNotPublishFiles(t *testing.T) {
+	dataStore, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer dataStore.Close()
+
+	category, err := dataStore.SaveDiscoverCategory("", map[string]any{"name": "Public", "slug": "public"})
+	if err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	if _, err := dataStore.CreateDiscoverItem(DiscoverItem{CategoryID: category.ID, SourceAssetID: "asset", MediaType: "image", MimeType: "image/png", FileURL: "/files/public.png"}); err != nil {
+		t.Fatalf("create discover item: %v", err)
+	}
+	public, err := dataStore.IsPublicDiscoverFile("public.png")
+	if err != nil || !public {
+		t.Fatalf("active discover item public=%v err=%v", public, err)
+	}
+	if _, err := dataStore.SaveDiscoverCategory(category.ID, map[string]any{"status": "disabled"}); err != nil {
+		t.Fatalf("disable category: %v", err)
+	}
+	public, err = dataStore.IsPublicDiscoverFile("public.png")
+	if err != nil {
+		t.Fatalf("check disabled discover file: %v", err)
+	}
+	if public {
+		t.Fatal("disabled discover item still publishes its file")
 	}
 }

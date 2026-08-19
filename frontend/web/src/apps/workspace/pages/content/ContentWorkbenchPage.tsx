@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Tag } from 'antd';
@@ -7,7 +7,6 @@ import { listContentAssetGroups, listContentAssets, listVideoTasks } from '../..
 import { API_BASE_URL } from '../../api/request';
 import { getContentNavigationRoutes } from '../../routes/routeConfig';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User, VideoGenerationTask } from '../../types';
-import { withAuthToken } from '../../utils/session';
 import './ContentWorkbenchPage.scss';
 
 type ContentWorkbenchPageProps = {
@@ -80,8 +79,10 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
   const [videoTasks, setVideoTasks] = useState<VideoGenerationTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const loadRequestIdRef = useRef(0);
 
   const loadWorkbench = useCallback(async (options?: { showLoading?: boolean }) => {
+    const requestId = ++loadRequestIdRef.current;
     try {
       if (options?.showLoading !== false) {
         setIsLoading(true);
@@ -91,23 +92,26 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
         listContentAssets({ userId: currentUser.id }),
         listVideoTasks(currentUser.id),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
       setGroups(groupList);
       setAssets(assetList);
       setVideoTasks(taskList);
       setError('');
     } catch (requestError) {
+      if (requestId !== loadRequestIdRef.current) return;
       setError(requestError instanceof Error ? requestError.message : '内容创作工作台加载失败');
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestIdRef.current) setIsLoading(false);
     }
   }, [currentUser.id]);
 
   useEffect(() => {
     void loadWorkbench();
   }, [loadWorkbench]);
+  useEffect(() => () => { loadRequestIdRef.current += 1; }, []);
 
   useEffect(() => {
-    const source = new EventSource(withAuthToken(`${API_BASE_URL}/api/content/events`));
+    const source = new EventSource(`${API_BASE_URL}/api/content/events`, { withCredentials: true });
     const handleVideoGenerationComplete = () => {
       void loadWorkbench({ showLoading: false });
     };

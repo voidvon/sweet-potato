@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal, Spin } from 'antd';
 import { getCurrentUser } from '@shared/api/user';
-import { getLoginRoute, getStoredToken, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
+import { clearLegacyToken, getLoginRoute, getStoredUser, removeStoredUser, storeSession, storeUser } from '@shared/utils/session';
 import { AppRealtimeEventsProvider, type AppPermissionUpdatedDetail } from './AppRealtimeEvents';
 import { AppRouter } from './AppRouter';
 import type { AuthSession, User } from '@shared/types';
@@ -9,33 +9,28 @@ import type { AuthSession, User } from '@shared/types';
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
   const [permissionNotice, setPermissionNotice] = useState<AppPermissionUpdatedDetail | null>(null);
-  const [sessionHydrated, setSessionHydrated] = useState(() => !getStoredToken());
+  const [sessionHydrated, setSessionHydrated] = useState(false);
 
   useEffect(() => {
-    const token = getStoredToken();
-    if (!token) {
-      setSessionHydrated(true);
-      return;
-    }
-
     let cancelled = false;
 
     async function refreshCurrentUser() {
       try {
         const result = await getCurrentUser();
-        if (cancelled || getStoredToken() !== token) {
+        if (cancelled) {
           return;
         }
+        clearLegacyToken();
         storeUser(result.user);
         setCurrentUser(result.user);
       } catch {
-        if (cancelled || getStoredToken() !== token) {
+        if (cancelled) {
           return;
         }
         removeStoredUser();
         setCurrentUser(null);
       } finally {
-        if (!cancelled && getStoredToken() === token) {
+        if (!cancelled) {
           setSessionHydrated(true);
         }
       }

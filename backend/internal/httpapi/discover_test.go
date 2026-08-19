@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"ai-marketing-go/internal/config"
@@ -54,5 +55,23 @@ func TestAdminDiscoverEndpointsStillRequireAuthentication(t *testing.T) {
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusUnauthorized, response.Body.String())
+	}
+}
+
+func TestPublicRouteTreeNeverReturnsAdminResources(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir(), AuthTokenSecret: "test-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/route-resources/public-tree?platform=admin", nil)
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), `"platform":"admin"`) {
+		t.Fatal("public route tree exposed admin resources")
 	}
 }

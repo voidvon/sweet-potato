@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +13,8 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/session"
+
+	"ai-marketing-go/internal/transfer"
 )
 
 const (
@@ -558,27 +557,7 @@ func (c *Client) ResultURL(result Result) (string, error) {
 }
 
 func (c *Client) Download(ctx context.Context, sourceURL, destination string) (int64, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
-	if err != nil {
-		return 0, err
-	}
-	response, err := c.http.Do(request)
-	if err != nil {
-		return 0, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return 0, fmt.Errorf("下载 VOD 产物失败，HTTP %d", response.StatusCode)
-	}
-	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
-		return 0, err
-	}
-	file, err := os.OpenFile(destination, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
-	if err != nil {
-		return 0, err
-	}
-	defer file.Close()
-	return io.Copy(file, response.Body)
+	return transfer.Download(ctx, c.http, sourceURL, destination, transfer.MaxMediaBytes)
 }
 
 func contains(values []string, target string) bool {

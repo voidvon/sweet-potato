@@ -11,10 +11,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"ai-marketing-go/internal/store"
+	"ai-marketing-go/internal/transfer"
 )
 
 type chatRequest struct {
@@ -305,11 +307,17 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	var imageModelID *string
 	var imageExpectedCount *int
 	if input.AutoImageGeneration {
-		imageDecision, err = s.decideImageGeneration(model, agent, history, input.CapabilityContext)
+		imageDecision, err = s.decideImageGeneration(user.ID, model, agent, history, input.CapabilityContext)
 		if err != nil {
 			return nil, err
 		}
 		imageRequest = imageDecision.Generate
+		if !imageRequest && explicitImageIntent(content) && imageDecisionNeedsFallback(imageDecision.Answer) {
+			imageRequest = true
+			imageDecision.Generate = true
+			imageDecision.Arguments = map[string]any{"prompt": content}
+			imageDecision.Answer = ""
+		}
 		if imageRequest {
 			input.CapabilityContext = applyImageToolArguments(input.CapabilityContext, imageDecision.Arguments)
 		}
@@ -381,18 +389,18 @@ type imageGenerationDecision struct {
 
 // decideImageGeneration lets the configured chat model choose whether the
 // image tool is needed. The server still validates and executes the tool.
-func (s *Server) decideImageGeneration(model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
-	messages := make([]map[string]any, 0, len(history)+1)
+func (s *Server) decideImageGeneration(userID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
+	messages, err := s.chatResponsesInput(userID, history)
+	if err != nil {
+		return imageGenerationDecision{}, err
+	}
 	systemPrompt := strings.TrimSpace(agent.SystemPrompt)
 	if systemPrompt == "" {
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
 	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。当前工作台上下文：" + string(contextJSON)
-	messages = append(messages, map[string]any{"role": "system", "content": systemPrompt})
-	for _, item := range history {
-		messages = append(messages, map[string]any{"role": item.Role, "content": item.Content})
-	}
+	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
 	result, err := callResponses(model, messages, []map[string]any{imageGenerationTool()})
 	if err != nil {
 		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
@@ -411,6 +419,50 @@ func (s *Server) decideImageGeneration(model store.ModelConfig, agent store.Agen
 		break
 	}
 	return decision, nil
+}
+
+func (s *Server) chatResponsesInput(userID string, history []store.ChatMessage) ([]map[string]any, error) {
+	result := make([]map[string]any, 0, len(history))
+	totalPDFBytes := 0
+	for _, item := range history {
+		parts := []map[string]any{{"type": "input_text", "text": item.Content}}
+		for _, rawAttachment := range item.Attachments {
+			attachment, ok := rawAttachment.(map[string]any)
+			if !ok || !strings.EqualFold(strings.TrimSpace(stringValue(attachment, "type")), "application/pdf") {
+				continue
+			}
+			assetID := strings.TrimPrefix(valueOr(stringValue(attachment, "assetId"), stringValue(attachment, "id")), "chat-attachment-")
+			asset, found, err := s.store.FindContentAsset(assetID)
+			if err != nil {
+				return nil, err
+			}
+			if !found || asset.UserID != userID || !strings.EqualFold(strings.TrimSpace(asset.MimeType), "application/pdf") || asset.FilePath == "" {
+				continue
+			}
+			data, err := os.ReadFile(asset.FilePath)
+			if err != nil {
+				return nil, fmt.Errorf("读取 PDF 附件失败: %w", err)
+			}
+			if len(data) > 20<<20 {
+				return nil, errors.New("PDF 附件超过 20MB，无法发送给模型")
+			}
+			totalPDFBytes += len(data)
+			if totalPDFBytes > 20<<20 {
+				return nil, errors.New("PDF 附件总大小超过 20MB，无法发送给模型")
+			}
+			parts = append(parts, map[string]any{
+				"type":      "input_file",
+				"filename":  filepath.Base(valueOr(stringValue(attachment, "name"), asset.OriginalFileName)),
+				"file_data": "data:application/pdf;base64," + base64.StdEncoding.EncodeToString(data),
+			})
+		}
+		if len(parts) == 1 {
+			result = append(result, map[string]any{"role": item.Role, "content": item.Content})
+		} else {
+			result = append(result, map[string]any{"role": item.Role, "content": parts})
+		}
+	}
+	return result, nil
 }
 
 func applyImageToolArguments(contextValue map[string]any, arguments map[string]any) map[string]any {
@@ -439,6 +491,29 @@ func isImageGenerationRequest(input chatRequest) bool {
 		}
 	}
 	return strings.Contains(input.Content, "@生图") || strings.Contains(input.Content, "＠生图")
+}
+
+func explicitImageIntent(content string) bool {
+	content = strings.ToLower(strings.TrimSpace(content))
+	for _, phrase := range []string{"生成图片", "生成一张图", "画一张", "画个", "帮我画", "制作图片", "创建图片", "生图", "出图", "生成图像", "生成照片", "生成海报", "generate an image", "create an image", "make an image"} {
+		if strings.Contains(content, phrase) {
+			return true
+		}
+	}
+	return strings.Contains(content, "生成") && (strings.Contains(content, "图片") || strings.Contains(content, "图像") || strings.Contains(content, "照片") || strings.Contains(content, "海报"))
+}
+
+func imageDecisionNeedsFallback(answer string) bool {
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	if answer == "" {
+		return true
+	}
+	for _, phrase := range []string{"无法直接", "无法生成", "不能直接", "不能生成", "当前对话无法", "提示词用于", "图像生成工具", "cannot generate", "can't generate", "use an image generator"} {
+		if strings.Contains(answer, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 func pointerValue(value *string) string {
@@ -520,7 +595,7 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 		return responsesResult{}, err
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	raw, err := transfer.ReadAll(response.Body, 20<<20)
 	if err != nil {
 		return responsesResult{}, err
 	}

@@ -7,6 +7,30 @@ function normalizeBasename(value: string | undefined) {
   return (value || '').replace(/\/+$/, '');
 }
 
+function readStorageValue(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorageValue(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Authentication state is refreshed from the HttpOnly session cookie.
+  }
+}
+
+function removeStorageValue(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Storage may be unavailable in privacy-restricted browser contexts.
+  }
+}
+
 function resolveRouterBasename() {
   const configuredBasename = normalizeBasename(import.meta.env.VITE_ROUTER_BASENAME);
   if (configuredBasename) {
@@ -76,39 +100,42 @@ function normalizeUser(user: User): User {
 }
 
 export function getStoredUser(): User | null {
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = readStorageValue(USER_KEY);
   if (!raw) {
     return null;
   }
-  const user = JSON.parse(raw) as User;
-  return normalizeUser(user);
+  try {
+    return normalizeUser(JSON.parse(raw) as User);
+  } catch {
+    removeStoredUser();
+    return null;
+  }
 }
 
 export function storeSession(session: AuthSession) {
-  localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(session.user)));
-  localStorage.setItem(TOKEN_KEY, session.token);
+  writeStorageValue(USER_KEY, JSON.stringify(normalizeUser(session.user)));
+  removeStorageValue(TOKEN_KEY);
 }
 
 export function storeUser(user: User) {
-  localStorage.setItem(USER_KEY, JSON.stringify(normalizeUser(user)));
+  writeStorageValue(USER_KEY, JSON.stringify(normalizeUser(user)));
 }
 
 export function removeStoredUser() {
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(TOKEN_KEY);
+  removeStorageValue(USER_KEY);
+  removeStorageValue(TOKEN_KEY);
 }
 
 export function getStoredToken() {
-  return localStorage.getItem(TOKEN_KEY) || '';
+  return readStorageValue(TOKEN_KEY) || '';
+}
+
+export function clearLegacyToken() {
+  removeStorageValue(TOKEN_KEY);
 }
 
 export function withAuthToken(url: string) {
-  const token = getStoredToken();
-  if (!token) {
-    return url;
-  }
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
+  return url;
 }
 
 export function getLoginRoute() {

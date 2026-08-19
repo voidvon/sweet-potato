@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Button, Dropdown, Image, Input, Space, Upload } from 'antd';
-import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
+import { CloseOutlined, FileOutlined, FilePdfOutlined, PaperClipOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import type { GetRef, InputRef, UploadProps } from 'antd';
 import { ArrowUp, Square } from 'lucide-react';
 import type { AiAgent, ChatAttachment } from '../../../types';
@@ -74,7 +74,7 @@ export function ChatComposer({
             />
           ) : (
             <span className="chat-attachment-file-icon">
-              <FileOutlined />
+              {attachment.type === 'application/pdf' ? <FilePdfOutlined /> : <FileOutlined />}
             </span>
           )}
           {attachment.kind === 'file' && <span>{attachment.name}</span>}

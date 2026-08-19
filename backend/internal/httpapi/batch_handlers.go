@@ -376,7 +376,7 @@ func (s *Server) startBatchRun(w http.ResponseWriter, r *http.Request, user stor
 		writeError(w, 400, err.Error())
 		return
 	}
-	go s.executeBatchRun(run.ID, user.ID, sheet)
+	s.startBackgroundTask(func() { s.executeBatchRun(run.ID, user.ID, sheet) })
 	detail, _, _ := s.store.BatchRunDetail(run.ID, user.ID)
 	writeJSON(w, 202, detail)
 }
@@ -436,7 +436,7 @@ func createBatchRunForRows(w http.ResponseWriter, s *Server, user store.User, sh
 		writeError(w, 400, err.Error())
 		return
 	}
-	go s.executeBatchRun(run.ID, user.ID, sheet)
+	s.startBackgroundTask(func() { s.executeBatchRun(run.ID, user.ID, sheet) })
 	detail, _, _ := s.store.BatchRunDetail(run.ID, user.ID)
 	writeJSON(w, 202, detail)
 }

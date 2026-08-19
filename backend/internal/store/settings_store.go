@@ -240,6 +240,20 @@ func (s *Store) CreateAccessLog(record AccessLog) error {
 	return err
 }
 
+func (s *Store) PruneAccessLogs() error {
+	settings, err := s.GetAccessLogSettings()
+	if err != nil {
+		return err
+	}
+	retention, _ := settings["retentionDays"].(int)
+	if retention < 1 {
+		retention = 7
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(retention) * 24 * time.Hour).Format(time.RFC3339Nano)
+	_, err = s.db.Exec(`DELETE FROM site_access_logs WHERE accessed_at < ?`, cutoff)
+	return err
+}
+
 func (s *Store) ListAccessLogs(page, pageSize int, ip, username, method string) (map[string]any, error) {
 	if page < 1 {
 		page = 1

@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"ai-marketing-go/internal/transfer"
 )
 
 const mobileVideoUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1"
@@ -139,7 +141,7 @@ func fetchRemoteVideoPage(input *url.URL) (string, string, int, error) {
 		return "", "", 0, fmt.Errorf("视频链接请求失败: %w", err)
 	}
 	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 20<<20))
+	body, err := transfer.ReadAll(response.Body, 20<<20)
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -394,7 +396,9 @@ func (s *Server) proxyVideoPreview(w http.ResponseWriter, r *http.Request) {
 		}
 		request.Header.Set("Range", rangeValue)
 	}
-	response, err := (&http.Client{Timeout: 5 * time.Minute}).Do(request)
+	response, err := (&http.Client{Timeout: 5 * time.Minute, CheckRedirect: func(next *http.Request, _ []*http.Request) error {
+		return assertSafeRemoteURL(next.URL)
+	}}).Do(request)
 	if err != nil {
 		writeError(w, 502, "视频预览获取失败")
 		return

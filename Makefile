@@ -2,6 +2,7 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_DIR := $(ROOT_DIR)/backend
 GO_BIN := $(GO_DIR)/bin/ai-marketing
 FRONTEND_WEB_DIR := $(ROOT_DIR)/frontend/web
+FRONTEND_DIST_DIR := $(FRONTEND_WEB_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
@@ -9,7 +10,7 @@ STATIC_WEB_DIR := $(STATIC_DIR)/web
 
 build:
 	set -e; \
-	trap 'rm -rf "$(STATIC_WEB_DIR)"' EXIT; \
+	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)"' EXIT; \
 	$(MAKE) embed-static; \
 	mkdir -p "$(GO_DIR)/bin"; \
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/ai-marketing ./cmd/aimarketing
@@ -22,10 +23,11 @@ embed-static:
 
 clean-embedded-static:
 	rm -rf "$(STATIC_WEB_DIR)"
+	rm -rf "$(FRONTEND_DIST_DIR)"
 
 run:
 	set -e; \
-	trap 'rm -rf "$(STATIC_WEB_DIR)"' EXIT; \
+	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)"' EXIT; \
 	$(MAKE) embed-static; \
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go run ./cmd/aimarketing
 
