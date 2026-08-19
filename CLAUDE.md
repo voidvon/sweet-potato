@@ -21,9 +21,8 @@ Electron shell (frontend/)  ──wraps──▶  React+Vite SPA (frontend/web/)
 - **frontend/** — Electron (electron-egg) shell. **frontend/web/** — the actual UI: React 19, Vite 7, Ant Design 6, react-router 7. Default dev port `9527`.
 - **backend/base/** — TypeScript/Express API. Owns business logic, SQLite (better-sqlite3), and LangChain/LangGraph orchestration. Talks to the Python worker over HTTP.
 - **backend/ai-worker/** — Python video/AI worker. Handles video understanding, Volcengine VOD upload, and FFmpeg media tools. Entry point `worker.py`.
-- **docker_run/** + `package-docker.sh` — Docker deployment (web/Nginx, base, ai-worker).
 
-The same code paths must resolve under three runtimes: local dev, Docker, and Electron. When changing anything involving Volcengine, upload callbacks, or asset URLs, verify all three.
+The same code paths must resolve under local development and Electron. When changing anything involving Volcengine, upload callbacks, or asset URLs, verify both.
 
 ## Commands
 
@@ -33,8 +32,6 @@ Package manager is **pnpm only** — every `package.json` has a preinstall hook 
 pnpm install                          # install (run at repo root or per-package)
 bash scripts/dev.sh                   # full stack incl. Electron (needs: pnpm, uv, lsof)
 bash scripts/dev-web.sh               # full stack, web only (no Electron), auto-opens browser
-bash package-docker.sh                # build Docker run dir + compose files
-
 # backend/base
 cd backend/base && pnpm run dev       # tsx watch hot-reload
 cd backend/base && pnpm run build     # tsc -> dist/

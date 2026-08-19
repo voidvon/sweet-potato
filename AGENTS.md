@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-本仓库的主应用由三部分组成：`frontend/` 是 Electron 外壳，`frontend/web/` 是 React + Vite 页面；`backend/base/` 是 TypeScript/Express API，核心代码在 `src/modules/`、数据库在 `src/db/`、通用工具在 `src/shared/`；`backend/ai-worker/` 是 Python 视频/AI worker，入口为 `worker.py`，业务代码在 `ai_worker/`。`docs/` 保存接口与设计文档，`build/` 与 `package-docker.sh` 用于交付包。
+本仓库的主应用由三部分组成：`frontend/` 是 Electron 外壳，`frontend/web/` 是 React + Vite 页面；`backend/base/` 是 TypeScript/Express API，核心代码在 `src/modules/`、数据库在 `src/db/`、通用工具在 `src/shared/`；`backend/ai-worker/` 是 Python 视频/AI worker，入口为 `worker.py`，业务代码在 `ai_worker/`。`docs/` 保存接口与设计文档，`build/` 保存本地运行包脚本。
 
 ## Build, Test, and Development Commands
 
@@ -14,7 +14,6 @@
 - `cd backend/base && pnpm run build`：编译 TypeScript 到 `dist/`。
 - `cd frontend/web && pnpm run build`：构建 Vite 前端产物。
 - `cd frontend/web && pnpm run typecheck`：运行前端 TypeScript 类型检查。
-- `bash package-docker.sh`：构建 Docker 运行目录与 compose 文件；需要可用的 Docker/网络环境。
 
 ## Coding Style & Naming Conventions
 
@@ -30,7 +29,7 @@ TypeScript 代码启用 `strict`，使用 ES module 语法、2 空格缩进、�
 
 ## Security & Configuration Tips
 
-不要提交 `.env`、密钥、运行日志、上传文件和生成的视频数据。后端环境变量优先放在 `backend/base/.env`，AI worker 配置放在 `backend/ai-worker/.env`。涉及火山引擎、上传回调或公开资源 URL 的改动，确认本地、Docker 和 Electron 三种运行路径都能解析。
+不要提交 `.env`、密钥、运行日志、上传文件和生成的视频数据。后端环境变量优先放在 `backend/base/.env`，AI worker 配置放在 `backend/ai-worker/.env`。涉及火山引擎、上传回调或公开资源 URL 的改动，确认本地和 Electron 两种运行路径都能解析。
 
 ## Codex Execution Fast Path
 

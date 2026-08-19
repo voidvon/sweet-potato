@@ -1,8 +1,8 @@
 # 运行说明
 
-这个目录是打包后的运行文件，可以用本地方式或 Docker 方式启动。
+这个目录是本地运行包文件。
 
-## 1. 本地运行
+## 本地运行
 
 本地运行前需要安装：
 
@@ -24,22 +24,4 @@ http://localhost:${WEB_HOST_PORT:-5689}
 
 ```bash
 Ctrl+C
-```
-
-## 2. Docker 运行
-
-```bash
-docker compose up --build -d
-```
-
-打开：
-
-```text
-http://localhost:${WEB_HOST_PORT:-5689}
-```
-
-停止：
-
-```bash
-docker compose down
 ```

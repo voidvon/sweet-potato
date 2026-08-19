@@ -2,15 +2,15 @@
 
 ## ✅ 改造完成
 
-已成功将项目改造为前后端分离架构，支持两种部署方式。
+已成功将项目改造为前后端分离架构，支持 Web 和 Electron 两种使用方式。
 
 ## 📦 部署方式
 
 ### 1. Web 部署
 ```bash
 cd frontend/web && pnpm run build
-bash package-docker.sh
-# 配置 Nginx 反向代理
+# 将 frontend/web/dist 部署到静态文件服务器
+# 将 /api/ 和 /files/ 反向代理到 backend/base
 ```
 
 ### 2. Electron 客户端

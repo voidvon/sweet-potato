@@ -105,7 +105,6 @@ class Lifecycle {
     hideWindowsMenu(win);
 
     // Electron 模式不再启动本地后端，统一连接独立部署的服务端
-    // 后端应该通过 Docker 或其他方式独立部署
 
     // 延迟加载，无白屏
     const { windowsOption } = getConfig();

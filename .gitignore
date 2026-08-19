@@ -10,7 +10,6 @@ run/
 .idea/
 data/
 dist/
-docker_run/
 frontend/build/ai-worker-build/
 frontend/build/extraResources/
 */server/data/
