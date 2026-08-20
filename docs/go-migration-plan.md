@@ -46,10 +46,10 @@ make vet
 make build
 ```
 
-构建产物默认是 `backend/bin/ai-marketing`。可以用环境变量指定地址和数据目录：
+构建产物默认是 `backend/bin/sweet-potato`。可以用环境变量指定地址和数据目录：
 
 ```bash
-DATA_DIR=/var/lib/ai-marketing PORT=7072 ./backend/bin/ai-marketing
+DATA_DIR=/var/lib/sweet-potato PORT=7072 ./backend/bin/sweet-potato
 ```
 
 ## 运行边界

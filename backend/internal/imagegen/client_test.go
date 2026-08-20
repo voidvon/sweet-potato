@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 func TestGenerateOpenAIImageFromBase64(t *testing.T) {

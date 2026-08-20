@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"ai-marketing-go/internal/config"
+	"sweet-potato-go/internal/config"
 )
 
 func TestAuthRegisterLoginAndCurrentUser(t *testing.T) {

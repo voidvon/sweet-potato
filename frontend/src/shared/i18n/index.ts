@@ -2,7 +2,7 @@ import { englishMessages } from './en';
 
 export type AppLocale = 'en-US' | 'zh-CN';
 
-const localeStorageKey = 'ai-marketing-locale';
+const localeStorageKey = 'sweet-potato-locale';
 
 function normalizeLocale(value: string | null | undefined): AppLocale | null {
   if (!value) return null;

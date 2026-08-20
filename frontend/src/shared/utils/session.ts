@@ -1,7 +1,7 @@
 import type { AuthSession, User } from '../types';
 
-const USER_KEY = 'ai_marketing_user';
-const TOKEN_KEY = 'ai_marketing_token';
+const USER_KEY = 'sweet_potato_user';
+const TOKEN_KEY = 'sweet_potato_token';
 
 function normalizeBasename(value: string | undefined) {
   return (value || '').replace(/\/+$/, '');

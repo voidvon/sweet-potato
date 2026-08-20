@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"ai-marketing-go/internal/store"
-	"ai-marketing-go/internal/vod"
+	"sweet-potato-go/internal/store"
+	"sweet-potato-go/internal/vod"
 )
 
 const vodTaskReferenceType = "video_generation_task"

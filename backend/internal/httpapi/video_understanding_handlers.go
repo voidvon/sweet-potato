@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 func (s *Server) handleVideoUnderstanding(w http.ResponseWriter, r *http.Request) {

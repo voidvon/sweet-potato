@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {

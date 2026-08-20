@@ -19,7 +19,7 @@ make check
 make build
 ```
 
-发布产物是 `backend/bin/ai-marketing`。版本号不通过包管理器同步，也不需要额外的
+发布产物是 `backend/bin/sweet-potato`。版本号不通过包管理器同步，也不需要额外的
 前端、桌面或服务进程参与构建。
 
 普通页面和 `/admin` 管理页面共用入口生成的 `version.js`。发布前应确认该文件中的版本

@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"ai-marketing-go/internal/config"
-	"ai-marketing-go/internal/httpapi"
+	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/httpapi"
 )
 
 func main() {

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 const (

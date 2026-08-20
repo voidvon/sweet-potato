@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 func (s *Server) handleBatchRequestSettings(w http.ResponseWriter, r *http.Request) {

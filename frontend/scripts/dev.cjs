@@ -205,7 +205,7 @@ async function main() {
     const backendProcess = spawnTracked(
       "Go backend",
       "go",
-      ["run", "./cmd/aimarketing"],
+      ["run", "./cmd/sweetpotato"],
       backendDir,
       { ...env, GOTOOLCHAIN: process.env.GOTOOLCHAIN || "auto" },
     );

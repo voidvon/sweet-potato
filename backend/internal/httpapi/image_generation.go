@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"ai-marketing-go/internal/imagegen"
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/imagegen"
+	"sweet-potato-go/internal/store"
 )
 
 func (s *Server) resolveImageModelConfig(requestedID string) store.ModelConfig {

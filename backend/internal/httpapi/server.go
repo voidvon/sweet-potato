@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ai-marketing-go/internal/auth"
-	"ai-marketing-go/internal/config"
-	"ai-marketing-go/internal/store"
-	"ai-marketing-go/internal/vod"
+	"sweet-potato-go/internal/auth"
+	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/store"
+	"sweet-potato-go/internal/vod"
 )
 
 type Server struct {
@@ -226,7 +226,7 @@ func (s *Server) applyCSRFGuard(w http.ResponseWriter, r *http.Request) (int, bo
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
-		"service": "ai-marketing-desktop-server",
+		"service": "sweet-potato-server",
 	})
 }
 
@@ -352,7 +352,7 @@ func (s *Server) authenticatedUser(r *http.Request) (store.User, bool) {
 	return user, true
 }
 
-const authCookieName = "ai_marketing_session"
+const authCookieName = "sweet_potato_session"
 
 func (s *Server) setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{

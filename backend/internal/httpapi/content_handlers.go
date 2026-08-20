@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"ai-marketing-go/internal/store"
-	"ai-marketing-go/internal/video"
+	"sweet-potato-go/internal/store"
+	"sweet-potato-go/internal/video"
 )
 
 var contentModules = []map[string]any{

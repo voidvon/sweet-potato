@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/store"
 )
 
 var batchCapabilities = []map[string]any{

@@ -1,11 +1,11 @@
 package httpapi
 
 import (
-	"ai-marketing-go/internal/config"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sweet-potato-go/internal/config"
 	"testing"
 )
 

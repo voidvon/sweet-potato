@@ -1,4 +1,4 @@
-module ai-marketing-go
+module sweet-potato-go
 
 go 1.25.0
 

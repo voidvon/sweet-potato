@@ -14,7 +14,7 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/session"
 
-	"ai-marketing-go/internal/transfer"
+	"sweet-potato-go/internal/transfer"
 )
 
 const (

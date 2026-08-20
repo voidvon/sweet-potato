@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"ai-marketing-go/internal/config"
-	"ai-marketing-go/internal/store"
+	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/store"
 )
 
 func TestHealthEndpointPreservesContract(t *testing.T) {
@@ -40,7 +40,7 @@ func TestHealthEndpointPreservesContract(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if !payload.OK || payload.Service != "ai-marketing-desktop-server" {
+	if !payload.OK || payload.Service != "sweet-potato-server" {
 		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }

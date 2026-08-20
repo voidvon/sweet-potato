@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"ai-marketing-go/internal/config"
+	"sweet-potato-go/internal/config"
 )
 
 func TestDiscoverPublicEndpointsAllowAnonymousAccess(t *testing.T) {

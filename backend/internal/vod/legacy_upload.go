@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"ai-marketing-go/internal/transfer"
+	"sweet-potato-go/internal/transfer"
 )
 
 const (

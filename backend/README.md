@@ -12,7 +12,7 @@
 make test
 make vet
 make build
-./backend/bin/ai-marketing
+./backend/bin/sweet-potato
 ```
 
 `make build` 会构建唯一的 `frontend` Web 项目，临时复制到 Go 的
@@ -36,8 +36,8 @@ make dev
 
 ```bash
 CGO_ENABLED=0 go test ./...
-CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o ./bin/ai-marketing ./cmd/aimarketing
-./bin/ai-marketing
+CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o ./bin/sweet-potato ./cmd/sweetpotato
+./bin/sweet-potato
 ```
 
 直接执行 `go build` 只适合后端开发或 API 检查；由于没有临时嵌入前端资源，
