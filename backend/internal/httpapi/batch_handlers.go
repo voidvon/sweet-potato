@@ -68,7 +68,7 @@ func (s *Server) handleBatchGeneration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) == 1 && parts[0] == "model-options" && r.Method == http.MethodGet {
-		s.handleBatchModelOptions(w)
+		s.handleBatchModelOptions(w, user)
 		return
 	}
 	if len(parts) == 2 && parts[0] == "assets" && parts[1] == "upload" && r.Method == http.MethodPost {
@@ -132,7 +132,7 @@ func (s *Server) handleBatchGeneration(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "批量生成接口不存在")
 }
 
-func (s *Server) handleBatchModelOptions(w http.ResponseWriter) {
+func (s *Server) handleBatchModelOptions(w http.ResponseWriter, user store.User) {
 	models := []map[string]any{}
 	for _, kind := range []string{"image", "video"} {
 		items, err := s.store.ListModelConfigs(kind)
@@ -141,8 +141,16 @@ func (s *Server) handleBatchModelOptions(w http.ResponseWriter) {
 			return
 		}
 		for _, item := range items {
-			models = append(models, map[string]any{"id": item.ID, "type": kind, "name": item.Name, "provider": item.Provider, "model": item.Model, "creditsPerRequest": 1, "supportsCustomResolution": true, "isDefault": item.IsDefault})
+			models = append(models, map[string]any{"id": item.ID, "type": kind, "name": item.Name, "provider": item.Provider, "model": item.Model, "scope": "system", "creditsPerRequest": 1, "supportsCustomResolution": true, "isDefault": item.IsDefault})
 		}
+	}
+	personalModels, err := s.store.ListUserModelConfigs(user.ID, "image")
+	if err != nil {
+		writeError(w, 500, "个人模型读取失败")
+		return
+	}
+	for _, item := range personalModels {
+		models = append(models, map[string]any{"id": item.ID, "type": "image", "name": item.Name, "provider": item.Provider, "model": item.Model, "scope": "personal", "creditsPerRequest": 0, "supportsCustomResolution": boolValue(objectValue(item.Settings["imageGeneration"])["supportsCustomResolution"]), "isDefault": item.IsDefault})
 	}
 	if len(models) == 0 {
 		models = append(models, map[string]any{"id": "local", "type": "image", "name": "Go 本地生成器", "provider": "local", "model": "local", "creditsPerRequest": 0, "supportsCustomResolution": true, "isDefault": true})
@@ -364,7 +372,11 @@ func (s *Server) startBatchRun(w http.ResponseWriter, r *http.Request, user stor
 			return
 		}
 		attemptNo, _ := s.store.NextBatchAttemptNo(row.ID)
-		cost := batchEstimatedCredits(sheet.MediaKind, params)
+		cost, costErr := s.batchEstimatedCredits(user.ID, sheet.MediaKind, params)
+		if costErr != nil {
+			writeError(w, 400, fmt.Sprintf("第 %d 行：%s", row.Position+1, costErr.Error()))
+			return
+		}
 		estimated += cost
 		attempts = append(attempts, store.BatchAttempt{ID: randomIDForHTTP(), RowID: row.ID, AttemptNo: attemptNo, Status: "queued", EffectiveParams: params, ModelConfigSnapshot: map[string]any{"capabilityKey": sheet.CapabilityKey, "mediaKind": sheet.MediaKind}, EstimatedCredits: cost, QueuedAt: now, UpdatedAt: now})
 	}
@@ -424,7 +436,11 @@ func createBatchRunForRows(w http.ResponseWriter, s *Server, user store.User, sh
 	for _, row := range selected {
 		params := mergeBatchParams(sheet.GlobalParams, row.Params)
 		attemptNo, _ := s.store.NextBatchAttemptNo(row.ID)
-		cost := batchEstimatedCredits(sheet.MediaKind, params)
+		cost, costErr := s.batchEstimatedCredits(user.ID, sheet.MediaKind, params)
+		if costErr != nil {
+			writeError(w, 400, costErr.Error())
+			return
+		}
 		estimated += cost
 		attempts = append(attempts, store.BatchAttempt{ID: randomIDForHTTP(), RowID: row.ID, AttemptNo: attemptNo, Status: "queued", EffectiveParams: params, ModelConfigSnapshot: map[string]any{"capabilityKey": sheet.CapabilityKey, "mediaKind": sheet.MediaKind}, EstimatedCredits: cost, QueuedAt: now, UpdatedAt: now})
 	}
@@ -490,7 +506,10 @@ func (s *Server) executeBatchAttempt(userID string, sheet store.BatchSheet, atte
 
 func (s *Server) executeBatchImageAttempt(userID string, sheet store.BatchSheet, attempt store.BatchAttempt) ([]store.BatchOutput, error) {
 	params := attempt.EffectiveParams
-	model := s.resolveImageModelConfig(stringValue(params, "modelConfigId"))
+	model, err := s.resolveImageModelConfig(userID, stringValue(params, "modelConfigId"))
+	if err != nil {
+		return nil, err
+	}
 	ids := batchImageReferenceIDs(params)
 	references, err := s.imageReferences(userID, nil, nil, ids)
 	if err != nil {
@@ -649,15 +668,22 @@ func validateBatchParams(key string, params map[string]any) string {
 	}
 	return ""
 }
-func batchEstimatedCredits(mediaKind string, params map[string]any) float64 {
+func (s *Server) batchEstimatedCredits(userID, mediaKind string, params map[string]any) (float64, error) {
 	if mediaKind == "video" {
-		return 15
+		return 15, nil
+	}
+	model, err := s.resolveImageModelConfig(userID, stringValue(params, "modelConfigId"))
+	if err != nil {
+		return 0, err
+	}
+	if model.OwnerUserID != "" {
+		return 0, nil
 	}
 	count := int(numberValue(params["outputCount"], 1))
 	if count < 1 {
 		count = 1
 	}
-	return float64(count)
+	return float64(count), nil
 }
 func valueOr(value, fallback string) string {
 	if strings.TrimSpace(value) == "" {

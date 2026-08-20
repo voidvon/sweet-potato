@@ -364,6 +364,7 @@ export type ModelConfig = {
   isConfigured?: boolean;
   isDefault: boolean;
   sortOrder?: number;
+  scope?: 'system' | 'personal';
   createdAt?: string;
   updatedAt?: string;
 };

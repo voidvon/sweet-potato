@@ -13,22 +13,41 @@ import (
 	"sweet-potato-go/internal/store"
 )
 
-func (s *Server) resolveImageModelConfig(requestedID string) store.ModelConfig {
+func (s *Server) resolveImageModelConfig(userID, requestedID string) (store.ModelConfig, error) {
 	requestedID = strings.TrimSpace(requestedID)
 	if requestedID != "" {
+		if model, found, err := s.store.FindUserModelConfig(userID, requestedID); err != nil {
+			return store.ModelConfig{}, err
+		} else if found {
+			return withImageEnvironmentCredentials(model), nil
+		}
 		if model, found, err := s.store.FindModelConfig(requestedID); err == nil && found && model.Type == "image" {
-			return withImageEnvironmentCredentials(model)
+			return withImageEnvironmentCredentials(model), nil
+		} else if err != nil {
+			return store.ModelConfig{}, err
+		}
+		return store.ModelConfig{}, errors.New("图片模型不存在或无权使用")
+	}
+	if models, err := s.store.ListUserModelConfigs(userID, "image"); err != nil {
+		return store.ModelConfig{}, err
+	} else {
+		for _, model := range models {
+			if model.IsDefault {
+				return withImageEnvironmentCredentials(model), nil
+			}
 		}
 	}
 	if models, err := s.store.ListModelConfigs("image"); err == nil {
 		for _, model := range models {
 			if model.IsDefault {
-				return withImageEnvironmentCredentials(model)
+				return withImageEnvironmentCredentials(model), nil
 			}
 		}
 		if len(models) > 0 {
-			return withImageEnvironmentCredentials(models[0])
+			return withImageEnvironmentCredentials(models[0]), nil
 		}
+	} else {
+		return store.ModelConfig{}, err
 	}
 	return withImageEnvironmentCredentials(store.ModelConfig{
 		ID:       "env-image",
@@ -36,7 +55,7 @@ func (s *Server) resolveImageModelConfig(requestedID string) store.ModelConfig {
 		Provider: valueOr(strings.TrimSpace(os.Getenv("IMAGE_MODEL_PROVIDER")), "openai-images"),
 		Model:    valueOr(strings.TrimSpace(os.Getenv("IMAGE_MODEL_ID")), "gpt-image-1"),
 		BaseURL:  strings.TrimSpace(os.Getenv("IMAGE_MODEL_BASE_URL")),
-	})
+	}), nil
 }
 
 func withImageEnvironmentCredentials(model store.ModelConfig) store.ModelConfig {
@@ -126,6 +145,8 @@ func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.O
 	metadata := map[string]any{
 		"generatedBy":      "image_model",
 		"generationStatus": "completed",
+		"modelConfigId":    model.ID,
+		"modelScope":       valueOr(personalModelScope(model), "system"),
 		"provider":         model.Provider,
 		"model":            model.Model,
 		"mode":             valueOr(mode, "image_generation"),
@@ -157,6 +178,13 @@ func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.O
 		return store.ContentAsset{}, err
 	}
 	return asset, nil
+}
+
+func personalModelScope(model store.ModelConfig) string {
+	if model.OwnerUserID != "" {
+		return "personal"
+	}
+	return ""
 }
 
 func imageExtension(mimeType string) string {

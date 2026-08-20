@@ -107,6 +107,9 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("/api/model-configs/", server.handleModelConfigSubtree)
 	server.mux.HandleFunc("GET /api/ai-model-config", server.handleAIModelConfig)
 	server.mux.HandleFunc("PUT /api/ai-model-config", server.handleAIModelConfig)
+	server.mux.HandleFunc("GET /api/user-model-configs", server.handleListUserModelConfigs)
+	server.mux.HandleFunc("POST /api/user-model-configs", server.handleCreateUserModelConfig)
+	server.mux.HandleFunc("/api/user-model-configs/", server.handleUserModelConfigSubtree)
 
 	server.mux.HandleFunc("/api/billing/", server.handleBilling)
 	server.mux.HandleFunc("GET /api/site-config", server.handleSiteConfig)

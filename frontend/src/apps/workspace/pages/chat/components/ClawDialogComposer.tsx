@@ -1,6 +1,7 @@
 import { Button, Dropdown, Popover, message } from 'antd';
 import {
   ArrowRight,
+  Bot,
   Brush,
   Check,
   ChevronDown,
@@ -20,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
+import { listUserImageModelConfigs, listUserModelConfigs } from '@shared/api/user-model-config';
 import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
 import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../../components/MentionRichTextarea';
 import {
@@ -46,6 +48,7 @@ type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
   composerDraftContext?: SendChatPayload['capabilityContext'];
   composerDraftImageModelConfigId?: string | null;
+  composerDraftModelConfigId?: string | null;
   input: string;
   onAddFiles: (files: File[], options?: {
     clientGroupKey?: string;
@@ -53,7 +56,11 @@ type ClawDialogComposerProps = {
   }) => Promise<ChatAttachment[]>;
   onInputChange: (value: string) => void;
   onRemoveAttachment: (attachmentId: string) => void;
-  onSend: (options?: { capabilityContext?: SendChatPayload['capabilityContext']; imageModelConfigId?: string | null }) => void;
+  onSend: (options?: {
+    capabilityContext?: SendChatPayload['capabilityContext'];
+    imageModelConfigId?: string | null;
+    modelConfigId?: string | null;
+  }) => void;
   onStop: () => void;
   continueEditFocusToken?: number;
   showHeading?: boolean;
@@ -373,6 +380,7 @@ export function ClawDialogComposer({
   attachments,
   composerDraftContext,
   composerDraftImageModelConfigId,
+  composerDraftModelConfigId,
   input,
   onAddFiles,
   onInputChange,
@@ -384,6 +392,8 @@ export function ClawDialogComposer({
   sending,
 }: ClawDialogComposerProps) {
   const [selectedModeKey, setSelectedModeKey] = useState<ClawModeKey>('dialog');
+  const [llmConfigs, setLlmConfigs] = useState<ModelConfig[]>([]);
+  const [selectedModelConfigId, setSelectedModelConfigId] = useState('');
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [selectedImageModelValue, setSelectedImageModelValue] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
@@ -495,10 +505,13 @@ export function ClawDialogComposer({
     if (composerDraftImageModelConfigId) {
       setSelectedImageModelValue(composerDraftImageModelConfigId);
     }
+    if (composerDraftModelConfigId) {
+      setSelectedModelConfigId(composerDraftModelConfigId);
+    }
     window.setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
-  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, continueEditFocusToken]);
+  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, composerDraftModelConfigId, continueEditFocusToken]);
 
   useEffect(() => {
     const attachmentIds = new Set(attachments.map((attachment) => attachment.id));
@@ -540,16 +553,23 @@ export function ClawDialogComposer({
 
     async function loadImageModels() {
       try {
-        const configs = await listModelConfigs('image');
+        const [systemConfigs, personalConfigs, systemLlmConfigs, personalLlmConfigs] = await Promise.all([
+          listModelConfigs('image'),
+          listUserImageModelConfigs(),
+          listModelConfigs('llm'),
+          listUserModelConfigs('llm'),
+        ]);
         if (!ignore) {
-          setImageConfigs(configs);
+          setImageConfigs([...personalConfigs, ...systemConfigs]);
+          setLlmConfigs([...personalLlmConfigs, ...systemLlmConfigs]);
         }
       } catch (error) {
         if (!ignore) {
           setImageConfigs([]);
+          setLlmConfigs([]);
           message.error({
-            content: error instanceof Error ? error.message : t("图片模型配置加载失败"),
-            key: 'image-model-config-load-error',
+            content: error instanceof Error ? error.message : t("模型配置加载失败"),
+            key: 'model-config-load-error',
           });
         }
       }
@@ -561,6 +581,32 @@ export function ClawDialogComposer({
     };
   }, []);
 
+  const selectableLlmModels = useMemo(
+    () => llmConfigs.filter((config) => config.id && imageModelIsConfigured(config)),
+    [llmConfigs],
+  );
+
+  useEffect(() => {
+    if (!selectableLlmModels.some((config) => config.id === selectedModelConfigId)) {
+      setSelectedModelConfigId(selectableLlmModels[0]?.id || '');
+    }
+  }, [selectableLlmModels, selectedModelConfigId]);
+
+  const selectedLlmModel = selectableLlmModels.find((config) => config.id === selectedModelConfigId)
+    || selectableLlmModels[0];
+  const personalLlmModelItems = selectableLlmModels
+    .filter((config) => config.scope === 'personal')
+    .map((config) => ({ key: config.id!, label: config.name || config.model }));
+  const systemLlmModelItems = selectableLlmModels
+    .filter((config) => config.scope !== 'personal')
+    .map((config) => ({ key: config.id!, label: config.name || config.model }));
+  const llmModelMenuItems = selectableLlmModels.length
+    ? [
+      ...(personalLlmModelItems.length ? [{ key: 'personal-llm-group', type: 'group' as const, label: t("我的模型（免费）"), children: personalLlmModelItems }] : []),
+      ...(systemLlmModelItems.length ? [{ key: 'system-llm-group', type: 'group' as const, label: t("系统模型"), children: systemLlmModelItems }] : []),
+    ]
+    : [{ key: 'empty-llm', label: t("请先配置对话模型"), disabled: true }];
+
   const selectableImageModels = useMemo<SelectableImageModel[]>(() => {
     return imageConfigs
       .filter((config) => config.id && imageModelIsConfigured(config))
@@ -571,7 +617,8 @@ export function ClawDialogComposer({
   }, [imageConfigs]);
 
   const defaultImageModelValue = useMemo(() => {
-    const defaultConfig = imageConfigs.find((item) => item.isDefault && imageModelIsConfigured(item))
+    const defaultConfig = imageConfigs.find((item) => item.scope === 'personal' && item.isDefault && imageModelIsConfigured(item))
+      || imageConfigs.find((item) => item.scope === 'system' && item.isDefault && imageModelIsConfigured(item))
       || imageConfigs.find(imageModelIsConfigured);
     if (defaultConfig) {
       return imageModelValue(defaultConfig);
@@ -596,12 +643,17 @@ export function ClawDialogComposer({
   );
   const supportsCustomResolution = imageModelSupportsCustomResolution(selectedRawImageConfig);
 
+  const personalImageModelItems = selectableImageModels
+    .filter((item) => item.config.scope === 'personal')
+    .map((item) => ({ key: item.value, label: item.config.name || item.config.model }));
+  const systemImageModelItems = selectableImageModels
+    .filter((item) => item.config.scope !== 'personal')
+    .map((item) => ({ key: item.value, label: item.config.name || item.config.model }));
   const imageModelMenuItems = selectableImageModels.length
-    ? selectableImageModels.map((item) => ({
-      key: item.value,
-      label: item.config.name || item.config.model,
-      disabled: false,
-    }))
+    ? [
+      ...(personalImageModelItems.length ? [{ key: 'personal-group', type: 'group' as const, label: t("我的模型（免费）"), children: personalImageModelItems }] : []),
+      ...(systemImageModelItems.length ? [{ key: 'system-group', type: 'group' as const, label: t("系统模型"), children: systemImageModelItems }] : []),
+    ]
     : [{ key: 'empty', label: t("请先配置图片模型"), disabled: true }];
   const selectableResolutions = useMemo(
     () => getImageResolutionOptions(selectedRawImageConfig, selectedOutputConfig.allowedResolutions),
@@ -653,6 +705,7 @@ export function ClawDialogComposer({
     }
     if (canStartGeneration) {
       onSend({
+        modelConfigId: selectedLlmModel?.id || null,
         imageModelConfigId: selectedImageModel?.config.id || null,
         capabilityContext: {
           imageGeneration: {
@@ -778,6 +831,22 @@ export function ClawDialogComposer({
                 <ChevronDown size={11} />
               </Button>
             </Dropdown>
+            {showImageModelControl ? (
+              <Dropdown
+                menu={{
+                  items: llmModelMenuItems,
+                  onClick: ({ key }) => setSelectedModelConfigId(key),
+                  selectedKeys: selectedModelConfigId ? [selectedModelConfigId] : [],
+                }}
+                classNames={{ root: 'claw-llm-model-dropdown' }}
+                trigger={['click']}
+              >
+                <Button className="claw-option-button" icon={<Bot size={12} />}>
+                  {selectedLlmModel?.name || selectedLlmModel?.model || t("对话模型")}
+                  <ChevronDown size={11} />
+                </Button>
+              </Dropdown>
+            ) : null}
             {showImageModelControl ? (
               <Dropdown
                 menu={{

@@ -77,7 +77,7 @@ function redirectToLogin() {
   }
   redirectingToLogin = true;
   removeStoredUser();
-  window.location.replace(getLoginRoute());
+  window.location.replace(getLoginRoute(`${window.location.pathname}${window.location.search}${window.location.hash}`));
 }
 
 export function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

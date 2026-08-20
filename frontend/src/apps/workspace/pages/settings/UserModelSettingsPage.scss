@@ -1,0 +1,30 @@
+.user-model-settings-page .settings-section {
+  min-width: 0;
+}
+
+.user-model-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.user-model-form-grid {
+  display: grid;
+  gap: 0 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 8px;
+}
+
+.user-model-form-grid .full-span {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .user-model-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-model-form-grid .full-span {
+    grid-column: auto;
+  }
+}

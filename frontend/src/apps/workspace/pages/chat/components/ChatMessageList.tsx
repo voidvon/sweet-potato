@@ -12,6 +12,7 @@ import { AppImage } from '../../../components/AppImage';
 import type { ChatAttachment, ChatMessage, ModelConfig } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
+import { listUserImageModelConfigs } from '@shared/api/user-model-config';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import { MarkdownContent, splitThinking } from '../utils/markdown';
 import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
@@ -118,9 +119,12 @@ export function ChatMessageList({
 
     async function loadImageConfigs() {
       try {
-        const configs = await listModelConfigs('image');
+        const [systemConfigs, personalConfigs] = await Promise.all([
+          listModelConfigs('image'),
+          listUserImageModelConfigs(),
+        ]);
         if (!ignore) {
-          setImageConfigs(configs);
+          setImageConfigs([...personalConfigs, ...systemConfigs]);
         }
       } catch (error) {
         if (!ignore) {

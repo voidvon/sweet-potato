@@ -2,6 +2,15 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-08-20 个人模型
+
+- `GET /api/user-model-configs?type=llm|image`、`POST /api/user-model-configs`、`PUT/DELETE /api/user-model-configs/:id` 和 `PUT /api/user-model-configs/:id/default` 管理当前登录用户的个人 LLM 与图片模型。用户归属只从登录态获取，接口不接受代替其他用户操作的 `userId`。
+- `GET /api/user-model-configs/image-providers` 返回普通端可配置的图片服务商目录。个人模型允许自定义 Base URL，但必须是合法的 HTTPS URL 且不能包含 URL 用户凭据。
+- 个人模型响应包含 `scope = personal` 和 `isConfigured`，`apiKey` 始终为空；编辑时传空 Key 会保留原配置。
+- 个人图片模型的 `settings.billing.creditsPerRequest` 和个人 LLM 的计费倍率均由服务端固定为 `0`。使用个人模型进行对话、图片创作或批量图片生成均不扣积分，客户端提交的个人模型计费字段会被忽略。
+- 未显式指定 LLM 时优先使用当前用户的个人默认 LLM，再回退到 Agent 绑定模型和系统默认 LLM。个人默认 LLM 同时用于普通对话和图片创作的工具调用决策。
+- 图片创作模型列表同时包含后台配置的 `scope = system` 模型和当前用户的个人模型。未指定模型时优先使用当前用户的个人默认模型，其次使用系统默认模型；传入其他用户的个人模型 ID 返回无权使用，不会静默回退。
+
 ## 2026-08-20 API 国际化与错误契约
 
 - 客户端使用标准请求头 `Accept-Language` 声明首选语言；当前支持 `zh-CN` 和 `en-US`，未提供或不支持的语言回退为 `zh-CN`。不要新增自定义 `lang` Header，也不要在每个 JSON 请求体中重复传语言。

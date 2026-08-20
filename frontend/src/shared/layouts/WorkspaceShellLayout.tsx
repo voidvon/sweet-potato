@@ -6,6 +6,7 @@ import {
   PlusCircleOutlined,
   QuestionCircleOutlined,
   SettingOutlined,
+  RobotOutlined,
   UserAddOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -16,6 +17,7 @@ import { CreditIcon } from '../components/CreditIcon';
 import { formatIntegerCreditAmount } from '../utils/credits';
 import './WorkspaceShellLayout.scss';
 import { t } from '@shared/i18n';
+import { currentReturnTo, loginPathWithReturnTo } from '../utils/authRedirect';
 
 const SHOW_TUTORIAL_ACTION = false;
 
@@ -63,6 +65,7 @@ type WorkspaceShellLayoutProps<User extends ShellUser> = {
   defaultPath: string;
   getWorkspaceLayoutState: (currentUser: User | null, pathname: string, matches: UIMatch[]) => WorkspaceRouteState;
   loginPath: string;
+  modelManagementPath?: string;
   onLogout: () => void;
   sidebarMenuItems: WorkspaceMenuItem[];
   mobileBottomNavItems?: WorkspaceBottomNavItem[];
@@ -132,6 +135,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   defaultPath,
   getWorkspaceLayoutState,
   loginPath,
+  modelManagementPath,
   onLogout,
   sidebarMenuItems,
   mobileBottomNavItems = [],
@@ -154,6 +158,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     () => ({ setHeaderExtra }),
     [setHeaderExtra],
   );
+  const loginTarget = loginPathWithReturnTo(loginPath, currentReturnTo(location));
   const resolvedSidebarMenuItems = useMemo(
     () => resolveSelectedMenuIcons(sidebarMenuItems, routeState.selectedMenuKey),
     [routeState.selectedMenuKey, sidebarMenuItems],
@@ -189,6 +194,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
+    ...(modelManagementPath ? [{ key: 'models', icon: <RobotOutlined />, label: t("模型管理") }] : []),
     { key: 'logout', danger: true, icon: <LogoutOutlined />, label: t("退出登录") },
   ];
 
@@ -210,6 +216,10 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     }
     if (key === 'account') {
       navigate(accountPath);
+      return;
+    }
+    if (key === 'models' && modelManagementPath) {
+      navigate(modelManagementPath);
       return;
     }
     navigate(defaultPath);
@@ -242,7 +252,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       {!currentUser ? (
         <button
           className="workspace-global-action workspace-login-action"
-          onClick={() => navigate(loginPath)}
+          onClick={() => navigate(loginTarget)}
           type="button"
         >
           <span>{t("登录")}</span>

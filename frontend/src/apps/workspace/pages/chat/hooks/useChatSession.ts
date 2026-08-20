@@ -81,6 +81,7 @@ export function useChatSession() {
   const [continueEditFocusToken, setContinueEditFocusToken] = useState(0);
   const [composerDraftContext, setComposerDraftContext] = useState<SendChatPayload['capabilityContext']>();
   const [composerDraftImageModelConfigId, setComposerDraftImageModelConfigId] = useState<string | null>();
+  const [composerDraftModelConfigId, setComposerDraftModelConfigId] = useState<string | null>();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?.id;
@@ -541,6 +542,7 @@ export function useChatSession() {
     editMessageId?: string;
     capabilityContext?: SendChatPayload['capabilityContext'];
     imageModelConfigId?: string | null;
+    modelConfigId?: string | null;
     requestedCapabilities?: Array<'image_generation'>;
     autoImageGeneration?: boolean;
   }) => {
@@ -563,6 +565,7 @@ export function useChatSession() {
     const contentForSend = content || (isImageGenerationRequest ? '' : t("请分析附件内容"));
     const resolvedCapabilityContext = override?.capabilityContext || {};
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
+    const resolvedModelConfigId = override?.modelConfigId || null;
     const imageGenerationExpectedCount = isImageGenerationRequest
       ? Math.max(1, resolvedCapabilityContext.imageGeneration?.outputCount || 0)
       : undefined;
@@ -578,6 +581,7 @@ export function useChatSession() {
       content: contentForSend,
       capabilityContext: isImageGenerationRequest ? resolvedCapabilityContext : undefined,
       imageModelConfigId: isImageGenerationRequest ? resolvedImageModelConfigId : undefined,
+      modelConfigId: resolvedModelConfigId,
       agentId: activeAgent.id,
       attachments: sendingAttachments,
       createdAt: new Date().toISOString(),
@@ -599,6 +603,7 @@ export function useChatSession() {
       setAttachments([]);
       setComposerDraftContext(undefined);
       setComposerDraftImageModelConfigId(undefined);
+      setComposerDraftModelConfigId(undefined);
     }
     if (editTargetIndex >= 0) {
       setMessages([
@@ -626,6 +631,7 @@ export function useChatSession() {
           content: contentForSend,
           capabilityContext: resolvedCapabilityContext,
           imageModelConfigId: resolvedImageModelConfigId,
+          modelConfigId: resolvedModelConfigId,
           requestedCapabilities,
           autoImageGeneration,
         });
@@ -633,6 +639,7 @@ export function useChatSession() {
         setAttachments([]);
         setComposerDraftContext(undefined);
         setComposerDraftImageModelConfigId(undefined);
+        setComposerDraftModelConfigId(undefined);
         setActiveConversationId(result.conversation.id);
         syncConversationUrl(result.conversation.id);
         setMessages((currentMessages) => result.messages.map((messageItem) => {
@@ -661,6 +668,7 @@ export function useChatSession() {
           content: contentForSend,
           capabilityContext: resolvedCapabilityContext,
           imageModelConfigId: resolvedImageModelConfigId,
+          modelConfigId: resolvedModelConfigId,
           requestedCapabilities,
         },
         (event) => {
@@ -718,6 +726,7 @@ export function useChatSession() {
             setAttachments([]);
             setComposerDraftContext(undefined);
             setComposerDraftImageModelConfigId(undefined);
+            setComposerDraftModelConfigId(undefined);
             setActiveConversationId(event.conversation.id);
             syncConversationUrl(event.conversation.id);
             setMessages((currentMessages) => event.messages.map((messageItem) => {
@@ -798,10 +807,12 @@ export function useChatSession() {
   const sendCurrentMessage = useCallback(async (options?: {
     capabilityContext?: SendChatPayload['capabilityContext'];
     imageModelConfigId?: string | null;
+    modelConfigId?: string | null;
   }) => {
     await sendMessage({
       capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
+      modelConfigId: options?.modelConfigId || null,
       autoImageGeneration: location.pathname === '/app/image',
     });
   }, [sendMessage]);
@@ -871,6 +882,7 @@ export function useChatSession() {
       clearComposer: false,
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,
+      modelConfigId: messageItem.modelConfigId || null,
       autoImageGeneration: location.pathname === '/app/image',
     });
   }, [location.pathname, sendMessage]);
@@ -885,6 +897,7 @@ export function useChatSession() {
     setInput('');
     setComposerDraftContext(undefined);
     setComposerDraftImageModelConfigId(undefined);
+    setComposerDraftModelConfigId(undefined);
     setContinueEditFocusToken((value) => value + 1);
   }, []);
 
@@ -897,6 +910,7 @@ export function useChatSession() {
     setAttachments(messageItem.attachments || []);
     setComposerDraftContext(messageItem.capabilityContext);
     setComposerDraftImageModelConfigId(messageItem.imageModelConfigId || undefined);
+    setComposerDraftModelConfigId(messageItem.modelConfigId || undefined);
     setContinueEditFocusToken((value) => value + 1);
   }, []);
 
@@ -912,6 +926,7 @@ export function useChatSession() {
     attachments,
     composerDraftContext,
     composerDraftImageModelConfigId,
+    composerDraftModelConfigId,
     continueEditFocusToken,
     continueEditImageMessage,
     clearConversationMessages,

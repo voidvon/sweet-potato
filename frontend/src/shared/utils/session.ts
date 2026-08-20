@@ -138,7 +138,12 @@ export function withAuthToken(url: string) {
   return url;
 }
 
-export function getLoginRoute() {
+export function getLoginRoute(returnTo?: string) {
   const routerBasename = resolveRouterBasename();
-  return routerBasename ? `${routerBasename}/login` : '/login';
+  const loginRoute = routerBasename ? `${routerBasename}/login` : '/login';
+  if (!returnTo || routerBasename === '/admin') {
+    return loginRoute;
+  }
+  const query = new URLSearchParams({ returnTo });
+  return `${loginRoute}?${query.toString()}`;
 }

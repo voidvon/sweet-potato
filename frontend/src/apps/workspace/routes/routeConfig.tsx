@@ -26,6 +26,7 @@ import {
   type UIMatch,
   useLocation,
 } from 'react-router-dom';
+import { currentReturnTo, loginPathWithReturnTo, returnToFromLoginSearch } from '@shared/utils/authRedirect';
 import { AppRequestLoading } from '../components/AppRequestLoading';
 import { getPublicRouteResourceTree } from '@shared/api/route-resource';
 import {
@@ -49,6 +50,7 @@ const BatchGenerationPage = lazy(() => import('../pages/content/BatchGenerationP
 const ChatPage = lazy(() => import('../pages/chat/ChatPage').then((m) => ({ default: m.ChatPage })));
 const DiscoverPage = lazy(() => import('../pages/discover/DiscoverPage').then((m) => ({ default: m.DiscoverPage })));
 const AccountPage = lazy(() => import('../pages/account/AccountPage').then((m) => ({ default: m.AccountPage })));
+const UserModelSettingsPage = lazy(() => import('../pages/settings/UserModelSettingsPage').then((m) => ({ default: m.UserModelSettingsPage })));
 
 type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -430,6 +432,16 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
+    key: 'models',
+    path: 'models',
+    fullPath: routePaths.models,
+    element: () => withStudioSuspense(<UserModelSettingsPage />),
+    handle: {
+      title: t("模型管理"),
+      surface: 'studio',
+    },
+  },
+  {
     key: 'account',
     path: 'account',
     fullPath: routePaths.account,
@@ -701,12 +713,15 @@ function ConfigurableRouteGate({
   fallbackPath,
   isAllowed,
   resourceKey,
+  preserveReturnTo = false,
 }: {
   children: ReactNode;
   fallbackPath: string;
   isAllowed: boolean;
   resourceKey?: string;
+  preserveReturnTo?: boolean;
 }) {
+  const location = useLocation();
   const [configuredAccess, setConfiguredAccess] = useState<'loading' | 'allowed' | 'denied'>(
     isAllowed ? 'allowed' : resourceKey ? 'loading' : 'denied',
   );
@@ -744,10 +759,23 @@ function ConfigurableRouteGate({
     return <WorkspaceRouteFallback />;
   }
   if (configuredAccess === 'denied') {
-    return <Navigate to={fallbackPath} replace />;
+    const target = preserveReturnTo
+      ? loginPathWithReturnTo(fallbackPath, currentReturnTo(location))
+      : fallbackPath;
+    return <Navigate to={target} replace />;
   }
 
   return <>{children}</>;
+}
+
+function LoginRedirect() {
+  const location = useLocation();
+  return <Navigate to={loginPathWithReturnTo(routePaths.login, currentReturnTo(location))} replace />;
+}
+
+function PostAuthRedirect() {
+  const location = useLocation();
+  return <Navigate to={returnToFromLoginSearch(location.search) || '/'} replace />;
 }
 
 function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRouteHandlers): AppRouteObject[] {
@@ -760,7 +788,7 @@ function createProtectedRouteObjects(currentUser: User, handlers: WorkspaceRoute
     element: (
       <ConfigurableRouteGate
         fallbackPath={unauthorizedRedirectPath}
-        isAllowed={route.key === 'account' || isVisibleWorkspacePage(route, currentUser)}
+        isAllowed={route.key === 'account' || route.key === 'models' || isVisibleWorkspacePage(route, currentUser)}
         resourceKey={route.routeResource?.resourceKey}
       >
         {route.element(currentUser, handlers)}
@@ -815,6 +843,7 @@ export function createAppRouteObjects({
               <ConfigurableRouteGate
                 fallbackPath={routePaths.login}
                 isAllowed={false}
+                preserveReturnTo
                 resourceKey={route.routeResource.resourceKey}
               >
                 {route.anonymousElement()}
@@ -827,7 +856,7 @@ export function createAppRouteObjects({
       {
         id: 'app-fallback',
         path: '*',
-        element: <Navigate to={routePaths.login} replace />,
+        element: <LoginRedirect />,
       },
     ];
 
@@ -841,7 +870,7 @@ export function createAppRouteObjects({
       id: 'login',
       path: routePaths.login,
       element: currentUser ? (
-        <Navigate to={defaultAppPath} replace />
+        <PostAuthRedirect />
       ) : (
         <AuthRouteFrame>
           <AuthPage onAuthed={onAuthed} />

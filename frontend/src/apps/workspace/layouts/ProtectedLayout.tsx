@@ -57,6 +57,7 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
           selectedMenuKey: pathname === routePaths.discover ? routePaths.discover : null,
         }}
       loginPath={routePaths.login}
+      modelManagementPath={routePaths.models}
       mobileBottomNavItems={currentUser ? mobileBottomNavItems : []}
       onLogout={onLogout}
       showGlobalActions

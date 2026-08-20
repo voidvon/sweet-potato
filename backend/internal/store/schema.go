@@ -192,6 +192,27 @@ const foundationSchema = `
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS user_model_configs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      model TEXT NOT NULL,
+      api_key TEXT NOT NULL DEFAULT '',
+      base_url TEXT NOT NULL,
+      temperature REAL NOT NULL DEFAULT 0.7,
+      settings TEXT NOT NULL DEFAULT '{}',
+      is_default INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_model_configs_owner_type_order
+      ON user_model_configs(user_id, type, sort_order, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS llm_model_pricing (
       id TEXT PRIMARY KEY,
       provider TEXT NOT NULL,

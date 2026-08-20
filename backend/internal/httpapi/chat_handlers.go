@@ -256,35 +256,9 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	if !found {
 		return nil, errChatAgentNotFound
 	}
-	var model store.ModelConfig
-	if input.ModelConfigID != nil && strings.TrimSpace(*input.ModelConfigID) != "" {
-		model, found, err = s.store.FindModelConfig(strings.TrimSpace(*input.ModelConfigID))
-		if err != nil || !found {
-			return nil, errors.New("模型配置不存在")
-		}
-	} else if agent.ModelConfigID != nil {
-		model, found, err = s.store.FindModelConfig(*agent.ModelConfigID)
-		if err != nil || !found {
-			return nil, errors.New("模型配置不存在")
-		}
-	} else {
-		models, listErr := s.store.ListModelConfigs("llm")
-		if listErr != nil {
-			return nil, listErr
-		}
-		for _, item := range models {
-			if item.IsDefault {
-				model = item
-				found = true
-				break
-			}
-		}
-		if !found && len(models) > 0 {
-			model, found = models[0], true
-		}
-		if !found {
-			return nil, errors.New("未找到可用的默认 LLM 模型配置")
-		}
+	model, err := s.resolveLLMModelConfig(user.ID, pointerValue(input.ModelConfigID), pointerValue(agent.ModelConfigID))
+	if err != nil {
+		return nil, err
 	}
 	conversation, found, err := s.resolveChatConversation(user.ID, input, agentID, model.ID)
 	if err != nil {
@@ -326,7 +300,10 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 		}
 	}
 	if imageRequest {
-		imageModel := s.resolveImageModelConfig(pointerValue(input.ImageModelConfigID))
+		imageModel, resolveErr := s.resolveImageModelConfig(user.ID, pointerValue(input.ImageModelConfigID))
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
 		generation := objectValue(input.CapabilityContext["imageGeneration"])
 		prompt := strings.TrimSpace(s.imageGenerationPrompt(content, input.CapabilityContext, nil))
 		prompt = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(prompt, "@生图", ""), "＠生图", ""))
@@ -382,6 +359,54 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	_ = userMessage
 	_ = assistantMessage
 	return map[string]any{"conversation": conversation, "messages": messages}, nil
+}
+
+func (s *Server) resolveLLMModelConfig(userID, requestedID, agentModelID string) (store.ModelConfig, error) {
+	requestedID = strings.TrimSpace(requestedID)
+	if requestedID != "" {
+		if model, found, err := s.store.FindUserModelConfig(userID, requestedID); err != nil {
+			return store.ModelConfig{}, err
+		} else if found && model.Type == "llm" {
+			return model, nil
+		}
+		if model, found, err := s.store.FindModelConfig(requestedID); err != nil {
+			return store.ModelConfig{}, err
+		} else if found && model.Type == "llm" {
+			return model, nil
+		}
+		return store.ModelConfig{}, errors.New("LLM 模型不存在或无权使用")
+	}
+	personalModels, err := s.store.ListUserModelConfigs(userID, "llm")
+	if err != nil {
+		return store.ModelConfig{}, err
+	}
+	for _, model := range personalModels {
+		if model.IsDefault {
+			return model, nil
+		}
+	}
+	agentModelID = strings.TrimSpace(agentModelID)
+	if agentModelID != "" {
+		if model, found, err := s.store.FindModelConfig(agentModelID); err != nil {
+			return store.ModelConfig{}, err
+		} else if found && model.Type == "llm" {
+			return model, nil
+		}
+		return store.ModelConfig{}, errors.New("模型配置不存在")
+	}
+	models, err := s.store.ListModelConfigs("llm")
+	if err != nil {
+		return store.ModelConfig{}, err
+	}
+	for _, model := range models {
+		if model.IsDefault {
+			return model, nil
+		}
+	}
+	if len(models) > 0 {
+		return models[0], nil
+	}
+	return store.ModelConfig{}, errors.New("未找到可用的默认 LLM 模型配置")
 }
 
 type imageGenerationDecision struct {

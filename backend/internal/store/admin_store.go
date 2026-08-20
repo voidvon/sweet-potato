@@ -77,6 +77,7 @@ type ModelConfig struct {
 	SortOrder   int            `json:"sortOrder"`
 	CreatedAt   string         `json:"createdAt"`
 	UpdatedAt   string         `json:"updatedAt"`
+	OwnerUserID string         `json:"-"`
 }
 
 type LlmModelPricing struct {

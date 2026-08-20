@@ -988,7 +988,7 @@ func redactModelConfig(model store.ModelConfig) map[string]any {
 		"id": model.ID, "type": model.Type, "name": model.Name, "provider": model.Provider,
 		"model": model.Model, "apiKey": "", "isConfigured": strings.TrimSpace(model.APIKey) != "",
 		"baseUrl": model.BaseURL, "temperature": model.Temperature, "settings": model.Settings,
-		"isDefault": model.IsDefault, "sortOrder": model.SortOrder, "createdAt": model.CreatedAt, "updatedAt": model.UpdatedAt,
+		"isDefault": model.IsDefault, "sortOrder": model.SortOrder, "scope": "system", "createdAt": model.CreatedAt, "updatedAt": model.UpdatedAt,
 	}
 }
 
