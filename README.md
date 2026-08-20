@@ -49,17 +49,17 @@ Open the [latest release](https://github.com/voidvon/sweet-potato/releases) and 
 
 | Platform | Asset |
 | --- | --- |
-| Linux x86_64 | `sweet-potato-v0.1.55-linux-amd64.tar.gz` |
-| Linux ARM64 | `sweet-potato-v0.1.55-linux-arm64.tar.gz` |
-| macOS Intel | `sweet-potato-v0.1.55-darwin-amd64.tar.gz` |
-| macOS Apple Silicon | `sweet-potato-v0.1.55-darwin-arm64.tar.gz` |
-| Windows x86_64 | `sweet-potato-v0.1.55-windows-amd64.zip` |
+| Linux x86_64 | `sweet-potato-v0.1.56-linux-amd64.tar.gz` |
+| Linux ARM64 | `sweet-potato-v0.1.56-linux-arm64.tar.gz` |
+| macOS Intel | `sweet-potato-v0.1.56-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `sweet-potato-v0.1.56-darwin-arm64.tar.gz` |
+| Windows x86_64 | `sweet-potato-v0.1.56-windows-amd64.zip` |
 
-Verify downloads with [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.55/SHA256SUMS.txt), then extract the archive and run the binary:
+Verify downloads with [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.56/SHA256SUMS.txt), then extract the archive and run the binary:
 
 ```bash
 mkdir -p /opt/sweet-potato
-tar -xzf sweet-potato-v0.1.55-linux-amd64.tar.gz -C /opt/sweet-potato
+tar -xzf sweet-potato-v0.1.56-linux-amd64.tar.gz -C /opt/sweet-potato
 cd /opt/sweet-potato
 ./sweet-potato
 ```
