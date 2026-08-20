@@ -20,8 +20,10 @@ type DiscoverCategoryModalProps = {
 
 export function DiscoverCategoryModal({ categories, open, onChanged, onClose, onReordered }: DiscoverCategoryModalProps) {
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryNameEN, setNewCategoryNameEN] = useState('')
   const [editingCategoryId, setEditingCategoryId] = useState<string>()
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [editingCategoryNameEN, setEditingCategoryNameEN] = useState('')
   const [saving, setSaving] = useState(false)
   const [sorting, setSorting] = useState(false)
 
@@ -30,8 +32,9 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
     if (!name) return
     setSaving(true)
     try {
-      await createDiscoverCategory({ name })
+      await createDiscoverCategory({ name, nameEn: newCategoryNameEN.trim() })
       setNewCategoryName('')
+      setNewCategoryNameEN('')
       await onChanged()
     } catch (error) {
       message.error(error instanceof Error ? error.message : t("分类创建失败"))
@@ -45,7 +48,7 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
     if (!name) return
     setSaving(true)
     try {
-      await updateDiscoverCategory(category.id, { name })
+      await updateDiscoverCategory(category.id, { name, nameEn: editingCategoryNameEN.trim() })
       setEditingCategoryId(undefined)
       await onChanged()
     } catch (error) {
@@ -78,11 +81,18 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
 
   const columns = useMemo<ColumnsType<DiscoverCategory>>(() => [
     {
-      title: t("分类名称"),
+      title: t("中文名称"),
       dataIndex: 'name',
       render: (name: string, category) => editingCategoryId === category.id
         ? <Input autoFocus maxLength={40} onChange={(event) => setEditingCategoryName(event.target.value)} onPressEnter={() => void saveCategory(category)} value={editingCategoryName} />
         : name,
+    },
+    {
+      title: t("英文名称"),
+      dataIndex: 'nameEn',
+      render: (nameEn: string | undefined, category) => editingCategoryId === category.id
+        ? <Input maxLength={40} onChange={(event) => setEditingCategoryNameEN(event.target.value)} onPressEnter={() => void saveCategory(category)} value={editingCategoryNameEN} />
+        : nameEn || '-',
     },
     { title: t("标识"), dataIndex: 'slug', width: 180 },
     {
@@ -109,7 +119,7 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
         </Space>
       ) : (
         <Space size={4}>
-          <Button icon={<EditOutlined />} onClick={() => { setEditingCategoryId(category.id); setEditingCategoryName(category.name) }} type="link">{t("编辑")}</Button>
+          <Button icon={<EditOutlined />} onClick={() => { setEditingCategoryId(category.id); setEditingCategoryName(category.name); setEditingCategoryNameEN(category.nameEn || '') }} type="link">{t("编辑")}</Button>
           <Popconfirm
             description={t("分类下有作品时无法删除")}
             onConfirm={async () => {
@@ -127,12 +137,13 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
         </Space>
       ),
     },
-  ], [categories.length, editingCategoryId, editingCategoryName, saving, sorting])
+  ], [categories.length, editingCategoryId, editingCategoryName, editingCategoryNameEN, saving, sorting])
 
   return (
-    <Modal footer={null} onCancel={onClose} open={open} title={t("分类管理")} width={720}>
+    <Modal footer={null} onCancel={onClose} open={open} title={t("分类管理")} width={900}>
       <Space.Compact className="discover-category-create">
-        <Input maxLength={40} onChange={(event) => setNewCategoryName(event.target.value)} onPressEnter={() => void addCategory()} placeholder={t("输入分类名称")} value={newCategoryName} />
+        <Input maxLength={40} onChange={(event) => setNewCategoryName(event.target.value)} onPressEnter={() => void addCategory()} placeholder={t("输入中文名称")} value={newCategoryName} />
+        <Input maxLength={40} onChange={(event) => setNewCategoryNameEN(event.target.value)} onPressEnter={() => void addCategory()} placeholder={t("输入英文名称（可选）")} value={newCategoryNameEN} />
         <Button loading={saving} onClick={() => void addCategory()} type="primary">{t("新增分类")}</Button>
       </Space.Compact>
       <Table columns={columns} dataSource={categories} pagination={false} rowKey="id" size="small" />

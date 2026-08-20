@@ -39,6 +39,7 @@ type RouteResource struct {
 	ID             string          `json:"id"`
 	ParentID       *string         `json:"parentId"`
 	Name           string          `json:"name"`
+	NameEN         string          `json:"nameEn"`
 	ResourceKey    string          `json:"resourceKey"`
 	ResourceType   string          `json:"resourceType"`
 	Platform       string          `json:"platform"`
@@ -685,7 +686,7 @@ func (s *Store) replaceRoleGrantsTx(tx *sql.Tx, roleID string, resourceIDs []str
 }
 
 func (s *Store) ListRouteResources(includeDisabled bool, platform string) ([]RouteResource, error) {
-	query := `SELECT id, parent_id, name, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at FROM route_resources`
+	query := `SELECT id, parent_id, name, name_en, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at FROM route_resources`
 	conditions := []string{}
 	args := []any{}
 	if !includeDisabled {
@@ -721,7 +722,7 @@ func scanRouteResource(scanner rowScanner) (RouteResource, error) {
 	var resource RouteResource
 	var parentID sql.NullString
 	var status, isSystem int
-	if err := scanner.Scan(&resource.ID, &parentID, &resource.Name, &resource.ResourceKey, &resource.ResourceType, &resource.Platform, &resource.Path, &resource.PermissionCode, &resource.VisibilityMode, &status, &resource.SortOrder, &isSystem, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+	if err := scanner.Scan(&resource.ID, &parentID, &resource.Name, &resource.NameEN, &resource.ResourceKey, &resource.ResourceType, &resource.Platform, &resource.Path, &resource.PermissionCode, &resource.VisibilityMode, &status, &resource.SortOrder, &isSystem, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 		return RouteResource{}, fmt.Errorf("scan route resource: %w", err)
 	}
 	if parentID.Valid {
@@ -785,7 +786,7 @@ func (s *Store) ListRouteResourceTree(includeDisabled bool, platform string) ([]
 }
 
 func (s *Store) FindRouteResource(id string) (RouteResource, bool, error) {
-	row := s.db.QueryRow(`SELECT id, parent_id, name, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at FROM route_resources WHERE id = ?`, id)
+	row := s.db.QueryRow(`SELECT id, parent_id, name, name_en, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at FROM route_resources WHERE id = ?`, id)
 	resource, err := scanRouteResource(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return RouteResource{}, false, nil
@@ -809,6 +810,7 @@ func (s *Store) SaveRouteResource(id string, input map[string]any) (RouteResourc
 		next = RouteResource{ID: id, ResourceType: "menu", Platform: "web", VisibilityMode: "permission", Status: true}
 	}
 	setString(input, "name", &next.Name)
+	setString(input, "nameEn", &next.NameEN)
 	setString(input, "resourceKey", &next.ResourceKey)
 	setString(input, "resourceType", &next.ResourceType)
 	setString(input, "platform", &next.Platform)
@@ -850,10 +852,10 @@ func (s *Store) SaveRouteResource(id string, input map[string]any) (RouteResourc
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if !found {
 		next.CreatedAt, next.UpdatedAt = now, now
-		_, err = s.db.Exec(`INSERT INTO route_resources (id, parent_id, name, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, next.ID, nullablePtr(next.ParentID), next.Name, next.ResourceKey, next.ResourceType, next.Platform, next.Path, next.PermissionCode, next.VisibilityMode, boolInt(next.Status), next.SortOrder, boolInt(next.IsSystem), now, now)
+		_, err = s.db.Exec(`INSERT INTO route_resources (id, parent_id, name, name_en, resource_key, resource_type, platform, path, permission_code, visibility_mode, status, sort_order, is_system, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, next.ID, nullablePtr(next.ParentID), next.Name, next.NameEN, next.ResourceKey, next.ResourceType, next.Platform, next.Path, next.PermissionCode, next.VisibilityMode, boolInt(next.Status), next.SortOrder, boolInt(next.IsSystem), now, now)
 	} else {
 		next.UpdatedAt = now
-		_, err = s.db.Exec(`UPDATE route_resources SET parent_id = ?, name = ?, resource_key = ?, resource_type = ?, platform = ?, path = ?, permission_code = ?, visibility_mode = ?, status = ?, sort_order = ?, updated_at = ? WHERE id = ?`, nullablePtr(next.ParentID), next.Name, next.ResourceKey, next.ResourceType, next.Platform, next.Path, next.PermissionCode, next.VisibilityMode, boolInt(next.Status), next.SortOrder, now, id)
+		_, err = s.db.Exec(`UPDATE route_resources SET parent_id = ?, name = ?, name_en = ?, resource_key = ?, resource_type = ?, platform = ?, path = ?, permission_code = ?, visibility_mode = ?, status = ?, sort_order = ?, updated_at = ? WHERE id = ?`, nullablePtr(next.ParentID), next.Name, next.NameEN, next.ResourceKey, next.ResourceType, next.Platform, next.Path, next.PermissionCode, next.VisibilityMode, boolInt(next.Status), next.SortOrder, now, id)
 	}
 	if err != nil {
 		return RouteResource{}, fmt.Errorf("save route resource: %w", err)

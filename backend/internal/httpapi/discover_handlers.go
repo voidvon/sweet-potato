@@ -23,7 +23,8 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		if categories == nil {
 			categories = []store.DiscoverCategory{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": categories})
+		language := setLocalizedResponseHeaders(w)
+		writeJSON(w, http.StatusOK, map[string]any{"items": publicDiscoverCategories(categories, language)})
 		return
 	}
 	if parts[0] != "items" {
@@ -58,6 +59,31 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeError(w, http.StatusNotFound, "接口不存在")
+}
+
+type publicDiscoverCategory struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sortOrder"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+func publicDiscoverCategories(categories []store.DiscoverCategory, language string) []publicDiscoverCategory {
+	result := make([]publicDiscoverCategory, 0, len(categories))
+	for _, category := range categories {
+		name := category.Name
+		if language == languageEnglish && strings.TrimSpace(category.NameEN) != "" {
+			name = category.NameEN
+		}
+		result = append(result, publicDiscoverCategory{
+			ID: category.ID, Name: name, Slug: category.Slug, SortOrder: category.SortOrder,
+			Status: category.Status, CreatedAt: category.CreatedAt, UpdatedAt: category.UpdatedAt,
+		})
+	}
+	return result
 }
 
 func (s *Server) handleAdminDiscover(w http.ResponseWriter, r *http.Request) {

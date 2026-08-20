@@ -88,6 +88,7 @@ export type RouteResourceSummary = {
   id: string;
   parentId?: string | null;
   name: string;
+  nameEn?: string;
   resourceKey: string;
   resourceType: RouteResourceType;
   platform: RouteResourcePlatform;
@@ -108,6 +109,7 @@ export type ManagedRouteResource = RouteResourceSummary & {
 export type RouteResourceMutationPayload = {
   parentId?: string | null;
   name: string;
+  nameEn?: string;
   resourceKey: string;
   resourceType: RouteResourceType;
   platform: RouteResourcePlatform;

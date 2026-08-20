@@ -66,6 +66,7 @@ const foundationSchema = `
       id TEXT PRIMARY KEY,
       parent_id TEXT,
       name TEXT NOT NULL,
+      name_en TEXT NOT NULL DEFAULT '',
       resource_key TEXT NOT NULL UNIQUE,
       resource_type TEXT NOT NULL,
       platform TEXT NOT NULL,
@@ -487,6 +488,7 @@ const foundationSchema = `
     CREATE TABLE IF NOT EXISTS discover_categories (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      name_en TEXT NOT NULL DEFAULT '',
       slug TEXT NOT NULL UNIQUE,
       sort_order INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'active',

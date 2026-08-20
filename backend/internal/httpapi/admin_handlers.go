@@ -359,7 +359,45 @@ func (s *Server) handlePublicRouteTree(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "资源树读取失败")
 		return
 	}
-	writeJSON(w, http.StatusOK, tree)
+	language := setLocalizedResponseHeaders(w)
+	writeJSON(w, http.StatusOK, publicRouteResources(tree, language))
+}
+
+type publicRouteResource struct {
+	ID             string                `json:"id"`
+	ParentID       *string               `json:"parentId"`
+	Name           string                `json:"name"`
+	ResourceKey    string                `json:"resourceKey"`
+	ResourceType   string                `json:"resourceType"`
+	Platform       string                `json:"platform"`
+	Path           string                `json:"path"`
+	PermissionCode string                `json:"permissionCode"`
+	VisibilityMode string                `json:"visibilityMode"`
+	Status         bool                  `json:"status"`
+	SortOrder      int                   `json:"sortOrder"`
+	IsSystem       bool                  `json:"isSystem"`
+	CreatedAt      string                `json:"createdAt"`
+	UpdatedAt      string                `json:"updatedAt"`
+	Children       []publicRouteResource `json:"children,omitempty"`
+}
+
+func publicRouteResources(resources []store.RouteResource, language string) []publicRouteResource {
+	result := make([]publicRouteResource, 0, len(resources))
+	for _, resource := range resources {
+		name := resource.Name
+		if language == languageEnglish && strings.TrimSpace(resource.NameEN) != "" {
+			name = resource.NameEN
+		}
+		result = append(result, publicRouteResource{
+			ID: resource.ID, ParentID: resource.ParentID, Name: name, ResourceKey: resource.ResourceKey,
+			ResourceType: resource.ResourceType, Platform: resource.Platform, Path: resource.Path,
+			PermissionCode: resource.PermissionCode, VisibilityMode: resource.VisibilityMode,
+			Status: resource.Status, SortOrder: resource.SortOrder, IsSystem: resource.IsSystem,
+			CreatedAt: resource.CreatedAt, UpdatedAt: resource.UpdatedAt,
+			Children: publicRouteResources(resource.Children, language),
+		})
+	}
+	return result
 }
 
 func (s *Server) handleListRouteResources(w http.ResponseWriter, r *http.Request) {

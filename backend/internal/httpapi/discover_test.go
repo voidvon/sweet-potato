@@ -78,3 +78,67 @@ func TestPublicRouteTreeNeverReturnsAdminResources(t *testing.T) {
 		t.Fatal("public route tree exposed admin resources")
 	}
 }
+
+func TestPublicRouteTreeLocalizesNamesFromAcceptLanguage(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir(), AuthTokenSecret: "test-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+
+	request := httptest.NewRequest(http.MethodGet, "/api/route-resources/public-tree", nil)
+	request.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"name":"Discover"`) {
+		t.Fatalf("English route name missing: %s", response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"name":"Image"`) {
+		t.Fatalf("updated image route name missing: %s", response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"name":"Video"`) {
+		t.Fatalf("updated video route name missing: %s", response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), `"nameEn"`) {
+		t.Fatalf("public route response exposed translation storage: %s", response.Body.String())
+	}
+	if response.Header().Get("Content-Language") != languageEnglish {
+		t.Fatalf("Content-Language = %q", response.Header().Get("Content-Language"))
+	}
+	if !strings.Contains(response.Header().Get("Vary"), "Accept-Language") {
+		t.Fatalf("Vary = %q", response.Header().Get("Vary"))
+	}
+}
+
+func TestPublicDiscoverCategoriesLocalizeAndFallbackToChinese(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir(), AuthTokenSecret: "test-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+
+	if _, err := server.store.SaveDiscoverCategory("", map[string]any{"name": "推荐", "nameEn": "Featured"}); err != nil {
+		t.Fatalf("create translated category: %v", err)
+	}
+	if _, err := server.store.SaveDiscoverCategory("", map[string]any{"name": "灵感"}); err != nil {
+		t.Fatalf("create fallback category: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/discover/categories", nil)
+	request.Header.Set("Accept-Language", "en")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"name":"Featured"`) || !strings.Contains(body, `"name":"灵感"`) {
+		t.Fatalf("category localization or fallback missing: %s", body)
+	}
+	if strings.Contains(body, `"nameEn"`) {
+		t.Fatalf("public category response exposed translation storage: %s", body)
+	}
+}

@@ -33,7 +33,6 @@ export function LanguageSwitcher({ className = '' }: LanguageSwitcherProps) {
           type="button"
         >
           <Languages aria-hidden="true" size={17} />
-          <span>{locale === 'en-US' ? 'EN' : t("中")}</span>
         </button>
       </Tooltip>
     </Dropdown>

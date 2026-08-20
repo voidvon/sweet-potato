@@ -19,6 +19,7 @@ export type RouteResourceEditorState = {
 type RouteResourceFormValues = {
   parentId?: string | null;
   name: string;
+  nameEn?: string;
   resourceKey: string;
   resourceType: RouteResourceType;
   platform: RouteResourcePlatform;
@@ -42,6 +43,7 @@ function buildMutationPayload(values: RouteResourceFormValues): RouteResourceMut
   return {
     parentId: values.parentId || null,
     name: values.name.trim(),
+    nameEn: values.nameEn?.trim() || '',
     resourceKey: values.resourceKey.trim(),
     resourceType: values.resourceType,
     platform: values.platform,
@@ -69,6 +71,7 @@ export function RouteResourceEditorModal({
     form.setFieldsValue(record ? {
       parentId: record.parentId || null,
       name: record.name,
+      nameEn: record.nameEn || '',
       resourceKey: record.resourceKey,
       resourceType: record.resourceType,
       platform: record.platform,
@@ -80,6 +83,7 @@ export function RouteResourceEditorModal({
     } : {
       parentId: editorState.parent?.id || null,
       name: '',
+      nameEn: '',
       resourceKey: '',
       resourceType: editorState.parent ? 'menu' : 'directory',
       platform: editorState.parent?.platform || activePlatform,
@@ -107,8 +111,11 @@ export function RouteResourceEditorModal({
           <Form.Item style={{ gridColumn: '1 / -1' }} label={t("父级节点")} name="parentId">
             <Select allowClear options={parentOptions} placeholder={t("根节点可留空")} showSearch optionFilterProp="label" />
           </Form.Item>
-          <Form.Item label={t("资源名称")} name="name" rules={[{ required: true, message: t("请输入资源名称") }]}>
+          <Form.Item label={t("中文名称")} name="name" rules={[{ required: true, message: t("请输入中文名称") }]}>
             <Input maxLength={64} placeholder={t("例如：路由管理")} />
+          </Form.Item>
+          <Form.Item label={t("英文名称")} name="nameEn">
+            <Input maxLength={64} placeholder={t("例如：Route Management")} />
           </Form.Item>
           <Form.Item label={t("资源标识")} name="resourceKey" rules={[{ required: true, message: t("请输入资源标识") }]}>
             <Input maxLength={128} placeholder={t("例如：admin.system.route_resources")} />

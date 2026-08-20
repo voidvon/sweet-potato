@@ -104,6 +104,8 @@ func migrateFoundation(db *sql.DB) error {
 	}{
 		{"users", "avatar_url", "avatar_url TEXT"},
 		{"route_resources", "visibility_mode", "visibility_mode TEXT NOT NULL DEFAULT 'permission'"},
+		{"route_resources", "name_en", "name_en TEXT NOT NULL DEFAULT ''"},
+		{"discover_categories", "name_en", "name_en TEXT NOT NULL DEFAULT ''"},
 		{"users", "role", "role TEXT NOT NULL DEFAULT 'user'"},
 		{"users", "auth_version", "auth_version INTEGER NOT NULL DEFAULT 1"},
 		{"users", "role_id", "role_id TEXT"},

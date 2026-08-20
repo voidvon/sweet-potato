@@ -61,6 +61,59 @@ VALUES ('legacy-id', 'legacy', 'Legacy', 'admin', 'hash', 'salt', '2026-01-01T00
 	}
 }
 
+func TestOpenBackfillsDefaultDisplayNameTranslations(t *testing.T) {
+	dataDir := t.TempDir()
+	dataStore, err := Open(dataDir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := dataStore.Exec(`UPDATE route_resources SET name_en = 'Image Creation' WHERE id = 'rr-web.module.chat'`); err != nil {
+		t.Fatalf("set legacy route translation: %v", err)
+	}
+	if _, err := dataStore.Exec(`UPDATE route_resources SET name_en = 'Video Creation' WHERE id = 'rr-web.module.content.create_video'`); err != nil {
+		t.Fatalf("set legacy video route translation: %v", err)
+	}
+	if _, err := dataStore.Exec(`
+INSERT INTO discover_categories (id, name, name_en, slug, sort_order, status, created_at, updated_at)
+VALUES ('talking', '口播', '', 'talking', 0, 'active', ?, ?),
+       ('fashion', '女装', '', 'fashion', 10, 'active', ?, ?),
+       ('custom', '口播', 'Spoken Content', 'custom', 20, 'active', ?, ?)`, now, now, now, now, now, now); err != nil {
+		t.Fatalf("insert legacy categories: %v", err)
+	}
+	if err := dataStore.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+
+	dataStore, err = Open(dataDir)
+	if err != nil {
+		t.Fatalf("reopen migrated store: %v", err)
+	}
+	defer dataStore.Close()
+	resource, found, err := dataStore.FindRouteResource("rr-web.module.chat")
+	if err != nil || !found || resource.NameEN != "Image" {
+		t.Fatalf("route translation = %q, found=%v err=%v", resource.NameEN, found, err)
+	}
+	resource, found, err = dataStore.FindRouteResource("rr-web.module.content.create_video")
+	if err != nil || !found || resource.NameEN != "Video" {
+		t.Fatalf("video route translation = %q, found=%v err=%v", resource.NameEN, found, err)
+	}
+	categories, err := dataStore.ListDiscoverCategories(true)
+	if err != nil {
+		t.Fatalf("list categories: %v", err)
+	}
+	translations := make(map[string]string, len(categories))
+	for _, category := range categories {
+		translations[category.ID] = category.NameEN
+	}
+	if translations["talking"] != "Talking Head" || translations["fashion"] != "Women's Fashion" {
+		t.Fatalf("default category translations not backfilled: %#v", translations)
+	}
+	if translations["custom"] != "Spoken Content" {
+		t.Fatalf("custom category translation was overwritten: %#v", translations)
+	}
+}
+
 func TestListManagedFilesUsesLocalStorageMetadataAndFilters(t *testing.T) {
 	dataDir := t.TempDir()
 	dataStore, err := Open(dataDir)

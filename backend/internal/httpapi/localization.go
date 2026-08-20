@@ -66,6 +66,13 @@ func responseLanguage(w http.ResponseWriter) string {
 	return languageChinese
 }
 
+func setLocalizedResponseHeaders(w http.ResponseWriter) string {
+	language := responseLanguage(w)
+	w.Header().Set("Content-Language", language)
+	w.Header().Add("Vary", "Accept-Language")
+	return language
+}
+
 func errorCodeForStatus(status int) string {
 	switch status {
 	case http.StatusBadRequest:

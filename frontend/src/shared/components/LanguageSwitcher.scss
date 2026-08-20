@@ -7,13 +7,10 @@
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 600;
-  gap: 5px;
   height: 34px;
   justify-content: center;
-  min-width: 52px;
-  padding: 0 9px;
+  padding: 0;
+  width: 34px;
 }
 
 .language-switcher:hover {

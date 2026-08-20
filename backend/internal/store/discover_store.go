@@ -18,7 +18,7 @@ func decodeArray(value string) []any {
 }
 
 func (s *Store) ListDiscoverCategories(includeDisabled bool) ([]DiscoverCategory, error) {
-	query := `SELECT id, name, slug, sort_order, status, created_at, updated_at FROM discover_categories`
+	query := `SELECT id, name, name_en, slug, sort_order, status, created_at, updated_at FROM discover_categories`
 	if !includeDisabled {
 		query += ` WHERE status = 'active'`
 	}
@@ -31,7 +31,7 @@ func (s *Store) ListDiscoverCategories(includeDisabled bool) ([]DiscoverCategory
 	result := make([]DiscoverCategory, 0)
 	for rows.Next() {
 		var item DiscoverCategory
-		if err := rows.Scan(&item.ID, &item.Name, &item.Slug, &item.SortOrder, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.NameEN, &item.Slug, &item.SortOrder, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, item)
@@ -41,7 +41,7 @@ func (s *Store) ListDiscoverCategories(includeDisabled bool) ([]DiscoverCategory
 
 func (s *Store) FindDiscoverCategory(id string) (DiscoverCategory, bool, error) {
 	var item DiscoverCategory
-	err := s.db.QueryRow(`SELECT id, name, slug, sort_order, status, created_at, updated_at FROM discover_categories WHERE id = ?`, id).Scan(&item.ID, &item.Name, &item.Slug, &item.SortOrder, &item.Status, &item.CreatedAt, &item.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, name, name_en, slug, sort_order, status, created_at, updated_at FROM discover_categories WHERE id = ?`, id).Scan(&item.ID, &item.Name, &item.NameEN, &item.Slug, &item.SortOrder, &item.Status, &item.CreatedAt, &item.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DiscoverCategory{}, false, nil
 	}
@@ -54,6 +54,7 @@ func (s *Store) SaveDiscoverCategory(id string, input map[string]any) (DiscoverC
 		return DiscoverCategory{}, err
 	}
 	name := strings.TrimSpace(stringFromMap(input, "name"))
+	nameEN := strings.TrimSpace(stringFromMap(input, "nameEn"))
 	slug := strings.TrimSpace(stringFromMap(input, "slug"))
 	if id == "" {
 		if name == "" {
@@ -63,9 +64,9 @@ func (s *Store) SaveDiscoverCategory(id string, input map[string]any) (DiscoverC
 		if slug == "" {
 			slug = slugify(name, id[:8])
 		}
-		current = DiscoverCategory{ID: id, Name: name, Slug: slug, Status: "active", SortOrder: int(numberFromMap(input, "sortOrder"))}
+		current = DiscoverCategory{ID: id, Name: name, NameEN: nameEN, Slug: slug, Status: "active", SortOrder: int(numberFromMap(input, "sortOrder"))}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
-		_, err := s.db.Exec(`INSERT INTO discover_categories (id, name, slug, sort_order, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, ?)`, id, name, slug, current.SortOrder, now, now)
+		_, err := s.db.Exec(`INSERT INTO discover_categories (id, name, name_en, slug, sort_order, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`, id, name, nameEN, slug, current.SortOrder, now, now)
 		if err != nil {
 			return DiscoverCategory{}, fmt.Errorf("create discover category: %w", err)
 		}
@@ -77,6 +78,9 @@ func (s *Store) SaveDiscoverCategory(id string, input map[string]any) (DiscoverC
 	}
 	if name == "" {
 		name = current.Name
+	}
+	if _, ok := input["nameEn"]; !ok {
+		nameEN = current.NameEN
 	}
 	if slug == "" {
 		slug = current.Slug
@@ -90,7 +94,7 @@ func (s *Store) SaveDiscoverCategory(id string, input map[string]any) (DiscoverC
 		status = value
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := s.db.Exec(`UPDATE discover_categories SET name = ?, slug = ?, sort_order = ?, status = ?, updated_at = ? WHERE id = ?`, name, slug, sortOrder, status, now, id); err != nil {
+	if _, err := s.db.Exec(`UPDATE discover_categories SET name = ?, name_en = ?, slug = ?, sort_order = ?, status = ?, updated_at = ? WHERE id = ?`, name, nameEN, slug, sortOrder, status, now, id); err != nil {
 		return DiscoverCategory{}, err
 	}
 	result, _, err := s.FindDiscoverCategory(id)

@@ -74,6 +74,7 @@ type VideoGenerationTask struct {
 type DiscoverCategory struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
+	NameEN    string `json:"nameEn"`
 	Slug      string `json:"slug"`
 	SortOrder int    `json:"sortOrder"`
 	Status    string `json:"status"`

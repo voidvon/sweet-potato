@@ -11,6 +11,7 @@ type seededResource struct {
 	ID             string
 	ParentID       string
 	Name           string
+	NameEN         string
 	ResourceKey    string
 	ResourceType   string
 	Platform       string
@@ -24,28 +25,28 @@ type seededResource struct {
 // The seed is intentionally kept in Go so a fresh installation and a legacy
 // Legacy-created databases receive the same permission surface.
 var foundationResources = []seededResource{
-	{ID: "rr-web-discover", Name: "发现", ResourceKey: "web.discover", ResourceType: "menu", Platform: "web", Path: "/app/discover", PermissionCode: "web.route.discover.view", VisibilityMode: "always", GrantDefault: true},
-	{ID: "rr-web-root-content", Name: "素材", ResourceKey: "web.root.content", ResourceType: "directory", Platform: "web", Path: "/app/content", PermissionCode: "web.directory.content", SortOrder: 40},
-	{ID: "rr-web.module.chat", Name: "图片创作", ResourceKey: "web.module.chat", ResourceType: "menu", Platform: "web", Path: "/app/image", PermissionCode: "web.module.chat", SortOrder: 10, GrantDefault: true},
-	{ID: "rr-web.module.content.create_video", Name: "视频创作", ResourceKey: "web.module.content.create_video", ResourceType: "menu", Platform: "web", Path: "/app/content/create_video", PermissionCode: "web.module.content.create_video", SortOrder: 20, GrantDefault: true},
-	{ID: "rr-web.module.content.virtual_portrait_assets", ParentID: "rr-web-root-content", Name: "人物素材", ResourceKey: "web.module.content.virtual_portrait_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/virtual_portrait_assets", PermissionCode: "web.module.content.virtual_portrait_assets", SortOrder: 10, GrantDefault: true},
-	{ID: "rr-web.module.content.ai_voice", ParentID: "rr-web-root-content", Name: "人声素材", ResourceKey: "web.module.content.ai_voice", ResourceType: "menu", Platform: "web", Path: "/app/content/ai_voice", PermissionCode: "web.module.content.ai_voice", SortOrder: 20, GrantDefault: true},
-	{ID: "rr-web.module.content.scene_library", ParentID: "rr-web-root-content", Name: "场景素材", ResourceKey: "web.module.content.scene_library", ResourceType: "menu", Platform: "web", Path: "/app/content/scene_library", PermissionCode: "web.module.content.scene_library", SortOrder: 30, GrantDefault: true},
-	{ID: "rr-web.module.content.product_assets", ParentID: "rr-web-root-content", Name: "产品素材", ResourceKey: "web.module.content.product_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/product_assets", PermissionCode: "web.module.content.product_assets", SortOrder: 40, GrantDefault: true},
-	{ID: "rr-web.module.content.finished_assets", Name: "作品", ResourceKey: "web.module.content.finished_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/finished_assets", PermissionCode: "web.module.content.finished_assets", SortOrder: 50, GrantDefault: true},
-	{ID: "rr-web.module.content.batch_generation", Name: "批量", ResourceKey: "web.module.content.batch_generation", ResourceType: "menu", Platform: "web", Path: "/app/content/batch-generation", PermissionCode: "web.module.content.batch_generation", SortOrder: 40, GrantDefault: true},
-	{ID: "rr-admin-root-users", Name: "用户管理", ResourceKey: "admin.root.users", ResourceType: "directory", Platform: "admin", Path: "/users", PermissionCode: "admin.directory.users", SortOrder: 10},
-	{ID: "rr-admin-users-accounts", ParentID: "rr-admin-root-users", Name: "账号管理", ResourceKey: "admin.users.accounts", ResourceType: "menu", Platform: "admin", Path: "/users/accounts", PermissionCode: "admin.route.users.accounts.view", SortOrder: 20},
-	{ID: "rr-admin-users-roles", ParentID: "rr-admin-root-users", Name: "角色管理", ResourceKey: "admin.users.roles", ResourceType: "menu", Platform: "admin", Path: "/users/roles", PermissionCode: "admin.route.users.roles.view", SortOrder: 30},
-	{ID: "rr-admin-all-works", Name: "全部作品", ResourceKey: "admin.all_works", ResourceType: "menu", Platform: "admin", Path: "/works", PermissionCode: "admin.route.all_works.view", SortOrder: 35},
-	{ID: "rr-admin-discover", Name: "发现", ResourceKey: "admin.discover", ResourceType: "menu", Platform: "admin", Path: "/discover", PermissionCode: "admin.route.discover.view", SortOrder: 37},
-	{ID: "rr-admin-system-billing", Name: "积分设置", ResourceKey: "admin.system.billing", ResourceType: "menu", Platform: "admin", Path: "/billing", PermissionCode: "admin.route.system.billing.view", SortOrder: 40},
-	{ID: "rr-admin-system-models", Name: "模型配置", ResourceKey: "admin.system.models", ResourceType: "menu", Platform: "admin", Path: "/models", PermissionCode: "admin.route.system.models.view", SortOrder: 50},
-	{ID: "rr-admin-system-route-resources", Name: "路由管理", ResourceKey: "admin.system.route_resources", ResourceType: "menu", Platform: "admin", Path: "/system/routes", PermissionCode: "admin.route.system.route_resources.view", SortOrder: 60},
-	{ID: "rr-admin-system-file-management", Name: "文件管理", ResourceKey: "admin.system.file_management", ResourceType: "menu", Platform: "admin", Path: "/system/files", PermissionCode: "admin.route.system.file_management.view", SortOrder: 70},
-	{ID: "rr-admin-system-temporary-assets", Name: "临时素材清理", ResourceKey: "admin.system.temporary_assets", ResourceType: "menu", Platform: "admin", Path: "/system/temporary-assets", PermissionCode: "admin.route.system.temporary_assets.view", SortOrder: 80},
-	{ID: "rr-admin-system-settings", Name: "系统设置", ResourceKey: "admin.system.settings", ResourceType: "menu", Platform: "admin", Path: "/system/settings", PermissionCode: "admin.route.system.settings.view", SortOrder: 90},
-	{ID: "rr-admin-system-access-logs", Name: "站点访问日志", ResourceKey: "admin.system.access_logs", ResourceType: "menu", Platform: "admin", Path: "/system/access-logs", PermissionCode: "admin.route.system.access_logs.view", SortOrder: 100},
+	{ID: "rr-web-discover", Name: "发现", NameEN: "Discover", ResourceKey: "web.discover", ResourceType: "menu", Platform: "web", Path: "/app/discover", PermissionCode: "web.route.discover.view", VisibilityMode: "always", GrantDefault: true},
+	{ID: "rr-web-root-content", Name: "素材", NameEN: "Assets", ResourceKey: "web.root.content", ResourceType: "directory", Platform: "web", Path: "/app/content", PermissionCode: "web.directory.content", SortOrder: 40},
+	{ID: "rr-web.module.chat", Name: "图片创作", NameEN: "Image", ResourceKey: "web.module.chat", ResourceType: "menu", Platform: "web", Path: "/app/image", PermissionCode: "web.module.chat", SortOrder: 10, GrantDefault: true},
+	{ID: "rr-web.module.content.create_video", Name: "视频创作", NameEN: "Video", ResourceKey: "web.module.content.create_video", ResourceType: "menu", Platform: "web", Path: "/app/content/create_video", PermissionCode: "web.module.content.create_video", SortOrder: 20, GrantDefault: true},
+	{ID: "rr-web.module.content.virtual_portrait_assets", ParentID: "rr-web-root-content", Name: "人物素材", NameEN: "Character Assets", ResourceKey: "web.module.content.virtual_portrait_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/virtual_portrait_assets", PermissionCode: "web.module.content.virtual_portrait_assets", SortOrder: 10, GrantDefault: true},
+	{ID: "rr-web.module.content.ai_voice", ParentID: "rr-web-root-content", Name: "人声素材", NameEN: "Voice Assets", ResourceKey: "web.module.content.ai_voice", ResourceType: "menu", Platform: "web", Path: "/app/content/ai_voice", PermissionCode: "web.module.content.ai_voice", SortOrder: 20, GrantDefault: true},
+	{ID: "rr-web.module.content.scene_library", ParentID: "rr-web-root-content", Name: "场景素材", NameEN: "Scene Assets", ResourceKey: "web.module.content.scene_library", ResourceType: "menu", Platform: "web", Path: "/app/content/scene_library", PermissionCode: "web.module.content.scene_library", SortOrder: 30, GrantDefault: true},
+	{ID: "rr-web.module.content.product_assets", ParentID: "rr-web-root-content", Name: "产品素材", NameEN: "Product Assets", ResourceKey: "web.module.content.product_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/product_assets", PermissionCode: "web.module.content.product_assets", SortOrder: 40, GrantDefault: true},
+	{ID: "rr-web.module.content.finished_assets", Name: "作品", NameEN: "Works", ResourceKey: "web.module.content.finished_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/finished_assets", PermissionCode: "web.module.content.finished_assets", SortOrder: 50, GrantDefault: true},
+	{ID: "rr-web.module.content.batch_generation", Name: "批量", NameEN: "Batch", ResourceKey: "web.module.content.batch_generation", ResourceType: "menu", Platform: "web", Path: "/app/content/batch-generation", PermissionCode: "web.module.content.batch_generation", SortOrder: 40, GrantDefault: true},
+	{ID: "rr-admin-root-users", Name: "用户管理", NameEN: "User Management", ResourceKey: "admin.root.users", ResourceType: "directory", Platform: "admin", Path: "/users", PermissionCode: "admin.directory.users", SortOrder: 10},
+	{ID: "rr-admin-users-accounts", ParentID: "rr-admin-root-users", Name: "账号管理", NameEN: "Account Management", ResourceKey: "admin.users.accounts", ResourceType: "menu", Platform: "admin", Path: "/users/accounts", PermissionCode: "admin.route.users.accounts.view", SortOrder: 20},
+	{ID: "rr-admin-users-roles", ParentID: "rr-admin-root-users", Name: "角色管理", NameEN: "Role Management", ResourceKey: "admin.users.roles", ResourceType: "menu", Platform: "admin", Path: "/users/roles", PermissionCode: "admin.route.users.roles.view", SortOrder: 30},
+	{ID: "rr-admin-all-works", Name: "全部作品", NameEN: "All Works", ResourceKey: "admin.all_works", ResourceType: "menu", Platform: "admin", Path: "/works", PermissionCode: "admin.route.all_works.view", SortOrder: 35},
+	{ID: "rr-admin-discover", Name: "发现", NameEN: "Discover", ResourceKey: "admin.discover", ResourceType: "menu", Platform: "admin", Path: "/discover", PermissionCode: "admin.route.discover.view", SortOrder: 37},
+	{ID: "rr-admin-system-billing", Name: "积分设置", NameEN: "Credit Settings", ResourceKey: "admin.system.billing", ResourceType: "menu", Platform: "admin", Path: "/billing", PermissionCode: "admin.route.system.billing.view", SortOrder: 40},
+	{ID: "rr-admin-system-models", Name: "模型配置", NameEN: "Model Configuration", ResourceKey: "admin.system.models", ResourceType: "menu", Platform: "admin", Path: "/models", PermissionCode: "admin.route.system.models.view", SortOrder: 50},
+	{ID: "rr-admin-system-route-resources", Name: "路由管理", NameEN: "Route Management", ResourceKey: "admin.system.route_resources", ResourceType: "menu", Platform: "admin", Path: "/system/routes", PermissionCode: "admin.route.system.route_resources.view", SortOrder: 60},
+	{ID: "rr-admin-system-file-management", Name: "文件管理", NameEN: "File Management", ResourceKey: "admin.system.file_management", ResourceType: "menu", Platform: "admin", Path: "/system/files", PermissionCode: "admin.route.system.file_management.view", SortOrder: 70},
+	{ID: "rr-admin-system-temporary-assets", Name: "临时素材清理", NameEN: "Temporary Asset Cleanup", ResourceKey: "admin.system.temporary_assets", ResourceType: "menu", Platform: "admin", Path: "/system/temporary-assets", PermissionCode: "admin.route.system.temporary_assets.view", SortOrder: 80},
+	{ID: "rr-admin-system-settings", Name: "系统设置", NameEN: "System Settings", ResourceKey: "admin.system.settings", ResourceType: "menu", Platform: "admin", Path: "/system/settings", PermissionCode: "admin.route.system.settings.view", SortOrder: 90},
+	{ID: "rr-admin-system-access-logs", Name: "站点访问日志", NameEN: "Site Access Logs", ResourceKey: "admin.system.access_logs", ResourceType: "menu", Platform: "admin", Path: "/system/access-logs", PermissionCode: "admin.route.system.access_logs.view", SortOrder: 100},
 }
 
 type seededModel struct {
@@ -72,16 +73,38 @@ VALUES ('role-default-full-access', 'default-full-access', '默认全量权限',
 	}
 
 	insertResource := `INSERT OR IGNORE INTO route_resources (
-id, parent_id, name, resource_key, resource_type, platform, path, permission_code,
-visibility_mode, status, sort_order, is_system, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
+	id, parent_id, name, name_en, resource_key, resource_type, platform, path, permission_code,
+	visibility_mode, status, sort_order, is_system, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1, ?, ?)`
 	for _, resource := range foundationResources {
 		visibility := resource.VisibilityMode
 		if visibility == "" {
 			visibility = "permission"
 		}
-		if _, err := db.Exec(insertResource, resource.ID, nullable(resource.ParentID), resource.Name, resource.ResourceKey, resource.ResourceType, resource.Platform, resource.Path, resource.PermissionCode, visibility, resource.SortOrder, now, now); err != nil {
+		if _, err := db.Exec(insertResource, resource.ID, nullable(resource.ParentID), resource.Name, resource.NameEN, resource.ResourceKey, resource.ResourceType, resource.Platform, resource.Path, resource.PermissionCode, visibility, resource.SortOrder, now, now); err != nil {
 			return fmt.Errorf("seed route resource %s: %w", resource.ID, err)
+		}
+		if _, err := db.Exec(`UPDATE route_resources SET name_en = ? WHERE id = ? AND TRIM(COALESCE(name_en, '')) = ''`, resource.NameEN, resource.ID); err != nil {
+			return fmt.Errorf("backfill route resource translation %s: %w", resource.ID, err)
+		}
+	}
+	if _, err := db.Exec(`UPDATE route_resources SET name_en = 'Image' WHERE id = 'rr-web.module.chat' AND name_en = 'Image Creation'`); err != nil {
+		return fmt.Errorf("update default image route translation: %w", err)
+	}
+	if _, err := db.Exec(`UPDATE route_resources SET name_en = 'Video' WHERE id = 'rr-web.module.content.create_video' AND name_en = 'Video Creation'`); err != nil {
+		return fmt.Errorf("update default video route translation: %w", err)
+	}
+
+	categoryTranslations := []struct {
+		name   string
+		nameEN string
+	}{
+		{name: "口播", nameEN: "Talking Head"},
+		{name: "女装", nameEN: "Women's Fashion"},
+	}
+	for _, category := range categoryTranslations {
+		if _, err := db.Exec(`UPDATE discover_categories SET name_en = ? WHERE name = ? AND TRIM(COALESCE(name_en, '')) = ''`, category.nameEN, category.name); err != nil {
+			return fmt.Errorf("backfill discover category translation %s: %w", category.name, err)
 		}
 	}
 

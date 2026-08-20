@@ -10,6 +10,13 @@
 - 当前通用错误码包括 `bad_request`、`unauthorized`、`forbidden`、`not_found`、`method_not_allowed`、`conflict`、`payload_too_large`、`unsupported_media_type`、`rate_limited` 和 `internal_error`。新增需要前端采取特定动作的领域错误时，应增加更具体的稳定错误码，不要复用中文错误句子作为标识。
 - WebSocket 握手沿用浏览器发送的 `Accept-Language`，错误事件同样返回 `{ type: "error", code, message }`。SSE/EventSource 握手也使用浏览器语言；可由应用发起的 `fetch` 流会显式附带当前应用语言。
 
+### 后端配置名称
+
+- `route_resources` 与 `discover_categories` 保留 `name` 作为中文名称，并新增 `name_en` 作为可选英文名称。当前只有两个固定语言，因此直接在原表加列比建立翻译表更简单，也能保持现有查询、排序和管理接口清晰；扩展到较多语言或允许租户自定义语言时，再迁移为通用翻译表。
+- `GET /api/route-resources/public-tree` 与 `GET /api/discover/categories` 按 `Accept-Language` 将匹配的展示文本写入既有 `name` 字段；英文为空时回退中文。公共响应不暴露 `nameEn`，并返回 `Content-Language` 与 `Vary: Accept-Language`。
+- 路由资源管理接口与发现分类管理接口返回中文 `name` 和英文 `nameEn`，创建及更新接口接受相同字段。`resourceKey`、`permissionCode`、ID、slug、权限判断与路由匹配均不依赖展示语言。
+- 历史默认数据启动时只对空英文值做兼容回填：`口播` 使用 `Talking Head`，`女装` 使用 `Women's Fashion`；已由管理员填写的英文名称保持不变。图片与视频创作菜单的旧默认英文 `Image Creation`、`Video Creation` 会分别更新为 `Image`、`Video`。
+
 ## 2026-07-28 批量生成表格与执行契约
 
 - 所有接口要求 `web.module.content.batch_generation` 权限。
