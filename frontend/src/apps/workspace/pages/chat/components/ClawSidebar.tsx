@@ -7,6 +7,7 @@ import { SessionEmptyState } from '../../../components/SessionEmptyState';
 import type { ChatConversation } from '../../../types';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import { RenameConversationModal } from './RenameConversationModal';
+import { t } from '@shared/i18n';
 
 type ClawSidebarProps = {
   activeConversationId?: string;
@@ -37,9 +38,9 @@ export function ClawSidebar({
       await onRename(conversationId, title);
       setRenameOpen(false);
       setRenameTarget(undefined);
-      message.success('会话名称已更新');
+      message.success(t("会话名称已更新"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '会话重命名失败');
+      message.error(error instanceof Error ? error.message : t("会话重命名失败"));
     }
   }
 
@@ -69,7 +70,7 @@ export function ClawSidebar({
               >
                 <div className="video-workbench-list-main">
                   <span className="chat-session-title-row">
-                    <span className="video-workbench-list-title">{conversation.title || '未命名会话'}</span>
+                    <span className="video-workbench-list-title">{conversation.title || t("未命名会话")}</span>
                     <Dropdown
                       menu={{
                         items: buildConversationMenuItems(conversation, onClear, onDelete, openRenameModal),
@@ -79,7 +80,7 @@ export function ClawSidebar({
                       trigger={['click']}
                     >
                       <Button
-                        aria-label="会话操作"
+                        aria-label={t("会话操作")}
                         className="video-workbench-item-action chat-session-action"
                         icon={<MoreHorizontal size={18} />}
                         onClick={(event) => event.stopPropagation()}
@@ -104,7 +105,7 @@ export function ClawSidebar({
             ))}
           </div>
         ) : (
-          <SessionEmptyState description="新建会话，开始你的图片创作。" />
+          <SessionEmptyState description={t("新建会话，开始你的图片创作。")} />
         )}
       </div>
 
@@ -128,20 +129,20 @@ function buildConversationMenuItems(
     {
       key: 'rename',
       icon: <EditOutlined />,
-      label: '编辑名称',
+      label: t("编辑名称"),
       onClick: () => onRename(conversation),
     },
     {
       key: 'clear',
       icon: <ClearOutlined />,
-      label: '清空会话',
+      label: t("清空会话"),
       onClick: () => onClear(conversation),
     },
     {
       key: 'delete',
       danger: true,
       icon: <DeleteOutlined />,
-      label: '删除会话',
+      label: t("删除会话"),
       onClick: () => onDelete(conversation),
     },
   ];
@@ -156,13 +157,13 @@ function conversationPreviewText(
   },
 ) {
   if (options?.active && options.hasStreamingAssistant) {
-    return '正在思考...';
+    return t("正在思考...");
   }
   if (options?.active && options.sending) {
-    return '正在发送...';
+    return t("正在发送...");
   }
   const preview = typeof conversation.metadata?.previewText === 'string'
     ? conversation.metadata.previewText.trim()
     : '';
-  return preview || '暂无消息';
+  return preview || t("暂无消息");
 }

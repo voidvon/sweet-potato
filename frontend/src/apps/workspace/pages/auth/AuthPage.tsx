@@ -15,6 +15,7 @@ import { AuthExperience } from '@shared/components/AuthExperience';
 import { loginAccount, registerAccount } from "../../api/auth";
 import sidebarLogo from "@shared/assets/sidebar-logo.png";
 import type { AuthSession, LoginPayload } from "../../types";
+import { t } from '@shared/i18n';
 
 type AuthMode = "login" | "register";
 
@@ -36,10 +37,10 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
     try {
       const payload = { username: values.username, password: values.password };
       const result = mode === "login" ? await loginAccount(payload) : await registerAccount(payload);
-      message.success(mode === "login" ? "登录成功" : "注册成功");
+      message.success(mode === "login" ? t("登录成功") : t("注册成功"));
       onAuthed(result);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "登录失败");
+      message.error(error instanceof Error ? error.message : t("登录失败"));
     } finally {
       setLoading(false);
     }
@@ -48,20 +49,20 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
   return (
     <AuthExperience
       brandContext="AI Creative Workspace"
-      brandName="萌猫 AI"
-      description="从灵感、提示词到图片与视频作品，在一个更专注、更顺畅的创作空间里完成。"
-      eyebrow="让每一个灵感更快成为作品"
+      brandName={t("萌猫 AI")}
+      description={t("从灵感、提示词到图片与视频作品，在一个更专注、更顺畅的创作空间里完成。")}
+      eyebrow={t("让每一个灵感更快成为作品")}
       highlights={[
-        { icon: <FileImageOutlined />, title: '智能生图', description: '快速生成与精修视觉素材' },
-        { icon: <PlayCircleOutlined />, title: '视频创作', description: '覆盖口播与内容生产流程' },
-        { icon: <ThunderboltOutlined />, title: '高效工作流', description: '素材、任务与作品统一管理' },
+        { icon: <FileImageOutlined />, title: t("智能生图"), description: t("快速生成与精修视觉素材") },
+        { icon: <PlayCircleOutlined />, title: t("视频创作"), description: t("覆盖口播与内容生产流程") },
+        { icon: <ThunderboltOutlined />, title: t("高效工作流"), description: t("素材、任务与作品统一管理") },
       ]}
       logoSrc={sidebarLogo}
-      panelDescription={mode === 'login' ? '登录后继续管理素材与创作任务。' : '只需一个账号，开启你的 AI 创作空间。'}
-      panelEyebrow={mode === 'login' ? '欢迎回来' : '开始创作'}
-      panelFooter={<><SafetyCertificateOutlined />账号信息将被安全加密保护</>}
-      panelTitle={mode === 'login' ? '继续你的创作' : '创建创作空间'}
-      title={<>一站式完成<br />图片与视频创作</>}
+      panelDescription={mode === 'login' ? t("登录后继续管理素材与创作任务。") : t("只需一个账号，开启你的 AI 创作空间。")}
+      panelEyebrow={mode === 'login' ? t("欢迎回来") : t("开始创作")}
+      panelFooter={<><SafetyCertificateOutlined />{t("账号信息将被安全加密保护")}</>}
+      panelTitle={mode === 'login' ? t("继续你的创作") : t("创建创作空间")}
+      title={<>{t("一站式完成")}<br />{t("图片与视频创作")}</>}
     >
       <Segmented
         block
@@ -70,8 +71,8 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
           form.setFieldsValue({ password: '' });
         }}
         options={[
-          { label: "登录", value: "login" },
-          { label: "注册", value: "register" },
+          { label: t("登录"), value: "login" },
+          { label: t("注册"), value: "register" },
         ]}
         value={mode}
       />
@@ -84,27 +85,27 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
         requiredMark={false}
       >
         <Form.Item
-          label="账号"
+          label={t("账号")}
           name="username"
-          rules={[{ required: true, min: 3, message: "请输入至少 3 位账号" }]}
+          rules={[{ required: true, min: 3, message: t("请输入至少 3 位账号") }]}
         >
           <Input
             autoComplete="username"
             prefix={<UserOutlined className="auth-experience__input-icon" />}
-            placeholder="请输入账号"
+            placeholder={t("请输入账号")}
             size="large"
           />
         </Form.Item>
 
         <Form.Item
-          label="密码"
+          label={t("密码")}
           name="password"
-          rules={[{ required: true, min: 6, message: "请输入至少 6 位密码" }]}
+          rules={[{ required: true, min: 6, message: t("请输入至少 6 位密码") }]}
         >
           <Input.Password
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             prefix={<LockOutlined className="auth-experience__input-icon" />}
-            placeholder="至少 6 位"
+            placeholder={t("至少 6 位")}
             size="large"
           />
         </Form.Item>
@@ -112,16 +113,16 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
         {mode === "register" && (
           <Form.Item
             dependencies={["password"]}
-            label="确认密码"
+            label={t("确认密码")}
             name="confirmPassword"
             rules={[
-              { required: true, message: "请再次输入密码" },
+              { required: true, message: t("请再次输入密码") },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue("password") === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error("两次输入的密码不一致"));
+                  return Promise.reject(new Error(t("两次输入的密码不一致")));
                 },
               }),
             ]}
@@ -129,7 +130,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
             <Input.Password
               autoComplete="new-password"
               prefix={<LockOutlined className="auth-experience__input-icon" />}
-              placeholder="请再次输入密码"
+              placeholder={t("请再次输入密码")}
               size="large"
             />
           </Form.Item>
@@ -144,7 +145,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
           tone="brand"
           type="primary"
         >
-          {mode === "login" ? "登录" : "注册"}
+          {mode === "login" ? t("登录") : t("注册")}
         </AppButton>
       </Form>
     </AuthExperience>

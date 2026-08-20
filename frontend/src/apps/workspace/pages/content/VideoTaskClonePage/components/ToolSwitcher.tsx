@@ -17,6 +17,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toolOptions } from '../constants';
 import type { ToolKey, ToolOption } from '../types';
+import { t } from '@shared/i18n';
 
 type ToolSwitcherProps = {
   currentTool: ToolOption;
@@ -112,12 +113,12 @@ export function ToolSwitcher({ currentTool, isOpen, onSelect, onOpenChange }: To
           <CurrentToolIcon size={24} />
         </div>
         <div className="video-task-current-copy">
-          <span>当前视频功能</span>
+          <span>{t("当前视频功能")}</span>
           <strong>{currentTool.label}</strong>
           <p>{currentTool.description}</p>
         </div>
         <Button className="video-task-switch" shape="round" size="small" type="primary">
-          切换
+          {t("切换")}
           <ChevronDown className={`video-task-switch-icon${isOpen ? ' is-open' : ''}`} size={16} />
         </Button>
       </div>

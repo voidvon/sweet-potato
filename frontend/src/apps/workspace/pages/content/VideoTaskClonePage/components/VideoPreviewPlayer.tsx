@@ -1,6 +1,7 @@
 import { Maximize2, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { t } from '@shared/i18n';
 
 type VideoPreviewPlayerProps = {
   autoPlay?: boolean;
@@ -215,19 +216,19 @@ export function VideoPreviewPlayer({
       />
 
       <button
-        aria-label={isMuted ? '解除静音' : '静音'}
+        aria-label={isMuted ? t("解除静音") : t("静音")}
         className={isResult ? 'result-video-preview-player__mute-pill' : 'video-task-asset-player__mute-pill'}
         onClick={() => setIsMuted((current) => !current)}
         type="button"
       >
         {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-        {isMuted ? '解除静音' : '静音'}
+        {isMuted ? t("解除静音") : t("静音")}
       </button>
 
       <div className={controlsClassName}>
         <div className={isResult ? undefined : 'video-task-asset-player__controls-inner'}>
           <input
-            aria-label="播放进度"
+            aria-label={t("播放进度")}
             className={`${rangeClassName} ${progressClassName}`}
             max="1000"
             min="0"
@@ -237,7 +238,7 @@ export function VideoPreviewPlayer({
             value={progressValue}
           />
           <div className={toolbarClassName}>
-            <button aria-label={isPlaying ? '暂停' : '播放'} className={buttonClassName} onClick={togglePlay} type="button">
+            <button aria-label={isPlaying ? t("暂停") : t("播放")} className={buttonClassName} onClick={togglePlay} type="button">
               {isPlaying
                 ? <Pause size={iconSize} fill="currentColor" />
                 : <Play size={iconSize} fill="currentColor" />}
@@ -247,7 +248,7 @@ export function VideoPreviewPlayer({
             </span>
             <div className={toolsClassName}>
               <button
-                aria-label={isMuted ? '取消静音' : '静音'}
+                aria-label={isMuted ? t("取消静音") : t("静音")}
                 className={buttonClassName}
                 onClick={() => setIsMuted((current) => !current)}
                 type="button"
@@ -255,7 +256,7 @@ export function VideoPreviewPlayer({
                 {isMuted ? <VolumeX size={iconSize} /> : <Volume2 size={iconSize} />}
               </button>
               <input
-                aria-label={`音量 ${Math.round(volume * 100)}%`}
+                aria-label={t("音量 {{0}}%", { "0": Math.round(volume * 100) })}
                 className={`${rangeClassName} ${volumeClassName}`}
                 max="1"
                 min="0"
@@ -264,7 +265,7 @@ export function VideoPreviewPlayer({
                 type="range"
                 value={volume}
               />
-              <button aria-label={isResult ? '浏览器全屏' : '全屏'} className={buttonClassName} onClick={toggleFullscreen} type="button">
+              <button aria-label={isResult ? t("浏览器全屏") : t("全屏")} className={buttonClassName} onClick={toggleFullscreen} type="button">
                 {isResult ? (
                   <Maximize2 size={iconSize} />
                 ) : (

@@ -3,6 +3,7 @@ import { Button } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
+import { t } from '@shared/i18n';
 
 type AudioAssetLibraryListProps = {
   assets: ContentAsset[];
@@ -23,11 +24,11 @@ export function AudioAssetLibraryPanel({ onClose, ...listProps }: AudioAssetLibr
       <header>
         <span className="video-task-library-heading">
           <i aria-hidden="true"><Music2 size={15} /></i>
-          <strong>素材库 · 音频</strong>
+          <strong>{t("素材库 · 音频")}</strong>
         </span>
         {onClose ? (
           <Button
-            aria-label="收起音频素材库"
+            aria-label={t("收起音频素材库")}
             className="video-task-popover-collapse"
             icon={<ChevronLeft size={20} />}
             onClick={onClose}
@@ -36,7 +37,7 @@ export function AudioAssetLibraryPanel({ onClose, ...listProps }: AudioAssetLibr
           />
         ) : null}
       </header>
-      <p>点击「填入」选择一段口播声音</p>
+      <p>{t("点击「填入」选择一段口播声音")}</p>
       <div className="video-task-audio-scroll">
         <AudioAssetLibraryList {...listProps} />
       </div>
@@ -132,17 +133,17 @@ export function AudioAssetLibraryList({
   };
 
   if (isLoading) {
-    return <div className="video-task-assets-empty">正在加载人声素材</div>;
+    return <div className="video-task-assets-empty">{t("正在加载人声素材")}</div>;
   }
   if (!assets.length) {
-    return <div className="video-task-assets-empty">暂无人声素材</div>;
+    return <div className="video-task-assets-empty">{t("暂无人声素材")}</div>;
   }
 
   return (
     <>
       <ul className="video-task-audio-list">
         {assets.map((asset) => {
-          const name = groupNameById[asset.groupId] || asset.name || '人声素材';
+          const name = groupNameById[asset.groupId] || asset.name || t("人声素材");
           const isPlaying = playingAssetId === asset.id;
           const progress = progressByAssetId[asset.id] || 0;
           const selected = selectedAssetId === asset.id;
@@ -150,7 +151,7 @@ export function AudioAssetLibraryList({
             <li className={`video-task-audio-card${isPlaying || progress > 0 ? ' is-active' : ''}${disabled ? ' is-disabled' : ''}`} key={asset.id}>
               <div className="video-task-audio-top">
                 <button
-                  aria-label={isPlaying ? `暂停播放${name}` : `播放${name}`}
+                  aria-label={isPlaying ? t("暂停播放{{0}}", { "0": name }) : t("播放{{0}}", { "0": name })}
                   className={`video-task-audio-main${isPlaying ? ' is-playing' : ''}`}
                   onClick={() => void togglePlayback(asset)}
                   type="button"
@@ -159,7 +160,7 @@ export function AudioAssetLibraryList({
                 </button>
                 <span className="video-task-audio-title" title={name}>{name}</span>
                 <button
-                  aria-label={selected ? `已选择${name}` : `填入${name}`}
+                  aria-label={selected ? t("已选择{{0}}", { "0": name }) : t("填入{{0}}", { "0": name })}
                   className="video-task-audio-add"
                   disabled={disabled || selected}
                   onClick={() => void onChoose(asset)}
@@ -179,7 +180,7 @@ export function AudioAssetLibraryList({
           );
         })}
       </ul>
-      <em>— 没有更多 —</em>
+      <em>{t("— 没有更多 —")}</em>
     </>
   );
 }

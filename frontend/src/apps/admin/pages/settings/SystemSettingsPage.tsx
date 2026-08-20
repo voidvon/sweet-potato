@@ -13,6 +13,7 @@ import {
   updateRateLimitSettings,
 } from '../../api/system-settings';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
+import { t } from '@shared/i18n';
 
 type SystemSettingsForm = {
   batchMaxCount: number;
@@ -63,7 +64,7 @@ export function SystemSettingsPage() {
         setCurrentIp(ipSettings.currentIp);
         setObjectStorageSecretConfigured(storageSettings.secretKeyConfigured);
       })
-      .catch((error) => message.error(error instanceof Error ? error.message : '系统设置加载失败'))
+      .catch((error) => message.error(error instanceof Error ? error.message : t("系统设置加载失败")))
       .finally(() => setLoading(false));
   }, [form]);
 
@@ -114,19 +115,19 @@ export function SystemSettingsPage() {
       });
       setCurrentIp(ipSettings.currentIp);
       setObjectStorageSecretConfigured(storageSettings.secretKeyConfigured);
-      message.success('系统设置已保存并立即生效');
+      message.success(t("系统设置已保存并立即生效"));
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '系统设置保存失败';
+      const errorMessage = error instanceof Error ? error.message : t("系统设置保存失败");
       if (ipSaved) {
-        message.error(`其他系统设置已保存，但文件存储设置未完成：${errorMessage}`);
+        message.error(t("其他系统设置已保存，但文件存储设置未完成：{{0}}", { "0": errorMessage }));
         return;
       }
       if (batchSaved && rateSaved) {
-        message.error(`批量 API 请求与限速规则已保存，但 IP 黑名单未完成：${errorMessage}`);
+        message.error(t("批量 API 请求与限速规则已保存，但 IP 黑名单未完成：{{0}}", { "0": errorMessage }));
         return;
       }
       if (batchSaved) {
-        message.error(`批量 API 请求已保存，但其余设置未完成：${errorMessage}`);
+        message.error(t("批量 API 请求已保存，但其余设置未完成：{{0}}", { "0": errorMessage }));
         return;
       }
       message.error(errorMessage);
@@ -139,7 +140,7 @@ export function SystemSettingsPage() {
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <Typography.Paragraph>配置批量 API 请求、限制速率与 IP 黑名单。</Typography.Paragraph>
+          <Typography.Paragraph>{t("配置批量 API 请求、限制速率与 IP 黑名单。")}</Typography.Paragraph>
         </section>
         <Form
           form={form}
@@ -155,14 +156,14 @@ export function SystemSettingsPage() {
             objectStorageKeyPrefix: 'app-files',
           }}
         >
-          <Card title="批量 API 请求">
+          <Card title={t("批量 API 请求")}>
             <Space wrap>
-              <Form.Item label="批量请求最大数量" name="batchMaxCount"><InputNumber min={1} addonAfter="个" /></Form.Item>
-              <Form.Item label="最大处理时间" name="batchMaxDuration"><InputNumber min={1} addonAfter="秒" /></Form.Item>
-              <Form.Item label="最大文件大小" name="batchMaxFileSize"><InputNumber min={1} addonAfter="MB" /></Form.Item>
+              <Form.Item label={t("批量请求最大数量")} name="batchMaxCount"><InputNumber min={1} addonAfter={t("个")} /></Form.Item>
+              <Form.Item label={t("最大处理时间")} name="batchMaxDuration"><InputNumber min={1} addonAfter={t("秒")} /></Form.Item>
+              <Form.Item label={t("最大文件大小")} name="batchMaxFileSize"><InputNumber min={1} addonAfter="MB" /></Form.Item>
             </Space>
           </Card>
-          <Card title="限制速率" style={{ marginTop: 18 }}>
+          <Card title={t("限制速率")} style={{ marginTop: 18 }}>
             <Form.List name="rateRules">
               {(fields, { add, remove }) => (
                 <>
@@ -172,32 +173,32 @@ export function SystemSettingsPage() {
                         <Input type="hidden" />
                       </Form.Item>
                       <Form.Item
-                        label={index === 0 ? 'URL 正则匹配' : `规则 ${index + 1} URL`}
+                        label={index === 0 ? t("URL 正则匹配") : t("规则 {{0}} URL", { "0": index + 1 })}
                         name={[field.name, 'urlPattern']}
-                        rules={[{ required: true, message: '请输入 URL 正则' }]}
+                        rules={[{ required: true, message: t("请输入 URL 正则") }]}
                       >
-                        <Input placeholder="例如：/api/.*" />
+                        <Input placeholder={t("例如：/api/.*")} />
                       </Form.Item>
                       <Form.Item
-                        label="每个 IP 最大请求量"
+                        label={t("每个 IP 最大请求量")}
                         name={[field.name, 'maxRequests']}
-                        rules={[{ required: true, message: '请输入请求次数' }]}
+                        rules={[{ required: true, message: t("请输入请求次数") }]}
                       >
-                        <InputNumber min={1} addonAfter="次" />
+                        <InputNumber min={1} addonAfter={t("次")} />
                       </Form.Item>
                       <Form.Item
-                        label="间隔秒数"
+                        label={t("间隔秒数")}
                         name={[field.name, 'intervalSeconds']}
-                        rules={[{ required: true, message: '请输入间隔秒数' }]}
+                        rules={[{ required: true, message: t("请输入间隔秒数") }]}
                       >
-                        <InputNumber min={1} addonAfter="秒" />
+                        <InputNumber min={1} addonAfter={t("秒")} />
                       </Form.Item>
                       <Form.Item
-                        label="目标用户"
+                        label={t("目标用户")}
                         name={[field.name, 'targetUser']}
-                        rules={[{ required: true, message: '请选择目标用户' }]}
+                        rules={[{ required: true, message: t("请选择目标用户") }]}
                       >
-                        <Radio.Group optionType="button" options={[{ label: '全部', value: 'all' }, { label: '登录用户', value: 'authenticated' }, { label: '未登录用户', value: 'anonymous' }]} />
+                        <Radio.Group optionType="button" options={[{ label: t("全部"), value: 'all' }, { label: t("登录用户"), value: 'authenticated' }, { label: t("未登录用户"), value: 'anonymous' }]} />
                       </Form.Item>
                       <Button danger type="text" icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
                     </Space>
@@ -207,17 +208,17 @@ export function SystemSettingsPage() {
                     icon={<PlusOutlined />}
                     onClick={() => add({ urlPattern: '/api/.*', maxRequests: 60, intervalSeconds: 60, targetUser: 'all' })}
                   >
-                    添加限速规则
+                    {t("添加限速规则")}
                   </Button>
                 </>
               )}
             </Form.List>
           </Card>
-          <Card title="文件存储" style={{ marginTop: 18 }}>
+          <Card title={t("文件存储")} style={{ marginTop: 18 }}>
             <Typography.Paragraph>
-              当前版本统一使用本机文件系统保存上传文件，TOS 对象存储暂未启用。
+              {t("当前版本统一使用本机文件系统保存上传文件，TOS 对象存储暂未启用。")}
             </Typography.Paragraph>
-            <Form.Item label="使用火山引擎 TOS" name="objectStorageEnabled" valuePropName="checked" extra="TOS 支持暂未启用，文件会保存在应用数据目录。">
+            <Form.Item label={t("使用火山引擎 TOS")} name="objectStorageEnabled" valuePropName="checked" extra={t("TOS 支持暂未启用，文件会保存在应用数据目录。")}>
               <Switch disabled />
             </Form.Item>
             <Form.Item noStyle shouldUpdate={(previous, current) => previous.objectStorageEnabled !== current.objectStorageEnabled}>
@@ -226,33 +227,33 @@ export function SystemSettingsPage() {
                   <Alert
                     showIcon
                     type="info"
-                    message="启用 TOS 不会自动迁移已有文件"
-                    description="已有文件仍保留在本地。启用后新上传和新生成的文件将保存到 TOS，历史文件需要另行迁移。"
+                    message={t("启用 TOS 不会自动迁移已有文件")}
+                    description={t("已有文件仍保留在本地。启用后新上传和新生成的文件将保存到 TOS，历史文件需要另行迁移。")}
                   />
                   <Row gutter={16}>
                     <Col xs={24} lg={12}>
                       <Form.Item
-                        label="服务地址（Endpoint）"
+                        label={t("服务地址（Endpoint）")}
                         name="objectStorageEndpoint"
-                        rules={[{ required: true, message: '请输入 TOS 服务地址' }]}
+                        rules={[{ required: true, message: t("请输入 TOS 服务地址") }]}
                       >
                         <Input placeholder="https://tos-cn-beijing.volces.com" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} lg={6}>
                       <Form.Item
-                        label="存储桶（Bucket）"
+                        label={t("存储桶（Bucket）")}
                         name="objectStorageBucket"
-                        rules={[{ required: true, message: '请输入存储桶名称' }]}
+                        rules={[{ required: true, message: t("请输入存储桶名称") }]}
                       >
                         <Input placeholder="bucket-name" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} lg={6}>
                       <Form.Item
-                        label="地域（Region）"
+                        label={t("地域（Region）")}
                         name="objectStorageRegion"
-                        rules={[{ required: true, message: '请输入地区' }]}
+                        rules={[{ required: true, message: t("请输入地区") }]}
                       >
                         <Input placeholder="cn-beijing" />
                       </Form.Item>
@@ -261,7 +262,7 @@ export function SystemSettingsPage() {
                       <Form.Item
                         label="Access Key ID"
                         name="objectStorageAccessKey"
-                        rules={[{ required: true, message: '请输入 Access Key ID' }]}
+                        rules={[{ required: true, message: t("请输入 Access Key ID") }]}
                       >
                         <Input autoComplete="off" placeholder="Access Key" />
                       </Form.Item>
@@ -270,26 +271,26 @@ export function SystemSettingsPage() {
                       <Form.Item
                         label="Secret Access Key"
                         name="objectStorageSecretKey"
-                        extra={objectStorageSecretConfigured ? '已配置 Secret Access Key，留空表示保持不变。' : undefined}
-                        rules={[{ required: !objectStorageSecretConfigured, message: '请输入 Secret Access Key' }]}
+                        extra={objectStorageSecretConfigured ? t("已配置 Secret Access Key，留空表示保持不变。") : undefined}
+                        rules={[{ required: !objectStorageSecretConfigured, message: t("请输入 Secret Access Key") }]}
                       >
                         <Input.Password autoComplete="new-password" placeholder="Secret Key" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} lg={12}>
                       <Form.Item
-                        label="访问域名"
+                        label={t("访问域名")}
                         name="objectStoragePublicBaseUrl"
-                        extra="可选。已配置 CDN 或自定义域名时填写；留空则使用 TOS 默认访问域名。该域名需要允许外部模型读取素材。"
+                        extra={t("可选。已配置 CDN 或自定义域名时填写；留空则使用 TOS 默认访问域名。该域名需要允许外部模型读取素材。")}
                       >
                         <Input placeholder="https://bucket.example.com" />
                       </Form.Item>
                     </Col>
                     <Col xs={24} lg={12}>
                       <Form.Item
-                        label="文件路径前缀"
+                        label={t("文件路径前缀")}
                         name="objectStorageKeyPrefix"
-                        extra="所有文件在存储桶中的统一目录前缀。"
+                        extra={t("所有文件在存储桶中的统一目录前缀。")}
                       >
                         <Input placeholder="app-files" />
                       </Form.Item>
@@ -299,10 +300,10 @@ export function SystemSettingsPage() {
               ) : null}
             </Form.Item>
           </Card>
-          <Card title="IP 黑名单" style={{ marginTop: 18 }}>
-            <Form.Item label="禁止访问的 IP 地址" name="ipBlacklist" extra={`每行填写一个 IP 地址或 CIDR 网段。当前管理端 IP：${currentIp || '读取中'}`}><Input.TextArea rows={5} placeholder={'例如：\n192.168.1.100\n10.0.0.0/24'} disabled={loading} /></Form.Item>
+          <Card title={t("IP 黑名单")} style={{ marginTop: 18 }}>
+            <Form.Item label={t("禁止访问的 IP 地址")} name="ipBlacklist" extra={t("每行填写一个 IP 地址或 CIDR 网段。当前管理端 IP：{{0}}", { "0": currentIp || t("读取中") })}><Input.TextArea rows={5} placeholder={t("例如：\n192.168.1.100\n10.0.0.0/24")} disabled={loading} /></Form.Item>
           </Card>
-          <Space style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving} disabled={loading}>保存设置</Button></Space>
+          <Space style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}><Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving} disabled={loading}>{t("保存设置")}</Button></Space>
         </Form>
       </section>
     </ContentStudioLayout>

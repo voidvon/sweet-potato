@@ -21,6 +21,7 @@ import { CleanupSettingsModal } from './temporary-asset-cleanup/CleanupSettingsM
 import { OrphanInspectionModal } from './temporary-asset-cleanup/OrphanInspectionModal';
 import { formatDiskSpace } from './temporary-asset-cleanup/cleanupFormatters';
 import './TemporaryAssetCleanupPage.scss';
+import { t } from '@shared/i18n';
 
 export function TemporaryAssetCleanupPage() {
   const { setHeaderExtra } = useWorkspaceHeader();
@@ -42,9 +43,9 @@ export function TemporaryAssetCleanupPage() {
 
   useEffect(() => {
     setHeaderExtra(
-      <Tooltip title="清理设置">
+      <Tooltip title={t("清理设置")}>
         <Button
-          aria-label="清理设置"
+          aria-label={t("清理设置")}
           className="temporary-cleanup-header-settings"
           icon={<SettingOutlined />}
           onClick={() => setSettingsOpen(true)}
@@ -71,7 +72,7 @@ export function TemporaryAssetCleanupPage() {
       setAvailableDiskBytes(diskSpace.availableBytes);
       setSelectedAssetIds([]);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '临时素材清理数据加载失败');
+      message.error(error instanceof Error ? error.message : t("临时素材清理数据加载失败"));
     } finally {
       setLoading(false);
     }
@@ -91,14 +92,14 @@ export function TemporaryAssetCleanupPage() {
     try {
       const result = await deleteTemporaryAssets(assetIds);
       if (result.deleted) {
-        message.success(`已删除 ${result.deleted} 条临时素材`);
+        message.success(t("已删除 {{0}} 条临时素材", { "0": result.deleted }));
       } else {
-        message.warning('所选素材已不存在或已被引用');
+        message.warning(t("所选素材已不存在或已被引用"));
       }
       const nextPage = assetIds.length >= candidates.length ? Math.max(1, page - 1) : page;
       await loadData(nextPage, pageSize);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '临时素材删除失败');
+      message.error(error instanceof Error ? error.message : t("临时素材删除失败"));
     } finally {
       setDeleting(false);
     }
@@ -108,10 +109,10 @@ export function TemporaryAssetCleanupPage() {
     setCleaning(true);
     try {
       const result = await runTemporaryAssetCleanup();
-      message.success(result.deleted ? `已清理 ${result.deleted} 条临时素材` : '当前没有已过期素材');
+      message.success(result.deleted ? t("已清理 {{0}} 条临时素材", { "0": result.deleted }) : t("当前没有已过期素材"));
       await loadData(1, pageSize);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '临时素材清理失败');
+      message.error(error instanceof Error ? error.message : t("临时素材清理失败"));
     } finally {
       setCleaning(false);
     }
@@ -124,7 +125,7 @@ export function TemporaryAssetCleanupPage() {
       setOrphanInspection(result);
       setSelectedOrphanPaths([]);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '孤立文件检查失败');
+      message.error(error instanceof Error ? error.message : t("孤立文件检查失败"));
     } finally {
       setCheckingOrphans(false);
     }
@@ -135,14 +136,14 @@ export function TemporaryAssetCleanupPage() {
     try {
       const result = await deleteOrphanContentFiles(relativePaths);
       if (result.deleted) {
-        message.success(`已删除 ${result.deleted} 个孤立文件`);
+        message.success(t("已删除 {{0}} 个孤立文件", { "0": result.deleted }));
       } else {
-        message.warning('所选文件已不存在或已被数据库引用');
+        message.warning(t("所选文件已不存在或已被数据库引用"));
       }
       setOrphanInspection(await inspectOrphanContentFiles());
       setSelectedOrphanPaths([]);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '孤立文件删除失败');
+      message.error(error instanceof Error ? error.message : t("孤立文件删除失败"));
     } finally {
       setDeletingOrphans(false);
     }
@@ -153,17 +154,17 @@ export function TemporaryAssetCleanupPage() {
       <section className="settings-page temporary-cleanup-page">
         <div className="temporary-cleanup-toolbar">
           <div className="temporary-cleanup-summary">
-            <span>磁盘剩余空间 <strong>{formatDiskSpace(availableDiskBytes)}</strong></span>
-            <span>待清理 <strong>{total}</strong></span>
-            <span>当前页已过期 <strong className={expiredTotal ? 'is-danger' : ''}>{expiredTotal}</strong></span>
-            <span>日志 <strong>{logs.length}</strong></span>
+            <span>{t("磁盘剩余空间")} <strong>{formatDiskSpace(availableDiskBytes)}</strong></span>
+            <span>{t("待清理")} <strong>{total}</strong></span>
+            <span>{t("当前页已过期")} <strong className={expiredTotal ? 'is-danger' : ''}>{expiredTotal}</strong></span>
+            <span>{t("日志")} <strong>{logs.length}</strong></span>
           </div>
         </div>
 
         <Tabs items={[
           {
             key: 'pending',
-            label: `待清理 (${total})`,
+            label: t("待清理 ({{0}})", { "0": total }),
             children: (
               <CleanupCandidatesTable
                 candidates={candidates}
@@ -186,7 +187,7 @@ export function TemporaryAssetCleanupPage() {
           },
           {
             key: 'logs',
-            label: `清理日志 (${logs.length}/100)`,
+            label: t("清理日志 ({{0}}/100)", { "0": logs.length }),
             children: <CleanupLogsTable loading={loading} logs={logs} onRefresh={() => void loadData()} />,
           },
         ]} />

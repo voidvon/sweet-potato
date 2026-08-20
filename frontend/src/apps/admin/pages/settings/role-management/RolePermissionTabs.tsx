@@ -9,10 +9,11 @@ import {
   filterResourcesByPlatform,
 } from '../route-resource-shared/routeResourceTree';
 import { normalizeResourceIds, type RoleFormValues } from './roleManagementHelpers';
+import { t } from '@shared/i18n';
 
 const resourcePlatformTabs: Array<{ key: RouteResourcePlatform; label: string }> = [
-  { key: 'web', label: 'Web 权限' },
-  { key: 'admin', label: 'Admin 权限' },
+  { key: 'web', label: t("Web 权限") },
+  { key: 'admin', label: t("Admin 权限") },
 ];
 
 type RolePermissionTabsProps = {
@@ -70,7 +71,7 @@ export function RolePermissionTabs({ activePlatform, form, resources, onPlatform
                   form.setFieldValue('grantedResourceIds', Array.from(current));
                 }}
               >
-                全选当前页签
+                {t("全选当前页签")}
               </Button>
               <Button
                 size="small"
@@ -84,7 +85,7 @@ export function RolePermissionTabs({ activePlatform, form, resources, onPlatform
                   );
                 }}
               >
-                清空当前页签
+                {t("清空当前页签")}
               </Button>
             </Space>
             <div style={{ maxHeight: 420, overflow: 'auto', paddingRight: 8 }}>

@@ -14,6 +14,7 @@ import { AuthExperience } from '@shared/components/AuthExperience';
 import { loginAccount } from '@shared/api/auth';
 import sidebarLogo from '@shared/assets/sidebar-logo.png';
 import type { AuthSession, LoginPayload } from '@shared/types';
+import { t } from '@shared/i18n';
 
 type AuthPageProps = {
   onAuthed: (session: AuthSession) => void;
@@ -27,10 +28,10 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
     setLoading(true);
     try {
       const result = await loginAccount(values);
-      message.success('登录成功');
+      message.success(t("登录成功"));
       onAuthed(result);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '登录失败');
+      message.error(error instanceof Error ? error.message : t("登录失败"));
     } finally {
       setLoading(false);
     }
@@ -39,20 +40,20 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
   return (
     <AuthExperience
       brandContext="Admin Console"
-      brandName="萌猫 AI"
-      description="集中管理用户、内容案例、积分与模型配置，让每一项运营决策都有清晰入口。"
-      eyebrow="安全、清晰、可控的管理中心"
+      brandName={t("萌猫 AI")}
+      description={t("集中管理用户、内容案例、积分与模型配置，让每一项运营决策都有清晰入口。")}
+      eyebrow={t("安全、清晰、可控的管理中心")}
       highlights={[
-        { icon: <TeamOutlined />, title: '用户与权限', description: '统一查看用户和权限状态' },
-        { icon: <BarChartOutlined />, title: '业务运营', description: '掌握积分、内容与使用情况' },
-        { icon: <SettingOutlined />, title: '系统配置', description: '集中维护模型和平台配置' },
+        { icon: <TeamOutlined />, title: t("用户与权限"), description: t("统一查看用户和权限状态") },
+        { icon: <BarChartOutlined />, title: t("业务运营"), description: t("掌握积分、内容与使用情况") },
+        { icon: <SettingOutlined />, title: t("系统配置"), description: t("集中维护模型和平台配置") },
       ]}
       logoSrc={sidebarLogo}
-      panelDescription="请使用已授权的管理员账号继续访问。"
-      panelEyebrow="管理员入口"
-      panelFooter={<><SafetyCertificateOutlined />受保护的内部管理空间</>}
-      panelTitle="登录后台管理"
-      title={<>让内容、用户与配置<br />始终井然有序</>}
+      panelDescription={t("请使用已授权的管理员账号继续访问。")}
+      panelEyebrow={t("管理员入口")}
+      panelFooter={<><SafetyCertificateOutlined />{t("受保护的内部管理空间")}</>}
+      panelTitle={t("登录后台管理")}
+      title={<>{t("让内容、用户与配置")}<br />{t("始终井然有序")}</>}
       variant="admin"
     >
       <Form
@@ -63,27 +64,27 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
         requiredMark={false}
       >
         <Form.Item
-          label="管理员账号"
+          label={t("管理员账号")}
           name="username"
-          rules={[{ required: true, min: 3, message: '请输入至少 3 位账号' }]}
+          rules={[{ required: true, min: 3, message: t("请输入至少 3 位账号") }]}
         >
           <Input
             autoComplete="username"
             prefix={<UserOutlined className="auth-experience__input-icon" />}
-            placeholder="请输入管理员账号"
+            placeholder={t("请输入管理员账号")}
             size="large"
           />
         </Form.Item>
 
         <Form.Item
-          label="密码"
+          label={t("密码")}
           name="password"
-          rules={[{ required: true, min: 6, message: '请输入至少 6 位密码' }]}
+          rules={[{ required: true, min: 6, message: t("请输入至少 6 位密码") }]}
         >
           <Input.Password
             autoComplete="current-password"
             prefix={<LockOutlined className="auth-experience__input-icon" />}
-            placeholder="至少 6 位"
+            placeholder={t("至少 6 位")}
             size="large"
           />
         </Form.Item>
@@ -97,7 +98,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
           tone="brand"
           type="primary"
         >
-          登录后台
+          {t("登录后台")}
         </AppButton>
       </Form>
     </AuthExperience>

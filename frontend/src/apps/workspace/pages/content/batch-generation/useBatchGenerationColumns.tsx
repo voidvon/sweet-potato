@@ -52,19 +52,20 @@ import {
   valueAt,
   videoSourceEstimateInput,
 } from './batchGenerationGrid.utils'
+import { t } from '@shared/i18n';
 
 const MAX_ROWS = 200
 const videoOverrideFields: CreativeCapabilityField[] = [
-  { key: 'modelConfigId', label: '模型', overridable: true, valueType: 'string' },
-  { key: 'aspectRatio', label: '画面比例', overridable: true, valueType: 'string' },
-  { key: 'duration', label: '时长', overridable: true, valueType: 'string' },
-  { key: 'generateAudio', label: '生成配音', overridable: true, valueType: 'boolean' },
+  { key: 'modelConfigId', label: t("模型"), overridable: true, valueType: 'string' },
+  { key: 'aspectRatio', label: t("画面比例"), overridable: true, valueType: 'string' },
+  { key: 'duration', label: t("时长"), overridable: true, valueType: 'string' },
+  { key: 'generateAudio', label: t("生成配音"), overridable: true, valueType: 'boolean' },
 ]
 
 const danceRemakeEnhancedFields: CreativeCapabilityField[] = [
-  { key: 'videoModelId', label: '模型', valueType: 'string' },
-  { key: 'quality', label: '清晰度', valueType: 'string' },
-  { key: 'preserveAudio', label: '保留音乐和节奏', valueType: 'boolean' },
+  { key: 'videoModelId', label: t("模型"), valueType: 'string' },
+  { key: 'quality', label: t("清晰度"), valueType: 'string' },
+  { key: 'preserveAudio', label: t("保留音乐和节奏"), valueType: 'boolean' },
 ]
 
 const danceRemakeModelOptions = videoModelDefinitions.map((option) => ({ label: option.label, value: option.id }))
@@ -481,7 +482,7 @@ export function useBatchGenerationColumns({
           && field.valueType !== 'boolean'
           && !selectOptions.length
           && !isFieldDisabled(params.data!),
-        headerName: `${isVideoAspectRatio ? '画布' : field.label}${field.required ? ' *' : ''}`,
+        headerName: t("{{0}}{{1}}", { "0": isVideoAspectRatio ? '画布' : field.label, "1": field.required ? ' *' : '' }),
         minWidth: isOutfitAsset
           ? 202
           : field.key === 'aspectRatio' ? 130
@@ -544,7 +545,7 @@ export function useBatchGenerationColumns({
         },
         colId: 'canvas',
         editable: false,
-        headerName: '画布',
+        headerName: t("画布"),
         minWidth: 130,
         initialWidth: 130,
       }
@@ -580,7 +581,7 @@ export function useBatchGenerationColumns({
         },
         colId: 'status',
         editable: false,
-        headerName: '状态',
+        headerName: t("状态"),
         minWidth: 90,
         initialWidth: 90,
       },
@@ -597,7 +598,7 @@ export function useBatchGenerationColumns({
         ) : null,
         colId: 'result',
         editable: false,
-        headerName: '结果',
+        headerName: t("结果"),
         minWidth: 120,
         initialWidth: 120,
       },
@@ -606,7 +607,7 @@ export function useBatchGenerationColumns({
         cellRenderer: (params: ICellRendererParams<BatchRow, number>) => <GridCreditsCell value={params.value ?? 0} />,
         colId: 'credits',
         editable: false,
-        headerName: '消耗积分',
+        headerName: t("消耗积分"),
         minWidth: 80,
         valueGetter: (params) => params.data
           ? (activeCapability?.key === 'video.upscale'
@@ -635,7 +636,7 @@ export function useBatchGenerationColumns({
         ) : null,
         colId: 'actions',
         editable: false,
-        headerName: '操作',
+        headerName: t("操作"),
         minWidth: 120,
         pinned: 'right',
         resizable: false,

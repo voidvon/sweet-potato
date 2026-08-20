@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import type { RouteResourceVisibilityMode } from '../../../types';
 import type { RouteResourceRecord } from '../route-resource-shared/routeResourceNormalize';
 import { resourceTypeMeta } from '../route-resource-shared/routeResourceTree';
+import { t } from '@shared/i18n';
 
 type RouteResourceTableProps = {
   data: RouteResourceRecord[];
@@ -28,7 +29,7 @@ export function RouteResourceTable({
 }: RouteResourceTableProps) {
   const columns = useMemo<TableProps<RouteResourceRecord>['columns']>(() => [
     {
-      title: '资源节点',
+      title: t("资源节点"),
       dataIndex: 'name',
       width: 280,
       render: (value: string, record) => (
@@ -40,56 +41,56 @@ export function RouteResourceTable({
         >
           <Space size={8} wrap>
             <strong>{value}</strong>
-            {record.parentId ? <Tag color="blue">子级</Tag> : null}
-            {record.isSystem ? <Tag color="gold">系统</Tag> : null}
+            {record.parentId ? <Tag color="blue">{t("子级")}</Tag> : null}
+            {record.isSystem ? <Tag color="gold">{t("系统")}</Tag> : null}
           </Space>
           <span style={{ color: 'var(--text-secondary, #6b7280)', fontSize: 12 }}>{record.resourceKey}</span>
         </Space>
       ),
     },
     {
-      title: '类型',
+      title: t("类型"),
       width: 110,
       render: (_value, record) => {
         const typeMeta = resourceTypeMeta(record.resourceType);
         return <Tag color={typeMeta.color}>{typeMeta.text}</Tag>;
       },
     },
-    { title: '路径', width: 240, render: (_value, record) => record.path || '未配置' },
-    { title: '权限标识', dataIndex: 'permissionCode', width: 260, render: (value: string) => <Tag>{value || '未配置'}</Tag> },
+    { title: t("路径"), width: 240, render: (_value, record) => record.path || t("未配置") },
+    { title: t("权限标识"), dataIndex: 'permissionCode', width: 260, render: (value: string) => <Tag>{value || t("未配置")}</Tag> },
     {
-      title: '菜单可见性',
+      title: t("菜单可见性"),
       dataIndex: 'visibilityMode',
       width: 130,
-      render: (value: RouteResourceVisibilityMode) => value === 'always' ? <Tag color="green">始终显示</Tag> : <Tag>按权限显示</Tag>,
+      render: (value: RouteResourceVisibilityMode) => value === 'always' ? <Tag color="green">{t("始终显示")}</Tag> : <Tag>{t("按权限显示")}</Tag>,
     },
-    { title: '排序', dataIndex: 'sortOrder', width: 90, render: (value?: number) => value ?? 0 },
+    { title: t("排序"), dataIndex: 'sortOrder', width: 90, render: (value?: number) => value ?? 0 },
     {
-      title: '启用',
+      title: t("启用"),
       width: 90,
       render: (_value, record) => <Switch checked={record.status ?? true} onChange={(value) => onToggle(record, value)} />,
     },
     {
-      title: '操作',
+      title: t("操作"),
       width: 240,
       render: (_value, record) => {
         const deleteDisabled = Boolean(record.isSystem) || (record.children?.length || 0) > 0;
         return (
           <Space wrap>
-            <Button icon={<PlusOutlined />} onClick={() => onCreateChild(record)}>新增下级</Button>
-            <Button icon={<EditOutlined />} onClick={() => onEdit(record)}>编辑</Button>
+            <Button icon={<PlusOutlined />} onClick={() => onCreateChild(record)}>{t("新增下级")}</Button>
+            <Button icon={<EditOutlined />} onClick={() => onEdit(record)}>{t("编辑")}</Button>
             <Popconfirm
-              title="确认删除该路由资源吗？"
+              title={t("确认删除该路由资源吗？")}
               description={deleteDisabled
-                ? record.isSystem ? '系统资源不允许删除' : '请先删除或迁移子节点后再删除'
-                : '删除后角色授权会同步失效，请确认不再使用。'}
-              okText="删除"
-              cancelText="取消"
+                ? record.isSystem ? t("系统资源不允许删除") : t("请先删除或迁移子节点后再删除")
+                : t("删除后角色授权会同步失效，请确认不再使用。")}
+              okText={t("删除")}
+              cancelText={t("取消")}
               okButtonProps={{ danger: true }}
               disabled={deleteDisabled}
               onConfirm={() => onDelete(record)}
             >
-              <Button danger disabled={deleteDisabled} loading={deletingResourceId === record.id}>删除</Button>
+              <Button danger disabled={deleteDisabled} loading={deletingResourceId === record.id}>{t("删除")}</Button>
             </Popconfirm>
           </Space>
         );
@@ -106,7 +107,7 @@ export function RouteResourceTable({
         expandable={{
           expandIcon: ({ expanded, onExpand, record }) => record.children?.length ? (
             <button
-              aria-label={expanded ? '收起下级资源' : '展开下级资源'}
+              aria-label={expanded ? t("收起下级资源") : t("展开下级资源")}
               onClick={(event) => onExpand(record, event)}
               style={{
                 alignItems: 'center',

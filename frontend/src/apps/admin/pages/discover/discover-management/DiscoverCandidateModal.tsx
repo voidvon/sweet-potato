@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listAdminWorks, type AdminWork } from '../../../api/admin-works'
 import { createDiscoverItem, type DiscoverCategory } from '../../../api/discover'
 import { WorkPreviewThumbnail } from '../../../components/WorkPreviewThumbnail'
+import { t } from '@shared/i18n';
 
 type DiscoverCandidateModalProps = {
   addedAssetIds: Set<string>
@@ -32,7 +33,7 @@ export function DiscoverCandidateModal({ addedAssetIds, categories, open, onAdde
       setPage(result.page)
       setTotal(result.total)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '全部作品加载失败')
+      message.error(error instanceof Error ? error.message : t("全部作品加载失败"))
     } finally {
       setLoading(false)
     }
@@ -48,7 +49,7 @@ export function DiscoverCandidateModal({ addedAssetIds, categories, open, onAdde
 
   async function addWork(work: AdminWork) {
     if (!categoryId) {
-      message.warning('请先选择分类')
+      message.warning(t("请先选择分类"))
       return
     }
     setAddingWorkId(work.id)
@@ -59,10 +60,10 @@ export function DiscoverCandidateModal({ addedAssetIds, categories, open, onAdde
         title: work.name,
         description: work.description,
       })
-      message.success('已加入发现')
+      message.success(t("已加入发现"))
       await onAdded()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '加入失败')
+      message.error(error instanceof Error ? error.message : t("加入失败"))
     } finally {
       setAddingWorkId(undefined)
     }
@@ -70,32 +71,32 @@ export function DiscoverCandidateModal({ addedAssetIds, categories, open, onAdde
 
   const columns = useMemo<ColumnsType<AdminWork>>(() => [
     {
-      title: '预览',
+      title: t("预览"),
       width: 90,
       render: (_, work) => (
         <WorkPreviewThumbnail coverUrl={work.coverUrl} fileUrl={work.fileUrl} mediaType={work.mediaType} title={work.name} />
       ),
     },
-    { title: '作品名称', dataIndex: 'name', ellipsis: true },
-    { title: '类型', dataIndex: 'mediaType', width: 90, render: (value: AdminWork['mediaType']) => value === 'image' ? '图片' : '视频' },
-    { title: '用户', dataIndex: 'username', width: 150, ellipsis: true },
+    { title: t("作品名称"), dataIndex: 'name', ellipsis: true },
+    { title: t("类型"), dataIndex: 'mediaType', width: 90, render: (value: AdminWork['mediaType']) => value === 'image' ? t("图片") : t("视频") },
+    { title: t("用户"), dataIndex: 'username', width: 150, ellipsis: true },
     {
-      title: '操作',
+      title: t("操作"),
       width: 110,
       render: (_, work) => {
         const added = addedAssetIds.has(work.id)
-        return <Button disabled={added} loading={addingWorkId === work.id} onClick={() => void addWork(work)} type="link">{added ? '已添加' : '添加'}</Button>
+        return <Button disabled={added} loading={addingWorkId === work.id} onClick={() => void addWork(work)} type="link">{added ? t("已添加") : t("添加")}</Button>
       },
     },
   ], [addedAssetIds, addingWorkId, categoryId])
 
   return (
-    <Modal footer={null} onCancel={onClose} open={open} title="新增发现作品" width={900}>
+    <Modal footer={null} onCancel={onClose} open={open} title={t("新增发现作品")} width={900}>
       <div className="discover-candidate-toolbar">
         <Select
           onChange={setCategoryId}
           options={categories.filter((category) => category.status === 'active').map((category) => ({ label: category.name, value: category.id }))}
-          placeholder="选择分类"
+          placeholder={t("选择分类")}
           value={categoryId}
         />
         <Input.Search
@@ -107,7 +108,7 @@ export function DiscoverCandidateModal({ addedAssetIds, categories, open, onAdde
             setSearch(nextSearch)
             void loadCandidates(1, nextSearch)
           }}
-          placeholder="搜索作品名称或用户"
+          placeholder={t("搜索作品名称或用户")}
           value={searchInput}
         />
       </div>

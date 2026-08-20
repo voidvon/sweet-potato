@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useMemo } from 'react';
 import type { OrphanContentFileInspection } from '../../../api/content-cleanup';
 import { formatDateTime, formatFileSize, orphanFilePreviewUrl } from './cleanupFormatters';
+import { t } from '@shared/i18n';
 
 type OrphanFile = OrphanContentFileInspection['items'][number];
 
@@ -26,7 +27,7 @@ export function OrphanInspectionModal({
 }: OrphanInspectionModalProps) {
   const columns = useMemo<ColumnsType<OrphanFile>>(() => [
     {
-      title: '文件名称',
+      title: t("文件名称"),
       dataIndex: 'relativePath',
       ellipsis: true,
       render: (relativePath: string) => (
@@ -35,27 +36,27 @@ export function OrphanInspectionModal({
         </Typography.Link>
       ),
     },
-    { title: '大小', dataIndex: 'size', align: 'right', width: 110, render: formatFileSize },
-    { title: '修改时间', dataIndex: 'modifiedAt', width: 180, render: formatDateTime },
+    { title: t("大小"), dataIndex: 'size', align: 'right', width: 110, render: formatFileSize },
+    { title: t("修改时间"), dataIndex: 'modifiedAt', width: 180, render: formatDateTime },
     {
-      title: '操作',
+      title: t("操作"),
       key: 'actions',
       align: 'center',
       width: 72,
       render: (_, record) => (
         <Popconfirm
-          cancelText="取消"
+          cancelText={t("取消")}
           okButtonProps={{ danger: true }}
-          okText="删除"
+          okText={t("删除")}
           onConfirm={() => onDelete([record.relativePath])}
-          title="确认删除此孤立文件？删除后不可恢复。"
+          title={t("确认删除此孤立文件？删除后不可恢复。")}
         >
           <Button
-            aria-label={`删除 ${record.relativePath}`}
+            aria-label={t("删除 {{0}}", { "0": record.relativePath })}
             danger
             icon={<DeleteOutlined />}
             loading={deleting}
-            title="删除"
+            title={t("删除")}
             type="text"
           />
         </Popconfirm>
@@ -68,31 +69,30 @@ export function OrphanInspectionModal({
       centered
       className="orphan-file-inspection-modal"
       closable={!deleting}
-      footer={<Button disabled={deleting} onClick={onClose}>关闭</Button>}
+      footer={<Button disabled={deleting} onClick={onClose}>{t("关闭")}</Button>}
       maskClosable={!deleting}
       onCancel={() => {
         if (!deleting) onClose();
       }}
       open={Boolean(inspection)}
-      title="孤立文件检查结果"
+      title={t("孤立文件检查结果")}
       width={900}
     >
       {inspection ? (
         <div>
           <Typography.Paragraph>
-            共扫描 <strong>{inspection.scannedFiles}</strong> 个文件，发现疑似孤立文件 <strong>{inspection.orphanFiles}</strong> 个，
-            占用空间 <strong>{formatFileSize(inspection.orphanBytes)}</strong>。
+            {t("共扫描")} <strong>{inspection.scannedFiles}</strong> {t("个文件，发现疑似孤立文件")} <strong>{inspection.orphanFiles}</strong> {t("个， 占用空间")} <strong>{formatFileSize(inspection.orphanBytes)}</strong>。
           </Typography.Paragraph>
           <div className="orphan-file-actions">
             <Popconfirm
-              cancelText="取消"
+              cancelText={t("取消")}
               okButtonProps={{ danger: true }}
-              okText="删除"
+              okText={t("删除")}
               onConfirm={() => onDelete(selectedPaths)}
-              title={`确认删除选中的 ${selectedPaths.length} 个孤立文件？删除后不可恢复。`}
+              title={t("确认删除选中的 {{0}} 个孤立文件？删除后不可恢复。", { "0": selectedPaths.length })}
             >
               <Button danger disabled={!selectedPaths.length} icon={<DeleteOutlined />} loading={deleting}>
-                删除所选{selectedPaths.length ? ` (${selectedPaths.length})` : ''}
+                {t("删除所选")}{selectedPaths.length ? ` (${selectedPaths.length})` : ''}
               </Button>
             </Popconfirm>
           </div>
@@ -112,7 +112,7 @@ export function OrphanInspectionModal({
           />
           {inspection.truncated ? (
             <Typography.Paragraph className="orphan-file-truncated" type="secondary">
-              结果较多，仅展示体积最大的前 500 个文件。
+              {t("结果较多，仅展示体积最大的前 500 个文件。")}
             </Typography.Paragraph>
           ) : null}
         </div>

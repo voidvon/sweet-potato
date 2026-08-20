@@ -7,6 +7,7 @@ import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { TrimReferenceVideoModal, type RemoteTrimSelection, type TrimSelection } from './TrimReferenceVideoModal';
 import type { LocalMaterialFile, SelectedMaterialValue } from '../types';
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, shouldTrimReferenceVideo } from '../videoMetadata';
+import { t } from '@shared/i18n';
 
 type VideoMaterialSlotProps = {
   onClear: () => void;
@@ -19,7 +20,7 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
   const file = Array.isArray(selected) ? selected[0] : null;
   const pendingTrim = getPendingVideo(selected);
   const video = file ? toConfirmedReferenceVideo(file) : null;
-  const name = file?.name ?? (typeof selected === 'string' ? selected : '参考视频 01');
+  const name = file?.name ?? (typeof selected === 'string' ? selected : t("参考视频 01"));
 
   const confirmTrim = async (selection: TrimSelection) => {
     const previousVideo = video;
@@ -31,7 +32,7 @@ export function VideoMaterialSlot({ onClear, onTrimmed, selected }: VideoMateria
     const nextFile = {
       assetId: result.assetId,
       id: `video-${crypto.randomUUID()}`,
-      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+      name: result.originalFileName || result.name || selection.file.name || t("参考视频 01"),
       serverFileUrl: result.fileUrl,
       storedFileName: result.storedFileName,
       type: 'video',

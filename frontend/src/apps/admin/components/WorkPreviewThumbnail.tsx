@@ -3,6 +3,7 @@ import { Image, Modal } from 'antd'
 import { useState } from 'react'
 import { resolveAssetUrl } from '@shared/api/core/request'
 import './WorkPreviewThumbnail.scss'
+import { t } from '@shared/i18n';
 
 export type WorkPreviewMedia = {
   fileUrl: string
@@ -21,7 +22,7 @@ export function WorkPreviewThumbnail({ coverUrl, fileUrl, mediaType, title }: Wo
   return (
     <>
       <button
-        aria-label={`预览作品：${title}`}
+        aria-label={t("预览作品：{{0}}", { "0": title })}
         className="work-preview-thumbnail"
         onClick={() => setOpen(true)}
         type="button"
@@ -43,7 +44,7 @@ export function WorkPreviewThumbnail({ coverUrl, fileUrl, mediaType, title }: Wo
         footer={null}
         onCancel={() => setOpen(false)}
         open={open}
-        title={title || '作品预览'}
+        title={title || t("作品预览")}
         width={820}
       >
         <div className="work-preview-modal__content">

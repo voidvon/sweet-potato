@@ -10,6 +10,7 @@ import { resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import type { LocalMaterialFile, MaterialKind, MaterialMode, SelectedMaterials, ToolOption, UploadAnchor, WorksTab } from '../types';
 import { getVideoWorkSource, getVideoWorkSourceLabel } from '../../assets/worksAssetSource';
+import { t } from '@shared/i18n';
 
 type MaterialPanelProps = {
   activeUpload: MaterialKind | null;
@@ -67,7 +68,7 @@ export function ReferenceMaterialPreviewList({
 }: ReferenceMaterialPreviewListProps) {
   if (isLoading) {
     return (
-      <div className="result-reference-materials is-loading" aria-label="正在加载参考素材">
+      <div className="result-reference-materials is-loading" aria-label={t("正在加载参考素材")}>
         <span />
         <span />
         <span />
@@ -76,13 +77,13 @@ export function ReferenceMaterialPreviewList({
   }
 
   if (assets.length === 0) {
-    return <p className="result-reference-materials-empty">暂无参考素材</p>;
+    return <p className="result-reference-materials-empty">{t("暂无参考素材")}</p>;
   }
 
   return (
     <div className="result-reference-materials">
       {assets.map((asset) => {
-        const name = asset.name || asset.originalFileName || '参考素材';
+        const name = asset.name || asset.originalFileName || t("参考素材");
         const isVideo = asset.mimeType.startsWith('video/');
         const isImage = asset.mimeType.startsWith('image/');
         const isAudio = asset.mimeType.startsWith('audio/');
@@ -119,10 +120,10 @@ export function ReferenceMaterialPreviewList({
               ? () => onAudioPreview(asset)
               : undefined;
         const actionLabel = isVideo || isImage
-          ? `预览${name}`
+          ? t("预览{{0}}", { "0": name })
           : isAudioPlaying
-            ? `暂停${name}`
-            : `试听${name}`;
+            ? t("暂停{{0}}", { "0": name })
+            : t("试听{{0}}", { "0": name });
 
         return onPreview ? (
           <button
@@ -227,11 +228,11 @@ export function MaterialPanel({
       className="video-task-material-card"
       description={tool.materialHint}
       headerExtra={(
-        <div className="video-task-tabs" aria-label="素材类型">
+        <div className="video-task-tabs" aria-label={t("素材类型")}>
           {hasVisibleSelectedMaterials && (
-            <button className="is-danger" onClick={onMaterialsClearAll} title="清空全部素材" type="button">
+            <button className="is-danger" onClick={onMaterialsClearAll} title={t("清空全部素材")} type="button">
               <Trash2 size={12} />
-              清空
+              {t("清空")}
             </button>
           )}
           <button
@@ -241,7 +242,7 @@ export function MaterialPanel({
             type="button"
           >
             <Image size={12} />
-            作品
+            {t("作品")}
           </button>
           {showAuxiliaryMaterialOptions && audioMaterial && (
             <button
@@ -251,7 +252,7 @@ export function MaterialPanel({
               type="button"
             >
               <Music2 size={12} />
-              音频
+              {t("音频")}
             </button>
           )}
           {showAuxiliaryMaterialOptions && (
@@ -261,15 +262,15 @@ export function MaterialPanel({
               type="button"
             >
               {isVideoTranslation ? <UserRound size={12} /> : <Package size={12} />}
-              {isVideoTranslation ? '模特' : '素材'}
+              {isVideoTranslation ? t("模特") : t("素材")}
             </button>
           )}
           {showVoiceToggle && (
             <label
               className={`video-task-voice-toggle${hasSelectedAudio ? ' is-locked' : ''}`}
-              title={hasSelectedAudio ? '已选择参考音频，声音必须开启' : '生成视频声音'}
+              title={hasSelectedAudio ? t("已选择参考音频，声音必须开启") : t("生成视频声音")}
             >
-              <span>声音</span>
+              <span>{t("声音")}</span>
               <input
                 checked={voiceEnabled || hasSelectedAudio}
                 disabled={hasSelectedAudio}
@@ -283,7 +284,7 @@ export function MaterialPanel({
       )}
       headerLayout="stacked"
       ref={panelRef}
-      title="素材"
+      title={t("素材")}
       topSlot={topSlot}
     >
 
@@ -312,7 +313,7 @@ export function MaterialPanel({
       </div>
 
       {isVideoTranslation && selectedMaterials.video && (
-        <p className="video-task-translation-storage-note">视频同步存储中，任务提交后会自动处理</p>
+        <p className="video-task-translation-storage-note">{t("视频同步存储中，任务提交后会自动处理")}</p>
       )}
 
       {materialMode === 'audio' && (
@@ -333,10 +334,10 @@ export function MaterialPanel({
           <header>
             <span className="video-task-library-heading">
               <i aria-hidden="true"><Image size={15} /></i>
-              <strong>我的作品</strong>
+              <strong>{t("我的作品")}</strong>
             </span>
             <Button
-            aria-label="收起音频素材库"
+            aria-label={t("收起音频素材库")}
             className="video-task-popover-collapse"
             icon={<ChevronLeft size={20} />}
             onClick={onClosePopovers}
@@ -344,20 +345,20 @@ export function MaterialPanel({
             type="text"
           />
           </header>
-          <p>点击卡片填入可用素材 ↙</p>
+          <p>{t("点击卡片填入可用素材 ↙")}</p>
           <div className="video-task-assets-tabs">
-            <button className={worksTab === 'all' ? 'is-active' : ''} onClick={() => onWorksTabChange('all')} type="button">全部</button>
+            <button className={worksTab === 'all' ? 'is-active' : ''} onClick={() => onWorksTabChange('all')} type="button">{t("全部")}</button>
             {imageMaterial && (
-              <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">图片</button>
+              <button className={worksTab === 'image' ? 'is-active' : ''} onClick={() => onWorksTabChange('image')} type="button">{t("图片")}</button>
             )}
             {videoMaterial && (
-              <button className={worksTab === 'video' ? 'is-active' : ''} onClick={() => onWorksTabChange('video')} type="button">视频</button>
+              <button className={worksTab === 'video' ? 'is-active' : ''} onClick={() => onWorksTabChange('video')} type="button">{t("视频")}</button>
             )}
           </div>
           <div className="video-task-works-scroll">
-            {isLoadingLibraryAssets && <div className="video-task-assets-empty">正在加载作品</div>}
+            {isLoadingLibraryAssets && <div className="video-task-assets-empty">{t("正在加载作品")}</div>}
             {!isLoadingLibraryAssets && filteredWorksAssets.length === 0 && (
-              <div className="video-task-assets-empty">暂无作品</div>
+              <div className="video-task-assets-empty">{t("暂无作品")}</div>
             )}
             {!isLoadingLibraryAssets && filteredWorksAssets.length > 0 && (
               <>
@@ -365,9 +366,9 @@ export function MaterialPanel({
                   {filteredWorksAssets.map((asset) => {
                     const isVideo = asset.mimeType.startsWith('video/');
                     const targetMaterial = isVideo ? videoMaterial : imageMaterial;
-                    const name = getAssetName(asset, isVideo ? '视频作品' : '图片作品');
+                    const name = getAssetName(asset, isVideo ? t('视频作品') : t('图片作品'));
                     const videoDurationLabel = getAssetDuration(asset, videoDurationByAssetId[asset.id]);
-                    const videoSourceLabel = getVideoWorkSourceLabel(getVideoWorkSource(asset)) || '视频作品';
+                    const videoSourceLabel = getVideoWorkSourceLabel(getVideoWorkSource(asset)) || t("视频作品");
                     const cardTitle = isVideo
                       ? [videoSourceLabel, videoDurationLabel === '--:--' ? '' : videoDurationLabel].filter(Boolean).join(' ')
                       : name;
@@ -419,7 +420,7 @@ export function MaterialPanel({
                     );
                   })}
                 </div>
-                <em>— 没有更多 —</em>
+                <em>{t("— 没有更多 —")}</em>
               </>
             )}
           </div>
@@ -443,8 +444,8 @@ function getDemoMaterialValue(item: MaterialKind) {
   if (item.key === 'audio') {
     return 'voice-clone-preview-04e614e6-89c7-4f03-a35f-32f29afc458b-1778754088555.wav';
   }
-  if (item.key === 'image') return '参考图 8 张';
-  return `素材库 ${item.label}`;
+  if (item.key === 'image') return t("参考图 8 张");
+  return t("素材库 {{0}}", { "0": item.label });
 }
 
 function getAssetName(asset: ContentAsset, fallback: string) {

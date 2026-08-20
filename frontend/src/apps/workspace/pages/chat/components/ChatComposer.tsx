@@ -7,6 +7,7 @@ import type { AiAgent, ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { FloatingComposer } from '../../../components/FloatingComposer';
 import './ChatComposer.scss';
+import { t } from '@shared/i18n';
 
 const { TextArea } = Input;
 type TextAreaRef = GetRef<typeof Input.TextArea>;
@@ -79,7 +80,7 @@ export function ChatComposer({
           )}
           {attachment.kind === 'file' && <span>{attachment.name}</span>}
           <Button
-            aria-label="移除附件"
+            aria-label={t("移除附件")}
             className="chat-attachment-remove"
             icon={<CloseOutlined />}
             onClick={() => onRemoveAttachment(attachment.id)}
@@ -93,7 +94,7 @@ export function ChatComposer({
 
   const sendButtonIcon = sending ? <Square size={16} fill="currentColor" /> : <ArrowUp size={18} />;
   const sendButtonDisabled = !sending && !hasContent;
-  const sendButtonLabel = sending ? '停止生成' : '发送消息';
+  const sendButtonLabel = sending ? t("停止生成") : t("发送消息");
   const handlePrimaryAction = sending ? onStop : onSend;
 
   const toolbar = (
@@ -151,8 +152,8 @@ export function ChatComposer({
       <Dropdown
         menu={{
           items: [
-            { key: 'image', icon: <PictureOutlined />, label: '添加图片' },
-            { key: 'file', icon: <PaperClipOutlined />, label: '添加附件' },
+            { key: 'image', icon: <PictureOutlined />, label: t("添加图片") },
+            { key: 'file', icon: <PaperClipOutlined />, label: t("添加附件") },
           ],
           onClick: ({ key }) => {
             if (key === 'image') {
@@ -200,7 +201,7 @@ export function ChatComposer({
                 event.preventDefault();
                 handlePrimaryAction();
               }}
-              placeholder="直接向模型提问"
+              placeholder={t("直接向模型提问")}
               ref={floatingInputRef}
               value={input}
             />
@@ -229,7 +230,7 @@ export function ChatComposer({
               handlePrimaryAction();
             }
           }}
-          placeholder="直接向模型提问"
+          placeholder={t("直接向模型提问")}
           ref={welcomeInputRef}
           value={input}
         />

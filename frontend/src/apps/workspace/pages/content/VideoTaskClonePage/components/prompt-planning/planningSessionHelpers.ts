@@ -9,6 +9,7 @@ import type {
 } from '../../../../../api/content-planning';
 import type { LocalMaterialFile, SelectedMaterials } from '../../types';
 import { getLocalFiles } from './materialHelpers';
+import { t } from '@shared/i18n';
 
 export type AnalysisDraft = {
   useBreakdown: boolean;
@@ -24,12 +25,12 @@ export type CaptionDraftCard = {
 };
 
 const auditStageLabels: Record<string, string> = {
-  planner: '1. 分析输入与约束',
-  strategy: '2. 策略规划与差异化路线',
-  timeline: '3. 细化时间轴与节奏',
-  copywriter: '4. 撰写文案与字数检查',
-  visualDirector: '5. 视觉落地与分镜定稿',
-  validator: '6. 校验、修正与最终选择',
+  planner: t("1. 分析输入与约束"),
+  strategy: t("2. 策略规划与差异化路线"),
+  timeline: t("3. 细化时间轴与节奏"),
+  copywriter: t("4. 撰写文案与字数检查"),
+  visualDirector: t("5. 视觉落地与分镜定稿"),
+  validator: t("6. 校验、修正与最终选择"),
 };
 
 const hiddenAuditFields = new Set([
@@ -49,41 +50,41 @@ const hiddenAuditFields = new Set([
 
 const auditFieldLabels: Record<string, string> = {
   action: '主体动作',
-  audienceAngle: '受众角度',
-  beat: '节奏',
-  brief: '策划简报',
-  camera: '镜头',
-  candidateDirections: '候选方向',
-  candidateId: '候选 ID',
-  candidates: '候选脚本',
-  dialogue: '口播',
-  emotionalArc: '情绪曲线',
-  endSecond: '结束时间',
-  followReferenceStructure: '沿用参考结构',
-  goal: '目标',
-  hardConstraints: '硬性约束',
-  hook: '开场钩子',
-  issues: '问题',
-  lighting: '光线',
-  lines: '分段文案',
-  materialRefs: '素材引用',
-  repairAdvice: '修复建议',
-  score: '评分',
-  selectedCandidateId: '推荐方案',
-  segmentId: '分段 ID',
-  segments: '时间段',
-  soundEffect: '音效',
-  spaceRelation: '空间关系',
-  startSecond: '开始时间',
-  storyboard: '逐秒分镜',
-  strategies: '创意策略',
-  strategyId: '策略 ID',
-  summary: '摘要',
-  tags: '标签',
-  text: '文案',
-  timelines: '时间轴',
-  title: '标题',
-  visual: '画面',
+  audienceAngle: t("受众角度"),
+  beat: t("节奏"),
+  brief: t("策划简报"),
+  camera: t("镜头"),
+  candidateDirections: t("候选方向"),
+  candidateId: t("候选 ID"),
+  candidates: t("候选脚本"),
+  dialogue: t("口播"),
+  emotionalArc: t("情绪曲线"),
+  endSecond: t("结束时间"),
+  followReferenceStructure: t("沿用参考结构"),
+  goal: t("目标"),
+  hardConstraints: t("硬性约束"),
+  hook: t("开场钩子"),
+  issues: t("问题"),
+  lighting: t("光线"),
+  lines: t("分段文案"),
+  materialRefs: t("素材引用"),
+  repairAdvice: t("修复建议"),
+  score: t("评分"),
+  selectedCandidateId: t("推荐方案"),
+  segmentId: t("分段 ID"),
+  segments: t("时间段"),
+  soundEffect: t("音效"),
+  spaceRelation: t("空间关系"),
+  startSecond: t("开始时间"),
+  storyboard: t("逐秒分镜"),
+  strategies: t("创意策略"),
+  strategyId: t("策略 ID"),
+  summary: t("摘要"),
+  tags: t("标签"),
+  text: t("文案"),
+  timelines: t("时间轴"),
+  title: t("标题"),
+  visual: t("画面"),
 };
 
 export function buildAnalysisDraft(session: PlanningSession | null, useBreakdown: boolean): AnalysisDraft {
@@ -105,7 +106,7 @@ export function buildCaptionDraftCards(captions: PlanningMaterialCaption[]): Cap
   return captions.map((caption, index) => ({
     description: caption.description,
     id: caption.id,
-    label: caption.label || `图片${index + 1}`,
+    label: caption.label || t("图片{{0}}", { "0": index + 1 }),
     previewUrl: caption.previewUrl,
   }));
 }
@@ -171,19 +172,19 @@ export function formatCandidateScript(candidate: PlanningCandidate) {
     .join('；');
   const lightingPlan = [...new Set(storyboard.map((segment) => segment.lighting.trim()).filter(Boolean))].join('；');
   const parts = [
-    '## 视频总览',
-    `- 标题：${title}`,
-    `- 方案摘要：${summary}`,
-    candidate.hook ? `- 开场钩子：${candidate.hook}` : '',
-    candidate.audienceAngle ? `- 受众角度：${candidate.audienceAngle}` : '',
-    candidate.tags.length ? `- 内容标签：${candidate.tags.join('、')}` : '',
-    ...(materialRefs.length ? ['', '## 素材参考', `- 全片商品外观统一参考：${materialRefs.join('、')}`] : []),
+    t("## 视频总览"),
+    t("- 标题：{{0}}", { "0": title }),
+    t("- 方案摘要：{{0}}", { "0": summary }),
+    candidate.hook ? t("- 开场钩子：{{0}}", { "0": candidate.hook }) : '',
+    candidate.audienceAngle ? t("- 受众角度：{{0}}", { "0": candidate.audienceAngle }) : '',
+    candidate.tags.length ? t("- 内容标签：{{0}}", { "0": candidate.tags.join('、') }) : '',
+    ...(materialRefs.length ? ['', t("## 素材参考"), t("- 全片商品外观统一参考：{{0}}", { "0": materialRefs.join('、') })] : []),
     '',
-    '## 场景与光线',
-    `- 镜头场景安排：${scenePlan || '按逐秒镜头执行'}`,
-    `- 布光方案：${lightingPlan || '按逐秒镜头执行'}`,
+    t("## 场景与光线"),
+    t("- 镜头场景安排：{{0}}", { "0": scenePlan || '按逐秒镜头执行' }),
+    t("- 布光方案：{{0}}", { "0": lightingPlan || '按逐秒镜头执行' }),
     '',
-    '## 逐秒镜头拆解列表',
+    t("## 逐秒镜头拆解列表"),
   ];
 
   storyboard.forEach((segment) => {
@@ -209,19 +210,19 @@ export function formatCandidateScript(candidate: PlanningCandidate) {
 export function getAnalyzeLoadingCopy(jobStage: PlanningJobStage, references: { hasVideo: boolean }) {
   if (jobStage === 'analyzing_reference_video') {
     return {
-      title: '商品图识别完成，正在拆解参考视频',
-      description: '正在解析镜头/节奏/结构，脚本会参考视频结构，请勿关闭',
+      title: t("商品图识别完成，正在拆解参考视频"),
+      description: t("正在解析镜头/节奏/结构，脚本会参考视频结构，请勿关闭"),
     };
   }
   if (!references.hasVideo) {
     return {
-      title: 'AI 正在识别商品素材',
-      description: '正在分析商品主体、外观、核心卖点与使用场景，约 15-30 秒，请勿关闭',
+      title: t("AI 正在识别商品素材"),
+      description: t("正在分析商品主体、外观、核心卖点与使用场景，约 15-30 秒，请勿关闭"),
     };
   }
   return {
-    title: 'AI 正在分析素材 + 参考视频',
-    description: '识别商品并拆解参考视频的节奏/镜头/结构，约 30-60 秒，请勿关闭',
+    title: t("AI 正在分析素材 + 参考视频"),
+    description: t("识别商品并拆解参考视频的节奏/镜头/结构，约 30-60 秒，请勿关闭"),
   };
 }
 
@@ -234,13 +235,13 @@ export function getGenerateLoadingCopy(jobStage: PlanningJobStage, hasReasoning:
     || jobStage === 'validator_running'
   )) {
     return {
-      title: 'AI 正在深度思考',
-      description: '构思逐秒分镜脚本，约 1-2 分钟 · 可关闭弹窗，后台继续生成',
+      title: t("AI 正在深度思考"),
+      description: t("构思逐秒分镜脚本，约 1-2 分钟 · 可关闭弹窗，后台继续生成"),
     };
   }
   return {
-    title: '正在生成脚本',
-    description: '可关闭弹窗，后台会继续生成，重新打开自动恢复',
+    title: t("正在生成脚本"),
+    description: t("可关闭弹窗，后台会继续生成，重新打开自动恢复"),
   };
 }
 
@@ -266,7 +267,7 @@ export function normalizePlanningSettingsDraft(settings: PlanningSettings): Plan
     durationSeconds: [5, 10, 15].includes(settings.durationSeconds) ? settings.durationSeconds : 5,
     extraInstruction: settings.extraInstruction.trim(),
     shootingMethod: settings.shootingMethod.trim(),
-    styleKeywords: normalizedKeywords.length ? normalizedKeywords : ['干净明亮'],
+    styleKeywords: normalizedKeywords.length ? normalizedKeywords : [t("干净明亮")],
   };
 }
 
@@ -277,7 +278,7 @@ export function normalizeTagToken(value: string) {
 export function serializeAnalysisDraft(analysisDraft: AnalysisDraft) {
   return JSON.stringify({
     materialCaptions: analysisDraft.materialCaptions.map((caption, index) => ({
-      label: `图片${index + 1}`,
+      label: t("图片{{0}}", { "0": index + 1 }),
       description: caption.description.trim(),
       previewUrl: caption.previewUrl,
     })),
@@ -289,7 +290,7 @@ export function serializeAnalysisDraft(analysisDraft: AnalysisDraft) {
 export function serializeSessionAnalysis(session: PlanningSession, useBreakdown: boolean) {
   return JSON.stringify({
     materialCaptions: session.analysis.materialCaptions.map((caption, index) => ({
-      label: `图片${index + 1}`,
+      label: t("图片{{0}}", { "0": index + 1 }),
       description: caption.description.trim(),
       previewUrl: caption.previewUrl,
     })),
@@ -392,10 +393,10 @@ function formatAuditValue(value: unknown, depth: number): string[] {
 
 function formatAuditPrimitive(value: unknown) {
   if (typeof value === 'boolean') {
-    return value ? '是' : '否';
+    return value ? t("是") : t("否");
   }
   if (value === null || value === undefined || value === '') {
-    return '无';
+    return t("无");
   }
   return String(value)
     .replace(/candidate-strategy-\d+-[a-z0-9]+/giu, '候选脚本')

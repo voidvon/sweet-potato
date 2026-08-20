@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { Upload, X } from 'lucide-react';
 import type { MaterialKind, UploadAnchor } from '../types';
 import { materialIcon } from './materialIcon';
+import { t } from '@shared/i18n';
 
 type MaterialUploadPopoverProps = {
   anchor: UploadAnchor | null;
@@ -21,16 +22,16 @@ export function MaterialUploadPopover({
   return (
     <div className={`video-task-upload-popover is-${item.key}`} style={getUploadPopoverStyle(anchor)}>
       <div className="video-task-popover-head">
-        <strong>选择{item.label}</strong>
+        <strong>{t("选择")}{item.label}</strong>
         <button onClick={onClose} type="button"><X size={16} /></button>
       </div>
       <button className="video-task-upload-action" onClick={() => onLocalUpload(item)} type="button">
         <Upload size={17} />
-        本地上传
+        {t("本地上传")}
       </button>
       <button className="video-task-upload-action" onClick={() => onLibraryChoose(item)} type="button">
         {materialIcon(item.key)}
-        从素材库选择
+        {t("从素材库选择")}
       </button>
     </div>
   );

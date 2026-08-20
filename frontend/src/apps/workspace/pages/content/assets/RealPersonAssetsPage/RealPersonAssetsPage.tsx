@@ -17,6 +17,7 @@ import { ImagePreview } from '../AssetImageUpload';
 import { useCardGridPageSize } from '../useCardGridPageSize';
 import { useAssetLibrary } from '../useAssetLibrary';
 import '../AssetLibraryPages.scss';
+import { t } from '@shared/i18n';
 
 type RealPersonAssetsPageProps = {
   currentUser: User;
@@ -98,12 +99,12 @@ function validationStatus(group: ContentAssetGroup): ValidationStatus {
 
 function validationCopy(status: ValidationStatus) {
   if (status === 'verified') {
-    return { label: '已认证', color: 'success', icon: <BadgeCheck size={14} /> };
+    return { label: t("已认证"), color: 'success', icon: <BadgeCheck size={14} /> };
   }
   if (status === 'failed') {
-    return { label: '认证失败', color: 'error', icon: <XCircle size={14} /> };
+    return { label: t("认证失败"), color: 'error', icon: <XCircle size={14} /> };
   }
-  return { label: '待认证', color: 'warning', icon: <Clock3 size={14} /> };
+  return { label: t("待认证"), color: 'warning', icon: <Clock3 size={14} /> };
 }
 
 function assetStatus(asset: ContentAsset): AssetStatus {
@@ -119,12 +120,12 @@ function assetStatus(asset: ContentAsset): AssetStatus {
 
 function assetStatusCopy(status: AssetStatus) {
   if (status === 'Active') {
-    return { label: '可用', color: 'success' };
+    return { label: t("可用"), color: 'success' };
   }
   if (status === 'Failed') {
-    return { label: '入库失败', color: 'error' };
+    return { label: t("入库失败"), color: 'error' };
   }
-  return { label: '处理中', color: 'processing' };
+  return { label: t("处理中"), color: 'processing' };
 }
 
 function groupStatusLine(group: ContentAssetGroup, assets: ContentAsset[]) {
@@ -135,12 +136,12 @@ function groupStatusLine(group: ContentAssetGroup, assets: ContentAsset[]) {
   const activeCount = assets.filter((asset) => assetStatus(asset) === 'Active').length;
   const failedCount = assets.filter((asset) => assetStatus(asset) === 'Failed').length;
   if (activeCount) {
-    return `${activeCount} 个可用素材`;
+    return t("{{0}} 个可用素材", { "0": activeCount });
   }
   if (failedCount) {
-    return '入库失败';
+    return t("入库失败");
   }
-  return assets.length ? '入库处理中' : '已认证';
+  return assets.length ? t("入库处理中") : t("已认证");
 }
 
 function isImageAsset(asset: ContentAsset) {
@@ -218,7 +219,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
 
   async function handleCreateValidationSession() {
     if (!personName.trim()) {
-      message.warning('请输入真人名称');
+      message.warning(t("请输入真人名称"));
       return;
     }
     try {
@@ -234,9 +235,9 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
       await Promise.all([library.loadGroups(1), library.loadGroupAssets(result.group.id)]);
       library.setActiveGroup(result.group);
       setDetailOpen(true);
-      message.success('认证会话已创建');
+      message.success(t("认证会话已创建"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '创建认证会话失败');
+      message.error(error instanceof Error ? error.message : t("创建认证会话失败"));
     } finally {
       setIsCreatingSession(false);
     }
@@ -257,14 +258,14 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
       library.setActiveGroup(nextGroup);
       await Promise.all([library.loadGroups(library.groupPage), library.loadGroupAssets(nextGroup.id)]);
       if (validationStatus(nextGroup) === 'verified') {
-        message.success('真人认证已通过');
+        message.success(t("真人认证已通过"));
       } else if (validationStatus(nextGroup) === 'failed') {
-        message.error('真人认证失败');
+        message.error(t("真人认证失败"));
       } else {
-        message.info('认证结果尚未完成，请稍后刷新');
+        message.info(t("认证结果尚未完成，请稍后刷新"));
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '刷新认证结果失败');
+      message.error(error instanceof Error ? error.message : t("刷新认证结果失败"));
     } finally {
       setIsCheckingValidation(false);
     }
@@ -272,11 +273,11 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
 
   async function handleUploadAsset(file: File) {
     if (!library.activeGroup) {
-      message.warning('请先选择真人档案');
+      message.warning(t("请先选择真人档案"));
       return;
     }
     if (!isVerified) {
-      message.warning('真人认证成功后才能上传同人素材');
+      message.warning(t("真人认证成功后才能上传同人素材"));
       return;
     }
     try {
@@ -290,9 +291,9 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
         },
       });
       await reloadActiveGroup(library.activeGroup.id);
-      message.success('素材已提交入库');
+      message.success(t("素材已提交入库"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '上传真人素材失败');
+      message.error(error instanceof Error ? error.message : t("上传真人素材失败"));
     } finally {
       setIsUploadingAsset(false);
     }
@@ -305,9 +306,9 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
       if (library.activeGroup) {
         await reloadActiveGroup(library.activeGroup.id);
       }
-      message.success('入库状态已同步');
+      message.success(t("入库状态已同步"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '同步入库状态失败');
+      message.error(error instanceof Error ? error.message : t("同步入库状态失败"));
     } finally {
       setSyncingAssetIds((current) => {
         const next = new Set(current);
@@ -319,7 +320,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
 
   async function handleSyncAllAssets() {
     if (!library.activeGroup || !library.activeGroupAssets.length) {
-      message.warning('当前档案暂无素材');
+      message.warning(t("当前档案暂无素材"));
       return;
     }
     const assetIds = library.activeGroupAssets.map((asset) => asset.id);
@@ -333,9 +334,9 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
     });
     const failed = results.filter((result) => result.status === 'rejected').length;
     if (failed) {
-      message.warning(`${failed} 个素材同步失败`);
+      message.warning(t("{{0}} 个素材同步失败", { "0": failed }));
     } else {
-      message.success('全部入库状态已同步');
+      message.success(t("全部入库状态已同步"));
     }
   }
 
@@ -359,17 +360,17 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
             allowClear
             className="voice-board-search"
             onChange={(event) => setSearchKeyword(event.target.value)}
-            placeholder="搜索真人名称或 Group ID..."
+            placeholder={t("搜索真人名称或 Group ID...")}
             prefix={<Search size={17} />}
             size="large"
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />
           <Button icon={<RefreshCw size={16} />} onClick={() => void library.loadGroups(library.groupPage)}>
-            刷新
+            {t("刷新")}
           </Button>
           <Button icon={<ShieldCheck size={16} />} onClick={() => setCreateOpen(true)} type="primary">
-            创建认证
+            {t("创建认证")}
           </Button>
         </div>
 
@@ -377,10 +378,10 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
           <div className="real-person-grid voice-board-grid" ref={gridRef}>
             {!library.isLoadingGroups && filteredGroups.length > 0 && (
               <AssetLibraryCreateCard
-                description="认证后上传同人素材"
+                description={t("认证后上传同人素材")}
                 icon={<ContactRound size={30} />}
                 onClick={() => setCreateOpen(true)}
-                title="添加真人素材"
+                title={t("添加真人素材")}
               />
             )}
 
@@ -392,7 +393,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
               return (
                 <AssetLibraryCard
                   key={group.id}
-                  meta={`${assets.length} 个素材 · 更新于 ${formatDate(group.updatedAt)}`}
+                  meta={t("{{0}} 个素材 · 更新于 {{1}}", { "0": assets.length, "1": formatDate(group.updatedAt) })}
                   onClick={() => void openDetail(group)}
                   preview={(
                     <>
@@ -410,15 +411,15 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
             {!library.isLoadingGroups && !filteredGroups.length && (
               <AssetLibraryPlaceholderCard
                 icon={<ContactRound size={30} />}
-                title={hasKeyword ? '暂无匹配真人素材' : '暂无真人素材'}
-                description={hasKeyword ? '调整搜索条件，或创建新的真人认证档案。' : '创建真人档案并完成 H5 认证后，上传同人素材入库。'}
+                title={hasKeyword ? t("暂无匹配真人素材") : t("暂无真人素材")}
+                description={hasKeyword ? t("调整搜索条件，或创建新的真人认证档案。") : t("创建真人档案并完成 H5 认证后，上传同人素材入库。")}
               />
             )}
           </div>
         </div>
 
         <div className="voice-board-pagination">
-          <span>共 {library.groupTotal} 条</span>
+          <span>{t("共")} {library.groupTotal} {t("条")}</span>
           <Pagination
             current={library.groupPage}
             onChange={library.setGroupPage}
@@ -431,24 +432,24 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
 
       <Modal
         confirmLoading={isCreatingSession}
-        okText="创建认证会话"
+        okText={t("创建认证会话")}
         onCancel={() => {
           setCreateOpen(false);
           setPersonName('');
         }}
         onOk={() => void handleCreateValidationSession()}
         open={createOpen}
-        title="创建真人认证"
+        title={t("创建真人认证")}
         width={620}
       >
         <div className="real-person-create-form">
           <label>
-            <span>真人名称</span>
-            <Input onChange={(event) => setPersonName(event.target.value)} placeholder="例如：品牌主播-小林" value={personName} />
+            <span>{t("真人名称")}</span>
+            <Input onChange={(event) => setPersonName(event.target.value)} placeholder={t("例如：品牌主播-小林")} value={personName} />
           </label>
           <Alert
-            message="创建后会生成 H5 认证链接"
-            description={`认证链接默认 ${DEFAULT_VALIDATION_EXPIRES} 秒有效。完成认证后回到本页点击“确认认证结果”。`}
+            message={t("创建后会生成 H5 认证链接")}
+            description={t("认证链接默认 {{0}} 秒有效。完成认证后回到本页点击“确认认证结果”。", { "0": DEFAULT_VALIDATION_EXPIRES })}
             showIcon
             type="info"
           />
@@ -460,7 +461,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
         footer={null}
         onCancel={() => setDetailOpen(false)}
         open={detailOpen}
-        title={library.activeGroup?.name || '真人素材'}
+        title={library.activeGroup?.name || t("真人素材")}
         width={1180}
       >
         {library.activeGroup && (
@@ -473,19 +474,19 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
                 <div>
                   <Tag color={validationCopy(activeValidationStatus).color}>{validationCopy(activeValidationStatus).label}</Tag>
                   <strong>{library.activeGroup.name}</strong>
-                  <span>更新于 {formatDateTime(library.activeGroup.updatedAt)}</span>
+                  <span>{t("更新于")} {formatDateTime(library.activeGroup.updatedAt)}</span>
                 </div>
                 <div className="real-person-profile-actions">
                   {activeH5Link && (
                     <Button icon={<ExternalLink size={16} />} onClick={() => window.open(activeH5Link, '_blank', 'noopener,noreferrer')}>
-                      打开 H5 认证
+                      {t("打开 H5 认证")}
                     </Button>
                   )}
                   <Button icon={<RefreshCw size={16} />} loading={isCheckingValidation} onClick={() => void handleCheckValidationResult()} type="primary">
-                    确认认证结果
+                    {t("确认认证结果")}
                   </Button>
                   <Button danger icon={<Trash2 size={16} />} loading={library.isDeletingGroup} onClick={() => void handleDeleteGroup()}>
-                    删除档案
+                    {t("删除档案")}
                   </Button>
                 </div>
               </div>
@@ -493,10 +494,10 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
 
             {activeValidationStatus !== 'verified' && (
               <Alert
-                message={activeValidationStatus === 'failed' ? '认证失败' : '等待真人认证'}
+                message={activeValidationStatus === 'failed' ? t("认证失败") : t("等待真人认证")}
                 description={activeValidationStatus === 'failed'
-                  ? stringMetadata(library.activeGroup.metadata, 'failureReason') || '请重新创建认证会话或检查回调结果。'
-                  : `请在 ${activeSession?.expiresInSeconds || numberMetadata(library.activeGroup.metadata, 'expiresInSeconds') || DEFAULT_VALIDATION_EXPIRES} 秒有效期内完成 H5 认证。`}
+                  ? stringMetadata(library.activeGroup.metadata, 'failureReason') || t("请重新创建认证会话或检查回调结果。")
+                  : t("请在 {{0}} 秒有效期内完成 H5 认证。", { "0": activeSession?.expiresInSeconds || numberMetadata(library.activeGroup.metadata, 'expiresInSeconds') || DEFAULT_VALIDATION_EXPIRES })}
                 showIcon
                 type={activeValidationStatus === 'failed' ? 'error' : 'warning'}
               />
@@ -505,29 +506,29 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
             <section className="real-person-summary-grid">
               <article>
                 <strong>{activeAssetStats.active}</strong>
-                <span>可用</span>
+                <span>{t("可用")}</span>
               </article>
               <article>
                 <strong>{activeAssetStats.processing}</strong>
-                <span>处理中</span>
+                <span>{t("处理中")}</span>
               </article>
               <article>
                 <strong>{activeAssetStats.failed}</strong>
-                <span>入库失败</span>
+                <span>{t("入库失败")}</span>
               </article>
               <article>
                 <strong>{stringMetadata(library.activeGroup.metadata, 'volcGroupId') || '-'}</strong>
-                <span>火山 Group ID</span>
+                <span>{t("火山 Group ID")}</span>
               </article>
             </section>
 
             <section className="real-person-upload-panel">
               <div className="real-person-upload-copy">
-                <strong>上传同人素材</strong>
+                <strong>{t("上传同人素材")}</strong>
                 <ul>
-                  <li>每个 Asset Group 唯一绑定一个真人。</li>
-                  <li>多人脸或非同一人素材会入库失败。</li>
-                  <li>建议提供全身正面图和人脸特写，提高素材可用率。</li>
+                  <li>{t("每个 Asset Group 唯一绑定一个真人。")}</li>
+                  <li>{t("多人脸或非同一人素材会入库失败。")}</li>
+                  <li>{t("建议提供全身正面图和人脸特写，提高素材可用率。")}</li>
                 </ul>
               </div>
               <div className="real-person-upload-actions">
@@ -542,11 +543,11 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
                   showUploadList={false}
                 >
                   <Button disabled={!isVerified} icon={<UploadCloud size={16} />} loading={isUploadingAsset} type="primary">
-                    上传素材
+                    {t("上传素材")}
                   </Button>
                 </Upload>
                 <Button disabled={!library.activeGroupAssets.length} icon={<RefreshCw size={16} />} loading={syncingAssetIds.size > 0} onClick={() => void handleSyncAllAssets()}>
-                  同步全部
+                  {t("同步全部")}
                 </Button>
               </div>
             </section>
@@ -576,12 +577,12 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
                         <strong>{asset.name}</strong>
                         <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
                       </div>
-                      <span>{assetUri || stringMetadata(asset.metadata, 'volcAssetId') || '等待生成 asset:// 引用'}</span>
+                      <span>{assetUri || stringMetadata(asset.metadata, 'volcAssetId') || t("等待生成 asset:// 引用")}</span>
                       {failureReason && <small>{failureReason}</small>}
                     </div>
                     <div className="real-person-asset-actions">
-                      <Button loading={syncingAssetIds.has(asset.id)} onClick={() => void handleSyncAsset(asset)} size="small">同步</Button>
-                      <Button danger onClick={() => void library.removeAsset(asset.id)} size="small">删除</Button>
+                      <Button loading={syncingAssetIds.has(asset.id)} onClick={() => void handleSyncAsset(asset)} size="small">{t("同步")}</Button>
+                      <Button danger onClick={() => void library.removeAsset(asset.id)} size="small">{t("删除")}</Button>
                     </div>
                   </article>
                 );
@@ -590,8 +591,8 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
               {!library.activeGroupAssets.length && (
                 <div className="real-person-empty-assets">
                   <UploadCloud size={30} />
-                  <strong>{isVerified ? '等待上传同人素材' : '认证成功后开放上传'}</strong>
-                  <span>素材入库完成并显示“可用”后，可在视频生成流程中引用。</span>
+                  <strong>{isVerified ? t("等待上传同人素材") : t("认证成功后开放上传")}</strong>
+                  <span>{t("素材入库完成并显示“可用”后，可在视频生成流程中引用。")}</span>
                 </div>
               )}
             </section>
@@ -600,7 +601,7 @@ export function RealPersonAssetsPage({ currentUser }: RealPersonAssetsPageProps)
       </Modal>
 
       <Image
-        alt={previewImage?.name || '素材预览'}
+        alt={previewImage?.name || t("素材预览")}
         preview={{
           visible: Boolean(previewImage),
           onVisibleChange: (visible) => {

@@ -22,6 +22,7 @@ import {
   saveModelConfig,
   videoProviderConfigRow,
 } from './modelSettingsHelpers';
+import { t } from '@shared/i18n';
 
 export function useModelSettingsData() {
   const [audioProviders, setAudioProviders] = useState<AudioModelProviderOption[]>([]);
@@ -84,7 +85,7 @@ export function useModelSettingsData() {
       }
       setLoadedTypes((current) => ({ ...current, [type]: true }));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '模型配置加载失败');
+      message.error(error instanceof Error ? error.message : t("模型配置加载失败"));
     } finally {
       setLoadingByType((current) => ({ ...current, [type]: false }));
     }
@@ -98,8 +99,8 @@ export function useModelSettingsData() {
   function openCreateModal(activeType: ModelType) {
     if (activeType === 'audio' || activeType === 'video') {
       message.info(activeType === 'audio'
-        ? '音频模型由服务端适配器提供，只能编辑 Key 和 Base URL'
-        : '视频模型由服务端适配器提供，只需配置 API Key');
+        ? t("音频模型由服务端适配器提供，只能编辑 Key 和 Base URL")
+        : t("视频模型由服务端适配器提供，只需配置 API Key"));
       return;
     }
     setEditingRecord(null);
@@ -130,22 +131,22 @@ export function useModelSettingsData() {
       if (activeType === 'audio' && !record.id) {
         const provider = audioProviders.find((item) => item.id === record.provider);
         if (!provider) {
-          throw new Error('音频服务商不存在');
+          throw new Error(t("音频服务商不存在"));
         }
         await saveModelConfig(audioProviderConfigRow(provider, record, { isDefault: true }));
       } else if (activeType === 'video' && !record.id) {
         const provider = videoProviders.find((item) => item.id === record.provider);
         if (!provider) {
-          throw new Error('视频服务商不存在');
+          throw new Error(t("视频服务商不存在"));
         }
         await saveModelConfig(videoProviderConfigRow(provider, record, { isDefault: true }));
       } else if (record.id) {
         await setDefaultModelConfig(record.id);
       }
-      message.success(`已将 ${record.name} 设为默认`);
+      message.success(t("已将 {{0}} 设为默认", { "0": record.name }));
       await loadConfigs(activeType);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '默认模型设置失败');
+      message.error(error instanceof Error ? error.message : t("默认模型设置失败"));
     }
   }
 
@@ -155,36 +156,36 @@ export function useModelSettingsData() {
     }
     try {
       await deleteModelConfig(record.id);
-      message.success('模型配置已删除');
+      message.success(t("模型配置已删除"));
       await loadConfigs(activeType);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '模型配置删除失败');
+      message.error(error instanceof Error ? error.message : t("模型配置删除失败"));
     }
   }
 
   async function handleDeleteLlmPricing(record: LlmModelPricing) {
     try {
       await deleteLlmModelPricing(record.id);
-      message.success('LLM 官方价格目录已删除');
+      message.success(t("LLM 官方价格目录已删除"));
       await loadLlmModelPricing();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'LLM 官方价格目录删除失败');
+      message.error(error instanceof Error ? error.message : t("LLM 官方价格目录删除失败"));
     }
   }
 
   async function handleVideoModelChange(record: ModelConfig, model: string) {
     const provider = videoProviders.find((item) => item.id === record.provider);
     if (!provider) {
-      message.error('视频服务商不存在');
+      message.error(t("视频服务商不存在"));
       return;
     }
     setSavingProviderId(provider.id);
     try {
       await saveModelConfig(videoProviderConfigRow(provider, record, { model }));
-      message.success('视频模型已更新');
+      message.success(t("视频模型已更新"));
       await loadConfigs('video');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频模型更新失败');
+      message.error(error instanceof Error ? error.message : t("视频模型更新失败"));
     } finally {
       setSavingProviderId('');
     }
@@ -205,10 +206,10 @@ export function useModelSettingsData() {
     try {
       const savedRows = await reorderModelConfigs('image', nextRows.flatMap((item) => item.id ? [item.id] : []));
       setConfigsByType((current) => ({ ...current, image: savedRows }));
-      message.success('图片模型顺序已保存');
+      message.success(t("图片模型顺序已保存"));
     } catch (error) {
       setConfigsByType((current) => ({ ...current, image: rows }));
-      message.error(error instanceof Error ? error.message : '图片模型排序保存失败');
+      message.error(error instanceof Error ? error.message : t("图片模型排序保存失败"));
     } finally {
       setSortingImageModels(false);
     }

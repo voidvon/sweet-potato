@@ -17,6 +17,7 @@ import {
   viewDiscoverItem,
 } from '../../api/discover'
 import './DiscoverPage.scss'
+import { t } from '@shared/i18n';
 
 const DISCOVER_PAGE_SIZE = 20
 const DISCOVER_RATIO_CACHE_KEY = 'discover-media-ratios'
@@ -164,7 +165,7 @@ export function DiscoverPage() {
     setPreviewImageOpen(item.mediaType === 'image')
     void viewDiscoverItem(item.id)
       .then((counts) => updateItemCounts(item.id, counts))
-      .catch(() => message.error('浏览量更新失败'))
+      .catch(() => message.error(t("浏览量更新失败")))
   }, [updateItemCounts])
 
   const likeItem = useCallback((item: DiscoverItem) => {
@@ -190,7 +191,7 @@ export function DiscoverPage() {
         setItems((current) => current.map((currentItem) => currentItem.id === item.id
           ? { ...currentItem, likeCount: Math.max(0, currentItem.likeCount - 1) }
           : currentItem))
-        message.error('点赞失败，请稍后重试')
+        message.error(t("点赞失败，请稍后重试"))
       })
   }, [updateItemCounts])
 
@@ -270,9 +271,9 @@ export function DiscoverPage() {
             activeKey={mediaType}
             className="discover-media-tabs"
             items={[
-              { key: 'all', label: '全部' },
-              { key: 'image', label: '图片' },
-              { key: 'video', label: '视频' },
+              { key: 'all', label: t("全部") },
+              { key: 'image', label: t("图片") },
+              { key: 'video', label: t("视频") },
             ]}
             onChange={(key) => setMediaType(key as typeof mediaType)}
           />
@@ -282,7 +283,7 @@ export function DiscoverPage() {
           activeKey={categoryId || 'all'}
           className="discover-category-tabs"
           items={[
-            { key: 'all', label: '全部' },
+            { key: 'all', label: t("全部") },
             ...categories.map((category) => ({ key: category.id, label: category.name })),
           ]}
           onChange={(key) => setCategoryId(key === 'all' ? '' : key)}
@@ -292,16 +293,16 @@ export function DiscoverPage() {
         {loading ? (
           <div className="discover-state"><Spin /></div>
         ) : loadFailed ? (
-          <div className="discover-empty">发现内容加载失败</div>
+          <div className="discover-empty">{t("发现内容加载失败")}</div>
         ) : items.length > 0 ? (
           <InfiniteScroll
             dataLength={items.length}
-            endText="已加载全部作品"
+            endText={t("已加载全部作品")}
             hasMore={items.length < total}
             loading={loadingMore}
             onLoadMore={loadMore}
           >
-            <section aria-label="生成作品" className="discover-grid">
+            <section aria-label={t("生成作品")} className="discover-grid">
               {discoverColumns.map((column, columnIndex) => (
                 <div className="discover-grid-column" key={columnIndex}>
                 {column.map((item) => {
@@ -327,7 +328,7 @@ export function DiscoverPage() {
                     <div className={`discover-card-media${loadedMediaIds.has(item.id) ? ' is-loaded' : ''}${playingVideoIds.has(item.id) ? ' is-video-playing' : ''}`} style={{ aspectRatio: cssAspectRatio(ratio) }}>
                       {item.mediaType === 'video' ? (
                         <video
-                          aria-label={item.title || '生成视频'}
+                          aria-label={item.title || t("生成视频")}
                           loop
                           muted
                           onError={() => markMediaLoaded(item.id)}
@@ -351,7 +352,7 @@ export function DiscoverPage() {
                         />
                       ) : (
                         <img
-                          alt={item.title || '生成图片'}
+                          alt={item.title || t("生成图片")}
                           loading="lazy"
                           onError={() => markMediaLoaded(item.id)}
                           onLoad={(event) => {
@@ -368,7 +369,7 @@ export function DiscoverPage() {
                       <div className="discover-card-meta">
                         <span><FireFilled /> {item.viewCount}</span>
                         <button
-                          aria-label={likedItemIds.has(item.id) ? '已点赞' : '点赞'}
+                          aria-label={likedItemIds.has(item.id) ? t("已点赞") : t("点赞")}
                           aria-pressed={likedItemIds.has(item.id)}
                           className={`discover-like${likedItemIds.has(item.id) ? ' is-liked' : ''}`}
                           onClick={(event) => {
@@ -391,7 +392,7 @@ export function DiscoverPage() {
             </section>
           </InfiniteScroll>
         ) : (
-          <div className="discover-state"><Empty description="没有找到匹配的作品" image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>
+          <div className="discover-state"><Empty description={t("没有找到匹配的作品")} image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>
         )}
       </div>
 
@@ -403,7 +404,7 @@ export function DiscoverPage() {
             completedAt: previewItem.sourceCompletedAt || previewItem.publishedAt || undefined,
             createdAt: previewItem.sourceCreatedAt || undefined,
             duration: previewItem.duration,
-            name: previewItem.title || previewItem.originalFileName || '生成视频',
+            name: previewItem.title || previewItem.originalFileName || t("生成视频"),
             posterUrl: previewItem.coverUrl ? resolveAssetUrl(previewItem.coverUrl) : undefined,
             referenceAssets: previewItem.referenceAssets,
             videoUrl: resolveAssetUrl(previewItem.fileUrl),
@@ -412,7 +413,7 @@ export function DiscoverPage() {
       ) : null}
 
       <AppImage
-        alt={previewItem?.title || previewItem?.originalFileName || '图片预览'}
+        alt={previewItem?.title || previewItem?.originalFileName || t("图片预览")}
         preview={{
           open: previewImageOpen,
           onOpenChange: setPreviewImageOpen,

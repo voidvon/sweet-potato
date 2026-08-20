@@ -13,6 +13,7 @@ import './PromptPlanningStepSettings.scss';
 import './PromptPlanningChoiceAndBreakdownFields.scss';
 import './PromptPlanningSharedFields.scss';
 import './PromptPlanningSettingsControls.scss';
+import { t } from '@shared/i18n';
 
 type PromptPlanningStepSettingsProps = {
   controller: PromptPlanningController;
@@ -24,7 +25,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
   return (
     <>
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="业务场景" subtitle="选填 · 影响话术与结尾引导" />
+        <FieldHeading title={t("业务场景")} subtitle={t("选填 · 影响话术与结尾引导")} />
         <div className="video-task-epa-pill-line">
           {sceneOptions.map((option) => {
             const active = option.value === settingsDraft.businessScene;
@@ -49,16 +50,16 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
 
       {usesReferencePreset ? (
         <section className="video-task-epa-settings-section">
-          <FieldHeading title="内容类型 · 拍摄方式" subtitle="" />
+          <FieldHeading title={t("内容类型 · 拍摄方式")} subtitle="" />
           <div className="video-task-epa-locked-note">
             <Check aria-hidden="true" size={15} />
-            <span>已由参考视频决定，脚本将参考其结构与镜头，无需手动选择</span>
+            <span>{t("已由参考视频决定，脚本将参考其结构与镜头，无需手动选择")}</span>
           </div>
         </section>
       ) : (
         <div className="video-task-epa-manual-preset-stack">
           <section className="video-task-epa-settings-section">
-            <FieldHeading title="内容类型" subtitle="必选" />
+            <FieldHeading title={t("内容类型")} subtitle={t("必选")} />
             <div className="video-task-epa-pill-line is-wrap">
               {contentTypeOptions.map((option) => {
                 const active = settingsDraft.contentType === option;
@@ -78,7 +79,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
             </div>
           </section>
           <section className="video-task-epa-settings-section">
-            <FieldHeading title="拍摄方式" subtitle="必选 · 口播会自动配合词对口型" />
+            <FieldHeading title={t("拍摄方式")} subtitle={t("必选 · 口播会自动配合词对口型")} />
             <div className="video-task-epa-pill-line is-wrap">
               {shootingMethodOptions.map((option) => {
                 const active = settingsDraft.shootingMethod === option;
@@ -101,7 +102,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
       )}
 
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="口播语言" subtitle="选填 · 只切台词/口播语言，分镜与画面描述仍中文" />
+        <FieldHeading title={t("口播语言")} subtitle={t("选填 · 只切台词/口播语言，分镜与画面描述仍中文")} />
         <div className="video-task-epa-pill-line">
           {languageOptions.map((option) => (
             <button
@@ -120,27 +121,27 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
 
       <SwitchRow
         checked={settingsDraft.displayOnly}
-        description="勾选后生成的脚本不带口播台词，仅作视觉展示（自动写入补充说明）"
-        label="仅展示"
+        description={t("勾选后生成的脚本不带口播台词，仅作视觉展示（自动写入补充说明）")}
+        label={t("仅展示")}
         onChange={(checked) => setSettingsDraft((current) => ({ ...current, displayOnly: checked }))}
       />
 
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="补充说明" subtitle="可选 · 想强调的开头、卖点、节奏都可以写" />
+        <FieldHeading title={t("补充说明")} subtitle={t("可选 · 想强调的开头、卖点、节奏都可以写")} />
         <textarea
           className="video-task-epa-large-textarea"
           onChange={(event) => {
             const extraInstruction = event.currentTarget.value;
             setSettingsDraft((current) => ({ ...current, extraInstruction }));
           }}
-          placeholder="例如：前 2 秒要有钩子；多给面料和细节特写；结尾自然引导下单。"
+          placeholder={t("例如：前 2 秒要有钩子；多给面料和细节特写；结尾自然引导下单。")}
           rows={3}
           value={settingsDraft.extraInstruction}
         />
       </section>
 
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="视频时长" subtitle="必选 · 决定镜头分几段" />
+        <FieldHeading title={t("视频时长")} subtitle={t("必选 · 决定镜头分几段")} />
         <div className="video-task-epa-pill-line">
           {durationOptions.map((option) => (
             <button
@@ -150,7 +151,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
               onClick={() => setSettingsDraft((current) => ({ ...current, durationSeconds: option }))}
               type="button"
             >
-              {option} 秒
+              {option} {t("秒")}
               {option === settingsDraft.durationSeconds ? <Check aria-hidden="true" size={13} /> : null}
             </button>
           ))}
@@ -158,7 +159,7 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
       </section>
 
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="视频风格" subtitle="必选" />
+        <FieldHeading title={t("视频风格")} subtitle={t("必选")} />
         <div className="video-task-epa-pill-line is-wrap">
           {stylePresets.map((style) => {
             const active = settingsDraft.styleKeywords.includes(style);
@@ -182,19 +183,19 @@ export function PromptPlanningStepSettings({ controller }: PromptPlanningStepSet
       </section>
 
       <section className="video-task-epa-settings-section">
-        <FieldHeading title="生成设置" subtitle="选填" />
+        <FieldHeading title={t("生成设置")} subtitle={t("选填")} />
         <div className="video-task-epa-setting-stack">
           <SwitchRow
             checked={settingsDraft.deepThink}
-            description="更懂图、效果更好、生成较慢（约 1-2 分钟）"
+            description={t("更懂图、效果更好、生成较慢（约 1-2 分钟）")}
             emphasis={settingsDraft.deepThink}
-            label="深度思考"
+            label={t("深度思考")}
             onChange={(checked) => setSettingsDraft((current) => ({ ...current, deepThink: checked }))}
           />
           <SwitchRow
             checked={settingsDraft.webSearch}
-            description="结合实时信息辅助改写，按需开启"
-            label="联网搜索"
+            description={t("结合实时信息辅助改写，按需开启")}
+            label={t("联网搜索")}
             onChange={(checked) => setSettingsDraft((current) => ({ ...current, webSearch: checked }))}
           />
         </div>

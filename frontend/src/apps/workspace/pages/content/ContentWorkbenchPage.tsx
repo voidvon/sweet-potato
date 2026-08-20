@@ -8,6 +8,7 @@ import { API_BASE_URL } from '../../api/request';
 import { getContentNavigationRoutes } from '../../routes/routeConfig';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User, VideoGenerationTask } from '../../types';
 import './ContentWorkbenchPage.scss';
+import { t } from '@shared/i18n';
 
 type ContentWorkbenchPageProps = {
   currentUser: User;
@@ -31,43 +32,43 @@ const moduleMeta: Record<string, {
   virtual_portrait_assets: {
     accent: 'var(--color-purple)',
     icon: ContactRound,
-    summary: '管理虚拟人像成品、三视图训练和私域入库状态',
+    summary: t("管理虚拟人像成品、三视图训练和私域入库状态"),
     resourceType: 'virtual_portrait',
   },
   ai_voice: {
     accent: 'var(--color-success-bright)',
     icon: Mic2,
-    summary: '管理音色、试听音频、语速和情绪标签',
+    summary: t("管理音色、试听音频、语速和情绪标签"),
     resourceType: 'voice',
   },
   real_person_assets: {
     accent: 'var(--color-teal)',
     icon: ContactRound,
-    summary: '管理真人认证、同人素材和入库状态',
+    summary: t("管理真人认证、同人素材和入库状态"),
     resourceType: 'real_person',
   },
   scene_library: {
     accent: 'var(--color-warning)',
     icon: Video,
-    summary: '管理背景、空间、产品展示和短视频场景',
+    summary: t("管理背景、空间、产品展示和短视频场景"),
     resourceType: 'scene',
   },
   product_assets: {
     accent: 'var(--color-purple)',
     icon: Sparkles,
-    summary: '管理产品图片、卖点说明和商品展示素材',
+    summary: t("管理产品图片、卖点说明和商品展示素材"),
     resourceType: 'product',
   },
   finished_assets: {
     accent: 'var(--color-cyan)',
     icon: PlayCircle,
-    summary: '管理图片创作和视频生成产出的作品',
+    summary: t("管理图片创作和视频生成产出的作品"),
     resourceType: 'finished_video',
   },
   create_video: {
     accent: 'var(--color-brand-active)',
     icon: Video,
-    summary: '选择参数、参考素材和提示词制作视频',
+    summary: t("选择参数、参考素材和提示词制作视频"),
   },
 };
 
@@ -99,7 +100,7 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
       setError('');
     } catch (requestError) {
       if (requestId !== loadRequestIdRef.current) return;
-      setError(requestError instanceof Error ? requestError.message : '内容创作工作台加载失败');
+      setError(requestError instanceof Error ? requestError.message : t("内容创作工作台加载失败"));
     } finally {
       if (requestId === loadRequestIdRef.current) setIsLoading(false);
     }
@@ -141,12 +142,12 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
       <section className="content-workbench-hero">
         <div>
           <p className="eyebrow">AI CONTENT ASSETS</p>
-          <h1>内容创作素材库</h1>
-          <p>统一管理数字人、AI语音、场景素材，并通过视频 URL 解析生成可编辑的视频创作草稿。</p>
+          <h1>{t("内容创作素材库")}</h1>
+          <p>{t("统一管理数字人、AI语音、场景素材，并通过视频 URL 解析生成可编辑的视频创作草稿。")}</p>
         </div>
         <div className="workbench-hero-actions">
           <Button icon={<RefreshCw size={16} />} loading={isLoading} onClick={() => window.location.reload()}>
-            刷新
+            {t("刷新")}
           </Button>
         </div>
       </section>
@@ -154,30 +155,30 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
       <section className="workbench-stat-grid">
         <article className="workbench-stat-card">
           <strong>{stats.groups}</strong>
-          <p>全局分组</p>
-          <small>素材按组管理</small>
+          <p>{t("全局分组")}</p>
+          <small>{t("素材按组管理")}</small>
         </article>
         <article className="workbench-stat-card">
           <strong>{stats.assets}</strong>
-          <p>素材总数</p>
-          <small>真实文件已保存</small>
+          <p>{t("素材总数")}</p>
+          <small>{t("真实文件已保存")}</small>
         </article>
         <article className="workbench-stat-card">
           <strong>{stats.virtualPortraits + stats.realPersons + stats.voices + stats.scenes + stats.products}</strong>
-          <p>可用创作素材</p>
-          <small>虚拟人像 / 真人 / 语音 / 场景 / 产品</small>
+          <p>{t("可用创作素材")}</p>
+          <small>{t("虚拟人像 / 真人 / 语音 / 场景 / 产品")}</small>
         </article>
         <article className="workbench-stat-card">
           <strong>{stats.videos}</strong>
-          <p>视频草稿</p>
-          <small>URL 解析与生成记录</small>
+          <p>{t("视频草稿")}</p>
+          <small>{t("URL 解析与生成记录")}</small>
         </article>
       </section>
 
       <section className="workbench-section-heading">
         <div>
-          <p className="eyebrow">快速入口</p>
-          <h2>选择内容模块</h2>
+          <p className="eyebrow">{t("快速入口")}</p>
+          <h2>{t("选择内容模块")}</h2>
         </div>
       </section>
 
@@ -206,7 +207,7 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
                 <small>{meta.summary}</small>
               </span>
               <span className="workbench-module-metrics">
-                <Tag color="processing">{count} 项</Tag>
+                <Tag color="processing">{count} {t("项")}</Tag>
               </span>
             </button>
           );

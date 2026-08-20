@@ -10,6 +10,8 @@
     "build": "vite build --config vite.config.js .",
     "build:web": "npm run build",
     "build-web": "npm run build",
+    "i18n:audit": "node ./scripts/audit-i18n.cjs",
+    "i18n:extract": "node ./scripts/extract-i18n.cjs",
     "typecheck:web": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [

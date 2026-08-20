@@ -3,6 +3,7 @@ import { ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { routePaths } from '../routes/paths';
 import './NoPermissionPage.scss';
+import { t } from '@shared/i18n';
 
 type NoPermissionPageProps = {
   canAccessAccount: boolean;
@@ -16,13 +17,13 @@ export function NoPermissionPage({ canAccessAccount }: NoPermissionPageProps) {
       <Result
         extra={canAccessAccount ? (
           <Button onClick={() => navigate(routePaths.account)} type="primary">
-            前往账号中心
+            {t("前往账号中心")}
           </Button>
         ) : null}
         icon={<ShieldAlert size={32} />}
         status="403"
-        subTitle="当前账号已登录，但未被授予可访问的 Web 功能模块。请联系管理员分配角色权限。"
-        title="暂无可用功能权限"
+        subTitle={t("当前账号已登录，但未被授予可访问的 Web 功能模块。请联系管理员分配角色权限。")}
+        title={t("暂无可用功能权限")}
       />
     </main>
   );

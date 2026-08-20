@@ -22,6 +22,7 @@ import { formatDateTime } from './user-management/userManagementFormatters';
 import { UserPasswordModal } from './user-management/UserPasswordModal';
 import { UserRoleModal } from './user-management/UserRoleModal';
 import './UserManagementPage.scss';
+import { t } from '@shared/i18n';
 
 type CreditAction = {
   type: 'recharge' | 'deduct';
@@ -101,7 +102,7 @@ export function UserManagementPage() {
       })));
       return nextUsers;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '用户列表加载失败');
+      message.error(error instanceof Error ? error.message : t("用户列表加载失败"));
     } finally {
       setLoading(false);
     }
@@ -131,7 +132,7 @@ export function UserManagementPage() {
 
     const amount = Number(amountInput);
     if (!Number.isFinite(amount) || amount === 0) {
-      message.warning(`请输入大于 0 的${creditAction.type === 'recharge' ? '充值' : '扣除'}积分`);
+      message.warning(t("请输入大于 0 的{{0}}积分", { "0": creditAction.type === 'recharge' ? t("充值") : t("扣除") }));
       return;
     }
 
@@ -140,7 +141,7 @@ export function UserManagementPage() {
     setUpdatingUserId(creditAction.user.id);
     try {
       await adjustUserCredits(creditAction.user.id, delta);
-      message.success(creditAction.type === 'recharge' ? '积分充值成功' : '积分扣除成功');
+      message.success(creditAction.type === 'recharge' ? t("积分充值成功") : t("积分扣除成功"));
       setCreditAction(null);
       setAmountInput('');
       const nextUsers = await loadUsers();
@@ -151,7 +152,7 @@ export function UserManagementPage() {
         );
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '积分调整失败');
+      message.error(error instanceof Error ? error.message : t("积分调整失败"));
     } finally {
       setUpdatingUserId(null);
     }
@@ -171,7 +172,7 @@ export function UserManagementPage() {
       ]);
       setDetailState({ user, ledger, usage, billableUsage });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '积分明细加载失败');
+      message.error(error instanceof Error ? error.message : t("积分明细加载失败"));
     } finally {
       setDetailLoadingUserId(null);
     }
@@ -185,14 +186,14 @@ export function UserManagementPage() {
     setAssigningRoleUserId(user.id);
     try {
       await assignUserRoles(user.id, roleIds);
-      message.success(roleIds.length ? '角色分配已更新' : '角色分配已清空');
+      message.success(roleIds.length ? t("角色分配已更新") : t("角色分配已清空"));
       setRoleEditState(null);
       const nextUsers = await loadUsers();
       if (detailState?.user.id === user.id) {
         await openDetail(user.id, nextUsers?.find((item) => item.id === user.id));
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '角色分配保存失败');
+      message.error(error instanceof Error ? error.message : t("角色分配保存失败"));
     } finally {
       setAssigningRoleUserId(null);
     }
@@ -204,16 +205,16 @@ export function UserManagementPage() {
     }
     const nextPassword = passwordEditState.password.trim();
     if (nextPassword.length < 6) {
-      message.warning('新密码至少 6 位');
+      message.warning(t("新密码至少 6 位"));
       return;
     }
     setUpdatingUserId(passwordEditState.user.id);
     try {
       await updateManagedUserPassword(passwordEditState.user.id, nextPassword);
-      message.success('账号密码已修改');
+      message.success(t("账号密码已修改"));
       setPasswordEditState(null);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '密码修改失败');
+      message.error(error instanceof Error ? error.message : t("密码修改失败"));
     } finally {
       setUpdatingUserId(null);
     }
@@ -221,33 +222,33 @@ export function UserManagementPage() {
 
   const columns: TableProps<ManagedUser>['columns'] = [
     {
-      title: '用户名称',
+      title: t("用户名称"),
       dataIndex: 'displayName',
       width: 220,
       render: (value: string, record) => (
         <Space orientation="vertical" size={0}>
           <strong>{value}</strong>
           <span style={{ color: 'var(--text-secondary, #6b7280)', fontSize: 12 }}>
-            {record.role === 'admin' ? '管理员' : '普通用户'}
+            {record.role === 'admin' ? t("管理员") : t("普通用户")}
           </span>
         </Space>
       ),
     },
     {
-      title: '用户账号',
+      title: t("用户账号"),
       dataIndex: 'username',
       width: 220,
     },
     {
-      title: '已分配角色',
+      title: t("已分配角色"),
       width: 260,
       render: (_value, record) => {
         if (record.role === 'admin') {
           return (
             <Space direction="vertical" size={0}>
-              <Tag color="gold">管理员全量权限</Tag>
+              <Tag color="gold">{t("管理员全量权限")}</Tag>
               <span style={{ color: 'var(--text-secondary, #6b7280)', fontSize: 12 }}>
-                管理员不受可分配角色限制
+                {t("管理员不受可分配角色限制")}
               </span>
             </Space>
           );
@@ -255,7 +256,7 @@ export function UserManagementPage() {
 
         const assignedRoles = record.assignedRoles || [];
         if (assignedRoles.length === 0) {
-          return <Tag>未分配</Tag>;
+          return <Tag>{t("未分配")}</Tag>;
         }
         return (
           <Space size={[6, 6]} wrap>
@@ -269,7 +270,7 @@ export function UserManagementPage() {
       },
     },
     {
-      title: '积分余额',
+      title: t("积分余额"),
       dataIndex: 'creditBalance',
       width: 160,
       sorter: true,
@@ -277,7 +278,7 @@ export function UserManagementPage() {
       render: (value: number) => <strong>{formatIntegerCreditAmount(value)} Credit</strong>,
     },
     {
-      title: '累积充值',
+      title: t("累积充值"),
       dataIndex: 'totalRechargeCredits',
       width: 160,
       sorter: true,
@@ -285,7 +286,7 @@ export function UserManagementPage() {
       render: (value: number) => `${formatIntegerCreditAmount(value)} Credit`,
     },
     {
-      title: '累积消耗',
+      title: t("累积消耗"),
       dataIndex: 'totalUsageCredits',
       width: 160,
       sorter: true,
@@ -293,19 +294,19 @@ export function UserManagementPage() {
       render: (value: number) => `${formatIntegerCreditAmount(value)} Credit`,
     },
     {
-      title: '注册时间',
+      title: t("注册时间"),
       dataIndex: 'createdAt',
       width: 220,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '上次登录时间',
+      title: t("上次登录时间"),
       dataIndex: 'lastLoginAt',
       width: 220,
       render: (value?: string) => formatDateTime(value),
     },
     {
-      title: '操作',
+      title: t("操作"),
       key: 'actions',
       fixed: 'right',
       width: 120,
@@ -318,7 +319,7 @@ export function UserManagementPage() {
               items: [
                 {
                   key: 'roles',
-                  label: '编辑角色',
+                  label: t("编辑角色"),
                   disabled: record.role === 'admin',
                   onClick: () => setRoleEditState({
                     user: record,
@@ -327,12 +328,12 @@ export function UserManagementPage() {
                 },
                 record.role === 'admin' ? null : {
                   key: 'password',
-                  label: '修改账号密码',
+                  label: t("修改账号密码"),
                   onClick: () => setPasswordEditState({ user: record, password: '' }),
                 },
                 {
                   key: 'recharge',
-                  label: '积分充值',
+                  label: t("积分充值"),
                   disabled: actionDisabled,
                   onClick: () => {
                     setCreditAction({ type: 'recharge', user: record });
@@ -341,7 +342,7 @@ export function UserManagementPage() {
                 },
                 {
                   key: 'deduct',
-                  label: '积分扣除',
+                  label: t("积分扣除"),
                   danger: true,
                   disabled: actionDisabled,
                   onClick: () => {
@@ -351,7 +352,7 @@ export function UserManagementPage() {
                 },
                 {
                   key: 'detail',
-                  label: '账单明细',
+                  label: t("账单明细"),
                   disabled: detailLoadingUserId === record.id,
                   onClick: () => void openDetail(record.id),
                 },
@@ -359,7 +360,7 @@ export function UserManagementPage() {
             }}
           >
             <Button>
-              操作 <DownOutlined />
+              {t("操作")} <DownOutlined />
             </Button>
           </Dropdown>
         );
@@ -372,7 +373,7 @@ export function UserManagementPage() {
       <section className="settings-page user-management-page">
         <section className="settings-header">
           <p>
-            管理员可以查看用户名称、用户账号、角色分配、积分余额，并查看充值记录、积分流水、LLM 用量和业务消费明细。
+            {t("管理员可以查看用户名称、用户账号、角色分配、积分余额，并查看充值记录、积分流水、LLM 用量和业务消费明细。")}
           </p>
         </section>
 
@@ -384,17 +385,17 @@ export function UserManagementPage() {
                 className="user-management-account-filter"
                 onChange={(event) => setAccountInput(event.target.value)}
                 onPressEnter={applyAccountFilter}
-                placeholder="搜索用户账号"
+                placeholder={t("搜索用户账号")}
                 value={accountInput}
               />
               <Button icon={<SearchOutlined />} onClick={applyAccountFilter} loading={loading}>
-                查询
+                {t("查询")}
               </Button>
               <Button disabled={!accountInput && !accountFilter} onClick={resetAccountFilter}>
-                重置
+                {t("重置")}
               </Button>
               <Button icon={<ReloadOutlined />} onClick={() => void loadUsers()} loading={loading}>
-                刷新
+                {t("刷新")}
               </Button>
             </Space>
           </div>
@@ -425,7 +426,7 @@ export function UserManagementPage() {
               pagination={{
                 pageSize: 20,
                 showSizeChanger: false,
-                showTotal: (total) => `共 ${total} 位用户`,
+                showTotal: (total) => t("共 {{0}} 位用户", { "0": total }),
               }}
             />
           </div>

@@ -3,6 +3,7 @@ import type {
   AdminCreditLedgerEntry,
   AdminLlmUsageRecord,
 } from '../../../types';
+import { t } from '@shared/i18n';
 
 export function formatCredits(credits: number) {
   return `${credits.toFixed(2)} Credit`;
@@ -10,7 +11,7 @@ export function formatCredits(credits: number) {
 
 export function formatDateTime(value?: string | null) {
   if (!value) {
-    return '未登录';
+    return t("未登录");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -37,21 +38,21 @@ export function sanitizeCreditAmountInput(value: string) {
 
 export function ledgerTypeLabel(entry: AdminCreditLedgerEntry) {
   if (entry.type === 'admin_adjust' && entry.creditDelta > 0) {
-    return { color: 'green', text: '充值' };
+    return { color: 'green', text: t("充值") };
   }
   if (entry.type === 'admin_adjust' && entry.creditDelta < 0) {
-    return { color: 'red', text: '人工扣减' };
+    return { color: 'red', text: t("人工扣减") };
   }
   if (entry.type === 'reserve_debit') {
-    return { color: 'gold', text: '预扣' };
+    return { color: 'gold', text: t("预扣") };
   }
   if (entry.type === 'reserve_refund') {
-    return { color: 'blue', text: '退回' };
+    return { color: 'blue', text: t("退回") };
   }
   if (entry.type === 'usage_debit') {
-    return { color: 'purple', text: '业务扣费' };
+    return { color: 'purple', text: t("业务扣费") };
   }
-  return { color: 'volcano', text: '补扣' };
+  return { color: 'volcano', text: t("补扣") };
 }
 
 export function usageModelName(record: AdminLlmUsageRecord) {
@@ -61,21 +62,21 @@ export function usageModelName(record: AdminLlmUsageRecord) {
 export function billableCategoryLabel(category: AdminBillableUsageRecord['category']) {
   switch (category) {
     case 'content_planning_analysis':
-      return { color: 'lime', text: '策划识别' };
+      return { color: 'lime', text: t("策划识别") };
     case 'content_planning_generation':
-      return { color: 'green', text: '策划生成' };
+      return { color: 'green', text: t("策划生成") };
     case 'image_generation':
-      return { color: 'cyan', text: '图片生成' };
+      return { color: 'cyan', text: t("图片生成") };
     case 'video_generation':
-      return { color: 'geekblue', text: '视频生成' };
+      return { color: 'geekblue', text: t("视频生成") };
     case 'video_upscale':
-      return { color: 'blue', text: '视频高清放大' };
+      return { color: 'blue', text: t("视频高清放大") };
     case 'voice_clone':
-      return { color: 'orange', text: '声音克隆' };
+      return { color: 'orange', text: t("声音克隆") };
     case 'speech_synthesis':
-      return { color: 'gold', text: '语音合成' };
+      return { color: 'gold', text: t("语音合成") };
     case 'vod_upload':
-      return { color: 'blue', text: '视频上传' };
+      return { color: 'blue', text: t("视频上传") };
     default:
       return { color: 'default', text: category };
   }
@@ -94,17 +95,17 @@ export function billableUsageName(record: AdminBillableUsageRecord) {
 export function pricingModeLabel(mode: AdminBillableUsageRecord['pricingMode']) {
   switch (mode) {
     case 'per_request':
-      return '按次';
+      return t("按次");
     case 'per_second':
-      return '按秒';
+      return t("按秒");
     case 'per_minute':
-      return '按分钟';
+      return t("按分钟");
     case 'per_1k_chars':
-      return '按千字';
+      return t("按千字");
     case 'per_mb':
-      return '按 MB';
+      return t("按 MB");
     case 'per_1m_tokens':
-      return '按百万 token';
+      return t("按百万 token");
     default:
       return mode;
   }

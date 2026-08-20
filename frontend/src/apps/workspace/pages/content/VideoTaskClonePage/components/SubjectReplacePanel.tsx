@@ -8,6 +8,7 @@ import { MaterialSlot } from './MaterialSlot';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import './SubjectReplacePanel.scss';
+import { t } from '@shared/i18n';
 
 type SubjectReplacePanelProps = {
   state: VideoTaskCloneState;
@@ -24,7 +25,7 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
   const selectedType = subjectTypes.find((item) => item.key === subjectType) ?? subjectTypes[0];
   const subjectTool = useMemo(() => ({
     ...state.tool,
-    materialHint: subjectType === 'model' ? '上传人物全身图' : `上传清晰的${selectedType.label}图片`,
+    materialHint: subjectType === 'model' ? t("上传人物全身图") : t("上传清晰的{{0}}图片", { "0": selectedType.label }),
     materials: state.tool.materials.map((item) => item.key === 'image' ? {
       ...item,
       label: selectedType.uploadLabel,
@@ -48,7 +49,7 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
   const clothingSlots = subjectType === 'clothing' ? (
     <>
       <MaterialSlot
-        item={{ ...imageMaterial, hint: '限 1 张', label: '正面图', maxCount: 1, meta: '可选' }}
+        item={{ ...imageMaterial, hint: t("限 1 张"), label: t("正面图"), maxCount: 1, meta: t("可选") }}
         onClear={state.clearMaterial}
         onLocalFiles={(_, files) => state.fillMaterialFiles(imageMaterial, files)}
         onOpen={() => undefined}
@@ -65,7 +66,7 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
       />
       <MaterialSlot
         disabled={!hasFrontImage}
-        item={{ ...imageMaterial, hint: hasFrontImage ? '限 1 张' : '请先上传正面图', label: '反面图', maxCount: 1, meta: '可选' }}
+        item={{ ...imageMaterial, hint: hasFrontImage ? t("限 1 张") : t("请先上传正面图"), label: t("反面图"), maxCount: 1, meta: t("可选") }}
         onClear={state.clearMaterial}
         onLocalFiles={(_, files) => state.fillMaterialFiles(imageMaterial, files)}
         onOpen={() => undefined}
@@ -108,10 +109,10 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
         topSlot={(
           <div className="subject-replace-type-slot">
             <span className="subject-replace-title">
-              <strong>图片类型</strong>
-              <small>已选择：{selectedType.label}</small>
+              <strong>{t("图片类型")}</strong>
+              <small>{t("已选择：")}{selectedType.label}</small>
             </span>
-            <div className="subject-replace-type-grid" role="radiogroup" aria-label="图片类型">
+            <div className="subject-replace-type-grid" role="radiogroup" aria-label={t("图片类型")}>
               {subjectTypes.map((item) => (
                 <button
                   aria-checked={subjectType === item.key}
@@ -146,9 +147,9 @@ export function SubjectReplacePanel({ state }: SubjectReplacePanelProps) {
         selected={state.selectedMaterials.video}
       />
 
-      <WorkspaceSection className="subject-replace-audio-section" showHeader={false} title="参考视频声音">
+      <WorkspaceSection className="subject-replace-audio-section" showHeader={false} title={t("参考视频声音")}>
         <Checkbox checked={state.voiceEnabled} onChange={(event) => state.setVoiceEnabled(event.target.checked)}>
-          保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。
+          {t("保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。")}
         </Checkbox>
       </WorkspaceSection>
     </>

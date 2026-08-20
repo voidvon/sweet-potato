@@ -14,6 +14,7 @@ import type { ConfirmedReferenceVideo } from './ReferenceVideoCard';
 import { ReferenceVideoPreviewModal } from './ReferenceVideoPreviewModal';
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 import './ResultVideoPreviewModal.scss';
+import { t } from '@shared/i18n';
 
 export type ResultVideoPreview = {
   completedAt?: string;
@@ -121,7 +122,7 @@ export function ResultVideoPreviewModal({
       duration,
       end: duration,
       fileUrl: videoUrl,
-      name: asset.name || asset.originalFileName || '参考视频',
+      name: asset.name || asset.originalFileName || t("参考视频"),
       start: 0,
       storedFileName: '',
       videoUrl,
@@ -156,7 +157,7 @@ export function ResultVideoPreviewModal({
       .then(() => setPlayingAudioAssetId(asset.id))
       .catch(() => {
         setPlayingAudioAssetId(null);
-        message.error('音频播放失败');
+        message.error(t("音频播放失败"));
       });
   };
 
@@ -173,16 +174,16 @@ export function ResultVideoPreviewModal({
   const downloadVideo = async () => {
     const url = String(video.videoUrl || '').trim();
     if (!url) {
-      message.warning('暂无可下载的视频');
+      message.warning(t("暂无可下载的视频"));
       return;
     }
     const fileName = downloadFileName(video.name);
     setIsDownloading(true);
     try {
       await downloadUrlAsFile(url, fileName);
-      message.success('已开始下载');
+      message.success(t("已开始下载"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频下载失败');
+      message.error(error instanceof Error ? error.message : t("视频下载失败"));
     } finally {
       setIsDownloading(false);
     }
@@ -218,7 +219,7 @@ export function ResultVideoPreviewModal({
         <div className="result-video-preview-layout">
           <main className="result-video-preview-stage">
             <Button
-              aria-label="关闭视频预览"
+              aria-label={t("关闭视频预览")}
               className="result-video-preview-stage__close"
               icon={<X size={20} />}
               onClick={closeModal}
@@ -243,32 +244,32 @@ export function ResultVideoPreviewModal({
               </div>
               <div className="result-video-preview-sidebar__actions">
                 <Button
-                  aria-label="下载视频"
+                  aria-label={t("下载视频")}
                   disabled={isDeleting}
                   icon={<Download size={17} />}
                   loading={isDownloading}
                   onClick={() => void downloadVideo()}
-                  title="下载"
+                  title={t("下载")}
                   type="text"
                 />
                 {onDelete ? (
                   <Popconfirm
-                    cancelText="取消"
-                    description="删除后无法恢复"
+                    cancelText={t("取消")}
+                    description={t("删除后无法恢复")}
                     disabled={isDeleting}
                     okButtonProps={{ danger: true, loading: isDeleting }}
-                    okText="删除"
+                    okText={t("删除")}
                     onConfirm={deleteVideo}
-                    title="确认删除这个视频吗？"
+                    title={t("确认删除这个视频吗？")}
                     zIndex={14000}
                   >
                     <Button
-                      aria-label="删除视频"
+                      aria-label={t("删除视频")}
                       danger
                       disabled={isDownloading}
                       icon={<Trash2 size={17} />}
                       loading={isDeleting}
-                      title="删除"
+                      title={t("删除")}
                       type="text"
                     />
                   </Popconfirm>
@@ -278,13 +279,13 @@ export function ResultVideoPreviewModal({
 
             <dl className="result-video-preview-sidebar__metrics">
               <div>
-                <dt>总耗时</dt>
+                <dt>{t("总耗时")}</dt>
                 <dd>{elapsedTime}</dd>
               </div>
             </dl>
 
             <section className="result-video-preview-sidebar__references">
-              <h3>参考素材</h3>
+              <h3>{t("参考素材")}</h3>
               <ReferenceMaterialPreviewList
                 activeAudioAssetId={playingAudioAssetId}
                 assets={referenceAssets}
@@ -307,7 +308,7 @@ export function ResultVideoPreviewModal({
 
       {referenceImage ? (
         <Image
-          alt={referenceImage.name || referenceImage.originalFileName || '参考图片预览'}
+          alt={referenceImage.name || referenceImage.originalFileName || t("参考图片预览")}
           preview={{
             open: true,
             src: resolveAssetUrl(referenceImage.fileUrl),
@@ -328,7 +329,7 @@ function formatDuration(seconds: number) {
   const safeSeconds = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(safeSeconds / 60);
   const remainingSeconds = safeSeconds % 60;
-  return `时长 ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  return t("时长 {{0}}:{{1}}", { "0": minutes, "1": remainingSeconds.toString().padStart(2, '0') });
 }
 
 function taskReferenceAssetIds(task: VideoGenerationTask | null) {
@@ -368,9 +369,9 @@ function formatElapsedTime(startValue?: string, endValue?: string) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}小时 ${minutes}分 ${seconds}秒`;
-  if (minutes > 0) return `${minutes}分 ${seconds}秒`;
-  return `${seconds}秒`;
+  if (hours > 0) return t("{{0}}小时 {{1}}分 {{2}}秒", { "0": hours, "1": minutes, "2": seconds });
+  if (minutes > 0) return t("{{0}}分 {{1}}秒", { "0": minutes, "1": seconds });
+  return t("{{0}}秒", { "0": seconds });
 }
 
 function assetDurationSeconds(metadata: Record<string, unknown>) {
@@ -394,5 +395,5 @@ function downloadFileName(name: string) {
     .replace(/\s+/g, '-')
     .replace(/\.mp4$/i, '')
     .slice(0, 80);
-  return `${normalized || '生成视频'}.mp4`;
+  return t("{{0}}.mp4", { "0": normalized || '生成视频' });
 }

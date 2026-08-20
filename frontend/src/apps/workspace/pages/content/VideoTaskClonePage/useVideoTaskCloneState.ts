@@ -78,6 +78,7 @@ import {
   normalizeTalkingVideoTaskRuntimeFields,
   type TalkingVideoDeltaBuffer,
 } from './talkingVideoStreamState';
+import { t } from '@shared/i18n';
 
 const defaultSubtitleRemovalConfig: SubtitleRemovalConfig = {
   mode: 'auto',
@@ -308,7 +309,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       .catch((error) => {
         if (!ignore) {
           setSiteConfig(null);
-          message.error(error instanceof Error ? error.message : '站点价格配置加载失败');
+          message.error(error instanceof Error ? error.message : t("站点价格配置加载失败"));
         }
       });
     return () => {
@@ -325,7 +326,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 		return normalizedTasks;
     } catch (error) {
       if (!silent) {
-        message.error(error instanceof Error ? error.message : '分镜历史加载失败');
+        message.error(error instanceof Error ? error.message : t("分镜历史加载失败"));
       }
       return [];
     } finally {
@@ -376,7 +377,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         || (asset.mimeType.startsWith('video/') && isCompletedFinishedVideo(asset))
       )));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材库加载失败');
+      message.error(error instanceof Error ? error.message : t("素材库加载失败"));
     } finally {
       setIsLoadingLibraryAssets(false);
     }
@@ -422,7 +423,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       return productionItems;
     } catch (error) {
       if (!silent && requestVersion === productionRequestVersionRef.current) {
-        message.error(error instanceof Error ? error.message : '生成记录加载失败');
+        message.error(error instanceof Error ? error.message : t("生成记录加载失败"));
       }
       return [];
     } finally {
@@ -463,7 +464,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       });
     } catch (error) {
       if (requestVersion === productionRequestVersionRef.current) {
-        message.error(error instanceof Error ? error.message : '更多生成记录加载失败');
+        message.error(error instanceof Error ? error.message : t("更多生成记录加载失败"));
       }
     } finally {
       isLoadingMoreProductionsRef.current = false;
@@ -684,11 +685,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const fillMaterial = (kind: MaterialKind, value: string) => {
     setSelectedMaterials((current) => {
       if (kind.key === 'image' && current.image) {
-        return { ...current, image: `参考图 ${Math.min(getImageCount(current.image) + 1, getLimit(kind))} 张` };
+        return { ...current, image: t("参考图 {{0}} 张", { "0": Math.min(getImageCount(current.image) + 1, getLimit(kind)) }) };
       }
 
       if (kind.key === 'audio' && current.audio) {
-        return { ...current, audio: `参考音频 ${Math.min(getAudioCount(current.audio) + 1, getLimit(kind))} 个` };
+        return { ...current, audio: t("参考音频 {{0}} 个", { "0": Math.min(getAudioCount(current.audio) + 1, getLimit(kind)) }) };
       }
 
       return { ...current, [kind.key]: value };
@@ -703,13 +704,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       ? incomingFiles.filter(isMp4VideoFile)
       : incomingFiles;
     if (translationFiles.length < incomingFiles.length) {
-      message.warning('视频翻译仅支持 MP4 格式');
+      message.warning(t("视频翻译仅支持 MP4 格式"));
     }
     const allowedFiles = kind.key === 'audio'
       ? translationFiles.filter(isAllowedAudioFile)
       : translationFiles;
     if (kind.key === 'audio' && allowedFiles.length < translationFiles.length) {
-      message.warning('参考音频仅支持 MP3 或 WAV 格式');
+      message.warning(t("参考音频仅支持 MP3 或 WAV 格式"));
     }
     const selectedFiles = allowedFiles.slice(0, getRemainingCapacity(kind, selectedMaterials[kind.key]));
     if (selectedFiles.length === 0) return;
@@ -730,7 +731,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       : inspectedFiles;
     if (kind.key === 'audio' && localFiles.length < inspectedFiles.length) {
       revokeLocalMaterials(inspectedFiles.filter((file) => !localFiles.includes(file)));
-      message.warning('口播声音必须是不超过 15 秒的 MP3 或 WAV 音频');
+      message.warning(t("口播声音必须是不超过 15 秒的 MP3 或 WAV 音频"));
     }
     if (!localFiles.length) return;
 
@@ -774,7 +775,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           }));
         } catch (error) {
           revokeLocalMaterials(localFiles);
-          message.error(error instanceof Error ? error.message : '参考视频上传失败');
+          message.error(error instanceof Error ? error.message : t("参考视频上传失败"));
           return;
         }
       }
@@ -788,7 +789,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       if (kind.key === 'audio' && acceptedFiles.length < localFiles.length) {
         const acceptedFileIds = new Set(acceptedFiles.map((file) => file.id));
         revokeLocalMaterials(localFiles.filter((file) => !acceptedFileIds.has(file.id)));
-        message.warning('参考音频总时长不能超过 15 秒');
+        message.warning(t("参考音频总时长不能超过 15 秒"));
       }
       if (acceptedFiles.length === 0) {
         return current;
@@ -811,7 +812,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const fillMentionPlaceholderFiles = (kind: MaterialKey, files: File[]) => {
     const material = tool.materials.find((item) => item.key === kind);
     if (!material) {
-      message.warning(`当前功能不支持${kind === 'image' ? '图片' : kind === 'video' ? '视频' : '音频'}素材`);
+      message.warning(t("当前功能不支持{{0}}素材", { "0": kind === 'image' ? t("图片") : kind === 'video' ? t("视频") : t("音频") }));
       return;
     }
     void fillMaterialFiles(material, files);
@@ -821,7 +822,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const incomingFiles = Array.from(files);
     const imageFiles = incomingFiles.filter((file) => file.type.startsWith('image/'));
     if (imageFiles.length < incomingFiles.length) {
-      message.warning('口播图片素材仅支持图片文件');
+      message.warning(t("口播图片素材仅支持图片文件"));
     }
     if (!imageFiles.length) return;
 
@@ -850,7 +851,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const rejected = incomingMaterials.filter((file) => !accepted.includes(file));
       revokeLocalMaterials([...replacedImages, ...rejected]);
       if (!accepted.length) {
-        message.warning('口播图片素材总数不能超过 9 张');
+        message.warning(t("口播图片素材总数不能超过 9 张"));
         return current;
       }
       return {
@@ -864,7 +865,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const incomingFiles = Array.from(files);
     const imageFiles = incomingFiles.filter((file) => file.type.startsWith('image/'));
     if (imageFiles.length < incomingFiles.length) {
-      message.warning('口播图片素材仅支持图片文件');
+      message.warning(t("口播图片素材仅支持图片文件"));
     }
     if (!imageFiles.length) return;
 
@@ -893,7 +894,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const rejected = incomingMaterials.filter((file) => !accepted.includes(file));
       revokeLocalMaterials([...replacedImages.filter(isTalkingVideoGenerationOwnedMaterial), ...rejected]);
       if (!accepted.length) {
-        message.warning('口播图片素材总数不能超过 9 张');
+        message.warning(t("口播图片素材总数不能超过 9 张"));
         return current;
       }
       return {
@@ -907,13 +908,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const incomingFiles = Array.from(files);
     const allowedFiles = incomingFiles.filter(isAllowedAudioFile).slice(0, 1);
     if (allowedFiles.length < incomingFiles.length) {
-      message.warning('口播声音仅支持 MP3 或 WAV 格式');
+      message.warning(t("口播声音仅支持 MP3 或 WAV 格式"));
     }
     const file = allowedFiles[0];
     if (!file) return;
     const audioDuration = await readAudioDuration(file);
     if (!audioDuration || audioDuration > 15) {
-      message.warning(audioDuration ? '口播声音不能超过 15 秒' : '无法读取该音频的时长');
+      message.warning(audioDuration ? t("口播声音不能超过 15 秒") : t("无法读取该音频的时长"));
       return;
     }
     const localMaterial = {
@@ -985,7 +986,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           delete next.image;
           return next;
         }
-        return { ...current, image: `参考图 ${count - 1} 张` };
+        return { ...current, image: t("参考图 {{0}} 张", { "0": count - 1 }) };
       });
       return;
     }
@@ -998,7 +999,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           delete next.audio;
           return next;
         }
-        return { ...current, audio: `参考音频 ${count - 1} 个` };
+        return { ...current, audio: t("参考音频 {{0}} 个", { "0": count - 1 }) };
       });
       return;
     }
@@ -1027,7 +1028,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const chooseAudio = (name: string) => {
     setSelectedMaterials((current) => {
       if (current.audio) {
-        return { ...current, audio: `参考音频 ${Math.min(getAudioCount(current.audio) + 1, 3)} 个` };
+        return { ...current, audio: t("参考音频 {{0}} 个", { "0": Math.min(getAudioCount(current.audio) + 1, 3) }) };
       }
       return { ...current, audio: name };
     });
@@ -1041,7 +1042,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     closePopover: boolean,
   ) => {
     if (kind.key === 'audio' && !isAllowedAudioAsset(asset)) {
-      message.warning('参考音频仅支持 MP3 或 WAV 格式');
+      message.warning(t("参考音频仅支持 MP3 或 WAV 格式"));
       return;
     }
     const url = resolveAssetUrl(asset.fileUrl);
@@ -1049,7 +1050,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       ? getAssetDurationSeconds(asset) || await readAudioUrlDuration(url)
       : undefined;
     if (kind.key === 'audio' && (!audioDuration || audioDuration > 15)) {
-      message.warning(audioDuration ? '口播声音不能超过 15 秒' : '无法读取该声音素材的时长');
+      message.warning(audioDuration ? t("口播声音不能超过 15 秒") : t("无法读取该声音素材的时长"));
       return;
     }
     const videoDuration = kind.key === 'video'
@@ -1060,7 +1061,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       try {
         trimFile = await downloadAssetAsFile(asset, getAssetTrimSourceUrl(asset, url));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '作品视频读取失败，请重试');
+        message.error(error instanceof Error ? error.message : t("作品视频读取失败，请重试"));
         return;
       }
     }
@@ -1078,7 +1079,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setMaterials((current) => {
       const currentFiles = getLocalFiles(current[kind.key]);
       if (kind.key === 'audio' && getAudioDurationTotal([...currentFiles, localMaterial]) > 15) {
-        message.warning('参考音频总时长不能超过 15 秒');
+        message.warning(t("参考音频总时长不能超过 15 秒"));
         return current;
       }
       const nextFiles = kind.key === 'video' || (kind.key === 'audio' && getLimit(kind) === 1)
@@ -1126,18 +1127,18 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       void fillTalkingVideoGenerationAudioFiles(files);
       return;
     }
-    message.warning('口播生成弹窗仅支持补充图片或音频素材');
+    message.warning(t("口播生成弹窗仅支持补充图片或音频素材"));
   };
 
   const resolveVideoSource = async (input: string) => {
     const messageKey = 'video-source-resolve';
-    message.loading({ content: '正在解析视频链接', duration: 0, key: messageKey });
+    message.loading({ content: t("正在解析视频链接"), duration: 0, key: messageKey });
     try {
       const { source } = await requestVideoSourceResolve(input);
       const localMaterial = {
         id: `video-${source.platform}-${source.externalId}-${crypto.randomUUID()}`,
         mediaDuration: source.durationMs > 0 ? source.durationMs / 1000 : undefined,
-        name: source.title || `${source.platform} 参考视频`,
+        name: source.title || t("{{0}} 参考视频", { "0": source.platform }),
         remoteMetadata: source as unknown as Record<string, unknown>,
         remoteSourceUrl: source.sourceUrl,
         serverFileUrl: source.downloadUrl,
@@ -1148,11 +1149,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         revokeLocalMaterials(getLocalFiles(current.video));
         return { ...current, video: [localMaterial] };
       });
-      message.success({ content: '视频链接解析完成', key: messageKey });
+      message.success({ content: t("视频链接解析完成"), key: messageKey });
       return true;
     } catch (error) {
       message.error({
-        content: error instanceof Error ? error.message : '视频链接解析失败',
+        content: error instanceof Error ? error.message : t("视频链接解析失败"),
         key: messageKey,
       });
       return false;
@@ -1228,8 +1229,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       };
     });
     setPromptPanel(null);
-    const referenceLabels = [next.audioMaterials.length ? '参考音色' : ''].filter(Boolean);
-    message.success(`已把商品图${referenceLabels.length ? `、${referenceLabels.join('、')}` : ''}、提示词和时长带入视频创作`);
+    const referenceLabels = [next.audioMaterials.length ? t("参考音色") : ''].filter(Boolean);
+    message.success(t("已把商品图{{0}}、提示词和时长带入视频创作", { "0": referenceLabels.length ? `、${referenceLabels.join('、')}` : '' }));
   }, []);
 
   const editVideoProduction = useCallback(async (task: VideoGenerationTask) => {
@@ -1237,13 +1238,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     try {
       detailTask = await getVideoTask(task.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      message.error(error instanceof Error ? error.message : t("视频任务详情获取失败"));
       return;
     }
     const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     const mode = stringFromRecord(context, 'mode');
     if (mode && mode !== 'video_create' && mode !== 'video_generation') {
-      message.warning('暂时只支持编辑“视频”类型的生成记录');
+      message.warning(t("暂时只支持编辑“视频”类型的生成记录"));
       return;
     }
 
@@ -1258,7 +1259,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       ...referenceAudioIds,
     ]));
     const messageKey = 'video-task-edit-backfill';
-    message.loading({ content: '正在回填生成配置…', duration: 0, key: messageKey });
+    message.loading({ content: t("正在回填生成配置…"), duration: 0, key: messageKey });
 
     try {
       const assetResults = await Promise.allSettled(referenceIds.map((id) => getContentAsset(id)));
@@ -1309,13 +1310,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setFilterOpen(false);
       message.success({
         content: missingReferenceCount > 0
-          ? `配置已回填，${missingReferenceCount} 个已删除素材未能恢复`
-          : '视频创作配置已回填',
+          ? t("配置已回填，{{0}} 个已删除素材未能恢复", { "0": missingReferenceCount })
+          : t("视频创作配置已回填"),
         key: messageKey,
       });
     } catch (error) {
       message.error({
-        content: error instanceof Error ? error.message : '视频创作配置回填失败',
+        content: error instanceof Error ? error.message : t("视频创作配置回填失败"),
         key: messageKey,
       });
     }
@@ -1507,9 +1508,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     const promptMaterials = materialsOverride || selectedMaterials;
     const sourceVideo = getLocalFiles(promptMaterials.video)[0];
     const imageFiles = sortTalkingVideoImages(getLocalFiles(promptMaterials.image));
-    if (!sourceVideo) throw new Error('请先上传口播参考视频');
+    if (!sourceVideo) throw new Error(t("请先上传口播参考视频"));
     if (!imageFiles.some((file) => file.talkingVideoRole === 'model')) {
-      throw new Error('请先上传模特图片');
+      throw new Error(t("请先上传模特图片"));
     }
 
     talkingVideoPromptAbortRef.current?.abort();
@@ -1525,7 +1526,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       id: taskId,
       phase: 'uploading_assets',
       status: 'preparing',
-      reasoning: '正在上传并整理参考素材…',
+      reasoning: t("正在上传并整理参考素材…"),
       prompt: '',
       errorMessage: '',
       metrics: emptyTalkingVideoMetrics(),
@@ -1560,7 +1561,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         }),
       ]);
       const videoAssetId = videoAssetIds[0];
-      if (!videoAssetId && !sourceVideo.remoteSourceUrl) throw new Error('口播参考视频上传失败');
+      if (!videoAssetId && !sourceVideo.remoteSourceUrl) throw new Error(t("口播参考视频上传失败"));
       updateTalkingVideoTask(taskId, (current) => ({
         ...current,
         phase: 'uploading_assets',
@@ -1595,7 +1596,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         ...current,
         phase: 'failed',
         status: 'failed',
-        errorMessage: error instanceof Error ? error.message : '口播提示词生成失败',
+        errorMessage: error instanceof Error ? error.message : t("口播提示词生成失败"),
       }));
       throw error;
     } finally {
@@ -1614,7 +1615,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         ...current,
         phase: 'stopped' as const,
         status: 'stopped' as const,
-        errorMessage: '已手动停止生成',
+        errorMessage: t("已手动停止生成"),
       } : current;
       setTalkingVideoPromptTask((current) => current ? stoppedTask(current) : current);
       setTalkingVideoPromptTasks((current) => current.map(stoppedTask));
@@ -1622,7 +1623,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       delete talkingVideoDeltaBuffersRef.current[taskId];
       talkingVideoPromptAbortRef.current?.abort();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '停止口播任务失败');
+      message.error(error instanceof Error ? error.message : t("停止口播任务失败"));
     }
   }, [flushTalkingVideoPromptDeltas, talkingVideoPromptTask?.id]);
 
@@ -1669,7 +1670,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         taskId,
       });
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '口播提示词生成失败');
+      message.error(error instanceof Error ? error.message : t("口播提示词生成失败"));
     } finally {
       setRetryingTalkingVideoTaskId('');
       setIsGenerating(false);
@@ -1684,7 +1685,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const imageFiles = sortTalkingVideoImages(getLocalFiles(talkingVideoGenerationMaterials.image));
       const audioFiles = getLocalFiles(talkingVideoGenerationMaterials.audio);
       if (!imageFiles.some((file) => file.talkingVideoRole === 'model')) {
-        throw new Error('请先上传模特图片');
+        throw new Error(t("请先上传模特图片"));
       }
       const [referenceImageIds, referenceAudioIds] = await Promise.all([
         ensureMaterialAssetIds({
@@ -1723,10 +1724,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       });
       setTalkingVideoGenerateModalOpen(false);
       await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
-      message.success('口播视频生成任务已提交，可在右侧视频结果中查看');
+      message.success(t("口播视频生成任务已提交，可在右侧视频结果中查看"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '口播视频生成任务提交失败');
+      message.error(error instanceof Error ? error.message : t("口播视频生成任务提交失败"));
       return false;
     } finally {
       setIsTalkingVideoSubmitting(false);
@@ -1735,11 +1736,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
 
   const handleGenerate = useCallback(async () => {
     if (tool.workspace.generate.handler === 'pending' && tool.key !== 'marketing-video' && tool.key !== 'talking-video') {
-      message.warning(`${tool.label}功能正在接入生成能力`);
+      message.warning(t("{{0}}功能正在接入生成能力", { "0": tool.label }));
       return;
     }
     if (hasVideoRequiringTrim(selectedMaterials)) {
-      message.warning('所选视频需先剪辑至 15 秒以内');
+      message.warning(t("所选视频需先剪辑至 15 秒以内"));
       return;
     }
     if (!canGenerate) {
@@ -1759,8 +1760,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           uploadGroupIdsRef,
         });
         const referenceVideo = getLocalFiles(selectedMaterials.video)[0];
-        if (!characterImageAssetId) throw new Error('请上传人物素材');
-        if (!referenceVideo) throw new Error('请上传或粘贴参考视频');
+        if (!characterImageAssetId) throw new Error(t("请上传人物素材"));
+        if (!referenceVideo) throw new Error(t("请上传或粘贴参考视频"));
 
         let referenceVideoAssetId = referenceVideo.assetId;
         if (!referenceVideo.remoteSourceUrl && !referenceVideoAssetId) {
@@ -1788,7 +1789,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
         chooseTool(tool);
         setVoiceEnabled(true);
-        message.success('跳舞复刻任务已提交');
+        message.success(t("跳舞复刻任务已提交"));
         return;
       }
       if (tool.workspace.generate.handler === 'subject-replace') {
@@ -1799,8 +1800,8 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           uploadGroupIdsRef,
         });
         const referenceVideo = getLocalFiles(selectedMaterials.video)[0];
-        if (!imageAssetIds.length) throw new Error('请上传主体图片');
-        if (!referenceVideo) throw new Error('请上传或粘贴参考视频');
+        if (!imageAssetIds.length) throw new Error(t("请上传主体图片"));
+        if (!referenceVideo) throw new Error(t("请上传或粘贴参考视频"));
 
         let referenceVideoAssetId = referenceVideo.assetId;
         if (!referenceVideo.remoteSourceUrl && !referenceVideoAssetId) {
@@ -1827,7 +1828,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         await Promise.all([loadLibraryAssets(), loadVideoProductions(true)]);
         chooseTool(tool);
         setVoiceEnabled(true);
-        message.success('主体替换任务已提交');
+        message.success(t("主体替换任务已提交"));
         return;
       }
       const prepared = await prepareGenerationMaterials({
@@ -1850,13 +1851,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           ...current.filter((task) => task.id !== storyboard.id),
         ]);
         setSelectedMarketingStoryboardId(storyboard.id);
-        message.success('营销视频分镜任务已提交');
+        message.success(t("营销视频分镜任务已提交"));
         return;
       }
       if (tool.workspace.generate.handler === 'video-upscale') {
         const sourceAssetId = prepared.referenceVideoIds[0];
         if (!sourceAssetId) {
-          throw new Error('请选择待放大视频');
+          throw new Error(t("请选择待放大视频"));
         }
         await createVideoEnhancement({
           userId: currentUser.id,
@@ -1868,13 +1869,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           loadVideoProductions(true),
         ]);
         resetCreationForm();
-        message.success('视频高清放大任务已提交');
+        message.success(t("视频高清放大任务已提交"));
         return;
       }
       if (tool.workspace.generate.handler === 'subtitle-removal') {
         const sourceAssetId = prepared.referenceVideoIds[0];
         if (!sourceAssetId) {
-          throw new Error('请选择待擦除字幕的源视频');
+          throw new Error(t("请选择待擦除字幕的源视频"));
         }
         validateSubtitleRemovalConfig(subtitleRemovalConfig);
         await createSubtitleRemoval({
@@ -1887,13 +1888,13 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           loadVideoProductions(true),
         ]);
         resetCreationForm();
-        message.success('字幕擦除任务已提交');
+        message.success(t("字幕擦除任务已提交"));
         return;
       }
       if (tool.workspace.generate.handler === 'video-translation') {
         const sourceAssetId = prepared.referenceVideoIds[0];
         if (!sourceAssetId) {
-          throw new Error('请选择待翻译的源视频');
+          throw new Error(t("请选择待翻译的源视频"));
         }
         const request = buildVideoTranslationRequest(videoTranslationConfig);
         await createVideoTranslation({
@@ -1906,7 +1907,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           loadVideoProductions(true),
         ]);
         resetCreationForm();
-        message.success('视频翻译任务已提交');
+        message.success(t("视频翻译任务已提交"));
         return;
       }
       await createVideoProduction({
@@ -1927,9 +1928,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         loadVideoProductions(true),
       ]);
       resetCreationForm();
-      message.success('视频生成任务已提交');
+      message.success(t("视频生成任务已提交"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频生成失败');
+      message.error(error instanceof Error ? error.message : t("视频生成失败"));
     } finally {
       setIsGenerating(false);
     }
@@ -1965,10 +1966,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const task = await retryMarketingVideoStoryboard(id, optimizationInstruction);
       setMarketingStoryboards((current) => current.map((item) => item.id === task.id ? task : item));
       setSelectedMarketingStoryboardId(task.id);
-      message.success('已重新提交分镜生成');
+      message.success(t("已重新提交分镜生成"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '重新生成分镜失败');
+      message.error(error instanceof Error ? error.message : t("重新生成分镜失败"));
       return false;
     } finally {
       setRetryingMarketingStoryboardId('');
@@ -1992,9 +1993,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         loadVideoProductions(true),
         loadMarketingStoryboards(true),
       ]);
-      message.success('视频生成任务已提交，可在右侧视频结果中查看');
+      message.success(t("视频生成任务已提交，可在右侧视频结果中查看"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频生成任务提交失败');
+      message.error(error instanceof Error ? error.message : t("视频生成任务提交失败"));
     } finally {
       setGeneratingMarketingVideoId('');
     }
@@ -2007,9 +2008,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       await deleteMarketingVideoStoryboard(id);
       setMarketingStoryboards((current) => current.filter((task) => task.id !== id));
       setSelectedMarketingStoryboardId('');
-      message.success('分镜任务已删除');
+      message.success(t("分镜任务已删除"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '分镜任务删除失败');
+      message.error(error instanceof Error ? error.message : t("分镜任务删除失败"));
     } finally {
       setDeletingMarketingStoryboardId('');
     }
@@ -2023,14 +2024,14 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     try {
       detailTask = await getVideoTask(task.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      message.error(error instanceof Error ? error.message : t("视频任务详情获取失败"));
       return;
     }
     const context = isRecord(detailTask.expertContext) ? detailTask.expertContext : {};
     if (context.mode === 'video_upscale') {
       const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
       if (!sourceAssetId) {
-        message.warning('当前记录缺少源视频素材，无法重试');
+        message.warning(t("当前记录缺少源视频素材，无法重试"));
         return;
       }
       try {
@@ -2042,9 +2043,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           resolution: (stringFromRecord(context, 'enhancementResolution', '1080p').toLowerCase() as '1080p' | '2k' | '4k'),
         });
         await loadVideoProductions(true);
-        message.success('已重新提交高清放大任务');
+        message.success(t("已重新提交高清放大任务"));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '高清放大重试失败');
+        message.error(error instanceof Error ? error.message : t("高清放大重试失败"));
       } finally {
         retrySubmittingRef.current = false;
         setRetryingTaskId('');
@@ -2054,7 +2055,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (context.mode === 'subtitle_removal') {
       const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
       if (!sourceAssetId) {
-        message.warning('当前记录缺少源视频素材，无法重试');
+        message.warning(t("当前记录缺少源视频素材，无法重试"));
         return;
       }
       try {
@@ -2069,9 +2070,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           clipFilter: subtitleRemovalClipFilterFromRecord(context),
         });
         await loadVideoProductions(true);
-        message.success('已重新提交字幕擦除任务');
+        message.success(t("已重新提交字幕擦除任务"));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '字幕擦除重试失败');
+        message.error(error instanceof Error ? error.message : t("字幕擦除重试失败"));
       } finally {
         retrySubmittingRef.current = false;
         setRetryingTaskId('');
@@ -2081,7 +2082,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (context.mode === 'video_translation') {
       const sourceAssetId = stringFromRecord(context, 'sourceAssetId');
       if (!sourceAssetId) {
-        message.warning('当前记录缺少源视频素材，无法重试');
+        message.warning(t("当前记录缺少源视频素材，无法重试"));
         return;
       }
       try {
@@ -2097,9 +2098,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           subtitleConfig: videoTranslationSubtitleConfigFromRecord(context),
         });
         await loadVideoProductions(true);
-        message.success('已重新提交视频翻译任务');
+        message.success(t("已重新提交视频翻译任务"));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '视频翻译重试失败');
+        message.error(error instanceof Error ? error.message : t("视频翻译重试失败"));
       } finally {
         retrySubmittingRef.current = false;
         setRetryingTaskId('');
@@ -2118,7 +2119,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       const storedSubjectType = stringFromRecord(context, 'subjectReplaceType', stringFromRecord(context, 'subjectType', 'model'));
       const retrySubjectType = isSubjectReplaceType(storedSubjectType) ? storedSubjectType : 'model';
       if (!imageAssetIds.length || (!referenceVideoAssetId && !remoteVideo)) {
-        message.warning('当前记录缺少主体图片或视频来源，无法重试');
+        message.warning(t("当前记录缺少主体图片或视频来源，无法重试"));
         return;
       }
       try {
@@ -2134,9 +2135,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           videoModelId: stringFromRecord(context, 'videoModelId', modelOptionIds['Seedance 2.0']),
         });
         await loadVideoProductions(true);
-        message.success('已重新提交主体替换任务');
+        message.success(t("已重新提交主体替换任务"));
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '主体替换重试失败');
+        message.error(error instanceof Error ? error.message : t("主体替换重试失败"));
       } finally {
         retrySubmittingRef.current = false;
         setRetryingTaskId('');
@@ -2145,7 +2146,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
     const payload = buildRetryVideoProductionPayload(detailTask, currentUser.id);
     if (!payload.prompt?.trim()) {
-      message.warning('当前记录缺少可重试的提示词，请重新配置后再生成');
+      message.warning(t("当前记录缺少可重试的提示词，请重新配置后再生成"));
       return;
     }
     try {
@@ -2153,9 +2154,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
       setRetryingTaskId(task.id);
       await createVideoProduction(payload);
       await loadVideoProductions(true);
-      message.success('已再次提交生成任务');
+      message.success(t("已再次提交生成任务"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '再次生成失败');
+      message.error(error instanceof Error ? error.message : t("再次生成失败"));
     } finally {
       retrySubmittingRef.current = false;
       setRetryingTaskId('');
@@ -2170,10 +2171,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
         loadLibraryAssets(),
         loadVideoProductions(true),
       ]);
-      message.success('生成记录已删除');
+      message.success(t("生成记录已删除"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '删除生成记录失败');
+      message.error(error instanceof Error ? error.message : t("删除生成记录失败"));
       return false;
     } finally {
       setDeletingTaskId('');
@@ -2407,35 +2408,35 @@ function subtitleRemovalClipFilterFromRecord(record: Record<string, unknown>): S
 
 function validateSubtitleRemovalConfig(config: SubtitleRemovalConfig) {
   if (config.mode !== 'auto' && config.locations.length === 0) {
-    throw new Error('请先打开视频编辑器框选字幕擦除区域');
+    throw new Error(t("请先打开视频编辑器框选字幕擦除区域"));
   }
   config.locations.forEach((location) => {
     const values = [location.topLeftX, location.topLeftY, location.bottomRightX, location.bottomRightY];
     if (!values.every((value) => Number.isFinite(value) && value >= 0 && value <= 1)
       || location.topLeftX >= location.bottomRightX
       || location.topLeftY >= location.bottomRightY) {
-      throw new Error('字幕擦除区域坐标无效，请重新框选');
+      throw new Error(t("字幕擦除区域坐标无效，请重新框选"));
     }
   });
   if (config.clipFilter.mode !== 'all') {
     if (config.clipFilter.clips.length === 0) {
-      throw new Error('请至少添加一个字幕擦除时间段');
+      throw new Error(t("请至少添加一个字幕擦除时间段"));
     }
     if (config.clipFilter.clips.some((clip) => clip.start < 0 || clip.end <= clip.start)) {
-      throw new Error('字幕擦除时间范围无效，请确保每段结束时间晚于开始时间');
+      throw new Error(t("字幕擦除时间范围无效，请确保每段结束时间晚于开始时间"));
     }
   }
 }
 
 function buildVideoTranslationRequest(config: VideoTranslationConfig) {
   if (config.sourceLanguage === config.targetLanguage) {
-    throw new Error('源语言和目标语言不能相同');
+    throw new Error(t("源语言和目标语言不能相同"));
   }
   const translationTypes: Array<'subtitle' | 'voice' | 'face'> = ['subtitle'];
   if (config.modes.voice) translationTypes.push('voice');
   if (config.modes.face) translationTypes.push('face');
   if (config.modes.face && !config.modes.voice) {
-    throw new Error('面容翻译必须同时开启语音翻译');
+    throw new Error(t("面容翻译必须同时开启语音翻译"));
   }
   const subtitleConfig: {
     isHardSubtitle: boolean;
@@ -2452,7 +2453,7 @@ function buildVideoTranslationRequest(config: VideoTranslationConfig) {
   if (config.hardSubtitles) {
     const location = config.subtitlePlacementConfig.locations[0];
     if (!location) {
-      throw new Error('请先打开视频编辑器框选硬字幕位置');
+      throw new Error(t("请先打开视频编辑器框选硬字幕位置"));
     }
     validateSubtitlePlacement(location);
     subtitleConfig.fontSize = config.fontSize;
@@ -2475,7 +2476,7 @@ function validateSubtitlePlacement(location: SubtitleRemovalConfig['locations'][
   if (!values.every((value) => Number.isFinite(value) && value >= 0 && value <= 1)
     || location.topLeftX >= location.bottomRightX
     || location.topLeftY >= location.bottomRightY) {
-    throw new Error('硬字幕位置坐标无效，请重新框选');
+    throw new Error(t("硬字幕位置坐标无效，请重新框选"));
   }
 }
 
@@ -2659,10 +2660,10 @@ function getAssetDurationSeconds(asset: ContentAsset) {
 async function downloadAssetAsFile(asset: ContentAsset, url: string) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error('作品视频读取失败，请重试');
+    throw new Error(t("作品视频读取失败，请重试"));
   }
   const blob = await response.blob();
-  const name = asset.originalFileName || asset.name || asset.storedFileName || '参考视频.mp4';
+  const name = asset.originalFileName || asset.name || asset.storedFileName || t("参考视频.mp4");
   return new File([blob], name, {
     type: asset.mimeType || blob.type || 'video/mp4',
   });
@@ -2681,7 +2682,7 @@ function localMaterialFromAsset(type: LocalMaterialFile['type'], asset: ContentA
     assetId: asset.id,
     audioDuration: type === 'audio' ? duration : undefined,
     id: `${type}-${asset.id}-${crypto.randomUUID()}`,
-    name: asset.name || asset.originalFileName || asset.storedFileName || '参考素材',
+    name: asset.name || asset.originalFileName || asset.storedFileName || t("参考素材"),
     serverFileUrl: asset.fileUrl,
     storedFileName: asset.storedFileName,
     trimDuration: type === 'video' ? duration : undefined,
@@ -2801,14 +2802,14 @@ function isCompletedFinishedVideo(asset: ContentAsset) {
 }
 
 function mapQualityLabel(value: string) {
-  return value === '480P' ? '普清 (480p)' : '标清 (720p)';
+  return value === '480P' ? t("普清 (480p)") : t("标清 (720p)");
 }
 
 function implicitUploadGroupName(resourceType: ContentAssetResourceType) {
-  if (resourceType === 'scene') return '场景素材';
-  if (resourceType === 'product') return '产品素材';
-  if (resourceType === 'voice') return '视频制作参考音频';
-  return '视频制作参考素材';
+  if (resourceType === 'scene') return t("场景素材");
+  if (resourceType === 'product') return t("产品素材");
+  if (resourceType === 'voice') return t("视频制作参考音频");
+  return t("视频制作参考素材");
 }
 
 async function ensureUploadGroupId(input: {
@@ -2859,7 +2860,7 @@ async function ensureMaterialAssetIds(input: {
       return file.assetId;
     }
     if (!file.file) {
-      throw new Error(`缺少待上传素材文件：${file.name}`);
+      throw new Error(t("缺少待上传素材文件：{{0}}", { "0": file.name }));
     }
     const uploaded = await uploadContentAsset({
       file: file.file,

@@ -14,6 +14,7 @@ import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import { resolveLocalMaterialUrl } from '../materialUrl';
 import './TalkingVideoPanel.scss';
+import { t } from '@shared/i18n';
 
 type TalkingVideoPanelProps = {
   deepThink: boolean;
@@ -37,10 +38,10 @@ type TalkingVideoRoleOption = {
 };
 
 const roleOptions: TalkingVideoRoleOption[] = [
-  { label: '模特', meta: '限 1 张', role: 'model', single: true },
-  { label: '产品', meta: '可选', role: 'product', single: false },
-  { label: '背景', meta: '限 1 张', role: 'background', single: true },
-  { label: '细节', meta: '可选', role: 'detail', single: false },
+  { label: t("模特"), meta: t("限 1 张"), role: 'model', single: true },
+  { label: t("产品"), meta: t("可选"), role: 'product', single: false },
+  { label: t("背景"), meta: t("限 1 张"), role: 'background', single: true },
+  { label: t("细节"), meta: t("可选"), role: 'detail', single: false },
 ];
 
 export function TalkingVideoPanel({
@@ -62,8 +63,8 @@ export function TalkingVideoPanel({
   return (
     <div className="talking-video-panel">
       <VideoSourcePanel
-        description="上传本地视频或解析短视频链接"
-        localUploadLabel="上传口播参考视频"
+        description={t("上传本地视频或解析短视频链接")}
+        localUploadLabel={t("上传口播参考视频")}
         material={videoMaterial}
         onMaterialClear={onMaterialClear}
         onMaterialLocalFiles={onMaterialLocalFiles}
@@ -76,14 +77,14 @@ export function TalkingVideoPanel({
 
       <WorkspaceSection
         className="talking-video-settings"
-        description="配置提示词生成方式和画面参考素材。"
-        title="创作设置"
+        description={t("配置提示词生成方式和画面参考素材。")}
+        title={t("创作设置")}
       >
         <label className="talking-video-deep-think">
           <Switch checked={deepThink} onChange={onDeepThinkChange} size="small" />
           <span>
-            <strong>深度思考</strong>
-            <small>加强分镜、口播结构和素材一致性分析</small>
+            <strong>{t("深度思考")}</strong>
+            <small>{t("加强分镜、口播结构和素材一致性分析")}</small>
           </span>
         </label>
 
@@ -122,7 +123,7 @@ export function TalkingVideoImageMaterials({
           <strong id="talking-video-images-title">{title}</strong>
           {description ? <span>{description}</span> : null}
         </div>
-        {headerNote ? <p>{headerNote}</p> : <em>{imageFiles.length}/9 张</em>}
+        {headerNote ? <p>{headerNote}</p> : <em>{imageFiles.length}{t("/9 张")}</em>}
       </header>
       <div className="talking-video-image-grid">
         {roleOptions.map((option) => (
@@ -157,7 +158,7 @@ function TalkingVideoImageSlot({
   const canAdd = totalCount < 9 && (!option.single || files.length === 0);
   const items = files.map((file, index) => ({
     background: `url("${resolveLocalMaterialUrl(file)}") center / cover no-repeat`,
-    caption: `图·${index + 1}`,
+    caption: t("图·{{0}}", { "0": index + 1 }),
     id: file.id,
     src: resolveLocalMaterialUrl(file),
     name: file.name,
@@ -182,13 +183,13 @@ function TalkingVideoImageSlot({
       />
       <div className="talking-video-image-slot-main animated-upload-plus-host">
         <span className={`talking-video-image-requirement${option.role === 'model' ? ' is-required' : ''}`}>
-          {option.role === 'model' ? '必选' : '可选'}
+          {option.role === 'model' ? t("必选") : t("可选")}
         </span>
         {files.length ? (
           <ImageMaterialStack
             items={items}
             leadingAdd={canAdd ? {
-              ariaLabel: `添加${option.label}图片`,
+              ariaLabel: t("添加{{0}}图片", { "0": option.label }),
               onClick: () => inputRef.current?.click(),
             } : undefined}
             onRemove={(item) => onRemove(item.id)}
@@ -196,7 +197,7 @@ function TalkingVideoImageSlot({
         ) : null}
         {canAdd && !files.length ? (
           <button
-            aria-label={`添加${option.label}图片`}
+            aria-label={t("添加{{0}}图片", { "0": option.label })}
             className="talking-video-image-add"
             onClick={() => inputRef.current?.click()}
             type="button"
@@ -207,7 +208,7 @@ function TalkingVideoImageSlot({
         ) : null}
       </div>
       <span className={`talking-video-image-slot-meta${files.length ? ' is-filled' : ''}`}>
-        {files.length ? `${files.length}${option.single ? '/1' : ''} 张` : option.single ? '限 1 张' : '\u00A0'}
+        {files.length ? t("{{0}}{{1}} 张", { "0": files.length, "1": option.single ? '/1' : '' }) : option.single ? t("限 1 张") : '\u00A0'}
       </span>
     </div>
   );

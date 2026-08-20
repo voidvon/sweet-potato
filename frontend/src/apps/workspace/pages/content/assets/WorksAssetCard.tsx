@@ -7,6 +7,7 @@ import type { ContentAsset } from '../../../types';
 import { VideoAssetCover } from '../shared/VideoAssetCover';
 import { getVideoWorkSource } from './worksAssetSource';
 import './WorksAssetCard.scss';
+import { t } from '@shared/i18n';
 type WorksAssetStatus = 'completed' | 'generating' | 'failed';
 
 type WorksAssetCardProps = {
@@ -171,13 +172,13 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
       <div className="works-asset-card__overlay">
         <span className="works-asset-card__delete" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
           <Popconfirm
-            cancelText="取消"
-            okText="删除"
+            cancelText={t("取消")}
+            okText={t("删除")}
             onConfirm={onDelete}
-            title="确认删除这个作品吗？"
+            title={t("确认删除这个作品吗？")}
           >
             <Button
-              aria-label={`删除 ${asset.name}`}
+              aria-label={t("删除 {{0}}", { "0": asset.name })}
               className="works-asset-card__delete-button"
               icon={<Trash2 color="var(--color-white)" size={14} />}
               size="small"
@@ -192,7 +193,7 @@ export function WorksAssetCard({ asset, onDelete, onOpen }: WorksAssetCardProps)
 
 export function WorksAssetSkeletonCard() {
   return (
-    <div aria-label="作品加载中" className="works-asset-card works-asset-card--skeleton">
+    <div aria-label={t("作品加载中")} className="works-asset-card works-asset-card--skeleton">
       <span />
     </div>
   );

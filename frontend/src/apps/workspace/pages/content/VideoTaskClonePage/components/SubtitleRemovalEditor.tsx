@@ -7,6 +7,7 @@ import type {
   SubtitleRemovalConfig,
   SubtitleRemovalLocation,
 } from '../types';
+import { t } from '@shared/i18n';
 
 type SubtitleRemovalEditorProps = {
   config: SubtitleRemovalConfig;
@@ -39,36 +40,36 @@ const MIN_REGION_SIZE = 0.02;
 
 const regionPresets: RegionPreset[] = [
   {
-    label: '下半屏',
+    label: t("下半屏"),
     description: 'Y 0.50-1.00',
     location: { topLeftX: 0, topLeftY: 0.5, bottomRightX: 1, bottomRightY: 1 },
   },
   {
-    label: '底部字幕区',
-    description: '左右留 10%，底部 15%',
+    label: t("底部字幕区"),
+    description: t("左右留 10%，底部 15%"),
     location: { topLeftX: 0.1, topLeftY: 0.85, bottomRightX: 0.9, bottomRightY: 1 },
   },
   {
-    label: '中下字幕区',
-    description: '覆盖中下部常见双语字幕',
+    label: t("中下字幕区"),
+    description: t("覆盖中下部常见双语字幕"),
     location: { topLeftX: 0.08, topLeftY: 0.65, bottomRightX: 0.92, bottomRightY: 0.84 },
   },
 ];
 
 const placementPresets: RegionPreset[] = [
   {
-    label: '底部 5%',
-    description: '左右留 10%，适合单行字幕',
+    label: t("底部 5%"),
+    description: t("左右留 10%，适合单行字幕"),
     location: { topLeftX: 0.1, topLeftY: 0.85, bottomRightX: 0.9, bottomRightY: 0.95 },
   },
   {
-    label: '底部 10%',
-    description: '左右留 8%，适合双行字幕',
+    label: t("底部 10%"),
+    description: t("左右留 8%，适合双行字幕"),
     location: { topLeftX: 0.08, topLeftY: 0.72, bottomRightX: 0.92, bottomRightY: 0.9 },
   },
   {
-    label: '中下位置',
-    description: '适合避开视频底部的重要内容',
+    label: t("中下位置"),
+    description: t("适合避开视频底部的重要内容"),
     location: { topLeftX: 0.08, topLeftY: 0.6, bottomRightX: 0.92, bottomRightY: 0.76 },
   },
 ];
@@ -118,14 +119,14 @@ export function SubtitleRemovalEditor({
   const editorSummary = useMemo(() => {
     if (isPlacement) {
       const location = draft.locations[0];
-      if (!location) return '拖动框选一个字幕显示区域';
-      return `左右边距 ${formatPercent(location.topLeftX)} / ${formatPercent(1 - location.bottomRightX)} · 距底部约 ${formatPercent(1 - location.bottomRightY)}`;
+      if (!location) return t("拖动框选一个字幕显示区域");
+      return t("左右边距 {{0}} / {{1}} · 距底部约 {{2}}", { "0": formatPercent(location.topLeftX), "1": formatPercent(1 - location.bottomRightX), "2": formatPercent(1 - location.bottomRightY) });
     }
-    const content = draft.contentType === 'text' ? '所有渲染文字' : '仅字幕';
-    const area = draft.mode === 'auto' ? '自动识别' : `${draft.locations.length} 个区域`;
+    const content = draft.contentType === 'text' ? t("所有渲染文字") : t("仅字幕");
+    const area = draft.mode === 'auto' ? t("自动识别") : t("{{0}} 个区域", { "0": draft.locations.length });
     const time = draft.clipFilter.mode === 'all'
-      ? '处理全时段'
-      : `${draft.clipFilter.mode === 'selected' ? '仅处理' : '跳过'} ${draft.clipFilter.clips.length} 段`;
+      ? t("处理全时段")
+      : t("{{0}} {{1}} 段", { "0": draft.clipFilter.mode === 'selected' ? '仅处理' : '跳过', "1": draft.clipFilter.clips.length });
     return `${content} · ${area} · ${time}`;
   }, [draft, isPlacement]);
 
@@ -351,10 +352,10 @@ export function SubtitleRemovalEditor({
       <section aria-labelledby="subtitle-editor-title" className={`subtitle-editor${isPlacement ? ' is-placement' : ''}`} role="dialog">
         <header className="subtitle-editor-header">
           <div>
-            <h2 id="subtitle-editor-title">{isPlacement ? '字幕位置视频编辑器' : '字幕擦除视频编辑器'}</h2>
+            <h2 id="subtitle-editor-title">{isPlacement ? t("字幕位置视频编辑器") : t("字幕擦除视频编辑器")}</h2>
             <p>{editorSummary}</p>
           </div>
-          <button aria-label="关闭视频编辑器" className="subtitle-editor-close" onClick={onCancel} type="button">
+          <button aria-label={t("关闭视频编辑器")} className="subtitle-editor-close" onClick={onCancel} type="button">
             <X size={16} />
           </button>
         </header>
@@ -393,8 +394,8 @@ export function SubtitleRemovalEditor({
                   />
                 ) : (
                   <div className="subtitle-editor-empty-state">
-                    <span>请先上传源视频</span>
-                    <small>上传后可在画面中拖动框选{isPlacement ? '字幕位置' : '擦除区域'}</small>
+                    <span>{t("请先上传源视频")}</span>
+                    <small>{t("上传后可在画面中拖动框选")}{isPlacement ? t("字幕位置") : t("擦除区域")}</small>
                   </div>
                 )}
 
@@ -402,7 +403,7 @@ export function SubtitleRemovalEditor({
                   const isActive = index === activeRegionIndex;
                   return (
                     <div
-                      aria-label={`${isPlacement ? '字幕区域' : '擦除区域'} ${index + 1}`}
+                      aria-label={t("{{0}} {{1}}", { "0": isPlacement ? t("字幕区域") : t("擦除区域"), "1": index + 1 })}
                       className={`subtitle-editor-region${isActive ? ' is-active' : ''}`}
                       key={`region-${index}`}
                       onPointerDown={(event) => beginCanvasAction(event, 'move', index)}
@@ -410,7 +411,7 @@ export function SubtitleRemovalEditor({
                       style={locationStyle(location)}
                       tabIndex={0}
                     >
-                      <span className="subtitle-editor-region-label">{isPlacement ? '字幕区域' : `区域 ${index + 1}`}</span>
+                      <span className="subtitle-editor-region-label">{isPlacement ? t("字幕区域") : t("区域 {{0}}", { "0": index + 1 })}</span>
                       {isActive && resizeHandles.map((handle) => (
                         <span
                           aria-hidden="true"
@@ -427,7 +428,7 @@ export function SubtitleRemovalEditor({
 
             <div className="subtitle-editor-player">
               <button
-                aria-label={isPlaying ? '暂停' : '播放'}
+                aria-label={isPlaying ? t("暂停") : t("播放")}
                 className="subtitle-editor-play"
                 disabled={!videoUrl}
                 onClick={() => void togglePlayback()}
@@ -436,7 +437,7 @@ export function SubtitleRemovalEditor({
                 {isPlaying ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
               </button>
               <Slider
-                aria-label="视频播放进度"
+                aria-label={t("视频播放进度")}
                 disabled={!videoUrl}
                 max={safeDuration}
                 min={0}
@@ -453,25 +454,25 @@ export function SubtitleRemovalEditor({
             </div>
             <p className="subtitle-editor-canvas-hint">
               {isPlacement
-                ? '拖拽字幕区域可调整位置，拖动边缘控制点可调整区域大小；也可以在空白画面重新框选。'
-                : '拖拽视频画面创建框选区域。区域和时间段可叠加生效，最终只处理同时满足条件的画面。'}
+                ? t("拖拽字幕区域可调整位置，拖动边缘控制点可调整区域大小；也可以在空白画面重新框选。")
+                : t("拖拽视频画面创建框选区域。区域和时间段可叠加生效，最终只处理同时满足条件的画面。")}
             </p>
           </main>
 
           <aside className="subtitle-editor-sidebar">
             {!isPlacement && <section className="subtitle-editor-control-section">
-              <h3>擦除内容</h3>
-              <div className="subtitle-editor-content-options" role="radiogroup" aria-label="擦除内容">
+              <h3>{t("擦除内容")}</h3>
+              <div className="subtitle-editor-content-options" role="radiogroup" aria-label={t("擦除内容")}>
                 <ContentOption
                   active={draft.contentType === 'subtitle'}
-                  description="保护剧情提示、场景文字和贴纸等非字幕文本。"
-                  label="仅字幕"
+                  description={t("保护剧情提示、场景文字和贴纸等非字幕文本。")}
+                  label={t("仅字幕")}
                   onClick={() => setDraft((current) => ({ ...current, contentType: 'subtitle' }))}
                 />
                 <ContentOption
                   active={draft.contentType === 'text'}
-                  description="连同文字水印、标题等渲染文本一起擦除。"
-                  label="所有渲染文字"
+                  description={t("连同文字水印、标题等渲染文本一起擦除。")}
+                  label={t("所有渲染文字")}
                   onClick={() => setDraft((current) => ({ ...current, contentType: 'text' }))}
                 />
               </div>
@@ -479,8 +480,8 @@ export function SubtitleRemovalEditor({
 
             <section className="subtitle-editor-control-section">
               <div className="subtitle-editor-section-heading">
-                <h3>{isPlacement ? '字幕区域' : '擦除区域'}</h3>
-                {!isPlacement && <button onClick={() => addRegion()} type="button"><Plus size={16} />新增区域</button>}
+                <h3>{isPlacement ? t("字幕区域") : t("擦除区域")}</h3>
+                {!isPlacement && <button onClick={() => addRegion()} type="button"><Plus size={16} />{t("新增区域")}</button>}
               </div>
               <div className="subtitle-editor-presets">
                 {(isPlacement ? placementPresets : regionPresets).map((preset) => (
@@ -495,7 +496,7 @@ export function SubtitleRemovalEditor({
                 {draft.locations.length === 0 && (
                   <button className="subtitle-editor-add-empty" onClick={() => addRegion()} type="button">
                     <Plus size={18} />
-                    添加第一个{isPlacement ? '字幕' : '擦除'}区域
+                    {t("添加第一个")}{isPlacement ? t("字幕") : t("擦除")}{t("区域")}
                   </button>
                 )}
                 {draft.locations.map((location, index) => (
@@ -505,9 +506,9 @@ export function SubtitleRemovalEditor({
                     onClick={() => setActiveRegionIndex(index)}
                   >
                     <header>
-                      <strong>{isPlacement ? '字幕区域' : `区域 ${index + 1}`}</strong>
+                      <strong>{isPlacement ? t("字幕区域") : t("区域 {{0}}", { "0": index + 1 })}</strong>
                       {!isPlacement && <button
-                        aria-label={`删除区域 ${index + 1}`}
+                        aria-label={t("删除区域 {{0}}", { "0": index + 1 })}
                         onClick={(event) => {
                           event.stopPropagation();
                           removeRegion(index);
@@ -515,31 +516,31 @@ export function SubtitleRemovalEditor({
                         type="button"
                       >
                         <Trash2 size={15} />
-                        删除
+                        {t("删除")}
                       </button>}
                     </header>
                     <div className="subtitle-editor-coordinate-grid">
-                      <CoordinateInput label="左上角 X" onChange={(value) => updateLocation(index, { ...location, topLeftX: value })} value={location.topLeftX} />
-                      <CoordinateInput label="左上角 Y" onChange={(value) => updateLocation(index, { ...location, topLeftY: value })} value={location.topLeftY} />
-                      <CoordinateInput label="右下角 X" onChange={(value) => updateLocation(index, { ...location, bottomRightX: value })} value={location.bottomRightX} />
-                      <CoordinateInput label="右下角 Y" onChange={(value) => updateLocation(index, { ...location, bottomRightY: value })} value={location.bottomRightY} />
+                      <CoordinateInput label={t("左上角 X")} onChange={(value) => updateLocation(index, { ...location, topLeftX: value })} value={location.topLeftX} />
+                      <CoordinateInput label={t("左上角 Y")} onChange={(value) => updateLocation(index, { ...location, topLeftY: value })} value={location.topLeftY} />
+                      <CoordinateInput label={t("右下角 X")} onChange={(value) => updateLocation(index, { ...location, bottomRightX: value })} value={location.bottomRightX} />
+                      <CoordinateInput label={t("右下角 Y")} onChange={(value) => updateLocation(index, { ...location, bottomRightY: value })} value={location.bottomRightY} />
                     </div>
                   </article>
                 ))}
               </div>
               <p className="subtitle-editor-help">
                 {isPlacement
-                  ? '框选区域将转换为硬字幕的 MarginL、MarginR 和 MarginV 参数；生成后字幕位置不可再次调整。'
-                  : 'Auto 区域模式只擦除完整落入区域的 OCR 字幕；Manual 会强制处理区域内符合特征的文本。'}
+                  ? t("框选区域将转换为硬字幕的 MarginL、MarginR 和 MarginV 参数；生成后字幕位置不可再次调整。")
+                  : t("Auto 区域模式只擦除完整落入区域的 OCR 字幕；Manual 会强制处理区域内符合特征的文本。")}
               </p>
             </section>
 
             {!isPlacement && <section className="subtitle-editor-control-section subtitle-editor-time-section">
               <div className="subtitle-editor-section-heading">
-                <h3>处理时段</h3>
+                <h3>{t("处理时段")}</h3>
                 {draft.clipFilter.mode !== 'all' && (
                   <button disabled={!videoUrl || duration <= 0} onClick={addClipRange} type="button">
-                    <Plus size={14} />新增时段
+                    <Plus size={14} />{t("新增时段")}
                   </button>
                 )}
               </div>
@@ -547,9 +548,9 @@ export function SubtitleRemovalEditor({
                 block
                 onChange={(value) => chooseClipMode(value as SubtitleRemovalConfig['clipFilter']['mode'])}
                 options={[
-                  { label: '全时段', value: 'all' },
-                  { label: '仅选中', value: 'selected' },
-                  { label: '跳过选中', value: 'skip' },
+                  { label: t("全时段"), value: 'all' },
+                  { label: t("仅选中"), value: 'selected' },
+                  { label: t("跳过选中"), value: 'skip' },
                 ]}
                 value={draft.clipFilter.mode}
               />
@@ -557,13 +558,13 @@ export function SubtitleRemovalEditor({
                 <div className="subtitle-editor-time-list">
                   {draft.clipFilter.clips.length === 0 && (
                     <button className="subtitle-editor-add-empty" disabled={!videoUrl || duration <= 0} onClick={addClipRange} type="button">
-                      <Plus size={16} />添加处理时段
+                      <Plus size={16} />{t("添加处理时段")}
                     </button>
                   )}
                   {draft.clipFilter.clips.map((clip, index) => (
                     <div className="subtitle-editor-time-range" key={`clip-${index}`}>
                       <Slider
-                        ariaLabelForHandle={[`时段 ${index + 1} 开始时间`, `时段 ${index + 1} 结束时间`]}
+                        ariaLabelForHandle={[t("时段 {{0}} 开始时间", { "0": index + 1 }), t("时段 {{0}} 结束时间", { "0": index + 1 })]}
                         disabled={!videoUrl || duration <= 0}
                         max={safeDuration}
                         min={0}
@@ -577,7 +578,7 @@ export function SubtitleRemovalEditor({
                         ]}
                       />
                       <div className="subtitle-editor-time-values">
-                        <strong className="subtitle-editor-time-name">时段 {index + 1}</strong>
+                        <strong className="subtitle-editor-time-name">{t("时段")} {index + 1}</strong>
                         {(['start', 'end'] as const).map((field) => {
                           const inputKey = clipTimeInputKey(index, field);
                           const inputValue = clipTimeDrafts[inputKey] ?? formatTime(clip[field]);
@@ -585,10 +586,10 @@ export function SubtitleRemovalEditor({
                             && !isValidClipTimeInput(inputValue, field, clip, duration);
                           return (
                             <span key={field}>
-                              <small>{field === 'start' ? '开始' : '结束'}</small>
+                              <small>{field === 'start' ? t("开始") : t("结束")}</small>
                               <input
                                 aria-invalid={isInvalid}
-                                aria-label={`时段 ${index + 1} ${field === 'start' ? '开始' : '结束'}时间`}
+                                aria-label={t("时段 {{0}} {{1}}时间", { "0": index + 1, "1": field === 'start' ? t("开始") : t("结束") })}
                                 className={isInvalid ? 'is-invalid' : ''}
                                 inputMode="decimal"
                                 onBlur={() => commitClipTime(index, field)}
@@ -601,13 +602,13 @@ export function SubtitleRemovalEditor({
                                   }
                                 }}
                                 spellCheck={false}
-                                title={isInvalid ? '请输入正确的秒数或 mm:ss.s 格式，并确保开始时间早于结束时间' : undefined}
+                                title={isInvalid ? t("请输入正确的秒数或 mm:ss.s 格式，并确保开始时间早于结束时间") : undefined}
                                 value={inputValue}
                               />
                             </span>
                           );
                         })}
-                        <button aria-label={`删除时段 ${index + 1}`} onClick={() => removeClipRange(index)} title="删除时段" type="button">
+                        <button aria-label={t("删除时段 {{0}}", { "0": index + 1 })} onClick={() => removeClipRange(index)} title={t("删除时段")} type="button">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -625,7 +626,7 @@ export function SubtitleRemovalEditor({
             onClick={() => onConfirm(cloneConfig(draft))}
             type="button"
           >
-            完成
+            {t("完成")}
           </button>
         </footer>
       </section>

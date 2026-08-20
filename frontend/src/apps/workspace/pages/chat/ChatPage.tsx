@@ -10,6 +10,7 @@ import { VideoWorkbenchLayout } from '../../layouts/VideoWorkbenchLayout';
 import { Button } from 'antd';
 import { Plus } from 'lucide-react';
 import './ChatPage.scss';
+import { t } from '@shared/i18n';
 
 export function ChatPage() {
   const chat = useChatSession();
@@ -22,7 +23,7 @@ export function ChatPage() {
   useEffect(() => {
     setHeaderExtra(
       <div className="workspace-chat-title-shell">
-        <span className="workspace-chat-title">{chat.activeConversation?.title || '新对话'}</span>
+        <span className="workspace-chat-title">{chat.activeConversation?.title || t("新对话")}</span>
       </div>,
     );
 
@@ -54,15 +55,15 @@ export function ChatPage() {
         footer={renderComposer()}
         sidebarTitle={(
           <>
-            <span>会话</span>
+            <span>{t("会话")}</span>
             <Button
-              aria-label="新建会话"
+              aria-label={t("新建会话")}
               icon={<Plus size={14} />}
               onClick={chat.startNewConversation}
               size="small"
               type="primary"
             >
-              新建
+              {t("新建")}
             </Button>
           </>
         )}

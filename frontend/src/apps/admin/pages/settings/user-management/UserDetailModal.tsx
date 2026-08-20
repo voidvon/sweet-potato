@@ -6,6 +6,7 @@ import type {
   ManagedUser,
 } from '../../../types';
 import { UserDetailTabs } from './UserDetailTabs';
+import { t } from '@shared/i18n';
 
 type UserDetailModalProps = {
   billableUsage: AdminBillableUsageRecord[];
@@ -29,7 +30,7 @@ export function UserDetailModal({
       footer={null}
       onCancel={onCancel}
       open={open}
-      title={user ? `${user.displayName} 的积分明细` : '积分明细'}
+      title={user ? t("{{0}} 的积分明细", { "0": user.displayName }) : t("积分明细")}
       width={1200}
       destroyOnClose
     >

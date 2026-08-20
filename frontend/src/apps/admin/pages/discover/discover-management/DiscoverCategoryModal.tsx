@@ -8,6 +8,7 @@ import {
   updateDiscoverCategory,
   type DiscoverCategory,
 } from '../../../api/discover'
+import { t } from '@shared/i18n';
 
 type DiscoverCategoryModalProps = {
   categories: DiscoverCategory[]
@@ -33,7 +34,7 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
       setNewCategoryName('')
       await onChanged()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '分类创建失败')
+      message.error(error instanceof Error ? error.message : t("分类创建失败"))
     } finally {
       setSaving(false)
     }
@@ -48,7 +49,7 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
       setEditingCategoryId(undefined)
       await onChanged()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '分类更新失败')
+      message.error(error instanceof Error ? error.message : t("分类更新失败"))
     } finally {
       setSaving(false)
     }
@@ -66,9 +67,9 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
     try {
       await Promise.all(normalized.map((category) => updateDiscoverCategory(category.id, { sortOrder: category.sortOrder })))
       onReordered(normalized)
-      message.success('分类顺序已更新')
+      message.success(t("分类顺序已更新"))
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '分类排序失败')
+      message.error(error instanceof Error ? error.message : t("分类排序失败"))
       await onChanged()
     } finally {
       setSorting(false)
@@ -77,51 +78,51 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
 
   const columns = useMemo<ColumnsType<DiscoverCategory>>(() => [
     {
-      title: '分类名称',
+      title: t("分类名称"),
       dataIndex: 'name',
       render: (name: string, category) => editingCategoryId === category.id
         ? <Input autoFocus maxLength={40} onChange={(event) => setEditingCategoryName(event.target.value)} onPressEnter={() => void saveCategory(category)} value={editingCategoryName} />
         : name,
     },
-    { title: '标识', dataIndex: 'slug', width: 180 },
+    { title: t("标识"), dataIndex: 'slug', width: 180 },
     {
-      title: '排序',
+      title: t("排序"),
       width: 100,
       render: (_, category, index) => (
         <Space size={0}>
-          <Tooltip title="上移">
-            <Button aria-label="上移分类" disabled={sorting || index === 0} icon={<ArrowUpOutlined />} onClick={() => void moveCategory(category.id, -1)} type="text" />
+          <Tooltip title={t("上移")}>
+            <Button aria-label={t("上移分类")} disabled={sorting || index === 0} icon={<ArrowUpOutlined />} onClick={() => void moveCategory(category.id, -1)} type="text" />
           </Tooltip>
-          <Tooltip title="下移">
-            <Button aria-label="下移分类" disabled={sorting || index === categories.length - 1} icon={<ArrowDownOutlined />} onClick={() => void moveCategory(category.id, 1)} type="text" />
+          <Tooltip title={t("下移")}>
+            <Button aria-label={t("下移分类")} disabled={sorting || index === categories.length - 1} icon={<ArrowDownOutlined />} onClick={() => void moveCategory(category.id, 1)} type="text" />
           </Tooltip>
         </Space>
       ),
     },
     {
-      title: '操作',
+      title: t("操作"),
       width: 180,
       render: (_, category) => editingCategoryId === category.id ? (
         <Space size={4}>
-          <Button loading={saving} onClick={() => void saveCategory(category)} type="link">保存</Button>
-          <Button onClick={() => setEditingCategoryId(undefined)} type="link">取消</Button>
+          <Button loading={saving} onClick={() => void saveCategory(category)} type="link">{t("保存")}</Button>
+          <Button onClick={() => setEditingCategoryId(undefined)} type="link">{t("取消")}</Button>
         </Space>
       ) : (
         <Space size={4}>
-          <Button icon={<EditOutlined />} onClick={() => { setEditingCategoryId(category.id); setEditingCategoryName(category.name) }} type="link">编辑</Button>
+          <Button icon={<EditOutlined />} onClick={() => { setEditingCategoryId(category.id); setEditingCategoryName(category.name) }} type="link">{t("编辑")}</Button>
           <Popconfirm
-            description="分类下有作品时无法删除"
+            description={t("分类下有作品时无法删除")}
             onConfirm={async () => {
               try {
                 await deleteDiscoverCategory(category.id)
                 await onChanged()
               } catch (error) {
-                message.error(error instanceof Error ? error.message : '分类删除失败')
+                message.error(error instanceof Error ? error.message : t("分类删除失败"))
               }
             }}
-            title="确认删除该分类？"
+            title={t("确认删除该分类？")}
           >
-            <Button danger icon={<DeleteOutlined />} type="link">删除</Button>
+            <Button danger icon={<DeleteOutlined />} type="link">{t("删除")}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -129,10 +130,10 @@ export function DiscoverCategoryModal({ categories, open, onChanged, onClose, on
   ], [categories.length, editingCategoryId, editingCategoryName, saving, sorting])
 
   return (
-    <Modal footer={null} onCancel={onClose} open={open} title="分类管理" width={720}>
+    <Modal footer={null} onCancel={onClose} open={open} title={t("分类管理")} width={720}>
       <Space.Compact className="discover-category-create">
-        <Input maxLength={40} onChange={(event) => setNewCategoryName(event.target.value)} onPressEnter={() => void addCategory()} placeholder="输入分类名称" value={newCategoryName} />
-        <Button loading={saving} onClick={() => void addCategory()} type="primary">新增分类</Button>
+        <Input maxLength={40} onChange={(event) => setNewCategoryName(event.target.value)} onPressEnter={() => void addCategory()} placeholder={t("输入分类名称")} value={newCategoryName} />
+        <Button loading={saving} onClick={() => void addCategory()} type="primary">{t("新增分类")}</Button>
       </Space.Compact>
       <Table columns={columns} dataSource={categories} pagination={false} rowKey="id" size="small" />
     </Modal>

@@ -26,6 +26,7 @@ import type {
   ActiveGridVideoCanvas,
   ActivePromptEditor,
 } from './batchGenerationGrid.types'
+import { t } from '@shared/i18n';
 
 export function GridCanvasOverlay({
   activeCanvas,
@@ -160,7 +161,7 @@ export function GridSelectOverlay({
         open
         options={activeSelect.fieldKey === 'modelConfigId'
           ? activeSelect.options
-          : [{ label: '使用全局设置', value: '' }, ...activeSelect.options]}
+          : [{ label: t("使用全局设置"), value: '' }, ...activeSelect.options]}
         popupClassName="ag-custom-component-popup batch-generation-grid-select-popup"
         popupMatchSelectWidth={activeSelect.fieldKey === 'modelConfigId' ? false : Math.max(activeSelect.anchor.width, 160)}
         value={activeSelect.value ?? ''}
@@ -209,26 +210,26 @@ export function GridPromptEditorOverlay({
       {activeEditor?.mode === 'fullscreen' ? (
         <header className="batch-generation-grid-prompt-editor__header">
           <div>
-            <strong>编辑提示词</strong>
-            <span><kbd>Ctrl / Cmd + Enter</kbd> 保存</span>
-            <span><kbd>Esc</kbd> 取消</span>
+            <strong>{t("编辑提示词")}</strong>
+            <span><kbd>Ctrl / Cmd + Enter</kbd> {t("保存")}</span>
+            <span><kbd>Esc</kbd> {t("取消")}</span>
           </div>
-          <button aria-label="取消编辑" onClick={onCancel} type="button"><X size={18} /></button>
+          <button aria-label={t("取消编辑")} onClick={onCancel} type="button"><X size={18} /></button>
         </header>
       ) : null}
       <div className="batch-generation-grid-prompt-editor__body">
         <MentionRichTextarea
           editorClassName="batch-generation-grid-prompt-editor__content"
-          emptyText="暂无可引用素材"
+          emptyText={t("暂无可引用素材")}
           enableHardBreak
-          menuTitle="可引用素材"
+          menuTitle={t("可引用素材")}
           minHeight={activeEditor?.mode === 'fullscreen' ? 0 : activeEditor?.anchor.height ?? 0}
           minRows={1}
           onChange={(nextValue) => {
             if (activeRow && activeEditor) onChange(activeRow.id, activeEditor.fieldKey, nextValue)
           }}
           options={options}
-          placeholder="输入提示词，使用 @ 引用素材"
+          placeholder={t("输入提示词，使用 @ 引用素材")}
           ref={editorRef}
           suggestionContainer="body"
           value={value}
@@ -236,10 +237,10 @@ export function GridPromptEditorOverlay({
       </div>
       {activeEditor?.mode === 'fullscreen' ? (
         <footer className="batch-generation-grid-prompt-editor__footer">
-          <span>{value.length} 字</span>
+          <span>{value.length} {t("字")}</span>
           <div>
-            <Button onClick={onCancel}>取消</Button>
-            <Button onClick={onSave} type="primary">保存</Button>
+            <Button onClick={onCancel}>{t("取消")}</Button>
+            <Button onClick={onSave} type="primary">{t("保存")}</Button>
           </div>
         </footer>
       ) : null}

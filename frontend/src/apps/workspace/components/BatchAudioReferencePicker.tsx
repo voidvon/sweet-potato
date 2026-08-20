@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../api/request';
 import type { ContentAsset } from '../types';
 import './BatchAudioReferencePicker.scss';
+import { t } from '@shared/i18n';
 
 const MAX_SEGMENTS = 3;
 const MIN_SEGMENT_SECONDS = 2;
@@ -89,8 +90,8 @@ export function BatchAudioReferencePicker({
     duration !== undefined && (duration < MIN_SEGMENT_SECONDS || duration > MAX_SEGMENT_SECONDS)
   ));
   const triggerLabel = draftIds.length
-    ? `${draftIds.length} 段 · ${formatSeconds(totalSeconds)}s`
-    : '音频';
+    ? t("{{0}} 段 · {{1}}s", { "0": draftIds.length, "1": formatSeconds(totalSeconds) })
+    : t("音频");
 
   useEffect(() => {
     if (!open) setDraftIds(ids);
@@ -156,15 +157,15 @@ export function BatchAudioReferencePicker({
     if (!file || uploading) return;
     const duration = await readAudioDuration(file);
     if (!duration) {
-      message.error('无法读取音频时长，请选择有效的 wav 或 mp3 文件');
+      message.error(t("无法读取音频时长，请选择有效的 wav 或 mp3 文件"));
       return;
     }
     if (duration < MIN_SEGMENT_SECONDS || duration > MAX_SEGMENT_SECONDS) {
-      message.warning('单段音频时长需为 2-15s');
+      message.warning(t("单段音频时长需为 2-15s"));
       return;
     }
     if (totalSeconds + duration > MAX_TOTAL_SECONDS + 0.01) {
-      message.warning('音频总时长不能超过 15s');
+      message.warning(t("音频总时长不能超过 15s"));
       return;
     }
     setUploading(true);
@@ -184,11 +185,11 @@ export function BatchAudioReferencePicker({
 
   const finish = () => {
     if (hasUnknownDuration) {
-      message.info('正在读取音频时长，请稍候');
+      message.info(t("正在读取音频时长，请稍候"));
       return;
     }
     if (hasInvalidSegment || exceedsLimit) {
-      message.warning('音频总时长不能超过 15s，单段需为 2-15s');
+      message.warning(t("音频总时长不能超过 15s，单段需为 2-15s"));
       return;
     }
     onChange(draftIds);
@@ -203,35 +204,35 @@ export function BatchAudioReferencePicker({
         content={(
           <div className="batch-audio-picker">
             <div className="batch-audio-picker__header">
-              <strong>总时长</strong>
+              <strong>{t("总时长")}</strong>
               <span>{formatSeconds(totalSeconds)} / 15s</span>
-              <button aria-label="关闭音频选择" className="batch-audio-picker__close" onClick={() => setOpen(false)} type="button"><X size={18} /></button>
+              <button aria-label={t("关闭音频选择")} className="batch-audio-picker__close" onClick={() => setOpen(false)} type="button"><X size={18} /></button>
             </div>
             <div className="batch-audio-picker__progress"><span style={{ width: `${Math.min(100, (totalSeconds / MAX_TOTAL_SECONDS) * 100)}%` }} /></div>
             <div className="batch-audio-picker__slots">
               {draftAssetList.map((asset, index) => {
                 const duration = durations[index] ?? 0;
-                const title = asset.name || asset.originalFileName || `音频段 ${index + 1}`;
+                const title = asset.name || asset.originalFileName || t("音频段 {{0}}", { "0": index + 1 });
                 return (
                   <div className="batch-audio-picker__item" key={asset.id}>
                     <span className="batch-audio-picker__item-name" title={title}>{title}</span>
-                    <span className="batch-audio-picker__item-duration">{duration ? `${formatSeconds(duration)}s` : '读取中'}</span>
-                    <button aria-label={playingId === asset.id ? `暂停${title}` : `播放${title}`} className="batch-audio-picker__item-play" onClick={() => togglePlayback(asset)} type="button">
+                    <span className="batch-audio-picker__item-duration">{duration ? `${formatSeconds(duration)}s` : t("读取中")}</span>
+                    <button aria-label={playingId === asset.id ? t("暂停{{0}}", { "0": title }) : t("播放{{0}}", { "0": title })} className="batch-audio-picker__item-play" onClick={() => togglePlayback(asset)} type="button">
                       {playingId === asset.id ? <Pause size={14} /> : <Play size={14} />}
                     </button>
-                    <button aria-label={`移除${title}`} className="batch-audio-picker__item-remove" onClick={() => setDraftIds((current) => current.filter((id) => id !== asset.id))} type="button"><X size={16} /></button>
+                    <button aria-label={t("移除{{0}}", { "0": title })} className="batch-audio-picker__item-remove" onClick={() => setDraftIds((current) => current.filter((id) => id !== asset.id))} type="button"><X size={16} /></button>
                   </div>
                 );
               })}
               {Array.from({ length: Math.max(0, MAX_SEGMENTS - draftIds.length) }).map((_, index) => (
                 <button className="batch-audio-picker__add" disabled={disabled || uploading} key={`empty-${index}`} onClick={openFilePicker} type="button">
-                  <Plus size={18} /> 添加音频段（2-15s）
+                  <Plus size={18} /> {t("添加音频段（2-15s）")}
                 </button>
               ))}
             </div>
             <div className="batch-audio-picker__footer">
-              <span>{hasInvalidSegment || exceedsLimit ? '已超过时长限制' : ''}</span>
-              <button className="batch-audio-picker__done" disabled={disabled || uploading || hasUnknownDuration} onClick={finish} type="button">完成</button>
+              <span>{hasInvalidSegment || exceedsLimit ? t("已超过时长限制") : ''}</span>
+              <button className="batch-audio-picker__done" disabled={disabled || uploading || hasUnknownDuration} onClick={finish} type="button">{t("完成")}</button>
             </div>
           </div>
         )}
@@ -247,7 +248,7 @@ export function BatchAudioReferencePicker({
       >
         <div
           aria-disabled={disabled}
-          aria-label="选择参考音频"
+          aria-label={t("选择参考音频")}
           className={`batch-audio-reference-trigger${draftIds.length ? ' is-filled' : ''}`}
           onKeyDown={(event) => {
             if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
@@ -262,7 +263,7 @@ export function BatchAudioReferencePicker({
           <span>{triggerLabel}</span>
           {draftIds.length ? (
             <button
-              aria-label="清除全部参考音频"
+              aria-label={t("清除全部参考音频")}
               className="batch-audio-reference-trigger__clear"
               onClick={(event) => {
                 event.preventDefault();

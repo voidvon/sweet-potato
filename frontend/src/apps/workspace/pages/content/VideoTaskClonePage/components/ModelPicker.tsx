@@ -5,6 +5,7 @@ import { Package, Trees, UserRound, X } from 'lucide-react';
 import { listContentAssetGroups, listContentAssetsPage } from '../../../../api/content';
 import { API_BASE_URL, resolveAssetUrl } from '../../../../api/request';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User } from '../../../../types';
+import { t } from '@shared/i18n';
 
 type ModelPickerProps = {
   onClose: () => void;
@@ -31,9 +32,9 @@ const tabs: Array<{
   label: string;
   resourceTypes: ContentAssetResourceType[];
 }> = [
-  { icon: UserRound, key: 'real_person', label: '人物', resourceTypes: ['real_person', 'virtual_portrait'] },
-  { icon: Trees, key: 'scene', label: '场景', resourceTypes: ['scene'] },
-  { icon: Package, key: 'product', label: '产品', resourceTypes: ['product'] },
+  { icon: UserRound, key: 'real_person', label: t("人物"), resourceTypes: ['real_person', 'virtual_portrait'] },
+  { icon: Trees, key: 'scene', label: t("场景"), resourceTypes: ['scene'] },
+  { icon: Package, key: 'product', label: t("产品"), resourceTypes: ['product'] },
 ];
 
 const defaultTabState: AssetTabState = {
@@ -121,7 +122,7 @@ export function ModelPicker({
         };
       });
     } catch {
-      message.error('素材加载失败');
+      message.error(t("素材加载失败"));
       setTabStates((current) => ({
         ...current,
         [tabKey]: {
@@ -214,10 +215,10 @@ export function ModelPicker({
       <section className="vc-model-picker__panel">
         <header className="vc-model-picker__head">
           <div className="vc-model-picker__head-text">
-            <strong>选择素材</strong>
-            <p>从素材库挑一张，会作为参考图加进合成区</p>
+            <strong>{t("选择素材")}</strong>
+            <p>{t("从素材库挑一张，会作为参考图加进合成区")}</p>
           </div>
-          <button aria-label="关闭素材库" className="vc-model-picker__close" onClick={onClose} type="button">
+          <button aria-label={t("关闭素材库")} className="vc-model-picker__close" onClick={onClose} type="button">
             <X size={18} />
           </button>
         </header>
@@ -258,15 +259,15 @@ export function ModelPicker({
             {activeState.isLoading && (
               <span className="video-task-assets-empty vc-model-picker__loading">
                 <Spin size="small" />
-                正在加载素材
+                {t("正在加载素材")}
               </span>
             )}
             {!activeState.isLoading && activeState.items.length === 0 && (
-              <span className="video-task-assets-empty">暂无{tabs.find((item) => item.key === activeTab)?.label}素材</span>
+              <span className="video-task-assets-empty">{t("暂无")}{tabs.find((item) => item.key === activeTab)?.label}{t("素材")}</span>
             )}
           </div>
           {!activeState.isLoading && activeState.items.length > 0 && !activeState.hasMore && (
-            <em className="vc-model-picker__end">— 没有更多 —</em>
+            <em className="vc-model-picker__end">{t("— 没有更多 —")}</em>
           )}
         </div>
       </section>
@@ -312,9 +313,9 @@ const ModelAssetCard = memo(function ModelAssetCard({
 
 function getModelAssetName(asset: ContentAsset, groupNameById: Record<string, string>) {
   if (asset.resourceType === 'real_person' || asset.resourceType === 'virtual_portrait') {
-    return groupNameById[asset.groupId] || asset.name || asset.originalFileName || asset.storedFileName || '素材';
+    return groupNameById[asset.groupId] || asset.name || asset.originalFileName || asset.storedFileName || t("素材");
   }
-  return asset.name || asset.originalFileName || asset.storedFileName || '素材';
+  return asset.name || asset.originalFileName || asset.storedFileName || t("素材");
 }
 
 function modelPickerAssetUrl(asset: ContentAsset) {

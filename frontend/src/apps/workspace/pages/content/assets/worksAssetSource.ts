@@ -1,4 +1,5 @@
 import type { ContentAsset } from '../../../types';
+import { t } from '@shared/i18n';
 
 export type VideoWorkSource = 'video_creation' | 'talking_video' | 'video_upscale' | 'subtitle_removal' | 'video_translation';
 
@@ -48,19 +49,19 @@ export function getVideoWorkSource(asset: ContentAsset): VideoWorkSource | null 
 
 export function getVideoWorkSourceLabel(source: VideoWorkSource | null) {
   if (source === 'video_creation') {
-    return '视频创作';
+    return t("视频创作");
   }
   if (source === 'talking_video') {
-    return '口播视频生成';
+    return t("口播视频生成");
   }
   if (source === 'video_upscale') {
-    return '高清放大';
+    return t("高清放大");
   }
   if (source === 'subtitle_removal') {
-    return '字幕擦除';
+    return t("字幕擦除");
   }
   if (source === 'video_translation') {
-    return '视频翻译';
+    return t("视频翻译");
   }
   return '';
 }

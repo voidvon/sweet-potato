@@ -1,9 +1,10 @@
 import type { ModelConfig, ModelType } from '../../../types';
+import { t } from '@shared/i18n';
 
 export const visibleModelTypes: Array<{ key: ModelType; label: string }> = [
-  { key: 'llm', label: 'LLM 模型' },
-  { key: 'image', label: '图片模型' },
-  { key: 'video', label: '视频模型' },
+  { key: 'llm', label: t("LLM 模型") },
+  { key: 'image', label: t("图片模型") },
+  { key: 'video', label: t("视频模型") },
   // { key: 'audio', label: '音频模型' },
 ];
 
@@ -29,10 +30,10 @@ export const defaultFormValues: ModelConfig = {
 };
 
 export const modelTypeLabelMap: Record<ModelType, string> = {
-  llm: 'LLM 模型',
-  image: '图片模型',
-  video: '视频模型',
-  audio: '音频模型',
+  llm: t("LLM 模型"),
+  image: t("图片模型"),
+  video: t("视频模型"),
+  audio: t("音频模型"),
 };
 
 export function modelTypeFromTabParam(value: string | null): ModelType {

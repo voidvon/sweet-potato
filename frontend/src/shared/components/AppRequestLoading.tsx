@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { subscribeRequestActivity } from '../api/core/requestActivity';
+import { t } from '@shared/i18n';
 
 const INITIAL_REQUEST_ARMING_MS = 900;
 const MIN_VISIBLE_MS = 260;
@@ -96,7 +97,7 @@ export function AppRequestLoading() {
     >
       <div className="page-request-loading-card">
         <LoaderCircle size={14} />
-        <span>页面加载中</span>
+        <span>{t("页面加载中")}</span>
       </div>
     </div>
   );

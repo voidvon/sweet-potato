@@ -5,6 +5,7 @@ import { SelectionCardGroup } from './SelectionCardGroup';
 import { VideoSourcePanel } from './VideoSourcePanel';
 import { WorkspaceSection } from './WorkspaceSection';
 import './DanceRemakePanel.scss';
+import { t } from '@shared/i18n';
 
 type DanceRemakePanelProps = {
   onMaterialClear: (kind: MaterialKind) => void;
@@ -50,12 +51,12 @@ export function DanceRemakePanel({
       />
 
       <WorkspaceSection
-        description="选择适合当前素材的视频复刻模式。"
-        title="生成模型"
+        description={t("选择适合当前素材的视频复刻模式。")}
+        title={t("生成模型")}
       >
         <Flex gap={12} vertical>
           <SelectionCardGroup
-            ariaLabel="视频复刻模式"
+            ariaLabel={t("视频复刻模式")}
             columns={2}
             options={danceRemakeModeOptions.map((option) => ({
               description: option.description,
@@ -68,7 +69,7 @@ export function DanceRemakePanel({
 
           {mode === 'enhanced' && (
             <Checkbox checked={voiceEnabled} onChange={(event) => onVoiceChange(event.target.checked)}>
-              保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。
+              {t("保留参考视频里的音乐和节奏，适合舞蹈、卡点、BGM 视频。")}
             </Checkbox>
           )}
         </Flex>

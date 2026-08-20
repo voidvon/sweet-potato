@@ -17,18 +17,19 @@ import { resolveAssetUrl } from '../../../api/request';
 import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '@/app/AppRealtimeEvents';
 import { getStoredUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
+import { t } from '@shared/i18n';
 
 const defaultChatAgent: AiAgent = {
   id: 'quick-answer',
-  name: '快速问答',
-  description: '适合直接向模型提问，快速获得结构化答案。',
+  name: t("快速问答"),
+  description: t("适合直接向模型提问，快速获得结构化答案。"),
   icon: 'chat',
   builtIn: true,
   capabilities: ['chat'],
   runMode: 'quick',
-  systemPrompt: '你是一个高效、准确的 AI 助手，回答要简洁清楚。',
+  systemPrompt: t("你是一个高效、准确的 AI 助手，回答要简洁清楚。"),
   tools: [],
-  skills: ['通用问答'],
+  skills: [t("通用问答")],
   retrievalStrategy: 'semantic',
   webSearchEnabled: false,
   multimodal: { imageUpload: false, fileUpload: false },
@@ -55,7 +56,7 @@ function mergeMessage(items: ChatMessage[], messageItem: ChatMessage, fallbackId
 }
 
 function imageGenerationFailureContent(errorMessage: string) {
-  return errorMessage.startsWith('生成失败，') ? errorMessage : `图片生成失败：${errorMessage}`;
+  return errorMessage.startsWith('生成失败，') ? errorMessage : t("图片生成失败：{{0}}", { "0": errorMessage });
 }
 
 const maxAttachmentCount = 6;
@@ -240,7 +241,7 @@ export function useChatSession() {
       hydratedFromUrlRef.current = false;
       setActiveConversationId(undefined);
       setMessages([]);
-      message.error(error instanceof Error ? error.message : '对话消息加载失败');
+      message.error(error instanceof Error ? error.message : t("对话消息加载失败"));
       return null;
     } finally {
       if (options?.showOverlay) {
@@ -287,7 +288,7 @@ export function useChatSession() {
           return;
         }
         setIsResolvingConversation(false);
-        message.error(error instanceof Error ? error.message : '历史对话加载失败');
+        message.error(error instanceof Error ? error.message : t("历史对话加载失败"));
       });
 
     return () => {
@@ -382,13 +383,13 @@ export function useChatSession() {
     const attachmentLimit = options?.maxCount ?? maxAttachmentCount;
     const remainingSlots = attachmentLimit - attachments.length;
     if (remainingSlots <= 0) {
-      message.warning(`最多添加 ${attachmentLimit} 个附件`);
+      message.warning(t("最多添加 {{0}} 个附件", { "0": attachmentLimit }));
       return [];
     }
 
     const acceptedFiles = files.slice(0, remainingSlots).filter((file) => {
       if (file.size > maxAttachmentBytes) {
-        message.warning(`${file.name} 超过 ${maxAttachmentSizeMb}MB，已跳过`);
+        message.warning(t("{{0}} 超过 {{1}}MB，已跳过", { "0": file.name, "1": maxAttachmentSizeMb }));
         return false;
       }
       return true;
@@ -466,7 +467,7 @@ export function useChatSession() {
 
     const failedResult = uploadResults.find((result) => result.status === 'rejected');
     if (failedResult?.status === 'rejected') {
-      message.error(failedResult.reason instanceof Error ? failedResult.reason.message : '附件添加失败');
+      message.error(failedResult.reason instanceof Error ? failedResult.reason.message : t("附件添加失败"));
     }
     return uploadResults.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
   }, [attachments.length]);
@@ -477,7 +478,7 @@ export function useChatSession() {
       removedPendingAttachmentIdsRef.current.add(attachmentId);
     } else if (attachment?.assetId) {
       void deleteChatAttachment(attachment.assetId).catch((error) => {
-        message.error(error instanceof Error ? error.message : '远端参考图删除失败');
+        message.error(error instanceof Error ? error.message : t("远端参考图删除失败"));
       });
     }
     const objectUrl = attachmentObjectUrlsRef.current.get(attachmentId);
@@ -497,38 +498,38 @@ export function useChatSession() {
 
   const removeConversation = useCallback((conversation: ChatConversation) => {
     Modal.confirm({
-      title: '删除会话',
+      title: t("删除会话"),
       centered: true,
-      content: `删除「${conversation.title}」后，该会话和消息记录都会被移除。`,
-      okText: '删除',
+      content: t("删除「{{0}}」后，该会话和消息记录都会被移除。", { "0": conversation.title }),
+      okText: t("删除"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       async onOk() {
         await deleteChatConversation(conversation.id);
         if (conversation.id === activeConversationId) {
           startNewConversation();
         }
         await refreshConversations();
-        message.success('会话已删除');
+        message.success(t("会话已删除"));
       },
     });
   }, [activeConversationId, refreshConversations, startNewConversation]);
 
   const clearConversationMessages = useCallback((conversation: ChatConversation) => {
     Modal.confirm({
-      title: '清空会话',
+      title: t("清空会话"),
       centered: true,
-      content: `清空「${conversation.title}」后，会保留会话入口，但移除当前消息内容。`,
-      okText: '清空',
+      content: t("清空「{{0}}」后，会保留会话入口，但移除当前消息内容。", { "0": conversation.title }),
+      okText: t("清空"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       async onOk() {
         await clearChatConversationMessages(conversation.id);
         if (conversation.id === activeConversationId) {
           setMessages([]);
         }
         await refreshConversations();
-        message.success('会话已清空');
+        message.success(t("会话已清空"));
       },
     });
   }, [activeConversationId, refreshConversations]);
@@ -559,7 +560,7 @@ export function useChatSession() {
     const autoImageGeneration = override?.autoImageGeneration === true;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
     const usesSynchronousChat = isImageGenerationRequest || autoImageGeneration;
-    const contentForSend = content || (isImageGenerationRequest ? '' : '请分析附件内容');
+    const contentForSend = content || (isImageGenerationRequest ? '' : t("请分析附件内容"));
     const resolvedCapabilityContext = override?.capabilityContext || {};
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
     const imageGenerationExpectedCount = isImageGenerationRequest
@@ -743,7 +744,7 @@ export function useChatSession() {
             item.id === pendingAssistantId || (item.role === 'assistant' && item.isCompleted === false)
               ? {
                   ...item,
-                  content: item.content || '已停止生成',
+                  content: item.content || t("已停止生成"),
                   reasoningContent: item.reasoningContent || null,
                   isCompleted: true,
                 }
@@ -755,7 +756,7 @@ export function useChatSession() {
       }
 
       if (isImageGenerationRequest) {
-        const errorMessage = error instanceof Error ? error.message : '图片生成失败';
+        const errorMessage = error instanceof Error ? error.message : t("图片生成失败");
         const failureCount = Math.max(1, imageGenerationExpectedCount || 0);
         setMessages((items) =>
           items.map((item) =>
@@ -785,7 +786,7 @@ export function useChatSession() {
       setActiveConversationId(previousConversationId);
       syncConversationUrl(previousConversationId || null);
       setMessages(previousMessages);
-      message.error(error instanceof Error ? error.message : '消息发送失败');
+      message.error(error instanceof Error ? error.message : t("消息发送失败"));
     } finally {
       if (streamAbortControllerRef.current === abortController) {
         streamAbortControllerRef.current = null;
@@ -842,11 +843,11 @@ export function useChatSession() {
       ? {
           imageGeneration: {
             modeKey: 'upscale',
-            modeTitle: '高清放大',
+            modeTitle: t("高清放大"),
             outputCount: imageAttachments.length,
             referenceGroups: [{
               key: 'source',
-              label: '原图',
+              label: t("原图"),
               required: true,
               attachmentIds: imageAttachments.map((attachment) => attachment.id),
             }],
@@ -877,7 +878,7 @@ export function useChatSession() {
   const continueEditImageMessage = useCallback((messageItem: ChatMessage) => {
     const imageAttachments = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image');
     if (!imageAttachments.length) {
-      message.warning('没有可继续编辑的图片');
+      message.warning(t("没有可继续编辑的图片"));
       return;
     }
     setAttachments(imageAttachments);

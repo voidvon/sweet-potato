@@ -7,6 +7,7 @@ import { createDiscoverItem, listDiscoverCategories, type DiscoverCategory } fro
 import { WorkPreviewThumbnail } from '../../components/WorkPreviewThumbnail'
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout'
 import './AllWorksPage.scss'
+import { t } from '@shared/i18n';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -99,7 +100,7 @@ export function AllWorksPage() {
       setPage(result.page)
       setTotal(result.total)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '作品列表加载失败')
+      message.error(error instanceof Error ? error.message : t("作品列表加载失败"))
     } finally {
       setLoading(false)
     }
@@ -109,7 +110,7 @@ export function AllWorksPage() {
     void loadWorks(1, '')
     void listDiscoverCategories()
       .then((result) => setDiscoverCategories(result.items.filter((category) => category.status === 'active')))
-      .catch((error) => message.error(error instanceof Error ? error.message : '发现分类加载失败'))
+      .catch((error) => message.error(error instanceof Error ? error.message : t("发现分类加载失败")))
   }, [])
 
   function applyUsernameFilter() {
@@ -146,11 +147,11 @@ export function AllWorksPage() {
         title: discoverWork.name,
         description: discoverWork.description,
       })
-      message.success('已添加到发现')
+      message.success(t("已添加到发现"))
       setDiscoverWork(null)
       setDiscoverCategoryId(undefined)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '添加到发现失败')
+      message.error(error instanceof Error ? error.message : t("添加到发现失败"))
     } finally {
       setAddingToDiscover(false)
     }
@@ -158,7 +159,7 @@ export function AllWorksPage() {
 
   const columns = useMemo<ColumnsType<AdminWork>>(() => [
     {
-      title: '作品结果',
+      title: t("作品结果"),
       key: 'preview',
       width: 96,
       render: (_, work) => (
@@ -171,7 +172,7 @@ export function AllWorksPage() {
       ),
     },
     {
-      title: '作品名称',
+      title: t("作品名称"),
       dataIndex: 'name',
       width: 280,
       ellipsis: true,
@@ -182,7 +183,7 @@ export function AllWorksPage() {
       ),
     },
     {
-      title: '用户名',
+      title: t("用户名"),
       key: 'username',
       width: 180,
       render: (_, work) => (
@@ -195,33 +196,33 @@ export function AllWorksPage() {
       ),
     },
     {
-      title: '生成功能',
+      title: t("生成功能"),
       key: 'mode',
       width: 150,
       ellipsis: true,
       render: (_, work) => work.modeTitle || work.mode || '-',
     },
     {
-      title: '模型',
+      title: t("模型"),
       dataIndex: 'model',
       width: 160,
       ellipsis: true,
       render: (value: string) => value || '-',
     },
     {
-      title: '生成时间',
+      title: t("生成时间"),
       dataIndex: 'generatedAt',
       width: 190,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '操作',
+      title: t("操作"),
       key: 'actions',
       fixed: 'right',
       width: 130,
       render: (_, work) => (
         <Space size={0}>
-          <Button icon={<PlusOutlined />} onClick={() => openDiscoverModal(work)} type="link">添加到发现</Button>
+          <Button icon={<PlusOutlined />} onClick={() => openDiscoverModal(work)} type="link">{t("添加到发现")}</Button>
         </Space>
       ),
     },
@@ -237,14 +238,14 @@ export function AllWorksPage() {
               className="all-works-username-filter"
               onChange={(event) => setUsernameInput(event.target.value)}
               onPressEnter={applyUsernameFilter}
-              placeholder="输入用户名搜索"
+              placeholder={t("输入用户名搜索")}
               value={usernameInput}
             />
-            <Button icon={<SearchOutlined />} loading={loading} onClick={applyUsernameFilter}>查询</Button>
-            <Button disabled={!usernameInput && !username} onClick={resetUsernameFilter}>重置</Button>
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadWorks(page, username)}>刷新</Button>
+            <Button icon={<SearchOutlined />} loading={loading} onClick={applyUsernameFilter}>{t("查询")}</Button>
+            <Button disabled={!usernameInput && !username} onClick={resetUsernameFilter}>{t("重置")}</Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadWorks(page, username)}>{t("刷新")}</Button>
           </Space>
-          <Typography.Text type="secondary">全部用户生成的图片和视频作品</Typography.Text>
+          <Typography.Text type="secondary">{t("全部用户生成的图片和视频作品")}</Typography.Text>
         </div>
 
         <div
@@ -257,13 +258,13 @@ export function AllWorksPage() {
             columns={columns}
             dataSource={works}
             loading={loading}
-            locale={{ emptyText: username ? '没有找到该用户的作品' : '暂无作品' }}
+            locale={{ emptyText: username ? t("没有找到该用户的作品") : t("暂无作品") }}
             pagination={{
               current: page,
               pageSize: 20,
               total,
               showSizeChanger: false,
-              showTotal: (count) => `共 ${count} 条`,
+              showTotal: (count) => t("共 {{0}} 条", { "0": count }),
               onChange: (nextPage) => void loadWorks(nextPage, username),
             }}
             rowKey="id"
@@ -277,19 +278,19 @@ export function AllWorksPage() {
         confirmLoading={addingToDiscover}
         destroyOnHidden
         okButtonProps={{ disabled: !discoverCategoryId || discoverCategories.length === 0 }}
-        okText="确认添加"
+        okText={t("确认添加")}
         onCancel={closeDiscoverModal}
         onOk={() => void addToDiscover()}
         open={Boolean(discoverWork)}
-        title="添加到发现"
+        title={t("添加到发现")}
       >
         <div className="all-works-discover-form">
           <Typography.Text type="secondary">{discoverWork?.name || '-'}</Typography.Text>
           <Select
-            notFoundContent="暂无可用分类，请先在发现管理中创建分类"
+            notFoundContent={t("暂无可用分类，请先在发现管理中创建分类")}
             onChange={setDiscoverCategoryId}
             options={discoverCategories.map((category) => ({ label: category.name, value: category.id }))}
-            placeholder="请选择分类"
+            placeholder={t("请选择分类")}
             value={discoverCategoryId}
           />
         </div>

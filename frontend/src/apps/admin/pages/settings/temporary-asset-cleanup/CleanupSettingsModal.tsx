@@ -5,6 +5,7 @@ import {
   updateTemporaryAssetCleanupSettings,
   type TemporaryAssetCleanupSettings,
 } from '../../../api/content-cleanup';
+import { t } from '@shared/i18n';
 
 type CleanupSettingsModalProps = {
   open: boolean;
@@ -21,7 +22,7 @@ export function CleanupSettingsModal({ open, onClose, onSaved }: CleanupSettings
     void getTemporaryAssetCleanupSettings()
       .then((settings) => form.setFieldsValue(settings))
       .catch((error: unknown) => {
-        message.error(error instanceof Error ? error.message : '清理设置加载失败');
+        message.error(error instanceof Error ? error.message : t("清理设置加载失败"));
       });
   }, [form, open]);
 
@@ -30,7 +31,7 @@ export function CleanupSettingsModal({ open, onClose, onSaved }: CleanupSettings
       const values = await form.validateFields();
       setSaving(true);
       await updateTemporaryAssetCleanupSettings(values);
-      message.success('临时素材清理设置已保存');
+      message.success(t("临时素材清理设置已保存"));
       onClose();
       onSaved();
     } catch (error) {
@@ -44,28 +45,28 @@ export function CleanupSettingsModal({ open, onClose, onSaved }: CleanupSettings
     <Modal
       centered
       confirmLoading={saving}
-      okText="保存设置"
+      okText={t("保存设置")}
       onCancel={onClose}
       onOk={() => void save()}
       open={open}
-      title="临时素材清理设置"
+      title={t("临时素材清理设置")}
     >
       <Form form={form} layout="vertical">
         <Form.Item
-          extra="新产生且未被引用的临时素材将在此时长后进入清理队列。"
-          label="临时素材保留时长"
+          extra={t("新产生且未被引用的临时素材将在此时长后进入清理队列。")}
+          label={t("临时素材保留时长")}
           name="retentionHours"
-          rules={[{ required: true, message: '请输入保留时长' }, { type: 'number', min: 1, max: 720, message: '请输入 1-720 小时' }]}
+          rules={[{ required: true, message: t("请输入保留时长") }, { type: 'number', min: 1, max: 720, message: t("请输入 1-720 小时") }]}
         >
-          <InputNumber addonAfter="小时" min={1} max={720} precision={0} style={{ width: '100%' }} />
+          <InputNumber addonAfter={t("小时")} min={1} max={720} precision={0} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item
-          extra="服务会按此频率检查并清理已过期且未被引用的素材。"
-          label="自动清理间隔"
+          extra={t("服务会按此频率检查并清理已过期且未被引用的素材。")}
+          label={t("自动清理间隔")}
           name="cleanupIntervalMinutes"
-          rules={[{ required: true, message: '请输入清理间隔' }, { type: 'number', min: 5, max: 1440, message: '请输入 5-1440 分钟' }]}
+          rules={[{ required: true, message: t("请输入清理间隔") }, { type: 'number', min: 5, max: 1440, message: t("请输入 5-1440 分钟") }]}
         >
-          <InputNumber addonAfter="分钟" min={5} max={1440} precision={0} style={{ width: '100%' }} />
+          <InputNumber addonAfter={t("分钟")} min={5} max={1440} precision={0} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </Modal>

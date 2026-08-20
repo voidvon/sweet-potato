@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { MaterialKey, SelectedMaterials } from '../types';
 import { PromptMentionEditor } from './PromptMentionEditor';
+import { t } from '@shared/i18n';
 
 type PromptModalProps = {
   description?: string;
@@ -17,14 +18,14 @@ type PromptModalProps = {
 };
 
 export function PromptModal({
-  description = '描述镜头、主体动作、风格和节奏，输入 @ 引用素材',
+  description = t('描述镜头、主体动作、风格和节奏，输入 @ 引用素材'),
   onClose,
   onPlaceholderFiles,
   onPromptChange,
-  placeholder = '输入提示词，可通过 @ 引用素材',
+  placeholder = t('输入提示词，可通过 @ 引用素材'),
   prompt,
   selectedMaterials,
-  title = '提示词 / 需求',
+  title = t('提示词 / 需求'),
 }: PromptModalProps) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -45,7 +46,7 @@ export function PromptModal({
             <strong>{title}</strong>
             <p>{description}</p>
           </div>
-          <Button aria-label="关闭全屏提示词编辑器" icon={<X size={18} />} onClick={onClose} shape="circle" type="text" />
+          <Button aria-label={t("关闭全屏提示词编辑器")} icon={<X size={18} />} onClick={onClose} shape="circle" type="text" />
         </div>
         <PromptMentionEditor
           minRows={10}

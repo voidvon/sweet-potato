@@ -11,6 +11,7 @@ import {
   uploadContentAsset,
 } from '../../../api/content';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User } from '../../../types';
+import { t } from '@shared/i18n';
 
 type UseAssetLibraryInput = {
   currentUser: User;
@@ -55,7 +56,7 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       });
       return result.items;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材加载失败');
+      message.error(error instanceof Error ? error.message : t("素材加载失败"));
       return [];
     } finally {
       if (groupsRequestIdRef.current === requestId) {
@@ -75,7 +76,7 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
     const promises: Promise<unknown>[] = [loadGroups(groupPage)];
     if (currentGroupId) {
       promises.push(loadGroupAssets(currentGroupId).catch((error) => {
-        message.error(error instanceof Error ? error.message : '素材加载失败');
+        message.error(error instanceof Error ? error.message : t("素材加载失败"));
       }));
     }
     await Promise.all(promises);
@@ -113,7 +114,7 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
     try {
       await loadGroupAssets(group.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材加载失败');
+      message.error(error instanceof Error ? error.message : t("素材加载失败"));
     }
   }, [loadGroupAssets]);
 
@@ -138,7 +139,7 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
     options: { description?: string; groupMetadata?: Record<string, unknown>; assetMetadata?: Record<string, unknown>; uploadFileToGroup?: UploadFileToGroup } = {},
   ) => {
     if (!name.trim()) {
-      message.warning('请输入名称');
+      message.warning(t("请输入名称"));
       return null;
     }
     try {
@@ -156,10 +157,10 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       setGroupPage(1);
       await Promise.all([loadGroups(1), loadGroupAssets(group.id)]);
       setActiveGroup(group);
-      message.success('创建成功');
+      message.success(t("创建成功"));
       return group;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '创建失败');
+      message.error(error instanceof Error ? error.message : t("创建失败"));
       return null;
     } finally {
       setIsUploading(false);
@@ -168,17 +169,17 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
 
   const renameGroup = useCallback(async (id: string, name: string) => {
     if (!name.trim()) {
-      message.warning('请输入名称');
+      message.warning(t("请输入名称"));
       return null;
     }
     try {
       const updated = await updateContentAssetGroup(id, { name: name.trim() });
       setActiveGroup(updated);
       await loadGroups(groupPage);
-      message.success('名称已更新');
+      message.success(t("名称已更新"));
       return updated;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '更新失败');
+      message.error(error instanceof Error ? error.message : t("更新失败"));
       return null;
     }
   }, [groupPage, loadGroups]);
@@ -191,10 +192,10 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       setIsUploading(true);
       await uploadFilesToGroup(activeGroup.id, files, metadata, uploadFileToGroup);
       await Promise.all([loadGroupAssets(activeGroup.id), loadGroups(groupPage)]);
-      message.success('上传成功');
+      message.success(t("上传成功"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '上传失败');
+      message.error(error instanceof Error ? error.message : t("上传失败"));
       return false;
     } finally {
       setIsUploading(false);
@@ -210,10 +211,10 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       await Promise.all(activeGroupAssets.map((asset) => deleteContentAsset(asset.id)));
       await uploadFilesToGroup(activeGroup.id, files, metadata, uploadFileToGroup);
       await Promise.all([loadGroupAssets(activeGroup.id), loadGroups(groupPage)]);
-      message.success('上传成功');
+      message.success(t("上传成功"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '上传失败');
+      message.error(error instanceof Error ? error.message : t("上传失败"));
       return false;
     } finally {
       setIsUploading(false);
@@ -229,9 +230,9 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
         promises.push(loadGroupAssets(groupId));
       }
       await Promise.all(promises);
-      message.success('素材已删除');
+      message.success(t("素材已删除"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材删除失败');
+      message.error(error instanceof Error ? error.message : t("素材删除失败"));
     }
   }, [activeGroup?.id, groupPage, loadGroups, loadGroupAssets]);
 
@@ -249,10 +250,10 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
         return next;
       });
       await loadGroups(groupPage);
-      message.success('删除成功');
+      message.success(t("删除成功"));
       return true;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '删除失败');
+      message.error(error instanceof Error ? error.message : t("删除失败"));
       return false;
     } finally {
       setIsDeletingGroup(false);
@@ -272,13 +273,13 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       await Promise.all([loadGroups(groupPage), loadGroupAssets(updated.id)]);
       const clone = updated.metadata?.voiceClone as Record<string, unknown> | undefined;
       if (clone?.status === 'failed') {
-        message.error(typeof clone.failureReason === 'string' ? clone.failureReason : '声音克隆失败');
+        message.error(typeof clone.failureReason === 'string' ? clone.failureReason : t("声音克隆失败"));
       } else {
-        message.success(clone?.status === 'success' ? '声音克隆完成' : '声音克隆已提交');
+        message.success(clone?.status === 'success' ? t("声音克隆完成") : t("声音克隆已提交"));
       }
       return updated;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '声音克隆失败');
+      message.error(error instanceof Error ? error.message : t("声音克隆失败"));
       return null;
     }
   }, [activeGroup, currentUser.id, groupPage, loadGroups, loadGroupAssets]);
@@ -293,7 +294,7 @@ export function useAssetLibrary({ currentUser, resourceType, pageSize = DEFAULT_
       await Promise.all([loadGroups(groupPage), loadGroupAssets(updated.id)]);
       return updated;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '声音克隆失败');
+      message.error(error instanceof Error ? error.message : t("声音克隆失败"));
       return null;
     }
   }, [currentUser.id, groupPage, loadGroups, loadGroupAssets]);

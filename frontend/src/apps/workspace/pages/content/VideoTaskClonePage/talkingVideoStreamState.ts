@@ -1,4 +1,5 @@
 import type { TalkingVideoPromptTask } from './types';
+import { t } from '@shared/i18n';
 
 export type TalkingVideoDeltaKind = 'prompt' | 'reasoning';
 
@@ -39,7 +40,7 @@ export function applyTalkingVideoResumeFailure(
   task: TalkingVideoPromptTask,
   errorMessage: string,
 ): TalkingVideoPromptTask {
-  const normalizedMessage = errorMessage.trim() || '口播任务恢复失败，请重新生成';
+  const normalizedMessage = errorMessage.trim() || t("口播任务恢复失败，请重新生成");
   const missingTask = /口播任务(?:已失效，请点击继续重新生成|不存在或已失效)/u.test(normalizedMessage);
   return {
     ...task,

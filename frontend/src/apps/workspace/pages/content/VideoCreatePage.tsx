@@ -26,12 +26,13 @@ import type {
 } from '../../types';
 import type { VideoModelProviderOption } from '../../api/model-config';
 import { validateVoiceAudioFiles, voiceAudioAccept } from '../../utils/voiceAudioUpload';
+import { t } from '@shared/i18n';
 
 type VideoCreatePageProps = {
   currentUser: User;
 };
 
-const qualityOptions = ['普清 (480p)', '标清 (720p)'];
+const qualityOptions = [t("普清 (480p)"), t("标清 (720p)")];
 const ratioOptions = ['9:16', '16:9', '3:4', '4:3', '1:1'];
 type PickerKind = 'image' | 'video' | 'audio';
 
@@ -46,40 +47,38 @@ const pickerConfig: Record<PickerKind, {
   limit: number;
 }> = {
   image: {
-    label: '参考图片',
-    title: '选择参考图片',
-    hint: '从数字人、场景或产品素材中选择具体图片。',
-    emptyText: '暂无可选图片素材',
+    label: t("参考图片"),
+    title: t("选择参考图片"),
+    hint: t("从数字人、场景或产品素材中选择具体图片。"),
+    emptyText: t("暂无可选图片素材"),
     accept: 'image/*',
     resourceType: 'product',
-    groupName: '视频制作参考图片',
+    groupName: t("视频制作参考图片"),
     limit: 9,
   },
   video: {
-    label: '参考视频',
-    title: '选择参考视频',
-    hint: '上传并选择自己的参考视频，不会进入成片素材库。',
-    emptyText: '暂无已上传参考视频',
+    label: t("参考视频"),
+    title: t("选择参考视频"),
+    hint: t("上传并选择自己的参考视频，不会进入成片素材库。"),
+    emptyText: t("暂无已上传参考视频"),
     accept: 'video/*',
     resourceType: 'other',
-    groupName: '视频制作参考视频',
+    groupName: t("视频制作参考视频"),
     limit: 3,
   },
   audio: {
-    label: '参考音频',
-    title: '选择参考音频',
-    hint: '从人声素材库选择具体音频，或本地上传 wav/mp3。',
-    emptyText: '暂无可选音频素材',
+    label: t("参考音频"),
+    title: t("选择参考音频"),
+    hint: t("从人声素材库选择具体音频，或本地上传 wav/mp3。"),
+    emptyText: t("暂无可选音频素材"),
     accept: voiceAudioAccept,
     resourceType: 'voice',
-    groupName: '视频制作参考音频',
+    groupName: t("视频制作参考音频"),
     limit: 3,
   },
 };
 
-const defaultPrompt = `
-整体风格：电影感、暖色调、高饱和度
-氛围：轻松愉快、专业可信`;
+const defaultPrompt = t("\n整体风格：电影感、暖色调、高饱和度\n氛围：轻松愉快、专业可信");
 
 const preferredVideoModelId = 'doubao-seedance-2-0-260128';
 
@@ -120,12 +119,12 @@ function assetUrl(asset: ContentAsset) {
 
 function audioSourceLabel(asset: ContentAsset, group?: ContentAssetGroup) {
   if (asset.metadata?.kind === 'voice_clone_preview') {
-    return '克隆试听';
+    return t("克隆试听");
   }
   if (asset.metadata?.source === 'local_upload' || group?.metadata?.source === 'local_upload') {
-    return '本地上传';
+    return t("本地上传");
   }
-  return '本地上传';
+  return t("本地上传");
 }
 
 function isVideoGenerationResult(value: unknown): value is VideoGenerationResult {
@@ -187,48 +186,48 @@ function videoTaskViewState(task: VideoGenerationTask) {
 
   if (hasVideoUrl) {
     return {
-      label: '已完成',
+      label: t("已完成"),
       className: 'success',
-      posterText: '成片已生成',
-      note: '视频模型已返回真实成片地址。',
+      posterText: t("成片已生成"),
+      note: t("视频模型已返回真实成片地址。"),
       videoUrl,
     };
   }
   if (isFailed) {
     return {
-      label: '生成失败',
+      label: t("生成失败"),
       className: 'failed',
-      posterText: '生成失败',
-      note: result?.errorMessage || task.failureReason || '视频模型未返回可用成片，请检查配置后重试。',
+      posterText: t("生成失败"),
+      note: result?.errorMessage || task.failureReason || t("视频模型未返回可用成片，请检查配置后重试。"),
       videoUrl,
     };
   }
   if (isQueuedOrRunning) {
     const queued = result?.renderStatus === 'queued' || result?.status === 'pending';
     return {
-      label: queued ? '已排队' : '生成中',
+      label: queued ? t("已排队") : t("生成中"),
       className: 'running',
-      posterText: queued ? '视频生成已排队' : '等待成片地址',
+      posterText: queued ? t("视频生成已排队") : t("等待成片地址"),
       note: result?.jobId
-        ? `任务号：${result.jobId}。后端返回真实成片地址后会回写到任务记录。`
-        : '后端返回真实成片地址后会回写到任务记录。',
+        ? t("任务号：{{0}}。后端返回真实成片地址后会回写到任务记录。", { "0": result.jobId })
+        : t("后端返回真实成片地址后会回写到任务记录。"),
       videoUrl,
     };
   }
   if (isMissingResult) {
     return {
-      label: '等待成片',
+      label: t("等待成片"),
       className: 'running',
-      posterText: '后端尚未返回真实成片地址',
-      note: '任务已进入完成态但没有可播放 URL，页面不会展示占位视频。请稍后刷新或重新提交生成。',
+      posterText: t("后端尚未返回真实成片地址"),
+      note: t("任务已进入完成态但没有可播放 URL，页面不会展示占位视频。请稍后刷新或重新提交生成。"),
       videoUrl,
     };
   }
   return {
-    label: '待处理',
+    label: t("待处理"),
     className: 'running',
-    posterText: '等待生成任务推进',
-    note: '任务尚未进入成片生成或后端还没有返回生成状态。',
+    posterText: t("等待生成任务推进"),
+    note: t("任务尚未进入成片生成或后端还没有返回生成状态。"),
     videoUrl,
   };
 }
@@ -274,7 +273,7 @@ function promptCountClassName(count: number) {
 }
 
 function formatDurationOption(seconds: number) {
-  return `${seconds}秒`;
+  return t("{{0}}秒", { "0": seconds });
 }
 
 function parseDurationOptionSeconds(value: string) {
@@ -299,30 +298,30 @@ function referenceBlockTitle(kind: PickerKind, policy: VideoModelReferencePolicy
     return pickerConfig[kind].label;
   }
   if (policy.imageMode === 'first_frame_required') {
-    return '首帧图片';
+    return t("首帧图片");
   }
   if (policy.imageMode === 'first_last_optional') {
-    return '首尾帧图片';
+    return t("首尾帧图片");
   }
-  return '参考图片';
+  return t("参考图片");
 }
 
 function referenceBlockHint(kind: PickerKind, policy: VideoModelReferencePolicy) {
   if (kind === 'image') {
     if (policy.imageMode === 'first_frame_required') {
-      return '当前模型要求上传 1 张首帧图片。';
+      return t("当前模型要求上传 1 张首帧图片。");
     }
     if (policy.imageMode === 'first_last_optional') {
-      return '可上传 1-2 张图片，分别作为首帧 / 尾帧。';
+      return t("可上传 1-2 张图片，分别作为首帧 / 尾帧。");
     }
-    return '当前模型支持 1-9 张参考图，后端会按火山多模态参考接口传入。';
+    return t("当前模型支持 1-9 张参考图，后端会按火山多模态参考接口传入。");
   }
   if (kind === 'video') {
-    return '当前模型支持最多 3 个参考视频。';
+    return t("当前模型支持最多 3 个参考视频。");
   }
   return policy.audioRequiresVisualReference
-    ? '当前模型支持最多 3 个参考音频，且至少要同时提供 1 个参考图片或参考视频。'
-    : '当前模型支持最多 3 个参考音频。';
+    ? t("当前模型支持最多 3 个参考音频，且至少要同时提供 1 个参考图片或参考视频。")
+    : t("当前模型支持最多 3 个参考音频。");
 }
 
 export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
@@ -351,7 +350,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
       setRecords(list.slice(0, 8));
     } catch (error) {
       if (!options?.silent) {
-        message.error(error instanceof Error ? error.message : '生成记录加载失败');
+        message.error(error instanceof Error ? error.message : t("生成记录加载失败"));
       }
     }
   }, [currentUser.id]);
@@ -369,7 +368,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
       setVideoProviders(providers);
       setVideoConfigs(configs);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材加载失败');
+      message.error(error instanceof Error ? error.message : t("素材加载失败"));
     }
   }, [currentUser.id]);
 
@@ -381,7 +380,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
   const hasActiveRecords = useMemo(
     () => records.some((record) => {
       const status = videoTaskViewState(record);
-      return status.label === '已排队' || status.label === '生成中' || status.label === '等待成片';
+      return status.label === t('已排队') || status.label === t('生成中') || status.label === t('等待成片');
     }),
     [records],
   );
@@ -523,25 +522,25 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
   async function handleGenerate() {
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
-      message.warning('请输入视频制作提示词');
+      message.warning(t("请输入视频制作提示词"));
       return;
     }
     if (!selectedVideoModel) {
-      message.warning('请先在模型配置页配置视频模型 API Key');
+      message.warning(t("请先在模型配置页配置视频模型 API Key"));
       return;
     }
     const { providerId, modelId } = parseVideoModelValue(selectedVideoModel.value);
     const policy = selectedVideoModel.model.referencePolicy;
     if (policy.imageMode === 'first_frame_required' && referenceImageIds.length < 1) {
-      message.warning('当前模型至少需要 1 张首帧图片');
+      message.warning(t("当前模型至少需要 1 张首帧图片"));
       return;
     }
     if (policy.allowAudio && policy.audioRequiresVisualReference && referenceAudioIds.length > 0 && referenceImageIds.length === 0 && referenceVideoIds.length === 0) {
-      message.warning('参考音频需要搭配至少 1 个参考图片或参考视频');
+      message.warning(t("参考音频需要搭配至少 1 个参考图片或参考视频"));
       return;
     }
     if (hasInactiveRealPersonImage(referenceImageIds, assets)) {
-      message.warning('真人素材仍在入库处理中');
+      message.warning(t("真人素材仍在入库处理中"));
       return;
     }
     try {
@@ -562,9 +561,9 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         referenceAudioIds,
       });
       await Promise.all([loadRecords(), loadAssets()]);
-      message.success('视频生成任务已创建');
+      message.success(t("视频生成任务已创建"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频生成失败');
+      message.error(error instanceof Error ? error.message : t("视频生成失败"));
     } finally {
       setIsSubmitting(false);
     }
@@ -608,7 +607,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
     }
     const asset = assets.find((item) => item.id === assetId);
     if (kind === 'image' && asset && !isSelectableImageAsset(asset)) {
-      message.warning('真人素材仍在入库处理中');
+      message.warning(t("真人素材仍在入库处理中"));
       return;
     }
     const limit = kind === 'image'
@@ -617,14 +616,14 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         ? (selectedReferencePolicy?.maxVideos || pickerConfig[kind].limit)
         : (selectedReferencePolicy?.maxAudios || pickerConfig[kind].limit);
     if (selectedIds.length >= limit) {
-      message.warning(`${pickerConfig[kind].label}最多选择 ${limit} 个`);
+      message.warning(t("{{0}}最多选择 {{1}} 个", { "0": pickerConfig[kind].label, "1": limit }));
       return;
     }
     setSelectedIdsFor(kind, [...selectedIds, assetId]);
   }
 
   function groupName(groupId: string) {
-    return groups.find((group) => group.id === groupId)?.name || '未分组';
+    return groups.find((group) => group.id === groupId)?.name || t("未分组");
   }
 
   function referenceIdsFromMeta(meta: ReturnType<typeof taskMeta>, kind: PickerKind) {
@@ -642,7 +641,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
     try {
       detailRecord = await getVideoTask(record.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      message.error(error instanceof Error ? error.message : t("视频任务详情获取失败"));
       return;
     }
     const meta = taskMeta(detailRecord);
@@ -656,7 +655,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
     setReferenceImageIds(referenceIdsFromMeta(meta, 'image').slice(0, pickerConfig.image.limit));
     setReferenceVideoIds(referenceIdsFromMeta(meta, 'video').slice(0, pickerConfig.video.limit));
     setReferenceAudioIds(referenceIdsFromMeta(meta, 'audio').slice(0, pickerConfig.audio.limit));
-    message.success('已回填任务参数，可调整后重新生成');
+    message.success(t("已回填任务参数，可调整后重新生成"));
   }
 
   async function handleRegenerate(record: VideoGenerationTask) {
@@ -664,17 +663,17 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
     try {
       detailRecord = await getVideoTask(record.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频任务详情获取失败');
+      message.error(error instanceof Error ? error.message : t("视频任务详情获取失败"));
       return;
     }
     const meta = taskMeta(detailRecord);
     const nextPrompt = (detailRecord.prompt || prompt).trim();
     if (!nextPrompt) {
-      message.warning('该记录缺少提示词，无法重新生成');
+      message.warning(t("该记录缺少提示词，无法重新生成"));
       return;
     }
     if (hasInactiveRealPersonImage(meta.referenceImageIds, assets)) {
-      message.warning('真人素材仍在入库处理中');
+      message.warning(t("真人素材仍在入库处理中"));
       return;
     }
     try {
@@ -695,9 +694,9 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         referenceAudioIds: meta.referenceAudioIds,
       });
       await Promise.all([loadRecords(), loadAssets()]);
-      message.success('已使用原参数重新提交生成');
+      message.success(t("已使用原参数重新提交生成"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '重新生成失败');
+      message.error(error instanceof Error ? error.message : t("重新生成失败"));
     } finally {
       setIsSubmitting(false);
     }
@@ -705,18 +704,18 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
 
   function handleDeleteRecord(record: VideoGenerationTask) {
     Modal.confirm({
-      title: '删除生成记录',
-      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
-      okText: '删除',
+      title: t("删除生成记录"),
+      content: t("删除后会同时移除该任务关联的成片素材，确定继续？"),
+      okText: t("删除"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       async onOk() {
         try {
           await deleteVideoTask(record.id);
           await Promise.all([loadRecords(), loadAssets()]);
-          message.success('生成记录已删除');
+          message.success(t("生成记录已删除"));
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '删除生成记录失败');
+          message.error(error instanceof Error ? error.message : t("删除生成记录失败"));
         }
       },
     });
@@ -733,7 +732,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
       userId: currentUser.id,
       resourceType: config.resourceType,
       name: config.groupName,
-      description: '视频制作页上传的参考素材',
+      description: t("视频制作页上传的参考素材"),
       metadata: kind === 'audio'
         ? { kind: 'video_create_reference_upload', referenceKind: kind, source: 'local_upload' }
         : { kind: 'video_create_reference_upload', referenceKind: kind },
@@ -753,14 +752,14 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         : (selectedReferencePolicy?.maxAudios || config.limit);
     const availableSlots = limit - selectedIds.length;
     if (availableSlots <= 0) {
-      message.warning(`${referenceBlockTitle(pickerKind, selectedReferencePolicy || {
+      message.warning(t("{{0}}最多选择 {{1}} 个", { "0": referenceBlockTitle(pickerKind, selectedReferencePolicy || {
         imageMode: 'reference_images',
         maxImages: config.limit,
         allowVideo: true,
         maxVideos: config.limit,
         allowAudio: true,
         maxAudios: config.limit,
-      })}最多选择 ${limit} 个`);
+      }), "1": limit }));
       return;
     }
     let uploadFiles = Array.from(files).slice(0, availableSlots);
@@ -769,7 +768,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         const validated = await validateVoiceAudioFiles(uploadFiles);
         uploadFiles = validated.map((item) => item.file);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : '参考音频校验失败');
+        message.error(error instanceof Error ? error.message : t("参考音频校验失败"));
         if (uploadInputRef.current) {
           uploadInputRef.current.value = '';
         }
@@ -789,7 +788,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
           groupId: group.id,
           resourceType: config.resourceType,
           name: file.name,
-          description: `${config.title}上传`,
+          description: t("{{0}}上传", { "0": config.title }),
           metadata: pickerKind === 'audio'
             ? { kind: 'voice_source', referenceKind: pickerKind, source: 'local_upload', duration: audioDuration }
             : { kind: 'video_create_reference_upload', referenceKind: pickerKind },
@@ -798,11 +797,11 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
       await loadAssets();
       setSelectedIdsFor(pickerKind, [...selectedIds, ...uploadedAssets.map((asset) => asset.id)]);
       if (files.length > uploadFiles.length) {
-        message.info(`已按上限上传并选中 ${uploadFiles.length} 个素材`);
+        message.info(t("已按上限上传并选中 {{0}} 个素材", { "0": uploadFiles.length }));
       }
-      message.success('参考素材已上传');
+      message.success(t("参考素材已上传"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '参考素材上传失败');
+      message.error(error instanceof Error ? error.message : t("参考素材上传失败"));
     } finally {
       setIsUploading(false);
       if (uploadInputRef.current) {
@@ -845,7 +844,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         <button className="reference-picker-entry" onClick={() => setPickerKind(kind)} type="button">
           <span className="reference-picker-icon">{kind === 'image' ? '🖼️' : kind === 'video' ? '🎥' : '🎵'}</span>
           <span>
-            <strong>{selectedIds.length ? `已选择 ${selectedIds.length} 个${referenceBlockTitle(kind, selectedReferencePolicy)}` : config.title}</strong>
+            <strong>{selectedIds.length ? t("已选择 {{0}} 个{{1}}", { "0": selectedIds.length, "1": referenceBlockTitle(kind, selectedReferencePolicy) }) : config.title}</strong>
             <small>{referenceBlockHint(kind, selectedReferencePolicy)}</small>
           </span>
         </button>
@@ -880,18 +879,18 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
           <div className="reference-picker-toolbar">
             <div>
               <strong>
-                已选择 {selectedIds.length}/{
+                {t("已选择")} {selectedIds.length}/{
                   pickerKind === 'image'
                     ? (selectedReferencePolicy?.maxImages || config.limit)
                     : pickerKind === 'video'
                       ? (selectedReferencePolicy?.maxVideos || config.limit)
                       : (selectedReferencePolicy?.maxAudios || config.limit)
-                } 个素材
+                } {t("个素材")}
               </strong>
               <span>{config.hint}</span>
             </div>
             <Button loading={isUploading} onClick={() => uploadInputRef.current?.click()} type="primary">
-              上传自己的素材
+              {t("上传自己的素材")}
             </Button>
             <input
               accept={config.accept}
@@ -913,7 +912,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                       <span className="reference-audio-mark">♪</span>
                       <span className="reference-audio-copy">
                         <strong title={asset.name}>{asset.name}</strong>
-                        <small>{group?.name || '未分组音频'}</small>
+                        <small>{group?.name || t("未分组音频")}</small>
                       </span>
                       <span className="reference-audio-badge">{audioSourceLabel(asset, group)}</span>
                     </button>
@@ -940,13 +939,13 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
             {!pickerAssets.length ? (
               <div className="reference-empty-state">
                 <strong>{config.emptyText}</strong>
-                <span>{pickerKind === 'audio' ? '可上传 wav/mp3，单段 2-15 秒，最多 3 段，总时长不超过 15 秒。' : '可以点击右上角上传自己的素材。'}</span>
+                <span>{pickerKind === 'audio' ? t("可上传 wav/mp3，单段 2-15 秒，最多 3 段，总时长不超过 15 秒。") : t("可以点击右上角上传自己的素材。")}</span>
               </div>
             ) : null}
           </div>
           <div className="reference-picker-footer">
-            <Button onClick={() => setSelectedIdsFor(pickerKind, [])}>清空选择</Button>
-            <Button onClick={() => setPickerKind(null)} type="primary">完成</Button>
+            <Button onClick={() => setSelectedIdsFor(pickerKind, [])}>{t("清空选择")}</Button>
+            <Button onClick={() => setPickerKind(null)} type="primary">{t("完成")}</Button>
           </div>
         </div>
       </Modal>
@@ -959,9 +958,9 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
         <div className="video-settings-panel">
           <div className="create-container">
             <div className="create-card">
-              <div className="create-card-title">基础设置</div>
+              <div className="create-card-title">{t("基础设置")}</div>
               <div className="create-row">
-                <span className="create-label">生成模型</span>
+                <span className="create-label">{t("生成模型")}</span>
                 <div className="model-select-wrap">
                   {selectableVideoModels.length ? (
                     <Select
@@ -974,7 +973,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                         disabled: Boolean(item.model.disabled),
                         searchLabel: `${item.model.name} ${item.model.id} ${item.provider.name}`,
                       }))}
-                      placeholder="请选择生成模型"
+                      placeholder={t("请选择生成模型")}
                       showSearch
                       value={selectedVideoModelValue || undefined}
                       filterOption={(input, option) => String(option?.searchLabel || '')
@@ -982,7 +981,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                         .includes(input.toLowerCase())}
                     />
                   ) : (
-                    <span className="model-subtext">请先到模型配置页填写视频模型 API Key</span>
+                    <span className="model-subtext">{t("请先到模型配置页填写视频模型 API Key")}</span>
                   )}
                 </div>
               </div>
@@ -992,7 +991,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                 </div>
               ) : null}
               <div className="create-row">
-                <span className="create-label">画质选择</span>
+                <span className="create-label">{t("画质选择")}</span>
                 <div className="create-options">
                   {qualityOptions.map((item) => (
                     <button className={quality === item ? 'option-btn active' : 'option-btn'} key={item} onClick={() => setQuality(item)} type="button">{item}</button>
@@ -1000,7 +999,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                 </div>
               </div>
               <div className="create-row">
-                <span className="create-label">视频比例</span>
+                <span className="create-label">{t("视频比例")}</span>
                 <div className="create-options">
                   {ratioOptions.map((item) => (
                     <button className={ratio === item ? 'option-btn active' : 'option-btn'} key={item} onClick={() => setRatio(item)} type="button">{item}</button>
@@ -1008,7 +1007,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                 </div>
               </div>
               <div className="create-row">
-                <span className="create-label">视频长度</span>
+                <span className="create-label">{t("视频长度")}</span>
                 <div className="duration-selector">
                   <Segmented
                     block
@@ -1022,9 +1021,9 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                       setDuration(formatDurationOption(displayedManualDurationSeconds || fallbackSeconds));
                     }}
                     options={[
-                      { label: '按秒数', value: 'manual' },
+                      { label: t("按秒数"), value: 'manual' },
                       {
-                        label: '智能时长',
+                        label: t("智能时长"),
                         value: 'auto',
                         disabled: !selectedDurationPolicy?.supportsAuto,
                       },
@@ -1060,33 +1059,33 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                           precision={0}
                           value={displayedManualDurationSeconds}
                         />
-                        <span>秒</span>
+                        <span>{t("秒")}</span>
                       </div>
                     </div>
                   ) : (
                     <div className="duration-auto-tip">
-                      由模型在可用范围内自动选择合适的视频时长。
+                      {t("由模型在可用范围内自动选择合适的视频时长。")}
                     </div>
                   )}
                 </div>
               </div>
               {selectedVideoModel ? (
                 <div className="model-subtext" style={{ marginTop: -4 }}>
-                  时长范围：{selectedVideoModel.model.durationPolicy.minSeconds}-{selectedVideoModel.model.durationPolicy.maxSeconds} 秒
-                  {selectedVideoModel.model.durationPolicy.supportsAuto ? '，支持智能时长' : ''}
+                  {t("时长范围：")}{selectedVideoModel.model.durationPolicy.minSeconds}-{selectedVideoModel.model.durationPolicy.maxSeconds} {t("秒")}
+                  {selectedVideoModel.model.durationPolicy.supportsAuto ? t("，支持智能时长") : ''}
                 </div>
               ) : null}
             </div>
 
             <div className="create-card">
-              <div className="create-card-title">参考素材</div>
+              <div className="create-card-title">{t("参考素材")}</div>
               {renderReferenceBlock('image')}
               {renderReferenceBlock('video')}
               {renderReferenceBlock('audio')}
             </div>
 
             <div className="create-card">
-              <div className="create-card-title">参考提示词</div>
+              <div className="create-card-title">{t("参考提示词")}</div>
               <div className="prompt-textarea-wrapper">
                 <Input.TextArea className="prompt-textarea" maxLength={5000} onChange={(event) => setPrompt(event.target.value)} value={prompt} />
                 <div className={promptCountClassName(prompt.length)}>{prompt.length}/5000</div>
@@ -1094,16 +1093,16 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
               
             </div>
 
-            <Button block className="generate-btn" loading={isSubmitting} onClick={handleGenerate} type="primary">🎬 生成视频</Button>
+            <Button block className="generate-btn" loading={isSubmitting} onClick={handleGenerate} type="primary">{t("🎬 生成视频")}</Button>
           </div>
         </div>
 
         <div className="video-result-list">
           <div className="result-list-header">
-            <span className="result-list-title">生成记录</span>
+            <span className="result-list-title">{t("生成记录")}</span>
           </div>
           {records.length === 0 ? (
-            <div className="video-result-empty">暂无生成记录</div>
+            <div className="video-result-empty">{t("暂无生成记录")}</div>
           ) : records.map((record) => {
             const meta = taskMeta(record);
             const status = videoTaskViewState(record);
@@ -1121,7 +1120,7 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                   <span className="param-tag">{meta.ratio}</span>
                   <span className="param-tag">{meta.duration}</span>
                   <span className="param-tag">{meta.quality}</span>
-                  <span className="param-tag">有声</span>
+                  <span className="param-tag">{t("有声")}</span>
                 </div>
                 <div className="card-content-row">
                   <div className={`card-preview ratio-${meta.ratio.replace(':', '-')}`}>
@@ -1135,13 +1134,13 @@ export function VideoCreatePage({ currentUser }: VideoCreatePageProps) {
                 </div>
                 {status.note ? <div className={status.className === 'failed' ? 'video-record-note failed' : 'video-record-note'}>{status.note}</div> : null}
                 {errorMessage && errorMessage !== status.note ? <div className="video-record-note failed">{errorMessage}</div> : null}
-                {assetId ? <div className="video-record-note">已入库成片素材：{assetId.slice(0, 8)}</div> : null}
+                {assetId ? <div className="video-record-note">{t("已入库成片素材：")}{assetId.slice(0, 8)}</div> : null}
                 <div className="card-actions-row">
-                  <button className="action-text-btn" onClick={() => void applyRecordToForm(record)} type="button">重新编辑</button>
-                  <button className="action-text-btn" onClick={() => void handleRegenerate(record)} type="button">重新生成</button>
-                  <button className="action-text-btn" disabled={!videoUrl} onClick={() => window.open(videoUrl, '_blank', 'noreferrer')} type="button">打开</button>
-                  <a className={videoUrl ? 'action-text-btn' : 'action-text-btn disabled'} href={videoUrl || undefined} download>下载</a>
-                  <button className="action-text-btn delete" onClick={() => handleDeleteRecord(record)} type="button">删除</button>
+                  <button className="action-text-btn" onClick={() => void applyRecordToForm(record)} type="button">{t("重新编辑")}</button>
+                  <button className="action-text-btn" onClick={() => void handleRegenerate(record)} type="button">{t("重新生成")}</button>
+                  <button className="action-text-btn" disabled={!videoUrl} onClick={() => window.open(videoUrl, '_blank', 'noreferrer')} type="button">{t("打开")}</button>
+                  <a className={videoUrl ? 'action-text-btn' : 'action-text-btn disabled'} href={videoUrl || undefined} download>{t("下载")}</a>
+                  <button className="action-text-btn delete" onClick={() => handleDeleteRecord(record)} type="button">{t("删除")}</button>
                 </div>
               </div>
             );

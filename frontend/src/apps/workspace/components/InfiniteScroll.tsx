@@ -2,6 +2,7 @@ import { Button, Spin } from 'antd';
 import { useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import './InfiniteScroll.scss';
+import { t } from '@shared/i18n';
 
 export type InfiniteScrollProps = {
   children: ReactNode;
@@ -25,10 +26,10 @@ export function InfiniteScroll({
   className,
   dataLength,
   disabled = false,
-  endText = '已加载全部记录',
+  endText = t('已加载全部记录'),
   hasMore,
   loading = false,
-  loadingText = '正在加载更多',
+  loadingText = t('正在加载更多'),
   onLoadMore,
   rootMargin = '0px 0px 160px',
 }: InfiniteScrollProps) {
@@ -91,7 +92,7 @@ export function InfiniteScroll({
         {!disabled && loading ? <><Spin size="small" /><span>{loadingText}</span></> : null}
         {!disabled && !loading && !hasMore && dataLength > 0 ? <span>{endText}</span> : null}
         {!disabled && !supportsIntersectionObserver && hasMore && !loading ? (
-          <Button onClick={triggerLoadMore} size="small">加载更多</Button>
+          <Button onClick={triggerLoadMore} size="small">{t("加载更多")}</Button>
         ) : null}
       </div>
     </div>

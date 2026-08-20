@@ -7,6 +7,7 @@ import { WorksAssetCard, WorksAssetEmptyCard, WorksAssetSkeletonCard } from '../
 import { allWorksFunctionOption, showWorksBatchButton } from './resourceLibraryConfig';
 import type { ContentResourceLibraryController } from './useContentResourceLibraryController';
 import './FinishedWorksLibrary.scss';
+import { t } from '@shared/i18n';
 
 type FinishedWorksLibraryProps = {
   controller: ContentResourceLibraryController;
@@ -20,9 +21,9 @@ export function FinishedWorksLibrary({ controller }: FinishedWorksLibraryProps) 
   const selectedFunctionLabel = controller.worksFunctionOptions
     .find((option) => option.key === controller.worksFunctionKey)?.label || allWorksFunctionOption.label;
   const emptyTitle = controller.worksAssetTab === 'image'
-    ? '暂无图片作品'
-    : controller.worksAssetTab === 'video' ? '暂无视频作品' : '暂无作品';
-  const emptyDescription = controller.worksAssetTab === 'all' ? '作品生成后自动同步。' : '生成后自动同步。';
+    ? t("暂无图片作品")
+    : controller.worksAssetTab === 'video' ? t("暂无视频作品") : t("暂无作品");
+  const emptyDescription = controller.worksAssetTab === 'all' ? t("作品生成后自动同步。") : t("生成后自动同步。");
   const hasKeyword = controller.searchKeyword.trim().length > 0;
 
   return (
@@ -30,18 +31,18 @@ export function FinishedWorksLibrary({ controller }: FinishedWorksLibraryProps) 
       <div className="works-assets-shell">
         <header className="works-assets-header">
           <div className="works-assets-title-row">
-            <h1>作品</h1>
-            <span>已加载 {controller.visibleWorksAssets.length} / {controller.filteredAssets.length} 个结果</span>
+            <h1>{t("作品")}</h1>
+            <span>{t("已加载")} {controller.visibleWorksAssets.length} / {controller.filteredAssets.length} {t("个结果")}</span>
           </div>
           <div className="works-assets-control-row">
             <AppSegmentedTabs
-              ariaLabel="作品类型"
+              ariaLabel={t("作品类型")}
               itemMinWidth={60}
               onChange={controller.handleWorksAssetTabChange}
               options={[
-                { value: 'all', label: '全部' },
-                { value: 'image', label: '图片' },
-                { value: 'video', label: '视频' },
+                { value: 'all', label: t("全部") },
+                { value: 'image', label: t("图片") },
+                { value: 'video', label: t("视频") },
               ]}
               size="large"
               value={controller.worksAssetTab}
@@ -61,16 +62,16 @@ export function FinishedWorksLibrary({ controller }: FinishedWorksLibraryProps) 
                 {selectedFunctionLabel}
               </Button>
             </Dropdown>
-            <Button className="works-reset-button" onClick={controller.resetWorksHeaderFilters} size="large" type="text">重置</Button>
+            <Button className="works-reset-button" onClick={controller.resetWorksHeaderFilters} size="large" type="text">{t("重置")}</Button>
             <div className="works-assets-toolbar-spacer" />
-            {showWorksBatchButton && <Button className="works-batch-button" size="large">批量管理</Button>}
+            {showWorksBatchButton && <Button className="works-batch-button" size="large">{t("批量管理")}</Button>}
           </div>
         </header>
         <InfiniteScroll
           className="voice-board-content"
           dataLength={controller.visibleWorksAssets.length}
           disabled={controller.isLoadingLibrary}
-          endText="已加载全部作品"
+          endText={t("已加载全部作品")}
           hasMore={controller.hasMoreWorksAssets}
           onLoadMore={controller.loadMoreWorksAssets}
         >
@@ -78,7 +79,7 @@ export function FinishedWorksLibrary({ controller }: FinishedWorksLibraryProps) 
             <div className="material-grid voice-board-grid"><WorksAssetSkeletonCard /></div>
           ) : controller.visibleWorksAssetGroups.map((group) => (
             <section className="works-assets-date-group" key={group.key}>
-              <div className="works-assets-date-heading"><h2>{group.label}</h2><span>{group.assets.length} 个作品</span></div>
+              <div className="works-assets-date-heading"><h2>{group.label}</h2><span>{group.assets.length} {t("个作品")}</span></div>
               <div className="material-grid voice-board-grid">
                 {group.assets.map((asset) => (
                   <WorksAssetCard
@@ -96,8 +97,8 @@ export function FinishedWorksLibrary({ controller }: FinishedWorksLibraryProps) 
           {!controller.isLoadingLibrary && !controller.filteredAssets.length && (
             <div className="material-grid voice-board-grid">
               <WorksAssetEmptyCard
-                description={hasKeyword ? '调整搜索条件，或先生成一个作品。' : emptyDescription}
-                title={hasKeyword ? '暂无匹配作品' : emptyTitle}
+                description={hasKeyword ? t("调整搜索条件，或先生成一个作品。") : emptyDescription}
+                title={hasKeyword ? t("暂无匹配作品") : emptyTitle}
               />
             </div>
           )}

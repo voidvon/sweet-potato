@@ -16,6 +16,7 @@ import { DiscoverCandidateModal } from './discover-management/DiscoverCandidateM
 import { DiscoverCategoryModal } from './discover-management/DiscoverCategoryModal'
 import { useDiscoverManagementColumns } from './discover-management/discoverManagementColumns'
 import './DiscoverManagementPage.scss'
+import { t } from '@shared/i18n';
 
 export function DiscoverManagementPage() {
   const [items, setItems] = useState<DiscoverItem[]>([])
@@ -33,7 +34,7 @@ export function DiscoverManagementPage() {
       setItems(nextItems.items)
       setCategories(nextCategories.items)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '发现列表加载失败')
+      message.error(error instanceof Error ? error.message : t("发现列表加载失败"))
     } finally {
       setLoading(false)
     }
@@ -51,9 +52,9 @@ export function DiscoverManagementPage() {
       setItems((current) => current.map((currentItem) => currentItem.id === item.id
         ? { ...currentItem, categoryId: updatedItem.categoryId }
         : currentItem))
-      message.success('分类已更新')
+      message.success(t("分类已更新"))
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '分类更新失败')
+      message.error(error instanceof Error ? error.message : t("分类更新失败"))
     } finally {
       setUpdatingItemId(undefined)
     }
@@ -64,7 +65,7 @@ export function DiscoverManagementPage() {
       await deleteDiscoverItem(item.id)
       await loadDiscover()
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '移除失败')
+      message.error(error instanceof Error ? error.message : t("移除失败"))
     }
   }, [loadDiscover])
 
@@ -81,9 +82,9 @@ export function DiscoverManagementPage() {
       <section className="settings-page discover-management-page">
         <div className="discover-management-toolbar">
           <Space>
-            <Button icon={<PlusOutlined />} onClick={() => setCandidateModalOpen(true)} type="primary">新增</Button>
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDiscover()}>刷新</Button>
-            <Button icon={<TagsOutlined />} onClick={() => setCategoryModalOpen(true)}>分类管理</Button>
+            <Button icon={<PlusOutlined />} onClick={() => setCandidateModalOpen(true)} type="primary">{t("新增")}</Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadDiscover()}>{t("刷新")}</Button>
+            <Button icon={<TagsOutlined />} onClick={() => setCategoryModalOpen(true)}>{t("分类管理")}</Button>
           </Space>
         </div>
         <div

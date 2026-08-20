@@ -8,6 +8,7 @@ import StarterKit from '@tiptap/starter-kit';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from 'react';
 import './MentionRichTextarea.scss';
+import { t } from '@shared/i18n';
 
 export type MentionRichTextareaOption = {
   attachmentId?: string;
@@ -96,7 +97,7 @@ function mentionFallbackIcon(option: Pick<MentionRichTextareaOption, 'label' | '
     return '♪';
   }
   if (isVideoMention(option)) {
-    return '视';
+    return t("视");
   }
   return option.label.slice(0, 1);
 }
@@ -106,7 +107,7 @@ function mentionOptionIcon(option: Pick<MentionRichTextareaOption, 'label' | 'mi
     return <SoundOutlined />;
   }
   if (isVideoMention(option)) {
-    return '视';
+    return t("视");
   }
   return option.label.slice(0, 1);
 }
@@ -498,10 +499,10 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   className,
   disabled,
   editorClassName,
-  emptyText = '没有可用素材',
+  emptyText = t('没有可用素材'),
   enableHardBreak = false,
   fallbackMentionMenu = false,
-  menuTitle = '可引用素材',
+  menuTitle = t('可引用素材'),
   minHeight,
   minRows = 8,
   onChange,
@@ -919,7 +920,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         </div>
       ) : null}
       <Image
-        alt={previewImage?.alt || '图片预览'}
+        alt={previewImage?.alt || t("图片预览")}
         preview={{
           open: previewVisible,
           onOpenChange: (open) => {

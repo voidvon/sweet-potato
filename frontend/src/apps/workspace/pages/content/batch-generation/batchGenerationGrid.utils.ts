@@ -17,6 +17,7 @@ import {
   subjectReplaceDefaults,
   videoModelDefinitions,
 } from '../shared/videoGenerationOptions'
+import { t } from '@shared/i18n';
 
 export const MAX_REFERENCE_IMAGE_COUNT = 8
 export const imageResolutionOptions = [
@@ -26,18 +27,18 @@ export const imageResolutionOptions = [
 ]
 export const videoResolutionOptions = imageResolutionOptions
 export const aspectRatioOptions = ['auto', '1:1', '3:4', '4:3', '9:16', '16:9'].map((value) => ({ label: value, value }))
-export const outputCountOptions = [1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }))
+export const outputCountOptions = [1, 2, 3, 4].map((value) => ({ label: t("{{0}} 张", { "0": value }), value }))
 export const durationOptions = Array.from({ length: 12 }, (_, index) => index + 4)
   .map((value) => ({ label: `${value}s`, value: `${value}秒` }))
 
 export const statusMeta: Record<BatchExecutionStatus, { label: string; tone: 'done' | 'processing' | 'failed' | 'pending' }> = {
-  idle: { label: '待提交', tone: 'pending' },
-  queued: { label: '排队中', tone: 'processing' },
-  running: { label: '处理中', tone: 'processing' },
-  completed: { label: '已完成', tone: 'done' },
-  partial_failed: { label: '部分失败', tone: 'failed' },
-  failed: { label: '失败', tone: 'failed' },
-  canceled: { label: '已取消', tone: 'pending' },
+  idle: { label: t("待提交"), tone: 'pending' },
+  queued: { label: t("排队中"), tone: 'processing' },
+  running: { label: t("处理中"), tone: 'processing' },
+  completed: { label: t("已完成"), tone: 'done' },
+  partial_failed: { label: t("部分失败"), tone: 'failed' },
+  failed: { label: t("失败"), tone: 'failed' },
+  canceled: { label: t("已取消"), tone: 'pending' },
 }
 
 export function valueAt(params: Record<string, unknown>, key: string) {
@@ -100,9 +101,9 @@ export function assetAccept(field: CreativeCapabilityField) {
 }
 
 export function assetLabel(field: CreativeCapabilityField) {
-  if (/Video/i.test(field.key)) return '视频'
-  if (/Audio/i.test(field.key)) return '音频'
-  return '图片'
+  if (/Video/i.test(field.key)) return t("视频")
+  if (/Audio/i.test(field.key)) return t("音频")
+  return t("图片")
 }
 
 export function estimatedImageCredits(
@@ -157,8 +158,8 @@ export function promptMentionOptions(
       const isVideo = mimeType.startsWith('video/')
       const isAudio = mimeType.startsWith('audio/')
       const label = isVideo
-        ? `视频${videoIndex++}`
-        : isAudio ? `音频${audioIndex++}` : `图${imageIndex++}`
+        ? t("视频{{0}}", { "0": videoIndex++ })
+        : isAudio ? t("音频{{0}}", { "0": audioIndex++ }) : t("图{{0}}", { "0": imageIndex++ })
       return {
         attachmentId: id,
         label,

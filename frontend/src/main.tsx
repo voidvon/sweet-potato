@@ -2,16 +2,21 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
 import 'antd/dist/reset.css';
 import App from './app/App';
 import './styles.scss';
+import { getLocale, t } from '@shared/i18n';
 
 const isAdminRoute = window.location.pathname === '/admin'
   || window.location.pathname.startsWith('/admin/');
 
 if (isAdminRoute) {
-  document.title = '萌猫 AI 后台';
+  document.title = t('萌猫 AI 后台');
 }
+
+const locale = getLocale();
+document.documentElement.lang = locale;
 
 function resolveCssColor(token: string) {
   const probe = document.createElement('span');
@@ -60,7 +65,7 @@ createRoot(rootElement).render(
   <React.StrictMode>
     <ConfigProvider
       button={{ autoInsertSpace: false }}
-      locale={zhCN}
+      locale={locale === 'en-US' ? enUS : zhCN}
       modal={{
         cancelButtonProps: { size: 'large' },
         centered: true,

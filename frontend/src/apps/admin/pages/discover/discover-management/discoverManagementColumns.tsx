@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMemo } from 'react'
 import type { DiscoverCategory, DiscoverItem } from '../../../api/discover'
 import { WorkPreviewThumbnail } from '../../../components/WorkPreviewThumbnail'
+import { t } from '@shared/i18n';
 
 type DiscoverManagementColumnsOptions = {
   categories: DiscoverCategory[]
@@ -20,15 +21,15 @@ export function useDiscoverManagementColumns({
 }: DiscoverManagementColumnsOptions) {
   return useMemo<ColumnsType<DiscoverItem>>(() => [
     {
-      title: '预览',
+      title: t("预览"),
       width: 90,
       render: (_, item) => (
         <WorkPreviewThumbnail coverUrl={item.coverUrl} fileUrl={item.fileUrl} mediaType={item.mediaType} title={item.title} />
       ),
     },
-    { title: '标题', dataIndex: 'title', ellipsis: true },
+    { title: t("标题"), dataIndex: 'title', ellipsis: true },
     {
-      title: '分类',
+      title: t("分类"),
       width: 180,
       render: (_, item) => (
         <Select
@@ -45,14 +46,14 @@ export function useDiscoverManagementColumns({
         />
       ),
     },
-    { title: '浏览量', dataIndex: 'viewCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
-    { title: '点赞量', dataIndex: 'likeCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
+    { title: t("浏览量"), dataIndex: 'viewCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
+    { title: t("点赞量"), dataIndex: 'likeCount', align: 'right', width: 100, render: (value: number) => value.toLocaleString() },
     {
-      title: '操作',
+      title: t("操作"),
       width: 100,
       render: (_, item) => (
-        <Popconfirm onConfirm={() => onRemove(item)} title="确认从发现移除？">
-          <Button danger icon={<DeleteOutlined />} type="link">移除</Button>
+        <Popconfirm onConfirm={() => onRemove(item)} title={t("确认从发现移除？")}>
+          <Button danger icon={<DeleteOutlined />} type="link">{t("移除")}</Button>
         </Popconfirm>
       ),
     },

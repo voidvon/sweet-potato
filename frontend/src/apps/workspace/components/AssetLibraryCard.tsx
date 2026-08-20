@@ -2,6 +2,7 @@ import { Pause, Play } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Skeleton } from 'antd';
 import './AssetLibraryCard.scss';
+import { t } from '@shared/i18n';
 
 const audioWaveBars = Array.from({ length: 15 }, (_, index) => index);
 
@@ -173,7 +174,7 @@ export function AssetLibraryCard({
           {audioSrc ? (
             <>
               <button
-                aria-label={isPlaying ? `暂停播放${audioTitle || ''}` : `播放${audioTitle || '声音'}`}
+                aria-label={isPlaying ? t("暂停播放{{0}}", { "0": audioTitle || '' }) : t("播放{{0}}", { "0": audioTitle || t("声音") })}
                 className="asset-library-card__preview-audio-button"
                 onClick={(event) => { void toggleAudio(event); }}
                 type="button"

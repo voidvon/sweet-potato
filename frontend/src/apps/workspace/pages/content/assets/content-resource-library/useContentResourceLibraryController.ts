@@ -29,6 +29,7 @@ import {
   matchesWorksFunction,
 } from './resourceLibraryHelpers';
 import type { ContentResourceLibraryPageProps, WorksAssetTab } from './pageTypes';
+import { t } from '@shared/i18n';
 
 export function useContentResourceLibraryController({
   currentUser,
@@ -83,7 +84,7 @@ export function useContentResourceLibraryController({
       setActiveGroup((current) => groupList.find((group) => group.id === current?.id) || null);
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) return;
-      message.error(error instanceof Error ? error.message : '素材加载失败');
+      message.error(error instanceof Error ? error.message : t("素材加载失败"));
     } finally {
       if (requestId === loadRequestIdRef.current) setIsLoadingLibrary(false);
     }
@@ -178,13 +179,13 @@ export function useContentResourceLibraryController({
     return map;
   }, [assets]);
   const groupAssetCount = (groupId: string) => assetCountByGroupId.get(groupId) || 0;
-  const groupMeta = (group: ContentAssetGroup) => `${groupAssetCount(group.id)} ${copy.assetUnit} · 更新于 ${group.updatedAt.slice(0, 10)}`;
+  const groupMeta = (group: ContentAssetGroup) => t("{{0}} {{1}} · 更新于 {{2}}", { "0": groupAssetCount(group.id), "1": copy.assetUnit, "2": group.updatedAt.slice(0, 10) });
   const groupStatus = (group: ContentAssetGroup) => {
     const count = groupAssetCount(group.id);
-    if (resourceType === 'digital_human') return count ? '已上传照片，待生成三视图' : '待上传本人照片';
-    if (resourceType === 'voice') return count ? '已上传样本，待克隆音色' : '待上传音频样本';
-    if (resourceType === 'scene') return count ? '图片可用于视频场景' : '待上传场景图片';
-    return count ? '素材可用' : '待上传素材';
+    if (resourceType === 'digital_human') return count ? t("已上传照片，待生成三视图") : t("待上传本人照片");
+    if (resourceType === 'voice') return count ? t("已上传样本，待克隆音色") : t("待上传音频样本");
+    if (resourceType === 'scene') return count ? t("图片可用于视频场景") : t("待上传场景图片");
+    return count ? t("素材可用") : t("待上传素材");
   };
 
   function openGroup(group: ContentAssetGroup) {
@@ -206,20 +207,20 @@ export function useContentResourceLibraryController({
 
   async function handleCreateGroupWithAssets() {
     if (singleDefaultGroup) {
-      if (!pendingCreateFiles.length) { message.warning(`请先${copy.uploadTitle}`); return; }
+      if (!pendingCreateFiles.length) { message.warning(t("请先{{0}}", { "0": copy.uploadTitle })); return; }
       try {
         setIsUploading(true);
         await uploadFilesToSingleLibrary(pendingCreateFiles);
         setPendingCreateFiles([]);
         setCreateModalOpen(false);
         await loadData();
-        message.success('素材已上传');
-      } catch (error) { message.error(error instanceof Error ? error.message : '素材上传失败'); }
+        message.success(t("素材已上传"));
+      } catch (error) { message.error(error instanceof Error ? error.message : t("素材上传失败")); }
       finally { setIsUploading(false); }
       return;
     }
     const name = groupName.trim();
-    if (!name) { message.warning('请输入分组名称'); return; }
+    if (!name) { message.warning(t("请输入分组名称")); return; }
     try {
       setIsUploading(true);
       const group = await createContentAssetGroup({ userId: currentUser.id, resourceType, name });
@@ -229,8 +230,8 @@ export function useContentResourceLibraryController({
       setCreateModalOpen(false);
       await loadData();
       openGroup(group);
-      message.success('分组已创建');
-    } catch (error) { message.error(error instanceof Error ? error.message : '分组创建失败'); }
+      message.success(t("分组已创建"));
+    } catch (error) { message.error(error instanceof Error ? error.message : t("分组创建失败")); }
     finally { setIsUploading(false); }
   }
 
@@ -241,8 +242,8 @@ export function useContentResourceLibraryController({
       await uploadFilesToGroup(groupId, files);
       setPendingGroupFiles([]);
       await loadData();
-      message.success('素材已上传');
-    } catch (error) { message.error(error instanceof Error ? error.message : '素材上传失败'); }
+      message.success(t("素材已上传"));
+    } catch (error) { message.error(error instanceof Error ? error.message : t("素材上传失败")); }
     finally {
       setIsUploading(false);
       if (groupFilesRef.current) groupFilesRef.current.value = '';
@@ -259,12 +260,12 @@ export function useContentResourceLibraryController({
       const updated = await updateContentAssetGroup(activeGroup.id, { name: editingGroupName.trim() });
       setActiveGroup(updated);
       await loadData();
-      message.success('分组名称已更新');
-    } catch (error) { message.error(error instanceof Error ? error.message : '分组更新失败'); }
+      message.success(t("分组名称已更新"));
+    } catch (error) { message.error(error instanceof Error ? error.message : t("分组更新失败")); }
   }
   async function handleDeleteAsset(assetId: string) {
-    try { await deleteContentAsset(assetId); await loadData(); message.success('素材已删除'); }
-    catch (error) { message.error(error instanceof Error ? error.message : '素材删除失败'); }
+    try { await deleteContentAsset(assetId); await loadData(); message.success(t("素材已删除")); }
+    catch (error) { message.error(error instanceof Error ? error.message : t("素材删除失败")); }
   }
   async function handleDeleteGroup() {
     if (!activeGroup) return;
@@ -274,13 +275,13 @@ export function useContentResourceLibraryController({
       setGroupModalOpen(false);
       setActiveGroup(null);
       await loadData();
-      message.success('分组已删除');
-    } catch (error) { message.error(error instanceof Error ? error.message : '分组删除失败'); }
+      message.success(t("分组已删除"));
+    } catch (error) { message.error(error instanceof Error ? error.message : t("分组删除失败")); }
     finally { setIsDeletingGroup(false); }
   }
   async function handleDeleteFinishedAsset(asset: ContentAsset) {
-    try { await deleteContentAsset(asset.id); await loadData(); message.success('作品记录已删除'); return true; }
-    catch (error) { message.error(error instanceof Error ? error.message : '作品删除失败'); return false; }
+    try { await deleteContentAsset(asset.id); await loadData(); message.success(t("作品记录已删除")); return true; }
+    catch (error) { message.error(error instanceof Error ? error.message : t("作品删除失败")); return false; }
   }
 
   function closePreviewAsset() {

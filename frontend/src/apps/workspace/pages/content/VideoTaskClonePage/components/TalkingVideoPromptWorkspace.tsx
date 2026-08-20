@@ -8,6 +8,7 @@ import { resolveLocalMaterialUrl } from '../materialUrl';
 import { TalkingVideoPanel } from './TalkingVideoPanel';
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 import './TalkingVideoPromptWorkspace.scss';
+import { t } from '@shared/i18n';
 
 export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState }) {
   if (!state.talkingVideoInputExpanded) {
@@ -16,8 +17,8 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
         className="talking-video-input-collapsed"
         onClick={() => state.setTalkingVideoInputExpanded(true)}
       >
-        <span>口播输入已收起</span>
-        <strong>展开输入区</strong>
+        <span>{t("口播输入已收起")}</span>
+        <strong>{t("展开输入区")}</strong>
       </Button>
     );
   }
@@ -46,7 +47,7 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
         onClick={() => void state.handleGenerate()}
         type="primary"
       >
-        {state.isGenerating ? '生成中…' : state.tool.submitText}
+        {state.isGenerating ? t("生成中…") : state.tool.submitText}
         {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
           <span className="video-task-generate-price">
             <CreditIcon />
@@ -60,10 +61,10 @@ export function TalkingVideoInputRail({ state }: { state: VideoTaskCloneState })
 
 export function TalkingVideoPromptWorkspace({ state }: { state: VideoTaskCloneState }) {
   return (
-    <section className="talking-video-history" aria-label="口播提示词历史">
+    <section className="talking-video-history" aria-label={t("口播提示词历史")}>
       <header className="talking-video-history-header">
-        <span><Clock3 size={14} />最近 10 条</span>
-        <small>共 {state.talkingVideoPromptTasks.length} 条</small>
+        <span><Clock3 size={14} />{t("最近 10 条")}</span>
+        <small>{t("共")} {state.talkingVideoPromptTasks.length} {t("条")}</small>
       </header>
       <div className="talking-video-history-scroll">
         {state.talkingVideoPromptTasks.map((task) => (
@@ -140,9 +141,9 @@ function TalkingVideoTaskCard({
           ) : null} */}
         </div>
         {retrying ? (
-          <Tooltip title="已手动停止生成，点击重新思考">
+          <Tooltip title={t("已手动停止生成，点击重新思考")}>
             <span className="talking-video-task-action">
-              <Button className="is-continue" danger disabled loading size="small">继续</Button>
+              <Button className="is-continue" danger disabled loading size="small">{t("继续")}</Button>
             </span>
           </Tooltip>
         ) : running ? (
@@ -153,10 +154,10 @@ function TalkingVideoTaskCard({
             onClick={() => void state.stopTalkingVideoPrompt(task.id)}
             size="small"
           >
-            停止
+            {t("停止")}
           </Button>
         ) : task.status === 'stopped' ? (
-          <Tooltip title="已手动停止生成，点击重新思考">
+          <Tooltip title={t("已手动停止生成，点击重新思考")}>
             <span className="talking-video-task-action">
               <Button
                 className="is-continue"
@@ -166,7 +167,7 @@ function TalkingVideoTaskCard({
                 onClick={() => void state.retryTalkingVideoPromptTask(task.id)}
                 size="small"
               >
-                继续
+                {t("继续")}
               </Button>
             </span>
           </Tooltip>
@@ -176,13 +177,13 @@ function TalkingVideoTaskCard({
       {task.deepThink ? (
         <section className={`talking-video-reasoning${running ? ' is-running' : ''}`}>
           <button onClick={() => setReasoningOpen((open) => !open)} type="button">
-            <span>{running ? <i /> : null}深度思考</span>
-            <span>{reasoningOpen ? '收起' : '展开'}<ChevronDown className={reasoningOpen ? 'is-open' : ''} size={16} /></span>
+            <span>{running ? <i /> : null}{t("深度思考")}</span>
+            <span>{reasoningOpen ? t("收起") : t("展开")}<ChevronDown className={reasoningOpen ? 'is-open' : ''} size={16} /></span>
           </button>
           {reasoningOpen ? (
             <div className="talking-video-reasoning-content" ref={reasoningRef}>
               <ReasoningContent
-                content={task.reasoning || (running ? '思考中…' : '暂无思考内容')}
+                content={task.reasoning || (running ? t("思考中…") : t("暂无思考内容"))}
               />
               {running ? (
                 <span className="talking-video-reasoning-progress">
@@ -203,8 +204,8 @@ function TalkingVideoTaskCard({
               onClick={() => setResultOpen((open) => !open)}
               type="button"
             >
-              <strong>最终结果</strong>
-              <span>{resultOpen ? '收起' : '展开'}<ChevronDown className={resultOpen ? 'is-open' : ''} size={16} /></span>
+              <strong>{t("最终结果")}</strong>
+              <span>{resultOpen ? t("收起") : t("展开")}<ChevronDown className={resultOpen ? 'is-open' : ''} size={16} /></span>
             </button>
           </header>
           {resultOpen ? <div>{task.prompt}</div> : null}
@@ -220,7 +221,7 @@ function TalkingVideoTaskCard({
             onClick={() => void state.retryTalkingVideoPromptTask(task.id)}
             size="small"
           >
-            重新生成
+            {t("重新生成")}
           </Button>
         </div>
       ) : null}
@@ -231,7 +232,7 @@ function TalkingVideoTaskCard({
           onClick={() => state.openTalkingVideoGeneration(task.id)}
           type="primary"
         >
-          生成视频
+          {t("生成视频")}
         </Button>
       ) : null}
     </article>
@@ -267,39 +268,39 @@ function ReasoningContent({ content }: { content: string }) {
 
 function statusLabel(status: TalkingVideoPromptTask['status']) {
   return {
-    preparing: '准备素材',
-    thinking: '生成中',
-    completed: '已完成',
-    failed: '生成失败',
-    stopped: '已停止',
+    preparing: t("准备素材"),
+    thinking: t("生成中"),
+    completed: t("已完成"),
+    failed: t("生成失败"),
+    stopped: t("已停止"),
   }[status];
 }
 
 function phaseLabel(phase: TalkingVideoPromptTask['phase']) {
   return {
-    uploading_assets: '素材上传中',
-    understanding_video: '理解参考视频',
-    validating_analysis: '校验结构化结果',
-    generating_prompt: '整理最终提示词',
-    validating_prompt: '校验最终提示词',
-    repairing_prompt: '修复最终提示词',
-    completed: '任务完成',
-    failed: '任务失败',
-    stopped: '已停止',
+    uploading_assets: t("素材上传中"),
+    understanding_video: t("理解参考视频"),
+    validating_analysis: t("校验结构化结果"),
+    generating_prompt: t("整理最终提示词"),
+    validating_prompt: t("校验最终提示词"),
+    repairing_prompt: t("修复最终提示词"),
+    completed: t("任务完成"),
+    failed: t("任务失败"),
+    stopped: t("已停止"),
   }[phase];
 }
 
 function reasoningProgressCopy(phase: TalkingVideoPromptTask['phase']) {
   return {
-    uploading_assets: '正在准备参考素材…',
-    understanding_video: '正在继续分析视频内容…',
-    validating_analysis: '正在校验视频分析结果…',
-    generating_prompt: '深度思考已完成，正在组织最终结果…',
-    validating_prompt: '正在校验最终结果…',
-    repairing_prompt: '正在修正最终结果…',
-    completed: '最终结果已生成',
-    failed: '生成已结束',
-    stopped: '生成已停止',
+    uploading_assets: t("正在准备参考素材…"),
+    understanding_video: t("正在继续分析视频内容…"),
+    validating_analysis: t("正在校验视频分析结果…"),
+    generating_prompt: t("深度思考已完成，正在组织最终结果…"),
+    validating_prompt: t("正在校验最终结果…"),
+    repairing_prompt: t("正在修正最终结果…"),
+    completed: t("最终结果已生成"),
+    failed: t("生成已结束"),
+    stopped: t("生成已停止"),
   }[phase];
 }
 
@@ -308,9 +309,9 @@ function timingSummary(task: TalkingVideoPromptTask) {
   const firstReasoning = task.clientTimings.firstReasoningMs ?? task.serverTimings.t_first_reasoning_ms;
   const result = task.serverTimings.t_result_ms;
   const parts = [
-    firstPhase !== undefined ? `首阶段 ${formatMs(firstPhase)}` : '',
-    firstReasoning !== undefined ? `首思考 ${formatMs(firstReasoning)}` : '',
-    result !== undefined ? `完成 ${formatMs(result)}` : '',
+    firstPhase !== undefined ? t("首阶段 {{0}}", { "0": formatMs(firstPhase) }) : '',
+    firstReasoning !== undefined ? t("首思考 {{0}}", { "0": formatMs(firstReasoning) }) : '',
+    result !== undefined ? t("完成 {{0}}", { "0": formatMs(result) }) : '',
   ].filter(Boolean);
   return parts.length ? ` · ${parts.join(' / ')}` : '';
 }

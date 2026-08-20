@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { durationOptions, modelDescriptions, modelOptions, qualityOptions, ratioOptions } from '../constants';
 import type { ParamKind } from '../types';
 import { WorkspaceSection } from './WorkspaceSection';
+import { t } from '@shared/i18n';
 
 type ParameterPanelProps = {
   activeParam: ParamKind | null;
@@ -55,12 +56,12 @@ export function ParameterPanel({
 
   const renderDropdown = (kind: ParamKind) => (
     <div className={`video-task-param-popover is-${kind}`}>
-      <strong>{kind === 'model' ? '选择模型' : kind === 'canvas' ? (showRatio ? '选择画布' : '选择清晰度') : '选择时长'}</strong>
+      <strong>{kind === 'model' ? t("选择模型") : kind === 'canvas' ? (showRatio ? t("选择画布") : t("选择清晰度")) : t("选择时长")}</strong>
       {kind === 'canvas' ? (
         <div className="video-task-canvas-picker">
           {showRatio ? (
             <div className="video-task-canvas-group">
-              <h3>选择比例</h3>
+              <h3>{t("选择比例")}</h3>
               <div className="video-task-ratio-grid">
                 {ratioOptions.map((option) => (
                   <button
@@ -77,7 +78,7 @@ export function ParameterPanel({
             </div>
           ) : null}
           <div className="video-task-canvas-group">
-            <h3>选择清晰度</h3>
+            <h3>{t("选择清晰度")}</h3>
             <div className="video-task-quality-grid">
               {qualityOptions.map((option) => (
                 <button
@@ -134,7 +135,7 @@ export function ParameterPanel({
       className={`video-task-params-card${!showHeader && !showDuration ? ' is-compact' : ''}`}
       description={summary}
       showHeader={showHeader}
-      title="生成参数"
+      title={t("生成参数")}
     >
       <div className="video-task-param-grid">
         {parameterDropdown('model', (
@@ -143,7 +144,7 @@ export function ParameterPanel({
               <Layers3 size={20} />
             </span>
             <span>
-              <small>模型</small>
+              <small>{t("模型")}</small>
               <strong>{model}</strong>
             </span>
             <ChevronDown size={18} />
@@ -159,7 +160,7 @@ export function ParameterPanel({
               )}
             </span>
             <span>
-              <small>{showRatio ? '画布' : '清晰度'}</small>
+              <small>{showRatio ? t("画布") : t("清晰度")}</small>
               <strong>{showRatio ? canvas : quality}</strong>
             </span>
             <ChevronDown size={18} />
@@ -172,7 +173,7 @@ export function ParameterPanel({
                 <Clock3 size={20} />
               </span>
               <span>
-                <small>时长</small>
+                <small>{t("时长")}</small>
                 <strong>{duration}</strong>
               </span>
               <ChevronDown size={18} />

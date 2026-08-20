@@ -7,6 +7,7 @@ import type {
   SendChatPayload,
 } from '../../types';
 import { API_BASE_URL, request } from '../request';
+import { t } from '@shared/i18n';
 
 enum Api {
   attachmentUpload = '/api/chat/attachments/upload',
@@ -111,7 +112,7 @@ export async function uploadChatAttachment(file: File) {
     body: file,
   });
   if (!uploadResponse.ok) {
-    throw new Error(`文件上传到对象存储失败（${uploadResponse.status}）`);
+    throw new Error(t("文件上传到对象存储失败（{{0}}）", { "0": uploadResponse.status }));
   }
   return request<ChatAttachment>(Api.attachmentDirectUploadComplete, {
     method: 'POST',
@@ -133,7 +134,7 @@ export function createChatMessage(payload: SendChatPayload) {
 }
 
 function createAbortError() {
-  const error = new Error('聊天请求已终止');
+  const error = new Error(t("聊天请求已终止"));
   error.name = 'AbortError';
   return error;
 }
@@ -192,7 +193,7 @@ export async function streamChatMessage(
           settle(resolve);
         }
       } catch (error) {
-        settle(() => reject(error instanceof Error ? error : new Error('解析聊天流失败')));
+        settle(() => reject(error instanceof Error ? error : new Error(t("解析聊天流失败"))));
       }
     };
 
@@ -201,7 +202,7 @@ export async function streamChatMessage(
         settle(() => reject(createAbortError()));
         return;
       }
-      settle(() => reject(new Error('聊天 WebSocket 连接失败')));
+      settle(() => reject(new Error(t("聊天 WebSocket 连接失败"))));
     };
 
     socket.onclose = () => {
@@ -216,7 +217,7 @@ export async function streamChatMessage(
       }
       settled = true;
       options?.signal?.removeEventListener('abort', handleAbort);
-      reject(new Error('聊天 WebSocket 连接已断开'));
+      reject(new Error(t("聊天 WebSocket 连接已断开")));
     };
   });
 }

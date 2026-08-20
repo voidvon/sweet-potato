@@ -1,0 +1,29 @@
+.language-switcher {
+  align-items: center;
+  background: var(--color-bg-container, #fff);
+  border: 1px solid var(--color-control-border, #d0d5dd);
+  border-radius: 7px;
+  color: var(--color-neutral-700, #344054);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 5px;
+  height: 34px;
+  justify-content: center;
+  min-width: 52px;
+  padding: 0 9px;
+}
+
+.language-switcher:hover {
+  border-color: var(--color-brand, #c86b8c);
+  color: var(--color-brand-active, #a8486a);
+}
+
+.auth-language-switcher {
+  position: absolute;
+  right: 24px;
+  top: 20px;
+  z-index: 5;
+}

@@ -19,6 +19,7 @@ import {
   toNumericValue,
   videoProviderConfigRow,
 } from './modelSettingsHelpers';
+import { t } from '@shared/i18n';
 
 type ModelFormModalProps = {
   activeType: ModelType;
@@ -147,7 +148,7 @@ export function ModelFormModal({
       const payload = values;
       if (activeType === 'audio' && editingRecord) {
         if (!audioProvider) {
-          throw new Error('音频服务商不存在');
+          throw new Error(t("音频服务商不存在"));
         }
         await saveModelConfig(audioProviderConfigRow(audioProvider, editingRecord, {
           apiKey: payload.apiKey,
@@ -156,7 +157,7 @@ export function ModelFormModal({
         }));
       } else if (activeType === 'video' && editingRecord) {
         if (!videoProvider) {
-          throw new Error('视频服务商不存在');
+          throw new Error(t("视频服务商不存在"));
         }
         await saveModelConfig(videoProviderConfigRow(videoProvider, editingRecord, {
           apiKey: payload.apiKey,
@@ -173,7 +174,7 @@ export function ModelFormModal({
               type: activeType,
               settings: payload.settings || {},
             });
-            message.success('模型配置已保存');
+            message.success(t("模型配置已保存"));
             onSaved();
             return;
           }
@@ -191,7 +192,7 @@ export function ModelFormModal({
               billing: llmBillingFromPricing(pricing, currentBilling || {}),
             },
           });
-          message.success('模型配置已保存');
+          message.success(t("模型配置已保存"));
           onSaved();
           return;
         }
@@ -204,10 +205,10 @@ export function ModelFormModal({
         };
         await saveModelConfig(activeType === 'image' ? normalizeImagePayload(nextPayload) : nextPayload);
       }
-      message.success('模型配置已保存');
+      message.success(t("模型配置已保存"));
       onSaved();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '模型配置保存失败');
+      message.error(error instanceof Error ? error.message : t("模型配置保存失败"));
     } finally {
       setSaving(false);
     }
@@ -217,12 +218,12 @@ export function ModelFormModal({
     <Modal
       className={activeType === 'audio' || activeType === 'video' ? 'audio-model-modal' : undefined}
       confirmLoading={saving}
-      okText="保存"
-      cancelText="取消"
+      okText={t("保存")}
+      cancelText={t("取消")}
       onCancel={onCancel}
       onOk={() => form.submit()}
       open={open}
-      title={editingRecord ? '编辑模型配置' : `新增${modelTypeLabelMap[activeType]}`}
+      title={editingRecord ? t("编辑模型配置") : t("新增{{0}}", { "0": modelTypeLabelMap[activeType] })}
       width={activeType === 'audio' || activeType === 'video' ? 760 : 720}
     >
       <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark={false}>

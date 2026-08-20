@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './PendingAssetGrid.scss';
+import { t } from '@shared/i18n';
 
 type PendingAssetGridProps = {
   files: File[];
@@ -23,7 +24,7 @@ function PendingAssetTile({ file, onRemove }: Pick<PendingAssetGridProps, 'onRem
   return (
     <div className="photo-upload-thumb">
       {url ? <img alt={file.name} src={url} /> : <span className="pending-file-icon">📁</span>}
-      <button aria-label={`移除 ${file.name}`} onClick={() => onRemove(file)} type="button">×</button>
+      <button aria-label={t("移除 {{0}}", { "0": file.name })} onClick={() => onRemove(file)} type="button">×</button>
       <small title={file.name}>{file.name}</small>
     </div>
   );

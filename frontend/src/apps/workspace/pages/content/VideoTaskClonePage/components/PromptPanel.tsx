@@ -7,6 +7,7 @@ import type { PlanningApplyPayload } from '../../../../api/content-planning';
 import { PromptPlanningModal } from './PromptPlanningModal';
 import { PromptMentionEditor } from './PromptMentionEditor';
 import { WorkspaceSection } from './WorkspaceSection';
+import { t } from '@shared/i18n';
 
 type PromptPanelProps = {
   currentUser: User;
@@ -54,18 +55,18 @@ export function PromptPanel({
           suggestionContainer="body"
         />
         <Button
-          aria-label="展开提示词编辑器"
+          aria-label={t("展开提示词编辑器")}
           className="video-task-expand"
           icon={<Maximize size={18} />}
           onClick={onExpand}
           shape="circle"
-          title="展开提示词编辑器"
+          title={t("展开提示词编辑器")}
           type="text"
         />
         {showPlanning ? (
           <button className="video-task-one-click" onClick={() => openPanel('write')} type="button">
             <span className="video-task-one-click-spark">✨</span>
-            一键策划
+            {t("一键策划")}
           </button>
         ) : null}
       </div>

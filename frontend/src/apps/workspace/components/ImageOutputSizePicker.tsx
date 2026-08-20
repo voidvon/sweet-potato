@@ -1,4 +1,5 @@
 import './ImageOutputSizePicker.scss';
+import { t } from '@shared/i18n';
 
 export type ImageAspectRatio = 'auto' | '21:9' | '16:9' | '3:2' | '4:3' | '1:1' | '3:4' | '2:3' | '9:16';
 export type ImageResolution = '1K' | '2K' | '4K';
@@ -95,7 +96,7 @@ export function ImageOutputSizePicker({
   return (
     <div className="image-output-size-picker">
       <section className="image-output-size-picker__section">
-        <h3>选择比例</h3>
+        <h3>{t("选择比例")}</h3>
         <div className="image-output-size-picker__aspect-grid">
           {imageAspectRatioOptions.map((ratio) => (
             <button className={`image-output-size-picker__aspect${ratio === aspectRatio ? ' is-selected' : ''}`} key={ratio} onClick={() => onAspectRatioChange(ratio)} type="button">
@@ -108,7 +109,7 @@ export function ImageOutputSizePicker({
       {resolutions.length ? (
         <>
           <section className="image-output-size-picker__section">
-            <h3>选择分辨率</h3>
+            <h3>{t("选择分辨率")}</h3>
             <div className="image-output-size-picker__resolution-grid">
               {resolutions.map((item) => (
                 <button className={`image-output-size-picker__resolution${item === effectiveResolution ? ' is-selected' : ''}`} key={item} onClick={() => onResolutionChange(item)} type="button">{item}</button>
@@ -116,7 +117,7 @@ export function ImageOutputSizePicker({
             </div>
           </section>
           <div className="image-output-size-picker__canvas-size">
-            <span>画布尺寸</span>
+            <span>{t("画布尺寸")}</span>
             <strong>{getImageOutputSize(model, effectiveResolution, aspectRatio)}</strong>
           </div>
         </>

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import './AuthExperience.scss';
+import { t } from '@shared/i18n';
 
 export type AuthExperienceHighlight = {
   description: string;
@@ -40,6 +42,7 @@ export function AuthExperience({
 }: AuthExperienceProps) {
   return (
     <main className={`auth-experience auth-experience--${variant}`}>
+      <LanguageSwitcher className="auth-language-switcher" />
       <div className="auth-experience__orb auth-experience__orb--one" aria-hidden="true" />
       <div className="auth-experience__orb auth-experience__orb--two" aria-hidden="true" />
 
@@ -47,7 +50,7 @@ export function AuthExperience({
         <section className="auth-experience__story" aria-labelledby="auth-experience-title">
           <div className="auth-experience__brand">
             <span className="auth-experience__logo-wrap">
-              <img src={logoSrc} alt={`${brandName} 标志`} />
+              <img src={logoSrc} alt={t("{{0}} 标志", { "0": brandName })} />
             </span>
             <span>
               <strong>{brandName}</strong>

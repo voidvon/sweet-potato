@@ -26,6 +26,7 @@ import {
   type RouteResourceRecord,
 } from './route-resource-shared/routeResourceNormalize';
 import './RouteResourceManagementPage.scss';
+import { t } from '@shared/i18n';
 
 export function RouteResourceManagementPage() {
   const [treeData, setTreeData] = useState<RouteResourceRecord[]>([]);
@@ -51,7 +52,7 @@ export function RouteResourceManagementPage() {
       const response = await getRouteResourceTree({ includeDisabled: true, platform: activePlatform });
       setTreeData(normalizeRouteResourceList(response));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '路由资源加载失败');
+      message.error(error instanceof Error ? error.message : t("路由资源加载失败"));
     } finally {
       setLoading(false);
     }
@@ -66,15 +67,15 @@ export function RouteResourceManagementPage() {
     try {
       if (editorState?.mode === 'edit' && editorState.record) {
         await updateRouteResource(editorState.record.id, payload);
-        message.success('路由资源已更新');
+        message.success(t("路由资源已更新"));
       } else {
         await createRouteResource(payload);
-        message.success('路由资源已创建');
+        message.success(t("路由资源已创建"));
       }
       setEditorState(null);
       await loadResources();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '路由资源保存失败');
+      message.error(error instanceof Error ? error.message : t("路由资源保存失败"));
     } finally {
       setSaving(false);
     }
@@ -94,10 +95,10 @@ export function RouteResourceManagementPage() {
         status,
         sortOrder: record.sortOrder ?? 0,
       });
-      message.success('启用状态已更新');
+      message.success(t("启用状态已更新"));
       await loadResources();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '状态更新失败');
+      message.error(error instanceof Error ? error.message : t("状态更新失败"));
     }
   }
 
@@ -105,10 +106,10 @@ export function RouteResourceManagementPage() {
     setDeletingResourceId(record.id);
     try {
       await deleteRouteResource(record.id);
-      message.success('路由资源已删除');
+      message.success(t("路由资源已删除"));
       await loadResources();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '路由资源删除失败');
+      message.error(error instanceof Error ? error.message : t("路由资源删除失败"));
     } finally {
       setDeletingResourceId(null);
     }
@@ -117,24 +118,24 @@ export function RouteResourceManagementPage() {
   return (
     <ContentStudioLayout>
       <section className="settings-page route-resource-page">
-        <section className="settings-header"><p>按 Web / Admin 维护目录和菜单资源</p></section>
+        <section className="settings-header"><p>{t("按 Web / Admin 维护目录和菜单资源")}</p></section>
         <section className="settings-section">
           <div className="settings-section-actions">
             <Input.Search
               allowClear
-              placeholder="搜索名称 / 资源键 / 权限码 / 路径"
+              placeholder={t("搜索名称 / 资源键 / 权限码 / 路径")}
               style={{ width: 320 }}
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
             />
             <Space wrap>
-              <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadResources()}>刷新</Button>
+              <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadResources()}>{t("刷新")}</Button>
               <Button
                 icon={<PlusOutlined />}
                 onClick={() => setEditorState({ mode: 'create', parent: null, record: null })}
                 type="primary"
               >
-                新建资源
+                {t("新建资源")}
               </Button>
             </Space>
           </div>

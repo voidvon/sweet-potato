@@ -5,6 +5,7 @@ import { AppForm } from '../../../../components/AppForm';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue } from '../types';
 import { MaterialSlot } from './MaterialSlot';
 import { WorkspaceSection } from './WorkspaceSection';
+import { t } from '@shared/i18n';
 
 type VideoSourcePanelProps = {
   description?: string;
@@ -74,7 +75,7 @@ export function VideoSourcePanel({
             onChange={(event) => setVideoUrl(event.target.value)}
             disabled={isSubmitting}
             onPressEnter={() => void confirmVideoUrl()}
-            placeholder="也可以粘贴抖音 / 小红书 / 快手视频链接"
+            placeholder={t("也可以粘贴抖音 / 小红书 / 快手视频链接")}
             prefix={<Link2 aria-hidden="true" size={16} />}
             size="large"
             value={videoUrl}
@@ -87,7 +88,7 @@ export function VideoSourcePanel({
             style={{ borderRadius: '0 16px 16px 0', height: 40 }}
             type="primary"
           >
-            确认
+            {t("确认")}
           </Button>
         </Space.Compact>
       </AppForm.Item>
@@ -105,7 +106,7 @@ export function VideoSourcePanel({
     >
       {stackUrlInput ? (
         <div className="video-source-choice">
-          <strong className="video-source-choice-title">选择方式</strong>
+          <strong className="video-source-choice-title">{t("选择方式")}</strong>
           <Row align="middle" className="video-source-choice-row" gutter={[12, 12]} wrap>
             {materialSlot}
             <Col flex="auto">{localUploadLabelNode}</Col>

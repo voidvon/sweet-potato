@@ -19,6 +19,7 @@ import {
   localUploadFileList,
   threeViewFailureReason,
 } from './digitalHumanHelpers'
+import { t } from '@shared/i18n';
 
 export type DigitalHumanAssetsPageProps = {
   currentUser: User
@@ -40,7 +41,7 @@ export function useDigitalHumanAssetsController({
   variant = 'digital_human',
 }: DigitalHumanAssetsPageProps) {
   const isVirtualPortrait = variant === 'virtual_portrait'
-  const label = isVirtualPortrait ? '虚拟人像' : '数字人'
+  const label = isVirtualPortrait ? t("虚拟人像") : t("数字人")
   const [createForm] = Form.useForm<{ name: string }>()
   const gridRef = useRef<HTMLDivElement | null>(null)
   const { pageSize } = useCardGridPageSize({
@@ -148,7 +149,7 @@ export function useDigitalHumanAssetsController({
         setThreeViewFailureReasons((current) => ({
           ...current,
           [data.groupId]:
-            data.failureReason || '三视图生成失败，请检查模型配置',
+            data.failureReason || t("三视图生成失败，请检查模型配置"),
         }))
       } else {
         setThreeViewFailureReasons((current) => {
@@ -194,16 +195,16 @@ export function useDigitalHumanAssetsController({
   async function handleCreate(nameOverride?: string) {
     const nextAvatarName = (nameOverride ?? avatarName).trim()
     if (!nextAvatarName) {
-      message.warning(`请输入${label}名称`)
+      message.warning(t("请输入{{0}}名称", { "0": label }))
       return
     }
     if (createMode === 'ai' && !agreementChecked) {
-      message.warning('请先阅读并同意使用协议')
+      message.warning(t("请先阅读并同意使用协议"))
       return
     }
     if (!pendingCreateFiles.length) {
       message.warning(
-        createMode === 'local' ? `请先上传${label}图片` : '请先上传训练照片',
+        createMode === 'local' ? t("请先上传{{0}}图片", { "0": label }) : t("请先上传训练照片"),
       )
       return
     }
@@ -262,7 +263,7 @@ export function useDigitalHumanAssetsController({
       const failureReason =
         error instanceof Error
           ? error.message
-          : '三视图生成失败，请检查模型配置'
+          : t("三视图生成失败，请检查模型配置")
       await Promise.all([
         library.loadGroupAssets(groupId),
         library.loadGroups(library.groupPage),
@@ -282,11 +283,11 @@ export function useDigitalHumanAssetsController({
 
   async function handleGenerateThreeView() {
     if (!library.activeGroup) {
-      message.warning(`请先选择${label}项目`)
+      message.warning(t("请先选择{{0}}项目", { "0": label }))
       return
     }
     if (!hasTrainingPhotos) {
-      message.warning('请先上传本人照片')
+      message.warning(t("请先上传本人照片"))
       return
     }
     await generateThreeViewForGroup(library.activeGroup.id)
@@ -298,7 +299,7 @@ export function useDigitalHumanAssetsController({
     try {
       await downloadAsset(asset, library.activeGroup?.name || asset.name, label)
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '下载失败')
+      message.error(error instanceof Error ? error.message : t("下载失败"))
     }
   }
   async function handleReplaceLocalDigitalHuman(file: File) {
@@ -339,15 +340,15 @@ export function useDigitalHumanAssetsController({
         await library.loadGroupAssets(library.activeGroup.id)
       if (result.failedGroups > 0) {
         message.warning(
-          `云端同步完成：${result.createdGroups} 个新增，${result.updatedGroups} 个更新，${result.failedGroups} 个失败`,
+          t("云端同步完成：{{0}} 个新增，{{1}} 个更新，{{2}} 个失败", { "0": result.createdGroups, "1": result.updatedGroups, "2": result.failedGroups }),
         )
         return
       }
       message.success(
-        `云端同步完成：${result.totalRemoteGroups} 个分组已检查，${result.createdGroups} 个新增`,
+        t("云端同步完成：{{0}} 个分组已检查，{{1}} 个新增", { "0": result.totalRemoteGroups, "1": result.createdGroups }),
       )
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '云端同步失败')
+      message.error(error instanceof Error ? error.message : t("云端同步失败"))
     } finally {
       setIsSyncingRemoteLibrary(false)
     }

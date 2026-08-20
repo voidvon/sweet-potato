@@ -16,6 +16,7 @@ import {
 } from '../digitalHumanHelpers'
 import type { DigitalHumanAssetsController } from '../useDigitalHumanAssetsController'
 import './DigitalHumanAssetGrid.scss'
+import { t } from '@shared/i18n';
 
 export function DigitalHumanAssetGrid({
   controller,
@@ -30,7 +31,7 @@ export function DigitalHumanAssetGrid({
           allowClear
           className="voice-board-search"
           onChange={(event) => controller.setSearchKeyword(event.target.value)}
-          placeholder="搜索素材名称..."
+          placeholder={t("搜索素材名称...")}
           prefix={<Search size={17} />}
           size="large"
           value={controller.searchKeyword}
@@ -43,7 +44,7 @@ export function DigitalHumanAssetGrid({
               loading={controller.isSyncingRemoteLibrary}
               onClick={() => void controller.handleSyncRemoteLibrary()}
             >
-              从云端同步
+              {t("从云端同步")}
             </Button>
           )}
         <AppButton
@@ -52,7 +53,7 @@ export function DigitalHumanAssetGrid({
           tone="brand"
           type="primary"
         >
-          本地上传
+          {t("本地上传")}
         </AppButton>
       </div>
       <div className="voice-board-content">
@@ -63,7 +64,7 @@ export function DigitalHumanAssetGrid({
           {!controller.library.isLoadingGroups && (
             <AssetLibraryCreateCard
               description={
-                controller.isVirtualPortrait ? '本地上传' : '本地上传或AI生成'
+                controller.isVirtualPortrait ? t("本地上传") : t("本地上传或AI生成")
               }
               icon={<Plus size={30} />}
               onClick={
@@ -71,7 +72,7 @@ export function DigitalHumanAssetGrid({
                   ? () => controller.openCreateModal('local')
                   : controller.openCreateChoice
               }
-              title={`添加${controller.label}素材`}
+              title={t("添加{{0}}素材", { "0": controller.label })}
             />
           )}
           {controller.library.isLoadingGroups ? (
@@ -96,22 +97,22 @@ export function DigitalHumanAssetGrid({
               return (
                 <AssetLibraryCard
                   key={group.id}
-                  meta={`${!isLocalUpload && assetCount ? `${assetCount} 个素材 · ` : ''}更新于 ${formatDate(group.updatedAt)}`}
+                  meta={t("{{0}}更新于 {{1}}", { "0": !isLocalUpload && assetCount ? t("{{0}} 个素材 · ", { "0": assetCount }) : '', "1": formatDate(group.updatedAt) })}
                   onClick={() => void controller.openDetail(group.id)}
                   preview={photoPreview(result || photos[0])}
                   previewClassName="digital-human-cover"
                   status={
                     isLocalUpload
-                      ? '本地上传'
+                      ? t("本地上传")
                       : isGenerating
-                        ? '三视图生成中'
+                        ? t("三视图生成中")
                         : failure
-                          ? '三视图生成失败'
+                          ? t("三视图生成失败")
                           : result
-                            ? 'AI生成'
+                            ? t("AI生成")
                             : assetCount
-                              ? '待训练合成三视图'
-                              : '待上传本人照片'
+                              ? t("待训练合成三视图")
+                              : t("待上传本人照片")
                   }
                   title={group.name}
                 />
@@ -123,21 +124,21 @@ export function DigitalHumanAssetGrid({
               <AssetLibraryPlaceholderCard
                 description={
                   hasKeyword
-                    ? `调整搜索条件，或新增一个${controller.label}。`
-                    : `上传${controller.label}图片后，会展示在这里。`
+                    ? t("调整搜索条件，或新增一个{{0}}。", { "0": controller.label })
+                    : t("上传{{0}}图片后，会展示在这里。", { "0": controller.label })
                 }
                 icon={<Search size={30} />}
                 title={
                   hasKeyword
-                    ? `暂无匹配${controller.label}素材`
-                    : `暂无${controller.label}素材`
+                    ? t("暂无匹配{{0}}素材", { "0": controller.label })
+                    : t("暂无{{0}}素材", { "0": controller.label })
                 }
               />
             )}
         </div>
       </div>
       <div className="voice-board-pagination">
-        <span>共 {controller.library.groupTotal} 条</span>
+        <span>{t("共")} {controller.library.groupTotal} {t("条")}</span>
         <Pagination
           current={controller.library.groupPage}
           onChange={controller.library.setGroupPage}

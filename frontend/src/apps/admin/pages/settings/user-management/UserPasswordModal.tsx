@@ -1,5 +1,6 @@
 import { Input, Modal, Space } from 'antd';
 import type { ManagedUser } from '../../../types';
+import { t } from '@shared/i18n';
 
 type UserPasswordModalProps = {
   open: boolean;
@@ -22,22 +23,22 @@ export function UserPasswordModal({
 }: UserPasswordModalProps) {
   return (
     <Modal
-      cancelText="取消"
+      cancelText={t("取消")}
       centered
       confirmLoading={saving}
-      okText="确认修改"
+      okText={t("确认修改")}
       onCancel={onCancel}
       onOk={onSubmit}
       open={open}
-      title={user ? `修改 ${user.displayName} 的密码` : '修改账号密码'}
+      title={user ? t("修改 {{0}} 的密码", { "0": user.displayName }) : t("修改账号密码")}
       destroyOnClose
     >
       <Space orientation="vertical" style={{ width: '100%' }} size={12}>
         <div>
-          用户账号：<strong>{user?.username}</strong>
+          {t("用户账号：")}<strong>{user?.username}</strong>
         </div>
         <Input.Password
-          placeholder="请输入新密码，至少 6 位"
+          placeholder={t("请输入新密码，至少 6 位")}
           value={password}
           onChange={(event) => onPasswordChange(event.target.value)}
         />

@@ -11,6 +11,7 @@ import './PromptPlanningMotion.scss';
 import './PromptPlanningSettingsControls.scss';
 import './PromptPlanningSharedFields.scss';
 import './PromptPlanningPresentational.scss';
+import { t } from '@shared/i18n';
 
 type PlanningStageItem = {
   role: string;
@@ -103,7 +104,7 @@ export function EditableTagField({
         {values.map((value) => (
           <button
             className="video-task-epa-tag-chip"
-            aria-label={`删除${value}`}
+            aria-label={t("删除{{0}}", { "0": value })}
             key={value}
             onClick={() => onChange(values.filter((item) => item !== value))}
             type="button"
@@ -240,12 +241,12 @@ export function AudioReferenceCard({
   onRemove: () => void;
   onReplace: () => void;
 }) {
-  const duration = Number.isFinite(file.audioDuration) && file.audioDuration ? `${Math.round(file.audioDuration)}s` : '音频';
+  const duration = Number.isFinite(file.audioDuration) && file.audioDuration ? `${Math.round(file.audioDuration)}s` : t("音频");
 
   return (
     <div className="video-task-epa-audio-card">
       <button
-        aria-label={isPlaying ? '暂停参考音色' : '试听参考音色'}
+        aria-label={isPlaying ? t("暂停参考音色") : t("试听参考音色")}
         className="video-task-epa-audio-play"
         onClick={onPlayToggle}
         type="button"
@@ -254,12 +255,12 @@ export function AudioReferenceCard({
       </button>
       <div className="video-task-epa-audio-info">
         <strong title={file.name}>{file.name}</strong>
-        <span>{isPlaying ? '播放中' : duration}</span>
+        <span>{isPlaying ? t("播放中") : duration}</span>
       </div>
       <div className="video-task-reference-actions">
-        <button onClick={onPlayToggle} type="button">{isPlaying ? '暂停' : '试听'}</button>
-        <button onClick={onReplace} type="button">换一段</button>
-        <button className="is-danger" onClick={onRemove} type="button">移除</button>
+        <button onClick={onPlayToggle} type="button">{isPlaying ? t("暂停") : t("试听")}</button>
+        <button onClick={onReplace} type="button">{t("换一段")}</button>
+        <button className="is-danger" onClick={onRemove} type="button">{t("移除")}</button>
       </div>
     </div>
   );

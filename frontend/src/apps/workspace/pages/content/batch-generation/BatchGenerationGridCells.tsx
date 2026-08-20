@@ -28,6 +28,7 @@ import {
   stringArray,
   valueAt,
 } from './batchGenerationGrid.utils'
+import { t } from '@shared/i18n';
 
 const MemoBatchVideoReferencePicker = memo(BatchVideoReferencePicker, (previous, next) => {
   if (previous.disabled !== next.disabled || previous.ids.length !== next.ids.length || previous.assets.length !== next.assets.length) return false
@@ -60,7 +61,7 @@ export function GridSelectCell({
       className={`batch-generation-grid-select-cell${disabled ? ' batch-generation-grid-select-cell--disabled' : ''}`}
     >
       <button
-        aria-label={`选择${label}`}
+        aria-label={t("选择{{0}}", { "0": label })}
         className="batch-generation-grid-select-cell__trigger"
         disabled={disabled}
         onPointerDown={(event) => {
@@ -73,9 +74,9 @@ export function GridSelectCell({
         <ChevronDown aria-hidden="true" size={14} />
       </button>
       {isOverridden && !disabled && onReset ? (
-        <Tooltip title="重置为跟随全局参数">
+        <Tooltip title={t("重置为跟随全局参数")}>
           <button
-            aria-label="重置为跟随全局参数"
+            aria-label={t("重置为跟随全局参数")}
             className="batch-generation-grid-select-cell__reset"
             onClick={(event) => {
               event.stopPropagation()
@@ -85,7 +86,7 @@ export function GridSelectCell({
             type="button"
           >
             <RotateCcw aria-hidden="true" size={12} />
-            <span>重置</span>
+            <span>{t("重置")}</span>
           </button>
         </Tooltip>
       ) : null}
@@ -127,9 +128,9 @@ export function GridVideoOutputSizeCell({
     >
       <span className="batch-generation-grid-select-cell__value">{aspectRatio} · {resolution}</span>
       {isOverridden && !disabled && onReset ? (
-        <Tooltip title="重置为跟随全局参数">
+        <Tooltip title={t("重置为跟随全局参数")}>
           <button
-            aria-label="重置为跟随全局参数"
+            aria-label={t("重置为跟随全局参数")}
             className="batch-generation-grid-select-cell__reset"
             onClick={(event) => {
               event.stopPropagation()
@@ -139,7 +140,7 @@ export function GridVideoOutputSizeCell({
             type="button"
           >
             <RotateCcw aria-hidden="true" size={12} />
-            <span>重置</span>
+            <span>{t("重置")}</span>
           </button>
         </Tooltip>
       ) : null}
@@ -180,9 +181,9 @@ export function GridCanvasCell({
       <span>{label}</span>
       <ChevronDown aria-hidden="true" size={14} />
       {isOverridden && !disabled && onReset ? (
-        <Tooltip title="重置为跟随全局参数">
+        <Tooltip title={t("重置为跟随全局参数")}>
           <button
-            aria-label="重置为跟随全局参数"
+            aria-label={t("重置为跟随全局参数")}
             className="batch-generation-grid-select-cell__reset"
             onClick={(event) => {
               event.stopPropagation()
@@ -192,7 +193,7 @@ export function GridCanvasCell({
             type="button"
           >
             <RotateCcw aria-hidden="true" size={12} />
-            <span>重置</span>
+            <span>{t("重置")}</span>
           </button>
         </Tooltip>
       ) : null}
@@ -238,7 +239,7 @@ export function GridPromptCell({
       content.push(
         <span className="mention-rich-textarea-chip batch-generation-grid-prompt-mention" data-mention-kind={mentionKind} key={`${lineIndex}:${token}:${cursor}`}>
           {mentionKind === 'image' && option.previewUrl ? <img alt="" src={option.previewUrl} /> : null}
-          {mentionKind === 'video' ? <span className="mention-rich-textarea-chip-icon">视</span> : null}
+          {mentionKind === 'video' ? <span className="mention-rich-textarea-chip-icon">{t("视")}</span> : null}
           {mentionKind === 'audio' ? <span className="mention-rich-textarea-chip-icon">♪</span> : null}
           <b>{option.label}</b>
         </span>,
@@ -268,7 +269,7 @@ export function GridPromptCell({
     >
       {!disabled ? (
         <button
-          aria-label="全屏编辑提示词"
+          aria-label={t("全屏编辑提示词")}
           className="batch-generation-grid-prompt-cell__fullscreen"
           onClick={(event) => {
             event.stopPropagation()
@@ -281,7 +282,7 @@ export function GridPromptCell({
         </button>
       ) : null}
       <div className="batch-generation-grid-prompt-cell__content">
-        {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">输入提示词，使用 @ 引用素材</span>}
+        {value ? paragraphs : <span className="batch-generation-grid-prompt-cell__placeholder">{t("输入提示词，使用 @ 引用素材")}</span>}
       </div>
     </div>
   )
@@ -362,7 +363,7 @@ export function GridAssetCell({
             <div className="batch-generation-grid-asset" key={id}>
               {src ? (
                 <button
-                  aria-label={`预览${alt}`}
+                  aria-label={t("预览{{0}}", { "0": alt })}
                   className="batch-generation-grid-asset__preview"
                   onClick={(event) => {
                     event.stopPropagation()
@@ -379,7 +380,7 @@ export function GridAssetCell({
               ) : <span className="batch-generation-grid-asset__placeholder"><UploadCloud size={15} /></span>}
               {!uploadDisabled ? (
                 <button
-                  aria-label={`移除${alt}`}
+                  aria-label={t("移除{{0}}", { "0": alt })}
                   className="batch-generation-grid-asset__remove"
                   onClick={(event) => {
                     event.stopPropagation()
@@ -398,7 +399,7 @@ export function GridAssetCell({
         {canUpload ? (
           <div className="batch-generation-grid-asset-upload">
             <button
-              aria-label={`添加${field.label}`}
+              aria-label={t("添加{{0}}", { "0": field.label })}
               className="batch-generation-grid-asset-add"
               disabled={uploadDisabled || isUploading}
               onClick={() => onOpenUpload(row, field, ids.length, maxCount)}
@@ -434,7 +435,7 @@ export function GridAssetCell({
       })}
       {ids.length < maxCount ? (
         <Button
-          aria-label={`添加${field.label}`}
+          aria-label={t("添加{{0}}", { "0": field.label })}
           disabled={uploadDisabled || isUploading}
           icon={<UploadCloud size={15} />}
           loading={isUploading}
@@ -442,7 +443,7 @@ export function GridAssetCell({
           size="small"
           type="dashed"
         >
-          添加
+          {t("添加")}
         </Button>
       ) : null}
     </Space>
@@ -460,9 +461,9 @@ export function GridBooleanCell({ checked, disabled, isOverridden, onChange, onR
     <span className="batch-generation-grid-boolean-cell">
       <Switch checked={checked} disabled={disabled} onChange={onChange} size="small" />
       {isOverridden && !disabled && onReset ? (
-        <Tooltip title="重置为跟随全局参数">
+        <Tooltip title={t("重置为跟随全局参数")}>
           <button
-            aria-label="重置为跟随全局参数"
+            aria-label={t("重置为跟随全局参数")}
             className="batch-generation-grid-select-cell__reset"
             onClick={(event) => {
               event.stopPropagation()
@@ -472,7 +473,7 @@ export function GridBooleanCell({ checked, disabled, isOverridden, onChange, onR
             type="button"
           >
             <RotateCcw aria-hidden="true" size={12} />
-            <span>重置</span>
+            <span>{t("重置")}</span>
           </button>
         </Tooltip>
       ) : null}
@@ -515,7 +516,7 @@ export function GridResultCell({
         tabIndex={0}
         type="danger"
       >
-        查看错误
+        {t("查看错误")}
       </Typography.Text>
     ) : <Typography.Text type="secondary">-</Typography.Text>
   }
@@ -523,7 +524,7 @@ export function GridResultCell({
     const asset = assets[output.assetId]
     const src = resolveAssetUrl(asset?.fileUrl)
     return asset?.mimeType.startsWith('image/') && src ? [{
-      alt: asset.name || asset.originalFileName || `生成结果 ${index + 1}`,
+      alt: asset.name || asset.originalFileName || t("生成结果 {{0}}", { "0": index + 1 }),
       outputId: output.id,
       src,
     }] : []
@@ -535,11 +536,11 @@ export function GridResultCell({
         const asset = assets[output.assetId]
         const url = resolveAssetUrl(asset?.fileUrl)
         if (asset?.mimeType.startsWith('image/') && url) {
-          const alt = asset.name || asset.originalFileName || '生成结果'
+          const alt = asset.name || asset.originalFileName || t("生成结果")
           return (
             <div className="batch-generation-grid-asset" key={output.id}>
               <button
-                aria-label={`预览${alt}`}
+                aria-label={t("预览{{0}}", { "0": alt })}
                 className="batch-generation-grid-asset__preview"
                 onClick={(event) => {
                   event.stopPropagation()
@@ -565,7 +566,7 @@ export function GridResultCell({
           )
         }
         if (asset?.mimeType.startsWith('video/') && url) {
-          const name = asset.name || asset.originalFileName || '生成视频'
+          const name = asset.name || asset.originalFileName || t("生成视频")
           return (
             <div className="batch-generation-grid-asset" key={output.id}>
               <BatchVideoThumbnail
@@ -618,7 +619,7 @@ function assetPosterUrl(metadata: Record<string, unknown>) {
 export function GridCreditsCell({ value }: { value: number }) {
   const formattedValue = formatCreditAmount(value)
   return (
-    <span aria-label={`预计消耗 ${formattedValue} 积分`} className="batch-generation-grid-credit-value">
+    <span aria-label={t("预计消耗 {{0}} 积分", { "0": formattedValue })} className="batch-generation-grid-credit-value">
       <CreditIcon />
       {formattedValue}
     </span>
@@ -651,8 +652,8 @@ export function GridActionsCell({
     <Space size={4}>
       {row.executionStatus !== 'completed' ? (
         <Button
-          {...tooltipEvents('执行此行')}
-          aria-label="执行此行"
+          {...tooltipEvents(t('执行此行'))}
+          aria-label={t("执行此行")}
           className="batch-generation-grid-action-button batch-generation-grid-action-button--run"
           disabled={disabled}
           icon={<Play fill="currentColor" size={14} />}
@@ -665,8 +666,8 @@ export function GridActionsCell({
         />
       ) : null}
       <Button
-        {...tooltipEvents('复制此行')}
-        aria-label="复制此行"
+        {...tooltipEvents(t('复制此行'))}
+        aria-label={t("复制此行")}
         className="batch-generation-grid-action-button"
         disabled={!canCopy}
         icon={<Copy size={14} />}
@@ -677,10 +678,10 @@ export function GridActionsCell({
         size="small"
         type="default"
       />
-      <Popconfirm onConfirm={() => onDelete(row)} title="确认删除这一行？">
+      <Popconfirm onConfirm={() => onDelete(row)} title={t("确认删除这一行？")}>
         <Button
-          {...tooltipEvents('删除')}
-          aria-label="删除"
+          {...tooltipEvents(t('删除'))}
+          aria-label={t("删除")}
           className="batch-generation-grid-action-button batch-generation-grid-action-button--delete"
           disabled={disabled}
           icon={<Trash2 size={14} />}

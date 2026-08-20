@@ -8,6 +8,7 @@ import type {
   RouteResourceVisibilityMode,
 } from '../../../types';
 import { platformOptions, resourceTypeOptions, visibilityModeOptions } from './routeResourceOptions';
+import { t } from '@shared/i18n';
 
 export type RouteResourceEditorState = {
   mode: 'create' | 'edit';
@@ -95,43 +96,43 @@ export function RouteResourceEditorModal({
       destroyOnClose
       onCancel={onClose}
       onOk={() => void form.submit()}
-      okText={editorState?.mode === 'edit' ? '保存修改' : '创建资源'}
+      okText={editorState?.mode === 'edit' ? t("保存修改") : t("创建资源")}
       confirmLoading={saving}
       open={Boolean(editorState)}
-      title={editorState?.mode === 'edit' ? '编辑路由资源' : '新建路由资源'}
+      title={editorState?.mode === 'edit' ? t("编辑路由资源") : t("新建路由资源")}
       width={860}
     >
       <Form form={form} layout="vertical" onFinish={(values) => onSave(buildMutationPayload(values))} requiredMark={false}>
         <div style={{ display: 'grid', gap: '0 16px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-          <Form.Item style={{ gridColumn: '1 / -1' }} label="父级节点" name="parentId">
-            <Select allowClear options={parentOptions} placeholder="根节点可留空" showSearch optionFilterProp="label" />
+          <Form.Item style={{ gridColumn: '1 / -1' }} label={t("父级节点")} name="parentId">
+            <Select allowClear options={parentOptions} placeholder={t("根节点可留空")} showSearch optionFilterProp="label" />
           </Form.Item>
-          <Form.Item label="资源名称" name="name" rules={[{ required: true, message: '请输入资源名称' }]}>
-            <Input maxLength={64} placeholder="例如：路由管理" />
+          <Form.Item label={t("资源名称")} name="name" rules={[{ required: true, message: t("请输入资源名称") }]}>
+            <Input maxLength={64} placeholder={t("例如：路由管理")} />
           </Form.Item>
-          <Form.Item label="资源标识" name="resourceKey" rules={[{ required: true, message: '请输入资源标识' }]}>
-            <Input maxLength={128} placeholder="例如：admin.system.route_resources" />
+          <Form.Item label={t("资源标识")} name="resourceKey" rules={[{ required: true, message: t("请输入资源标识") }]}>
+            <Input maxLength={128} placeholder={t("例如：admin.system.route_resources")} />
           </Form.Item>
-          <Form.Item label="资源类型" name="resourceType" rules={[{ required: true, message: '请选择资源类型' }]}>
+          <Form.Item label={t("资源类型")} name="resourceType" rules={[{ required: true, message: t("请选择资源类型") }]}>
             <Select options={resourceTypeOptions} />
           </Form.Item>
-          <Form.Item label="所属平台" name="platform" rules={[{ required: true, message: '请选择平台' }]}>
+          <Form.Item label={t("所属平台")} name="platform" rules={[{ required: true, message: t("请选择平台") }]}>
             <Select options={platformOptions} disabled />
           </Form.Item>
-          <Form.Item label="路由路径" name="path"><Input maxLength={128} placeholder="例如：/system/routes" /></Form.Item>
-          <Form.Item label="权限编码" name="permissionCode" rules={[{ required: true, message: '请输入权限编码' }]}>
-            <Input maxLength={160} placeholder="例如：admin.route.system.route_resources.view" />
+          <Form.Item label={t("路由路径")} name="path"><Input maxLength={128} placeholder={t("例如：/system/routes")} /></Form.Item>
+          <Form.Item label={t("权限编码")} name="permissionCode" rules={[{ required: true, message: t("请输入权限编码") }]}>
+            <Input maxLength={160} placeholder={t("例如：admin.route.system.route_resources.view")} />
           </Form.Item>
           <Form.Item
-            label="菜单可见性"
+            label={t("菜单可见性")}
             name="visibilityMode"
-            tooltip="始终显示仅影响菜单入口，页面和接口仍按权限编码校验"
-            rules={[{ required: true, message: '请选择菜单可见性' }]}
+            tooltip={t("始终显示仅影响菜单入口，页面和接口仍按权限编码校验")}
+            rules={[{ required: true, message: t("请选择菜单可见性") }]}
           >
             <Select options={visibilityModeOptions} />
           </Form.Item>
-          <Form.Item label="排序" name="sortOrder"><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
-          <Form.Item label="是否启用" name="status" style={{ gridColumn: '1 / -1' }} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item label={t("排序")} name="sortOrder"><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item label={t("是否启用")} name="status" style={{ gridColumn: '1 / -1' }} valuePropName="checked"><Switch /></Form.Item>
         </div>
       </Form>
     </Modal>

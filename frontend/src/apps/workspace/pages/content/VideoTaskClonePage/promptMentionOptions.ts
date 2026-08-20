@@ -1,6 +1,7 @@
 import type { MentionRichTextareaOption } from '../../../components/MentionRichTextarea';
 import type { SelectedMaterials, SelectedMaterialValue } from './types';
 import { resolveLocalMaterialUrl } from './materialUrl';
+import { t } from '@shared/i18n';
 
 export function promptMentionOptions(selectedMaterials: SelectedMaterials, prompt = ''): MentionRichTextareaOption[] {
   return [
@@ -25,22 +26,22 @@ function getImageMentionOptions(value: SelectedMaterialValue, referencedCount: n
     return Array.from({ length: optionCount }, (_, index) => {
       const item = value[index];
       return item ? {
-        label: `图片${index + 1}`,
+        label: t("图片{{0}}", { "0": index + 1 }),
         mimeType: 'image/png',
-        name: item.name || `图片${index + 1}`,
+        name: item.name || t("图片{{0}}", { "0": index + 1 }),
         previewUrl: resolveLocalMaterialUrl(item),
-        subtitle: '已选参考图',
-        token: `@图片${index + 1}`,
+        subtitle: t("已选参考图"),
+        token: t("@图片{{0}}", { "0": index + 1 }),
       } : emptyMentionOption('图片', 'image/png', index, '点击上传对应的参考图');
     });
   }
 
   return Array.from({ length: optionCount }, (_, index) => (
     index < selectedCount ? {
-      label: `图片${index + 1}`,
+      label: t("图片{{0}}", { "0": index + 1 }),
       mimeType: 'image/png',
-      subtitle: '已选参考图',
-      token: `@图片${index + 1}`,
+      subtitle: t("已选参考图"),
+      token: t("@图片{{0}}", { "0": index + 1 }),
     } : emptyMentionOption('图片', 'image/png', index, '点击上传对应的参考图')
   ));
 }
@@ -49,10 +50,10 @@ function getVideoMentionOptions(value: SelectedMaterialValue, referencedCount: n
   const selectedCount = Array.isArray(value) ? Math.min(value.length, 1) : value ? 1 : 0;
   return Array.from({ length: Math.max(selectedCount, referencedCount) }, (_, index) => (
     index < selectedCount ? {
-      label: `视频${index + 1}`,
+      label: t("视频{{0}}", { "0": index + 1 }),
       mimeType: 'video/mp4',
       subtitle: getMaterialSubtitle(value, '已选参考视频'),
-      token: `@视频${index + 1}`,
+      token: t("@视频{{0}}", { "0": index + 1 }),
     } : emptyMentionOption('视频', 'video/mp4', index, '点击上传对应的参考视频')
   ));
 }
@@ -61,10 +62,10 @@ function getAudioMentionOptions(value: SelectedMaterialValue, referencedCount: n
   const selectedCount = getAudioCount(value);
   return Array.from({ length: Math.max(selectedCount, referencedCount) }, (_, index) => (
     index < selectedCount ? {
-      label: `音频${index + 1}`,
+      label: t("音频{{0}}", { "0": index + 1 }),
       mimeType: 'audio/wav',
-      subtitle: '已选参考音频',
-      token: `@音频${index + 1}`,
+      subtitle: t("已选参考音频"),
+      token: t("@音频{{0}}", { "0": index + 1 }),
     } : emptyMentionOption('音频', 'audio/wav', index, '点击上传对应的参考音频')
   ));
 }

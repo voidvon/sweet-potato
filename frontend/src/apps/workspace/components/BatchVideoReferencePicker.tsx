@@ -10,6 +10,7 @@ import { ReferenceVideoPreviewModal } from '../pages/content/VideoTaskClonePage/
 import type { ConfirmedReferenceVideo } from '../pages/content/VideoTaskClonePage/components/ReferenceVideoCard';
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS, readVideoDuration, readVideoUrlDuration } from '../pages/content/VideoTaskClonePage/videoMetadata';
 import './BatchVideoReferencePicker.scss';
+import { t } from '@shared/i18n';
 
 const MAX_VIDEO_COUNT = 1;
 
@@ -36,7 +37,7 @@ function assetFromTrimResult(result: TrimReferenceVideoResult): ContentAsset {
   return {
     assetKind: 'video_trimmed',
     createdAt: new Date().toISOString(),
-    description: '批量生成参考视频',
+    description: t("批量生成参考视频"),
     expiresAt: null,
     filePath: '',
     fileSize: 0,
@@ -51,8 +52,8 @@ function assetFromTrimResult(result: TrimReferenceVideoResult): ContentAsset {
       trimStart: result.start,
     },
     mimeType: 'video/mp4',
-    name: result.originalFileName || result.name || '参考视频',
-    originalFileName: result.originalFileName || result.name || '参考视频.mp4',
+    name: result.originalFileName || result.name || t("参考视频"),
+    originalFileName: result.originalFileName || result.name || t("参考视频.mp4"),
     parentAssetId: null,
     resourceType: 'other',
     retainedAt: null,
@@ -146,7 +147,7 @@ export function BatchVideoReferencePicker({
     if (!file || uploading || draftIdsRef.current.length >= MAX_VIDEO_COUNT) return;
     const duration = await readVideoDuration(file);
     if (!duration) {
-      message.error('无法读取视频时长，请选择有效的视频文件');
+      message.error(t("无法读取视频时长，请选择有效的视频文件"));
       return;
     }
     if (duration > MAX_REFERENCE_VIDEO_DURATION_SECONDS) {
@@ -169,7 +170,7 @@ export function BatchVideoReferencePicker({
         {selectedAssets.map((asset) => {
           const duration = durationById[asset.id] ?? assetDuration(asset);
           const src = resolveAssetUrl(asset.fileUrl);
-          const alt = asset.name || asset.originalFileName || '参考视频';
+          const alt = asset.name || asset.originalFileName || t("参考视频");
           const preview = src ? {
             assetId: asset.id,
             duration: duration ?? 15,
@@ -186,13 +187,13 @@ export function BatchVideoReferencePicker({
                 <BatchVideoThumbnail alt={alt} onPreview={() => setPreviewVideo(preview)} src={src} />
               ) : <span className="batch-generation-grid-asset__placeholder"><UploadCloud size={15} /></span>}
               {duration ? <span className="batch-generation-grid-asset__duration">{formatDuration(duration)}</span> : null}
-              <button aria-label={`移除${alt}`} className="batch-generation-grid-asset__remove" onClick={(event) => { event.stopPropagation(); removeAsset(asset.id); }} onPointerDown={(event) => event.stopPropagation()} type="button"><X size={10} strokeWidth={2.4} /></button>
+              <button aria-label={t("移除{{0}}", { "0": alt })} className="batch-generation-grid-asset__remove" onClick={(event) => { event.stopPropagation(); removeAsset(asset.id); }} onPointerDown={(event) => event.stopPropagation()} type="button"><X size={10} strokeWidth={2.4} /></button>
             </div>
           );
         })}
         {draftIds.length < MAX_VIDEO_COUNT ? (
           <div className="batch-generation-grid-asset-upload">
-            <button aria-label="添加参考视频" className="batch-generation-grid-asset-add" disabled={disabled || uploading} onClick={() => inputRef.current?.click()} onPointerDown={(event) => event.stopPropagation()} type="button">
+            <button aria-label={t("添加参考视频")} className="batch-generation-grid-asset-add" disabled={disabled || uploading} onClick={() => inputRef.current?.click()} onPointerDown={(event) => event.stopPropagation()} type="button">
               {uploading ? <span className="batch-generation-grid-asset-add__spinner" /> : <Plus size={18} />}
             </button>
           </div>

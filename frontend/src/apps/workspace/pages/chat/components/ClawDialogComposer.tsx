@@ -40,6 +40,7 @@ import {
 } from '@shared/utils/imageGenerationCredits';
 import { ClawReferenceGroups, type ClawReferenceGroupConfig } from './ClawReferenceGroups';
 import './ClawDialogComposer.scss';
+import { t } from '@shared/i18n';
 
 type ClawDialogComposerProps = {
   attachments: ChatAttachment[];
@@ -106,7 +107,7 @@ type ClawModeOutputConfig = {
 const defaultToolbarControls: ClawToolbarControl[] = ['model', 'outputSize', 'outputCount'];
 const modelOnlyToolbarControls: ClawToolbarControl[] = ['model'];
 const cutoutToolbarControls: ClawToolbarControl[] = ['model', 'background'];
-const defaultOptionalPlaceholder = '补充要求（选填），例如：调整光线、风格、姿态…';
+const defaultOptionalPlaceholder = t("补充要求（选填），例如：调整光线、风格、姿态…");
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
 const defaultModeOutputConfig: ClawModeOutputConfig = {
   allowedOutputCounts: [1, 2, 3, 4],
@@ -141,194 +142,194 @@ function renderPromptHint(
 }
 
 const backgroundOptions: Array<{ description: string; key: ClawBackgroundKey; label: string }> = [
-  { key: 'transparent', label: '透明背景', description: '保留 alpha 通道，适合继续合成和入库。' },
-  { key: 'opaque', label: '不透明背景', description: '生成不透明背景，适合电商主图和目录图。' },
-  { key: 'auto', label: '自动背景', description: '由图片模型自动选择背景处理方式。' },
+  { key: 'transparent', label: t("透明背景"), description: t("保留 alpha 通道，适合继续合成和入库。") },
+  { key: 'opaque', label: t("不透明背景"), description: t("生成不透明背景，适合电商主图和目录图。") },
+  { key: 'auto', label: t("自动背景"), description: t("由图片模型自动选择背景处理方式。") },
 ];
 
 const clawModeConfigs: ClawModeConfig[] = [
   {
     key: 'dialog',
-    title: '对话生图',
-    description: '多图对话',
+    title: t("对话生图"),
+    description: t("多图对话"),
     Icon: MessageCircle,
-    inputPlaceholder: '描述你要的画面，可上传参考图，输入 @ 引用图片。',
+    inputPlaceholder: t("描述你要的画面，可上传参考图，输入 @ 引用图片。"),
     outputConfig: defaultModeOutputConfig,
-    referenceGroups: [{ key: 'reference', label: '参考图', maxCount: 8 }],
+    referenceGroups: [{ key: 'reference', label: t("参考图"), maxCount: 8 }],
     requiresPrompt: true,
   },
   {
     key: 'detail',
-    title: '详情图生成',
-    description: '商品详情',
+    title: t("详情图生成"),
+    description: t("商品详情"),
     Icon: Images,
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页',
+    promptHint: t("描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页"),
     referenceGroups: [
-      { key: 'product', label: '产品图', maxCount: 3, required: true },
-      { key: 'reference', label: '参考图', maxCount: 10 },
+      { key: 'product', label: t("产品图"), maxCount: 3, required: true },
+      { key: 'reference', label: t("参考图"), maxCount: 10 },
     ],
   },
   {
     key: 'outfit',
-    title: '换装',
-    description: '一键试穿',
+    title: t("换装"),
+    description: t("一键试穿"),
     Icon: Shirt,
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
-    promptHint: '让 图1 的模特穿上 图2 的衣服，AI 自动出图。',
+    promptHint: t("让 图1 的模特穿上 图2 的衣服，AI 自动出图。"),
     referenceGroups: [
-      { key: 'model', label: '模特', maxCount: 1, required: true },
-      { key: 'clothes', label: '图片', required: true },
+      { key: 'model', label: t("模特"), maxCount: 1, required: true },
+      { key: 'clothes', label: t("图片"), required: true },
     ],
   },
   {
     key: 'model-views',
-    title: '模特三视图',
-    description: '多角度展示',
+    title: t("模特三视图"),
+    description: t("多角度展示"),
     Icon: Layers,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '为 图1 的模特生成正面 / 45 度侧面 / 背面三视图拼接图。人物必须保持自然站立姿势，完整呈现从头到脚的全身，不得裁切；可参考服装正反面和背景。',
+    promptHint: t("为 图1 的模特生成正面 / 45 度侧面 / 背面三视图拼接图。人物必须保持自然站立姿势，完整呈现从头到脚的全身，不得裁切；可参考服装正反面和背景。"),
     referenceGroups: [
-      { key: 'model', label: '模特', maxCount: 1, required: true },
-      { key: 'front', label: '服装正面', maxCount: 1 },
-      { key: 'back', label: '服装背面', maxCount: 1 },
-      { key: 'background', label: '背景', maxCount: 1 },
+      { key: 'model', label: t("模特"), maxCount: 1, required: true },
+      { key: 'front', label: t("服装正面"), maxCount: 1 },
+      { key: 'back', label: t("服装背面"), maxCount: 1 },
+      { key: 'background', label: t("背景"), maxCount: 1 },
     ],
   },
   {
     key: 'pose-reference',
-    title: '姿势参考',
-    description: '参考姿态',
+    title: t("姿势参考"),
+    description: t("参考姿态"),
     Icon: Scan,
     outputConfig: defaultModeOutputConfig,
     outputCountGroupKey: 'pose',
     outputCountStrategy: 'matchReferenceGroup',
-    promptHint: '让 图1 的主体摆出 图2 的姿势。',
+    promptHint: t("让 图1 的主体摆出 图2 的姿势。"),
     referenceGroups: [
-      { key: 'subject', label: '主体', maxCount: 1, required: true },
-      { key: 'pose', label: '姿势', required: true },
+      { key: 'subject', label: t("主体"), maxCount: 1, required: true },
+      { key: 'pose', label: t("姿势"), required: true },
     ],
   },
   {
     key: 'upscale',
-    title: '高清放大',
-    description: '提分辨率',
+    title: t("高清放大"),
+    description: t("提分辨率"),
     Icon: Maximize2,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '把 图1 放大变清晰。',
-    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+    promptHint: t("把 图1 放大变清晰。"),
+    referenceGroups: [{ key: 'source', label: t("原图"), required: true }],
   },
   {
     key: 'cutout',
-    title: '图片抠图',
-    description: '主体分离',
+    title: t("图片抠图"),
+    description: t("主体分离"),
     Icon: Scan,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '把 图1 的背景去掉，按所选底色输出。',
-    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+    promptHint: t("把 图1 的背景去掉，按所选底色输出。"),
+    referenceGroups: [{ key: 'source', label: t("原图"), required: true }],
     toolbarControls: cutoutToolbarControls,
   },
   {
     key: 'background',
-    title: '换背景',
-    description: '环境焕新',
+    title: t("换背景"),
+    description: t("环境焕新"),
     Icon: Images,
     outputCountStrategy: 'fixedOne',
-    promptHint: '把 图1 的背景换成 图2 的风格。',
+    promptHint: t("把 图1 的背景换成 图2 的风格。"),
     referenceGroups: [
-      { key: 'subject', label: '主体', maxCount: 1, required: true },
-      { key: 'background', label: '背景', maxCount: 1, required: true },
+      { key: 'subject', label: t("主体"), maxCount: 1, required: true },
+      { key: 'background', label: t("背景"), maxCount: 1, required: true },
     ],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'scene-extract',
-    title: '场景提取',
-    description: '提取环境',
+    title: t("场景提取"),
+    description: t("提取环境"),
     Icon: ImagePlus,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '从 图1 提取干净的场景素材。',
-    referenceGroups: [{ key: 'source', label: '原图', required: true }],
+    promptHint: t("从 图1 提取干净的场景素材。"),
+    referenceGroups: [{ key: 'source', label: t("原图"), required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'model-face-swap',
-    title: '模特换脸',
-    description: '替换模特脸',
+    title: t("模特换脸"),
+    description: t("替换模特脸"),
     Icon: Shirt,
     outputCountStrategy: 'fixedOne',
-    promptHint: '把 图1 模特的脸换成 图2 的样子，造型不变。',
+    promptHint: t("把 图1 模特的脸换成 图2 的样子，造型不变。"),
     referenceGroups: [
-      { key: 'model', label: '模特', maxCount: 1, required: true },
-      { key: 'face', label: '脸部', maxCount: 1, required: true },
+      { key: 'model', label: t("模特"), maxCount: 1, required: true },
+      { key: 'face', label: t("脸部"), maxCount: 1, required: true },
     ],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'head-swap',
-    title: '智能换头',
-    description: '头部替换',
+    title: t("智能换头"),
+    description: t("头部替换"),
     Icon: Scan,
     outputCountStrategy: 'fixedOne',
-    promptHint: '给 图1 模特随机换一个新头型。',
-    referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
+    promptHint: t("给 图1 模特随机换一个新头型。"),
+    referenceGroups: [{ key: 'model', label: t("模特"), maxCount: 1, required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'face-swap',
-    title: '智能换脸',
-    description: '脸部替换',
+    title: t("智能换脸"),
+    description: t("脸部替换"),
     Icon: Scan,
     outputCountStrategy: 'fixedOne',
-    promptHint: '给 图1 模特随机换一张新脸。',
-    referenceGroups: [{ key: 'model', label: '模特', maxCount: 1, required: true }],
+    promptHint: t("给 图1 模特随机换一张新脸。"),
+    referenceGroups: [{ key: 'model', label: t("模特"), maxCount: 1, required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'redraw',
-    title: '智能重绘',
-    description: '读图后重绘',
+    title: t("智能重绘"),
+    description: t("读图后重绘"),
     Icon: Brush,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '读懂 图1 的画面内容，整理成提示词后重新生成一张更干净自然的图。',
-    referenceGroups: [{ key: 'reference', label: '参考图', required: true }],
+    promptHint: t("读懂 图1 的画面内容，整理成提示词后重新生成一张更干净自然的图。"),
+    referenceGroups: [{ key: 'reference', label: t("参考图"), required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'detail-enhance',
-    title: '细节增强',
-    description: '优化细节',
+    title: t("细节增强"),
+    description: t("优化细节"),
     Icon: Zap,
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
     outputCountStrategy: 'fixedOne',
-    promptHint: '在 图1 涂抹位置上补强、修复或替换：',
-    referenceGroups: [{ key: 'base', label: '基础图', maxCount: 1, required: true }],
+    promptHint: t("在 图1 涂抹位置上补强、修复或替换："),
+    referenceGroups: [{ key: 'base', label: t("基础图"), maxCount: 1, required: true }],
   },
   {
     key: 'print-extract',
-    title: '印花提取',
-    description: '提取图案',
+    title: t("印花提取"),
+    description: t("提取图案"),
     Icon: Images,
-    inputPlaceholder: '补充印花提取要求（选填），例如：只保留胸前主图案、支持单张图片详情描述。',
+    inputPlaceholder: t("补充印花提取要求（选填），例如：只保留胸前主图案、支持单张图片详情描述。"),
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '提取 图1 服装的印花，输出 PNG 和 PSD。',
-    referenceGroups: [{ key: 'clothes', label: '服装', required: true }],
+    promptHint: t("提取 图1 服装的印花，输出 PNG 和 PSD。"),
+    referenceGroups: [{ key: 'clothes', label: t("服装"), required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
   {
     key: 'face-enhance',
-    title: '脸部增强',
-    description: '优化脸部',
+    title: t("脸部增强"),
+    description: t("优化脸部"),
     Icon: Scan,
     outputCountStrategy: 'matchUploadedImages',
-    promptHint: '为 图1 等图像增强脸部细节。',
-    referenceGroups: [{ key: 'portrait', label: '人像', required: true }],
+    promptHint: t("为 图1 等图像增强脸部细节。"),
+    referenceGroups: [{ key: 'portrait', label: t("人像"), required: true }],
     toolbarControls: modelOnlyToolbarControls,
   },
 ];
@@ -434,7 +435,7 @@ export function ClawDialogComposer({
     return selectedMode.referenceGroups.flatMap((group) => {
       const groupAttachments = groupedAttachments[group.key] || [];
       return groupAttachments.map((attachment) => {
-        const label = attachment.kind === 'image' ? `图${imageIndex++}` : `文件${fileIndex++}`;
+        const label = attachment.kind === 'image' ? t("图{{0}}", { "0": imageIndex++ }) : t("文件{{0}}", { "0": fileIndex++ });
         return {
           attachmentId: attachment.id,
           label,
@@ -451,11 +452,11 @@ export function ClawDialogComposer({
   );
   const hasUploadingAttachments = attachments.some((attachment) => attachment.uploadStatus === 'uploading');
   const generationBlockReason = hasUploadingAttachments
-    ? '图片上传中'
+    ? t("图片上传中")
     : promptRequired && !hasPrompt
-      ? '还需输入提示词'
+      ? t("还需输入提示词")
       : missingReferenceGroups.length
-        ? `还需上传${missingReferenceGroups[0].label}`
+        ? t("还需上传{{0}}", { "0": missingReferenceGroups[0].label })
         : '';
   const canStartGeneration = !generationBlockReason;
 
@@ -547,7 +548,7 @@ export function ClawDialogComposer({
         if (!ignore) {
           setImageConfigs([]);
           message.error({
-            content: error instanceof Error ? error.message : '图片模型配置加载失败',
+            content: error instanceof Error ? error.message : t("图片模型配置加载失败"),
             key: 'image-model-config-load-error',
           });
         }
@@ -601,7 +602,7 @@ export function ClawDialogComposer({
       label: item.config.name || item.config.model,
       disabled: false,
     }))
-    : [{ key: 'empty', label: '请先配置图片模型', disabled: true }];
+    : [{ key: 'empty', label: t("请先配置图片模型"), disabled: true }];
   const selectableResolutions = useMemo(
     () => getImageResolutionOptions(selectedRawImageConfig, selectedOutputConfig.allowedResolutions),
     [selectedOutputConfig.allowedResolutions, selectedRawImageConfig],
@@ -701,21 +702,21 @@ export function ClawDialogComposer({
   }
 
   return (
-    <section className="claw-dialog-composer" aria-label="对话生图输入框">
+    <section className="claw-dialog-composer" aria-label={t("对话生图输入框")}>
       {showHeading ? (
         <div className="claw-dialog-intro">
           <span className="claw-dialog-intro-brand">
             <span className="claw-dialog-intro-dot" aria-hidden="true" />
-            萌猫 AI
+            {t("萌猫 AI")}
           </span>
-          <span className="claw-dialog-intro-title">把商品图变成上新视觉</span>
+          <span className="claw-dialog-intro-title">{t("把商品图变成上新视觉")}</span>
         </div>
       ) : null}
 
       <div className="claw-dialog-card">
         {showHeading ? (
           <header className="claw-dialog-heading">
-            上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。
+            {t("上传商品图，快速生成模特试穿、商品主图、详情图和营销视频，让每一次上新更快进入投放。")}
           </header>
         ) : null}
 
@@ -744,8 +745,8 @@ export function ClawDialogComposer({
               <MentionRichTextarea
                 className="claw-dialog-rich-textarea"
                 editorClassName="claw-dialog-rich-editor"
-                emptyText="暂无可引用图片"
-                menuTitle="可引用图片"
+                emptyText={t("暂无可引用图片")}
+                menuTitle={t("可引用图片")}
                 minRows={2}
                 onChange={onInputChange}
                 onSubmit={handlePrimaryAction}
@@ -788,7 +789,7 @@ export function ClawDialogComposer({
                 trigger={['click']}
               >
                 <Button className="claw-option-button" icon={<Layers size={12} />}>
-                  {selectedImageModel?.config.name || selectedImageModel?.config.model || '图片模型'}
+                  {selectedImageModel?.config.name || selectedImageModel?.config.model || t("图片模型")}
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>
@@ -839,14 +840,14 @@ export function ClawDialogComposer({
             {showOutputCountControl ? (
               <Dropdown
                 menu={{
-                  items: selectableOutputCounts.map((count) => ({ key: String(count), label: `${count} 张` })),
+                  items: selectableOutputCounts.map((count) => ({ key: String(count), label: t("{{0}} 张", { "0": count }) })),
                   onClick: ({ key }) => setSelectedOutputCount(Number(key) || 1),
                   selectedKeys: [String(selectedOutputCount)],
                 }}
                 trigger={['click']}
               >
                 <Button className="claw-option-button" icon={<List size={12} />}>
-                  {selectedOutputCount} 张
+                  {selectedOutputCount} {t("张")}
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>
@@ -862,7 +863,7 @@ export function ClawDialogComposer({
               {formatCreditAmount(totalImageCredits)}
             </span>
             <Button
-              aria-label={sending ? '停止生成' : '发送消息'}
+              aria-label={sending ? t("停止生成") : t("发送消息")}
               className="claw-send-button"
               disabled={!sending && !canStartGeneration}
               icon={sending ? <Square size={12} fill="currentColor" /> : <ArrowRight size={16} />}

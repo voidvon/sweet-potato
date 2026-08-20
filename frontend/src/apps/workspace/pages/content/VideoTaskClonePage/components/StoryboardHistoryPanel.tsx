@@ -5,6 +5,7 @@ import { resolveAssetUrl } from '../../../../api/request';
 import type { MarketingVideoStoryboard } from '../../../../types';
 import type { VideoTaskCloneState } from '../useVideoTaskCloneState';
 import { ParameterPanel } from './ParameterPanel';
+import { t } from '@shared/i18n';
 
 type StoryboardHistoryPanelProps = {
   state: VideoTaskCloneState;
@@ -16,12 +17,12 @@ type StoryboardDisplayStatus = MarketingVideoStoryboard['status']
   | 'video-failed';
 
 const statusLabels: Record<StoryboardDisplayStatus, string> = {
-  generating: '分镜生成中',
-  ready: '待生成视频',
-  failed: '生成失败',
-  'video-generating': '视频生成中',
-  'video-ready': '视频已生成',
-  'video-failed': '视频生成失败',
+  generating: t("分镜生成中"),
+  ready: t("待生成视频"),
+  failed: t("生成失败"),
+  'video-generating': t("视频生成中"),
+  'video-ready': t("视频已生成"),
+  'video-failed': t("视频生成失败"),
 };
 
 function displayStatus(task: MarketingVideoStoryboard): StoryboardDisplayStatus {
@@ -34,8 +35,8 @@ function displayStatus(task: MarketingVideoStoryboard): StoryboardDisplayStatus 
 function dateGroupLabel(value: string) {
   const date = new Date(value);
   const now = new Date();
-  if (date.toDateString() === now.toDateString()) return '今天';
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
+  if (date.toDateString() === now.toDateString()) return t("今天");
+  return t("{{0}}月{{1}}日", { "0": date.getMonth() + 1, "1": date.getDate() });
 }
 
 export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
@@ -44,7 +45,7 @@ export function StoryboardHistoryPanel({ state }: StoryboardHistoryPanelProps) {
   );
 
   return (
-    <section className="video-task-storyboard-history" aria-label="分镜历史">
+    <section className="video-task-storyboard-history" aria-label={t("分镜历史")}>
       {selectedTask ? (
         <StoryboardDetail
           deleting={state.deletingMarketingStoryboardId === selectedTask.id}
@@ -89,8 +90,8 @@ function StoryboardList({
     <>
       <header className="video-task-result-header video-task-storyboard-header">
         <div className="video-task-result-header-copy">
-          <h1>分镜历史</h1>
-          <p>{tasks.length} 个任务</p>
+          <h1>{t("分镜历史")}</h1>
+          <p>{tasks.length} {t("个任务")}</p>
         </div>
       </header>
 
@@ -98,8 +99,8 @@ function StoryboardList({
         <div className="video-task-storyboard-empty"><Spin /></div>
       ) : tasks.length === 0 ? (
         <div className="video-task-storyboard-empty">
-          <strong>暂无分镜历史</strong>
-          <p>提交营销视频任务后，可在这里查看生成的分镜。</p>
+          <strong>{t("暂无分镜历史")}</strong>
+          <p>{t("提交营销视频任务后，可在这里查看生成的分镜。")}</p>
         </div>
       ) : (
         <div className="video-task-storyboard-list">
@@ -130,7 +131,7 @@ function StoryboardPreview({ task }: { task: MarketingVideoStoryboard }) {
   return (
     <div className={`video-task-storyboard-preview is-${currentStatus}`}>
       {task.imageUrl ? (
-        <img alt={`${task.title} 分镜`} src={resolveAssetUrl(task.imageUrl)} />
+        <img alt={t("{{0}} 分镜", { "0": task.title })} src={resolveAssetUrl(task.imageUrl)} />
       ) : (
         <div className="video-task-storyboard-mini-grid" aria-hidden="true">
           {Array.from({ length: 6 }, (_, index) => <span key={index} />)}
@@ -168,16 +169,16 @@ function StoryboardDetail({
   const [optimizationInstruction, setOptimizationInstruction] = useState('');
   const confirmGenerateVideo = () => {
     Modal.confirm({
-      cancelText: '取消',
+      cancelText: t("取消"),
       centered: true,
       content: (
         <p>
-          预计消耗 {state.marketingVideoGenerationPriceLabel || '--'} 积分，当前操作不包含在本次营销视频分镜生成内。确认继续吗？
+          {t("预计消耗")} {state.marketingVideoGenerationPriceLabel || '--'} {t("积分，当前操作不包含在本次营销视频分镜生成内。确认继续吗？")}
         </p>
       ),
-      okText: '确认生成',
+      okText: t("确认生成"),
       onOk: onGenerateVideo,
-      title: '生成视频',
+      title: t("生成视频"),
     });
   };
   const submitRetry = async () => {
@@ -197,14 +198,14 @@ function StoryboardDetail({
       }}
     >
       <div className="video-task-storyboard-retry-copy">
-        <strong>优化分镜</strong>
-        <p>可补充不满意的地方；留空则结合原商品信息、产品图和当前分镜结果直接重试。</p>
+        <strong>{t("优化分镜")}</strong>
+        <p>{t("可补充不满意的地方；留空则结合原商品信息、产品图和当前分镜结果直接重试。")}</p>
       </div>
       <Input.TextArea
         autoFocus
         maxLength={2000}
         onChange={(event) => setOptimizationInstruction(event.target.value)}
-        placeholder="例如：加强产品特写，减少空镜，让画面节奏更紧凑"
+        placeholder={t("例如：加强产品特写，减少空镜，让画面节奏更紧凑")}
         rows={4}
         value={optimizationInstruction}
       />
@@ -214,14 +215,14 @@ function StoryboardDetail({
           onClick={() => setRetryPopoverOpen(false)}
           type="text"
         >
-          取消
+          {t("取消")}
         </Button>
         <Button
           htmlType="submit"
           loading={retrying}
           type="primary"
         >
-          提交重试
+          {t("提交重试")}
         </Button>
       </div>
     </form>
@@ -230,13 +231,13 @@ function StoryboardDetail({
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header">
         <Button
-          aria-label="返回分镜历史"
+          aria-label={t("返回分镜历史")}
           icon={<ArrowLeft size={18} />}
           onClick={onBack}
           shape="circle"
           type="text"
         />
-        <h1>分镜详情</h1>
+        <h1>{t("分镜详情")}</h1>
       </header>
 
       <div className="video-task-storyboard-detail">
@@ -250,18 +251,18 @@ function StoryboardDetail({
             <div className="video-task-storyboard-skeleton-grid">
               {Array.from({ length: 6 }, (_, index) => <span key={index} />)}
             </div>
-            <strong><Sparkles size={16} />正在铺排六宫格镜头...</strong>
+            <strong><Sparkles size={16} />{t("正在铺排六宫格镜头...")}</strong>
           </div>
         ) : task.status === 'failed' ? (
           <div className="video-task-storyboard-failed">
-            <strong>分镜生成失败</strong>
-            <p>{task.errorMessage || '图片模型暂时不可用，请重新生成。'}</p>
+            <strong>{t("分镜生成失败")}</strong>
+            <p>{task.errorMessage || t("图片模型暂时不可用，请重新生成。")}</p>
           </div>
         ) : (
           <div className="video-task-storyboard-image">
             <Image
-              alt={`${task.title} 六宫格分镜`}
-              preview={{ mask: '查看大图' }}
+              alt={t("{{0}} 六宫格分镜", { "0": task.title })}
+              preview={{ mask: t("查看大图") }}
               src={resolveAssetUrl(task.imageUrl || '')}
               style={{ display: 'block', height: '100%', objectFit: 'contain', width: '100%' }}
             />
@@ -269,7 +270,7 @@ function StoryboardDetail({
         )}
 
         {task.status === 'generating' ? (
-          <p className="video-task-storyboard-progress-copy">分镜生成中，请稍候</p>
+          <p className="video-task-storyboard-progress-copy">{t("分镜生成中，请稍候")}</p>
         ) : (
           <>
             <ParameterPanel
@@ -296,12 +297,12 @@ function StoryboardDetail({
                 type="primary"
               >
                 {generatingVideo
-                  ? '提交中'
+                  ? t("提交中")
                   : task.videoStatus === 'failed'
-                    ? '重新生成视频'
+                    ? t("重新生成视频")
                     : task.videoStatus === 'success'
-                      ? '视频已生成'
-                      : '生成视频'}
+                      ? t("视频已生成")
+                      : t("生成视频")}
               </Button>
               <Popover
                 arrow
@@ -319,19 +320,19 @@ function StoryboardDetail({
                   icon={<RefreshCw className={retrying ? 'is-spinning' : ''} size={14} />}
                   variant="filled"
                 >
-                  {retrying ? '提交中' : '重试分镜'}
+                  {retrying ? t("提交中") : t("重试分镜")}
                 </Button>
               </Popover>
               <Popconfirm
-                cancelText="取消"
-                description="删除后将无法恢复，已生成的视频结果不会被删除。"
+                cancelText={t("取消")}
+                description={t("删除后将无法恢复，已生成的视频结果不会被删除。")}
                 okButtonProps={{ danger: true, loading: deleting }}
-                okText="确认删除"
+                okText={t("确认删除")}
                 onConfirm={onDelete}
-                title="确定删除这条分镜任务？"
+                title={t("确定删除这条分镜任务？")}
               >
                 <Button
-                  aria-label="删除分镜任务"
+                  aria-label={t("删除分镜任务")}
                   danger
                   disabled={deleting}
                   icon={<Trash2 size={14} />}

@@ -1,4 +1,5 @@
 import { resolveAssetUrl } from '@shared/api/core/request';
+import { t } from '@shared/i18n';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -36,21 +37,21 @@ export function orphanFilePreviewUrl(relativePath: string) {
 
 export function assetKindLabel(kind: string) {
   const labels: Record<string, string> = {
-    audio_input: '音频输入',
-    image_input: '图片输入',
-    video_input: '视频输入',
-    video_source: '视频原始文件',
-    video_trimmed: '视频裁剪文件',
+    audio_input: t("音频输入"),
+    image_input: t("图片输入"),
+    video_input: t("视频输入"),
+    video_source: t("视频原始文件"),
+    video_trimmed: t("视频裁剪文件"),
   };
-  return labels[kind] || kind || '临时素材';
+  return labels[kind] || kind || t("临时素材");
 }
 
 export function formatRemaining(expiresAt: string) {
   const remainingMs = new Date(expiresAt).getTime() - Date.now();
-  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return '已过期';
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) return t("已过期");
   const minutes = Math.ceil(remainingMs / 60_000);
-  if (minutes < 60) return `${minutes} 分钟后`;
+  if (minutes < 60) return t("{{0}} 分钟后", { "0": minutes });
   const hours = Math.ceil(remainingMs / 3_600_000);
-  if (hours < 24) return `${hours} 小时后`;
-  return `${Math.ceil(hours / 24)} 天后`;
+  if (hours < 24) return t("{{0}} 小时后", { "0": hours });
+  return t("{{0}} 天后", { "0": Math.ceil(hours / 24) });
 }

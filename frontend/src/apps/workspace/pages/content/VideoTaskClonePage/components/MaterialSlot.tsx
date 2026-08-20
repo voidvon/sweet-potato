@@ -6,6 +6,7 @@ import { ImageMaterialStack } from './ImageMaterialStack';
 import { type MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { VideoMaterialSlot } from './VideoMaterialSlot';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue, UploadAnchor } from '../types';
+import { t } from '@shared/i18n';
 
 type MaterialSlotProps = {
   disabled?: boolean;
@@ -104,10 +105,10 @@ export function MaterialSlot({
             )}
             {item.key !== 'video' && selectedCount < getLimit(item) && (
               <button
-                aria-label={`添加${item.label}`}
+                aria-label={t("添加{{0}}", { "0": item.label })}
                 className="video-task-upload-tile is-compact-add"
                 onClick={(event) => handleOpen(event.currentTarget)}
-                title={`添加${item.label}`}
+                title={t("添加{{0}}", { "0": item.label })}
                 type="button"
               >
                 <AnimatedUploadPlus size={24} />
@@ -116,11 +117,11 @@ export function MaterialSlot({
           </>
         ) : (
           <button
-            aria-label={`添加${item.label}`}
+            aria-label={t("添加{{0}}", { "0": item.label })}
             className="video-task-upload-tile"
             disabled={disabled}
             onClick={(event) => handleOpen(event.currentTarget)}
-            title={`添加${item.label}`}
+            title={t("添加{{0}}", { "0": item.label })}
             type="button"
           >
             <span className="video-task-upload-badge">{item.meta}</span>
@@ -185,9 +186,9 @@ function getImageItems(count: number, selected: SelectedMaterialValue): MediaAtt
   if (Array.isArray(selected)) {
     return selected.slice(0, count).map((file, index) => ({
       background: `url("${file.url}") center / cover no-repeat`,
-      caption: `图·${index + 1}`,
+      caption: t("图·{{0}}", { "0": index + 1 }),
       id: file.id,
-      name: file.name || `参考图 ${index + 1}`,
+      name: file.name || t("参考图 {{0}}", { "0": index + 1 }),
       previewSrc: file.url,
       src: file.url,
       type: 'image',
@@ -196,9 +197,9 @@ function getImageItems(count: number, selected: SelectedMaterialValue): MediaAtt
 
   return imageThumbs.slice(0, count).map((background, index) => ({
     background,
-    caption: `图·${index + 1}`,
+    caption: t("图·{{0}}", { "0": index + 1 }),
     id: `image-${index + 1}`,
-    name: `参考图 ${index + 1}`,
+    name: t("参考图 {{0}}", { "0": index + 1 }),
     type: 'image',
   }));
 }
@@ -207,11 +208,11 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaAtt
   if (Array.isArray(selected)) {
     return selected.slice(0, count).map((file, index) => ({
       background: 'var(--color-warning-soft)',
-      caption: `音·${index + 1}`,
+      caption: t("音·{{0}}", { "0": index + 1 }),
       detail: formatDuration(getAudioDuration(file)),
       id: file.id,
       src: file.url,
-      name: file.name || `参考音频 ${index + 1}`,
+      name: file.name || t("参考音频 {{0}}", { "0": index + 1 }),
       type: 'audio',
     }));
   }
@@ -219,7 +220,7 @@ function getAudioItems(count: number, selected: SelectedMaterialValue): MediaAtt
   const name = selected ?? '';
   return Array.from({ length: count }, (_, index) => ({
     background: 'var(--color-warning-soft)',
-    caption: `音·${index + 1}`,
+    caption: t("音·{{0}}", { "0": index + 1 }),
     detail: '7s',
     id: `audio-${index + 1}`,
     name: getAudioName(name, index),
@@ -235,15 +236,15 @@ function getLimit(item: MaterialKind) {
 }
 
 function getSelectedHint(item: MaterialKind, count: number, selected: SelectedMaterialValue) {
-  if (item.key === 'image') return `${count}/9 张`;
-  if (item.key === 'audio') return `${count}/3 个 · ${formatDuration(getSelectedAudioDuration(selected, count))}`;
-  return `${count}/1 个`;
+  if (item.key === 'image') return t("{{0}}/9 张", { "0": count });
+  if (item.key === 'audio') return t("{{0}}/3 个 · {{1}}", { "0": count, "1": formatDuration(getSelectedAudioDuration(selected, count)) });
+  return t("{{0}}/1 个", { "0": count });
 }
 
 function getAudioName(selected: SelectedMaterialValue, index: number) {
-  if (Array.isArray(selected)) return selected[index]?.name ?? `参考音频 ${String(index + 1).padStart(2, '0')}`;
+  if (Array.isArray(selected)) return selected[index]?.name ?? t("参考音频 {{0}}", { "0": String(index + 1).padStart(2, '0') });
   const name = selected ?? '';
-  if (name.match(/参考音频\s*\d+\s*个/)) return `参考音频 ${String(index + 1).padStart(2, '0')}`;
+  if (name.match(/参考音频\s*\d+\s*个/)) return t("参考音频 {{0}}", { "0": String(index + 1).padStart(2, '0') });
   return name;
 }
 

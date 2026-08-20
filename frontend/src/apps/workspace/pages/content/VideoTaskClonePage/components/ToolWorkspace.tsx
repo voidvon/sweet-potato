@@ -17,6 +17,7 @@ import { TalkingVideoPanel } from './TalkingVideoPanel';
 import { SubjectReplacePanel } from './SubjectReplacePanel';
 import { toolIcons } from './ToolSwitcher';
 import { VideoTranslationPanel } from './VideoTranslationPanel';
+import { t } from '@shared/i18n';
 
 type ToolWorkspaceProps = {
   state: VideoTaskCloneState;
@@ -45,7 +46,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
           onClick={() => void state.handleGenerate()}
           type="primary"
         >
-          {state.isGenerating ? '生成中…' : state.tool.submitText}
+          {state.isGenerating ? t("生成中…") : state.tool.submitText}
           {state.canGenerate && !state.isGenerating && state.videoPriceLabel ? (
             <span className="video-task-generate-price">
               <CreditIcon />
@@ -232,7 +233,7 @@ function PendingToolWorkspace({ state }: Pick<ToolWorkspaceProps, 'state'>) {
         <p>{state.tool.description}</p>
         <span className="video-task-tool-pending-status">
           <Clock3 size={13} />
-          功能模块待接入
+          {t("功能模块待接入")}
         </span>
       </section>
     </div>

@@ -1,6 +1,7 @@
 import { Play } from 'lucide-react';
 import { useRef } from 'react';
 import './ReferenceVideoCard.scss';
+import { t } from '@shared/i18n';
 
 export type ConfirmedReferenceVideo = {
   assetId?: string;
@@ -44,11 +45,11 @@ export function ReferenceVideoCard({ video, onPreview, onRemove, onReplace }: Re
       </button>
       <div className="video-task-reference-info">
         <strong title={video.name}>{video.name}</strong>
-        <span>识别时会自动拆解这条视频的结构</span>
+        <span>{t("识别时会自动拆解这条视频的结构")}</span>
         <div className="video-task-reference-actions">
-          <button onClick={onPreview} type="button">预览</button>
-          <button onClick={onReplace} type="button">换一条</button>
-          <button className="is-danger" onClick={onRemove} type="button">移除</button>
+          <button onClick={onPreview} type="button">{t("预览")}</button>
+          <button onClick={onReplace} type="button">{t("换一条")}</button>
+          <button className="is-danger" onClick={onRemove} type="button">{t("移除")}</button>
         </div>
       </div>
     </div>

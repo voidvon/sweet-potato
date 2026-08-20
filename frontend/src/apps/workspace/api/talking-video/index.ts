@@ -1,5 +1,6 @@
 import { API_BASE_URL, request } from '../request';
 import { createUtf8SseEventParser } from '../talkingVideoSse';
+import { getAcceptLanguage, t } from '@shared/i18n';
 
 export type TalkingVideoPromptEvent =
   | {
@@ -68,6 +69,7 @@ export async function streamTalkingVideoPrompt(taskId: string, payload: {
     method: 'POST',
     credentials: 'include',
     headers: {
+      'Accept-Language': getAcceptLanguage(),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
@@ -79,6 +81,7 @@ export async function streamTalkingVideoPrompt(taskId: string, payload: {
 export async function resumeTalkingVideoPrompt(taskId: string, onEvent: (event: TalkingVideoPromptEvent) => void, options?: { signal?: AbortSignal }) {
   const response = await fetch(`${API_BASE_URL}/api/talking-video/prompt/tasks/${encodeURIComponent(taskId)}/stream`, {
     credentials: 'include',
+    headers: { 'Accept-Language': getAcceptLanguage() },
     signal: options?.signal,
   });
   await consumeTalkingVideoPromptStream(response, onEvent);
@@ -107,7 +110,7 @@ export async function importTalkingVideoPromptHistory(tasks: unknown[]) {
 async function consumeTalkingVideoPromptStream(response: Response, onEvent: (event: TalkingVideoPromptEvent) => void) {
   if (!response.ok) {
     const text = await response.text();
-    let message = '口播提示词生成失败';
+    let message = t('口播提示词生成失败');
     try {
       message = JSON.parse(text)?.message || message;
     } catch {
@@ -115,7 +118,7 @@ async function consumeTalkingVideoPromptStream(response: Response, onEvent: (eve
     }
     throw new Error(message);
   }
-  if (!response.body) throw new Error('口播提示词生成服务未返回内容');
+  if (!response.body) throw new Error(t("口播提示词生成服务未返回内容"));
 
   const reader = response.body.getReader();
   const parser = createUtf8SseEventParser<TalkingVideoPromptEvent>((data) => JSON.parse(data) as TalkingVideoPromptEvent);

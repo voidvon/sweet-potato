@@ -4,6 +4,7 @@ import { useRouteResourceInfoMap } from '@shared/hooks/useRouteResourceNames';
 import { routePaths } from '../routes/paths';
 import { buildSidebarMenuItems, getDefaultAppPath, getWorkspaceLayoutState } from '../routes/routeConfig';
 import type { User } from '../types';
+import { t } from '@shared/i18n';
 
 type AdminProtectedLayoutProps = {
   currentUser: User;
@@ -18,8 +19,8 @@ export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLa
   return (
     <WorkspaceShellLayout
       accountPath={routePaths.account}
-      appName="萌猫 AI"
-      appSubtitle="后台管理"
+      appName={t("萌猫 AI")}
+      appSubtitle={t("后台管理")}
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}
       defaultPath={getDefaultAppPath(currentUser)}

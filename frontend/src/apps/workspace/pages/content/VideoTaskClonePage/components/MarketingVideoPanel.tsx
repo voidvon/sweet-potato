@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import { PromptPanel } from './PromptPanel';
 import { WorkspaceSection } from './WorkspaceSection';
+import { t } from '@shared/i18n';
 
 type MarketingVideoPanelProps = {
   config: MarketingVideoConfig;
@@ -46,13 +47,13 @@ export function MarketingVideoPanel({
     <div className="video-task-marketing-form">
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-product-name">商品名称 <span aria-hidden="true">*</span></label>}
+        title={<label htmlFor="marketing-product-name">{t("商品名称")} <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input
           id="marketing-product-name"
           onChange={(event) => updateField('productName', event.target.value)}
-          placeholder="例如：夏季防晒衣"
+          placeholder={t("例如：夏季防晒衣")}
           size="large"
           value={config.productName}
         />
@@ -60,13 +61,13 @@ export function MarketingVideoPanel({
 
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-product-category">商品类目 <span aria-hidden="true">*</span></label>}
+        title={<label htmlFor="marketing-product-category">{t("商品类目")} <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input
           id="marketing-product-category"
           onChange={(event) => updateField('productCategory', event.target.value)}
-          placeholder="例如：服饰 / 美妆 / 食品"
+          placeholder={t("例如：服饰 / 美妆 / 食品")}
           size="large"
           value={config.productCategory}
         />
@@ -74,13 +75,13 @@ export function MarketingVideoPanel({
 
       <WorkspaceSection
         className="video-task-marketing-field"
-        title={<label htmlFor="marketing-selling-points">核心卖点 <span aria-hidden="true">*</span></label>}
+        title={<label htmlFor="marketing-selling-points">{t("核心卖点")} <span aria-hidden="true">*</span></label>}
         variant="plain"
       >
         <Input.TextArea
           id="marketing-selling-points"
           onChange={(event) => updateField('sellingPoints', event.target.value)}
-          placeholder="一行一个卖点"
+          placeholder={t("一行一个卖点")}
           rows={4}
           size="large"
           value={config.sellingPoints}
@@ -95,11 +96,11 @@ export function MarketingVideoPanel({
         onPlaceholderFiles={onPlaceholderFiles}
         onPromptChange={onPromptChange}
         panel={panel}
-        placeholder="补充你希望生成或解析的方向，输入 @ 引用素材"
+        placeholder={t("补充你希望生成或解析的方向，输入 @ 引用素材")}
         prompt={prompt}
         selectedMaterials={selectedMaterials}
         showPlanning={false}
-        title="提示词 / 要求"
+        title={t("提示词 / 要求")}
       />
     </div>
   );

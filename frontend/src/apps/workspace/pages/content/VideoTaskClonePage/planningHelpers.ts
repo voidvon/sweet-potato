@@ -9,6 +9,7 @@ import type {
   PlanningUiStep,
 } from '../../../api/content-planning';
 import type { LocalMaterialFile, SelectedMaterials, SelectedMaterialValue } from './types';
+import { t } from '@shared/i18n';
 
 export const planningSteps: PlanningUiStep[] = ['step1', 'step2', 'step3', 'step4'];
 
@@ -44,22 +45,22 @@ export function formatPlanningTimeRange(value: string) {
   if (start === null || end === null) {
     return normalized.replace(/s$/iu, '秒');
   }
-  return `${Number(start.toFixed(3))}-${Number(end.toFixed(3))}秒`;
+  return t("{{0}}-{{1}}秒", { "0": Number(start.toFixed(3)), "1": Number(end.toFixed(3)) });
 }
 
 export const planningStageLabels: Record<PlanningJobStage, string> = {
-  idle: '等待开始',
-  uploading_assets: '上传素材',
-  analyzing_materials: '识别商品素材',
-  analyzing_reference_video: '拆解参考视频',
-  planner_running: 'Planner 生成 brief',
-  strategy_running: 'Strategy 生成方向',
-  timeline_running: 'Timeline 生成节奏',
-  copywriter_running: 'Copywriter 生成文案',
-  visual_director_running: 'Visual Director 生成分镜',
-  validator_running: 'Validator 校验结果',
-  completed: '已完成',
-  failed: '执行失败',
+  idle: t("等待开始"),
+  uploading_assets: t("上传素材"),
+  analyzing_materials: t("识别商品素材"),
+  analyzing_reference_video: t("拆解参考视频"),
+  planner_running: t("Planner 生成 brief"),
+  strategy_running: t("Strategy 生成方向"),
+  timeline_running: t("Timeline 生成节奏"),
+  copywriter_running: t("Copywriter 生成文案"),
+  visual_director_running: t("Visual Director 生成分镜"),
+  validator_running: t("Validator 校验结果"),
+  completed: t("已完成"),
+  failed: t("执行失败"),
 };
 
 export function cloneSelectedMaterialFiles(value: SelectedMaterialValue, limit = 9): LocalMaterialFile[] {

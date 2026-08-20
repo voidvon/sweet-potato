@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FocusEvent, type PointerEvent } from 
 import { VideoPreviewPlayer } from './VideoPreviewPlayer';
 import { MAX_REFERENCE_VIDEO_DURATION_SECONDS } from '../videoMetadata';
 import './ReferenceVideoPreviewModal.scss';
+import { t } from '@shared/i18n';
 
 const MIN_SELECTION_SECONDS = 4;
 const MAX_SELECTION_SECONDS = MAX_REFERENCE_VIDEO_DURATION_SECONDS;
@@ -150,7 +151,7 @@ export function TrimReferenceVideoModal(props: TrimReferenceVideoModalProps) {
       }
       setProgress(100);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '参考视频剪辑失败');
+      setErrorMessage(error instanceof Error ? error.message : t("参考视频剪辑失败"));
       setIsProcessing(false);
       setProgress(0);
     } finally {
@@ -171,31 +172,31 @@ export function TrimReferenceVideoModal(props: TrimReferenceVideoModalProps) {
         if (!nextOpen) props.onCancel();
       }}
       cancelButtonProps={{ disabled: isProcessing }}
-      cancelText="取消"
+      cancelText={t("取消")}
       centered
       closable={!isProcessing}
       confirmLoading={isProcessing}
       keyboard={!isProcessing}
       mask={{ closable: !isProcessing }}
       okButtonProps={{ disabled: isSelectionInvalid }}
-      okText={isProcessing ? `${isRemote ? '保存中' : '剪辑中'} ${progress}%` : isRemote ? '使用此片段' : '剪辑并使用'}
+      okText={isProcessing ? t("{{0}} {{1}}%", { "0": isRemote ? t("保存中") : t("剪辑中"), "1": progress }) : isRemote ? t("使用此片段") : t("剪辑并使用")}
       onCancel={() => setOpen(false)}
       onOk={() => void confirmTrim()}
       open={open}
-      title="剪辑参考视频"
+      title={t("剪辑参考视频")}
       width={780}
       zIndex={12000}
     >
       <Flex gap="middle" vertical>
         <Typography.Text type="secondary">
-          原视频 {formatTime(duration)}，请选择 {MIN_SELECTION_SECONDS}-{MAX_SELECTION_SECONDS} 秒区间。
+          {t("原视频")} {formatTime(duration)}{t("，请选择")} {MIN_SELECTION_SECONDS}-{MAX_SELECTION_SECONDS} {t("秒区间。")}
         </Typography.Text>
 
         <div style={{ height: 420, overflow: 'hidden' }}>
           <VideoPreviewPlayer
             duration={duration}
             loopAtEnd
-            name={props.name || props.file?.name || '参考视频'}
+            name={props.name || props.file?.name || t("参考视频")}
             onDurationChange={handleDurationChange}
             playbackEnd={end}
             playbackStart={start}
@@ -210,7 +211,7 @@ export function TrimReferenceVideoModal(props: TrimReferenceVideoModalProps) {
         >
           <Slider
             {...sliderBehaviorProps}
-            ariaLabelForHandle={['剪辑起点', '剪辑终点']}
+            ariaLabelForHandle={[t("剪辑起点"), t("剪辑终点")]}
             max={safeDuration}
             min={0}
             onChange={handleRangeChange}
@@ -228,16 +229,16 @@ export function TrimReferenceVideoModal(props: TrimReferenceVideoModalProps) {
         <Descriptions
           column={3}
           items={[
-            { children: formatTime(start), key: 'start', label: '起点' },
-            { children: formatTime(end), key: 'end', label: '终点' },
-            { children: formatTime(selectionLength), key: 'selection', label: '选区' },
+            { children: formatTime(start), key: 'start', label: t("起点") },
+            { children: formatTime(end), key: 'end', label: t("终点") },
+            { children: formatTime(selectionLength), key: 'selection', label: t("选区") },
           ]}
           size="small"
         />
 
         {isProcessing && (
           <Flex gap="small" vertical>
-            <Alert message={isRemote ? '正在保存视频片段，请保持窗口打开。' : '视频正在剪辑处理中，请保持窗口打开。'} showIcon type="info" />
+            <Alert message={isRemote ? t("正在保存视频片段，请保持窗口打开。") : t("视频正在剪辑处理中，请保持窗口打开。")} showIcon type="info" />
             <Progress percent={progress} status="active" />
           </Flex>
         )}

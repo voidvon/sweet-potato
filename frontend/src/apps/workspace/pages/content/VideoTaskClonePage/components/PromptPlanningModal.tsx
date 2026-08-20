@@ -19,6 +19,7 @@ import './PromptPlanningModalRail.scss';
 import './PromptPlanningModalResponsive.scss';
 import './PromptPlanningModalDensity.scss';
 import './PromptPlanningModal.scss';
+import { t } from '@shared/i18n';
 
 type PromptPlanningModalProps = {
   currentUser: User;
@@ -87,13 +88,13 @@ export function PromptPlanningModal({
             <strong id="video-task-epa-title">{copy.title}</strong>
             <span>{copy.subtitle}</span>
           </div>
-          <button aria-label="关闭" className="video-task-epa-close" onClick={() => setOpen(false)} type="button">
+          <button aria-label={t("关闭")} className="video-task-epa-close" onClick={() => setOpen(false)} type="button">
             <X size={18} />
           </button>
         </header>
 
         <div className="video-task-epa-body">
-          <nav aria-label="策划步骤" className="video-task-epa-rail">
+          <nav aria-label={t("策划步骤")} className="video-task-epa-rail">
             {controller.railState.map((item) => (
               <button
                 aria-current={item.isCurrent ? 'step' : undefined}

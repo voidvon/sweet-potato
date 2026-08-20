@@ -14,6 +14,7 @@ import type { FilterValues } from '../types';
 import type { VideoGenerationResult, VideoGenerationTask } from '../../../../types';
 import { VideoAssetCover } from '../../shared/VideoAssetCover';
 import { ResultVideoPreviewModal, type ResultVideoPreview } from './ResultVideoPreviewModal';
+import { t } from '@shared/i18n';
 
 type ResultPanelProps = {
   filters: FilterValues;
@@ -63,45 +64,45 @@ export function ResultPanel({
 
   const confirmDeleteVideo = (task: VideoGenerationTask) => {
     Modal.confirm({
-      cancelText: '取消',
+      cancelText: t("取消"),
       centered: true,
-      content: '删除后会同时移除该任务关联的成片素材，确定继续？',
+      content: t("删除后会同时移除该任务关联的成片素材，确定继续？"),
       okButtonProps: { danger: true },
-      okText: '删除',
+      okText: t("删除"),
       onOk: () => onDelete(task),
-      title: '删除生成记录',
+      title: t("删除生成记录"),
     });
   };
 
   const handleDownloadVideo = async (task: VideoGenerationTask, videoUrl: string) => {
     const normalizedUrl = String(videoUrl || '').trim();
     if (!normalizedUrl) {
-      message.warning('暂无可下载的视频');
+      message.warning(t("暂无可下载的视频"));
       return;
     }
     const fileName = downloadFileName(task);
     try {
       await downloadUrlAsFile(normalizedUrl, fileName);
-      message.success('已开始下载');
+      message.success(t("已开始下载"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '视频下载失败');
+      message.error(error instanceof Error ? error.message : t("视频下载失败"));
     }
   };
 
   const handleCopyTaskId = async (taskId: string) => {
     try {
       await copyText(taskId);
-      message.success('ID 已复制');
+      message.success(t("ID 已复制"));
     } catch {
-      message.error('复制 ID 失败');
+      message.error(t("复制 ID 失败"));
     }
   };
 
   const filterDropdownContent = (
     <aside className="video-task-filter-panel">
       <div className="video-task-popover-head">
-        <strong>筛选生成记录</strong>
-        <Button onClick={handleClearFilters} size="small" type="link">清空</Button>
+        <strong>{t("筛选生成记录")}</strong>
+        <Button onClick={handleClearFilters} size="small" type="link">{t("清空")}</Button>
       </div>
       {filterGroups.map((group) => (
         <div className="video-task-filter-group" key={group.label}>
@@ -124,11 +125,11 @@ export function ResultPanel({
   );
 
   return (
-    <section className="video-task-result" aria-label="视频结果">
+    <section className="video-task-result" aria-label={t("视频结果")}>
       <header className="video-task-result-header">
         <div className="video-task-result-header-copy">
-          <h1>视频结果</h1>
-          <p>{sortedRecords.length > 0 ? '按时间倒序展示生成记录' : '生成完成后会显示在这里'}</p>
+          <h1>{t("视频结果")}</h1>
+          <p>{sortedRecords.length > 0 ? t("按时间倒序展示生成记录") : t("生成完成后会显示在这里")}</p>
         </div>
         <Dropdown
           classNames={{ root: 'video-task-filter-dropdown' }}
@@ -145,7 +146,7 @@ export function ResultPanel({
             icon={<Filter size={14} />}
             type="primary"
           >
-            筛选
+            {t("筛选")}
             {activeFilterCount > 0 ? <span className="video-task-filter-count">{activeFilterCount}</span> : null}
           </Button>
         </Dropdown>
@@ -156,16 +157,16 @@ export function ResultPanel({
           <div className="video-task-empty-icon">
             <LoaderCircle className="is-spinning" size={27} />
           </div>
-          <strong>正在加载生成记录</strong>
-          <p>请稍候，系统正在同步视频生成状态。</p>
+          <strong>{t("正在加载生成记录")}</strong>
+          <p>{t("请稍候，系统正在同步视频生成状态。")}</p>
         </div>
       ) : sortedRecords.length === 0 ? (
         <div className="video-task-empty-state">
           <div className="video-task-empty-icon">
             <Clapperboard size={27} />
           </div>
-          <strong>暂无视频结果</strong>
-          <p>左侧提交任务后，结果会显示在这里。</p>
+          <strong>{t("暂无视频结果")}</strong>
+          <p>{t("左侧提交任务后，结果会显示在这里。")}</p>
         </div>
       ) : (
         <InfiniteScroll
@@ -184,7 +185,7 @@ export function ResultPanel({
                     {viewState(group.records[0]).metric}
                   </span>
                   {group.records.length > 1 ? (
-                    <span className="video-task-result-track-count">{group.records.length}个</span>
+                    <span className="video-task-result-track-count">{group.records.length}{t("个")}</span>
                   ) : null}
                   {group.records.length === 1 ? (
                     <>
@@ -255,7 +256,7 @@ export function ResultPanel({
                                       icon={isRetrying ? <LoaderCircle className="is-spinning" size={14} /> : <RefreshCcw size={14} />}
                                       onClick={() => void onRetry(task)}
                                     >
-                                      {isRetrying ? '提交中' : '再次生成'}
+                                      {isRetrying ? t("提交中") : t("再次生成")}
                                     </CompactButton>
                                   ) : null}
 
@@ -267,20 +268,20 @@ export function ResultPanel({
                                         {
                                           key: 'copy-id',
                                           icon: <CopyOutlined />,
-                                          label: '复制 ID',
+                                          label: t("复制 ID"),
                                           onClick: () => void handleCopyTaskId(task.id),
                                         },
                                         {
                                           key: 'edit',
                                           icon: <EditOutlined />,
-                                          label: '编辑',
+                                          label: t("编辑"),
                                           disabled: !isEditableVideoTask(task),
                                           onClick: () => void onEdit(task),
                                         },
                                         {
                                           key: 'download',
                                           icon: <DownloadOutlined />,
-                                          label: '下载',
+                                          label: t("下载"),
                                           disabled: state.kind !== 'success' || !state.videoUrl,
                                           onClick: () => void handleDownloadVideo(task, state.videoUrl),
                                         },
@@ -288,7 +289,7 @@ export function ResultPanel({
                                           danger: true,
                                           key: 'delete',
                                           icon: <DeleteOutlined />,
-                                          label: '删除',
+                                          label: t("删除"),
                                           onClick: () => confirmDeleteVideo(task),
                                         },
                                       ],
@@ -296,7 +297,7 @@ export function ResultPanel({
                                     trigger={['click']}
                                   >
                                     <CompactButton
-                                      aria-label="更多操作"
+                                      aria-label={t("更多操作")}
                                       className="video-task-result-more"
                                       icon={isDeleting ? <LoaderCircle className="is-spinning" size={14} /> : <MoreOutlined />}
                                     />
@@ -334,7 +335,7 @@ function ResultCreditCost({ task }: { task: VideoGenerationTask }) {
   }
   const billedCreditCost = formatCreditAmount(creditCost);
   return (
-    <span className="video-task-result-credit-cost" title={`消耗 ${billedCreditCost} 积分`}>
+    <span className="video-task-result-credit-cost" title={t("消耗 {{0}} 积分", { "0": billedCreditCost })}>
       <CreditIcon />
       {billedCreditCost}
     </span>
@@ -373,8 +374,8 @@ function viewState(task: VideoGenerationTask) {
   if (videoUrl) {
     return {
       kind: 'success' as const,
-      label: '已完成',
-      posterText: isUpscale ? '高清放大已完成' : isSubtitleRemoval ? '字幕擦除已完成' : isVideoTranslation ? '视频翻译已完成' : '成片已生成',
+      label: t("已完成"),
+      posterText: isUpscale ? t("高清放大已完成") : isSubtitleRemoval ? t("字幕擦除已完成") : isVideoTranslation ? t("视频翻译已完成") : t("成片已生成"),
       note: '',
       metric: formatMetric(result, task),
       videoUrl,
@@ -394,9 +395,9 @@ function viewState(task: VideoGenerationTask) {
   if (task.status === 'failed' || result?.status === 'failed' || result?.renderStatus === 'failed') {
     return {
       kind: 'failed' as const,
-      label: '失败',
-      posterText: isUpscale ? '高清放大失败' : isSubtitleRemoval ? '字幕擦除失败' : isVideoTranslation ? '视频翻译失败' : '生成失败',
-      note: result?.errorMessage || task.failureReason || '内容可能不符合平台要求，请调整参考素材后重试。',
+      label: t("失败"),
+      posterText: isUpscale ? t("高清放大失败") : isSubtitleRemoval ? t("字幕擦除失败") : isVideoTranslation ? t("视频翻译失败") : t("生成失败"),
+      note: result?.errorMessage || task.failureReason || t("内容可能不符合平台要求，请调整参考素材后重试。"),
       metric: formatMetric(result, task),
       videoUrl: '',
       coverUrl,
@@ -406,9 +407,9 @@ function viewState(task: VideoGenerationTask) {
   if (isOrphanPending) {
     return {
       kind: 'failed' as const,
-      label: '失败',
-      posterText: '提交失败',
-      note: '任务未成功提交到生成队列，可直接再次生成。',
+      label: t("失败"),
+      posterText: t("提交失败"),
+      note: t("任务未成功提交到生成队列，可直接再次生成。"),
       metric: formatMetric(result, task),
       videoUrl: '',
       coverUrl,
@@ -417,9 +418,9 @@ function viewState(task: VideoGenerationTask) {
   }
   return {
     kind: 'running' as const,
-    label: isPreparing ? '准备中' : result?.renderStatus === 'queued' || result?.status === 'pending' ? '排队中' : isUpscale ? '放大中' : isSubtitleRemoval ? '擦除中' : isVideoTranslation ? '翻译中' : '生成中',
-    posterText: isPreparing ? '正在准备参考视频' : isUpscale ? '正在进行高清放大' : isSubtitleRemoval ? '正在擦除字幕' : isVideoTranslation ? '正在翻译视频' : '正在生成视频',
-    note: isPreparing ? '正在下载并裁剪视频，完成后将自动提交生成。' : result?.jobId ? `任务号 ${String(result.jobId).slice(0, 12)}` : '模型处理中，完成后会自动刷新。',
+    label: isPreparing ? t("准备中") : result?.renderStatus === 'queued' || result?.status === 'pending' ? t("排队中") : isUpscale ? t("放大中") : isSubtitleRemoval ? t("擦除中") : isVideoTranslation ? t("翻译中") : t("生成中"),
+    posterText: isPreparing ? t("正在准备参考视频") : isUpscale ? t("正在进行高清放大") : isSubtitleRemoval ? t("正在擦除字幕") : isVideoTranslation ? t("正在翻译视频") : t("正在生成视频"),
+    note: isPreparing ? t("正在下载并裁剪视频，完成后将自动提交生成。") : result?.jobId ? t("任务号 {{0}}", { "0": String(result.jobId).slice(0, 12) }) : t("模型处理中，完成后会自动刷新。"),
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,
@@ -436,11 +437,11 @@ function resolveTaskMediaUrl(value?: string | null) {
 
 function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask) {
   if (task?.expertContext?.mode === 'dance_remake') {
-    return '跳舞复刻';
+    return t("跳舞复刻");
   }
   if (task?.expertContext?.mode === 'talking_video') {
     const metric = [result?.ratio, result?.duration].filter(Boolean).join(' · ');
-    return metric ? `口播视频生成 · ${metric}` : '口播视频生成 · 等待参数';
+    return metric ? t("口播视频生成 · {{0}}", { "0": metric }) : t("口播视频生成 · 等待参数");
   }
   if (task?.expertContext?.mode === 'subject_replace') {
     const type = String(
@@ -449,24 +450,24 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
       || 'model',
     );
     const typeLabel = {
-      model: '模特',
-      clothing: '服饰',
-      face: '人脸',
-      background: '背景',
-      product: '商品',
-    }[type] || '模特';
+      model: t("模特"),
+      clothing: t("服饰"),
+      face: t("人脸"),
+      background: t("背景"),
+      product: t("商品"),
+    }[type] || t("模特");
     const quality = String(task.expertContext.quality || '标清 (720p)');
     const qualityLabel = /480p/i.test(quality) ? '480P' : '720P';
-    return `模特 / 商品替换 · ${typeLabel} · ${qualityLabel}`;
+    return t("模特 / 商品替换 · {{0}} · {{1}}", { "0": typeLabel, "1": qualityLabel });
   }
   if (task?.expertContext?.mode === 'video_upscale') {
     const resolution = String(task.expertContext.enhancementResolution || '1080p').toUpperCase();
-    return `高清放大 · ${resolution}`;
+    return t("高清放大 · {{0}}", { "0": resolution });
   }
   if (task?.expertContext?.mode === 'subtitle_removal') {
     const mode = String(task.expertContext.subtitleRemovalMode || 'auto');
-    const label = mode === 'manual' ? 'Manual 框选' : mode === 'auto_region' ? 'Auto 指定区域' : '智能识别';
-    return `字幕擦除 · ${label}`;
+    const label = mode === 'manual' ? t("Manual 框选") : mode === 'auto_region' ? t("Auto 指定区域") : t("智能识别");
+    return t("字幕擦除 · {{0}}", { "0": label });
   }
   if (task?.expertContext?.mode === 'video_translation') {
     const source = String(task.expertContext.videoTranslationSourceLanguage || 'zh').toUpperCase();
@@ -474,14 +475,14 @@ function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask
     const types = Array.isArray(task.expertContext.videoTranslationTypes)
       ? task.expertContext.videoTranslationTypes.map(String)
       : ['subtitle'];
-    const level = types.includes('face') ? '面容翻译' : types.includes('voice') ? '语音翻译' : '字幕翻译';
-    return `视频翻译 · ${source} → ${target} · ${level}`;
+    const level = types.includes('face') ? t("面容翻译") : types.includes('voice') ? t("语音翻译") : t("字幕翻译");
+    return t("视频翻译 · {{0}} → {{1}} · {{2}}", { "0": source, "1": target, "2": level });
   }
   if (!result) {
-    return '视频创作 · 等待参数';
+    return t("视频创作 · 等待参数");
   }
   const metric = [result.ratio, result.duration].filter(Boolean).join(' · ');
-  return metric ? `视频创作 · ${metric}` : '视频创作 · 等待参数';
+  return metric ? t("视频创作 · {{0}}", { "0": metric }) : t("视频创作 · 等待参数");
 }
 
 function parseDurationSeconds(duration?: string | null) {
@@ -540,12 +541,12 @@ function previewNote(note: string, kind: 'success' | 'failed' | 'running') {
   const normalized = String(note || '').trim();
   if (kind === 'failed') {
     if (/real person|真人|人物/i.test(normalized)) {
-      return '内容可能涉及真人素材，请调整后重试。';
+      return t("内容可能涉及真人素材，请调整后重试。");
     }
-    return normalized || '内容可能不符合平台要求，请调整参考素材后重试。';
+    return normalized || t("内容可能不符合平台要求，请调整参考素材后重试。");
   }
   if (kind === 'running') {
-    return '生成完成后会自动刷新。';
+    return t("生成完成后会自动刷新。");
   }
   return normalized;
 }
@@ -599,5 +600,5 @@ function downloadFileName(task: VideoGenerationTask) {
     .replace(/[\\/:*?"<>|]/g, '-')
     .replace(/\s+/g, '-')
     .slice(0, 40);
-  return `${title || '生成视频'}${timestamp ? `-${timestamp}` : ''}.mp4`;
+  return t("{{0}}{{1}}.mp4", { "0": title || '生成视频', "1": timestamp ? `-${timestamp}` : '' });
 }

@@ -5,28 +5,29 @@ import type { SelectedMaterials, VideoTranslationConfig, VideoTranslationMode } 
 import { SelectionCardGroup } from './SelectionCardGroup';
 import { SubtitleRemovalEditor } from './SubtitleRemovalEditor';
 import './VideoTranslationPanel.scss';
+import { t } from '@shared/i18n';
 
 const sourceLanguages = [
-  { value: 'zh', label: '中文' },
-  { value: 'en', label: '英语' },
+  { value: 'zh', label: t("中文") },
+  { value: 'en', label: t("英语") },
 ];
 
 const targetLanguages = [
-  { value: 'zh', label: '中文' },
-  { value: 'en', label: '英语' },
-  { value: 'ja', label: '日语' },
-  { value: 'ko', label: '韩语' },
-  { value: 'de', label: '德语' },
-  { value: 'fr', label: '法语' },
-  { value: 'ru', label: '俄语' },
-  { value: 'es', label: '西班牙语' },
-  { value: 'pt', label: '葡萄牙语' },
-  { value: 'it', label: '意大利语' },
-  { value: 'id', label: '印尼语' },
-  { value: 'vi', label: '越南语' },
-  { value: 'th', label: '泰语' },
-  { value: 'ar', label: '阿拉伯语' },
-  { value: 'tr', label: '土耳其语' },
+  { value: 'zh', label: t("中文") },
+  { value: 'en', label: t("英语") },
+  { value: 'ja', label: t("日语") },
+  { value: 'ko', label: t("韩语") },
+  { value: 'de', label: t("德语") },
+  { value: 'fr', label: t("法语") },
+  { value: 'ru', label: t("俄语") },
+  { value: 'es', label: t("西班牙语") },
+  { value: 'pt', label: t("葡萄牙语") },
+  { value: 'it', label: t("意大利语") },
+  { value: 'id', label: t("印尼语") },
+  { value: 'vi', label: t("越南语") },
+  { value: 'th', label: t("泰语") },
+  { value: 'ar', label: t("阿拉伯语") },
+  { value: 'tr', label: t("土耳其语") },
 ];
 
 type VideoTranslationPanelProps = {
@@ -70,26 +71,26 @@ export function VideoTranslationPanel({ config, onChange, selectedMaterials }: V
   };
 
   return (
-    <section className="video-translation-panel" aria-label="视频翻译设置">
+    <section className="video-translation-panel" aria-label={t("视频翻译设置")}>
       <div className="video-translation-language-row">
         <LanguageSelect
-          label="源语言"
+          label={t("源语言")}
           onChange={changeSourceLanguage}
           options={sourceLanguages}
           value={config.sourceLanguage}
         />
         <button
-          aria-label="交换源语言和目标语言"
+          aria-label={t("交换源语言和目标语言")}
           className="video-translation-swap"
           disabled={!canSwapLanguages}
           onClick={swapLanguages}
-          title={canSwapLanguages ? '交换语言' : '该目标语言暂不支持作为源语言'}
+          title={canSwapLanguages ? t("交换语言") : t("该目标语言暂不支持作为源语言")}
           type="button"
         >
           <ArrowRight size={20} />
         </button>
         <LanguageSelect
-          label="目标语言"
+          label={t("目标语言")}
           onChange={(targetLanguage) => onChange({ ...config, targetLanguage })}
           options={targetLanguages.filter((language) => language.value !== config.sourceLanguage)}
           value={config.targetLanguage}
@@ -97,34 +98,34 @@ export function VideoTranslationPanel({ config, onChange, selectedMaterials }: V
       </div>
 
       <fieldset className="video-translation-fieldset">
-        <legend>翻译方式</legend>
+        <legend>{t("翻译方式")}</legend>
         <SelectionCardGroup
-          ariaLabel="翻译方式"
+          ariaLabel={t("翻译方式")}
           columns={3}
           options={[
             {
-              description: '提取字幕并翻译为目标语言。',
+              description: t("提取字幕并翻译为目标语言。"),
               key: 'subtitle',
               onSelect: () => undefined,
               readOnly: true,
               selected: config.modes.subtitle,
-              title: '字幕翻译',
-              tooltip: '字幕翻译为必选项',
+              title: t("字幕翻译"),
+              tooltip: t("字幕翻译为必选项"),
             },
             {
-              description: '使用原说话人音色进行字幕播报。',
+              description: t("使用原说话人音色进行字幕播报。"),
               key: 'voice',
               onSelect: () => toggleMode('voice'),
               selected: config.modes.voice,
-              title: '语音翻译',
+              title: t("语音翻译"),
             },
             {
               badge: 'beta',
-              description: '让说话人面部与翻译后语音对口型同步。',
+              description: t("让说话人面部与翻译后语音对口型同步。"),
               key: 'face',
               onSelect: () => toggleMode('face'),
               selected: config.modes.face,
-              title: '面容翻译',
+              title: t("面容翻译"),
             },
           ]}
           selectionMode="multiple"
@@ -132,73 +133,73 @@ export function VideoTranslationPanel({ config, onChange, selectedMaterials }: V
       </fieldset>
 
       <fieldset className="video-translation-fieldset">
-        <legend>字幕来源</legend>
+        <legend>{t("字幕来源")}</legend>
         <SelectionCardGroup
-          ariaLabel="字幕来源"
+          ariaLabel={t("字幕来源")}
           columns={2}
           options={[
             {
-              description: '识别源视频画面中的字幕文字。',
+              description: t("识别源视频画面中的字幕文字。"),
               key: 'ocr',
               onSelect: () => onChange({ ...config, subtitleSource: 'ocr' }),
               selected: config.subtitleSource === 'ocr',
-              title: '识别画面文字 (OCR)',
+              title: t("识别画面文字 (OCR)"),
             },
             {
-              description: '识别源视频语音并转写为字幕。',
+              description: t("识别源视频语音并转写为字幕。"),
               key: 'asr',
               onSelect: () => onChange({ ...config, subtitleSource: 'asr' }),
               selected: config.subtitleSource === 'asr',
-              title: '自动语音识别 (ASR)',
+              title: t("自动语音识别 (ASR)"),
             },
           ]}
         />
       </fieldset>
 
       <fieldset className="video-translation-fieldset">
-        <legend>字幕设置</legend>
+        <legend>{t("字幕设置")}</legend>
         <div className="video-translation-toggle-row">
           <Toggle
             checked={config.hardSubtitles}
-            label="开启硬字幕"
+            label={t("开启硬字幕")}
             onChange={(hardSubtitles) => onChange({ ...config, hardSubtitles })}
           />
           <Toggle
             checked={config.eraseOriginalSubtitles}
-            label="擦除原字幕"
+            label={t("擦除原字幕")}
             onChange={(eraseOriginalSubtitles) => onChange({ ...config, eraseOriginalSubtitles })}
           />
         </div>
       </fieldset>
 
       <div className={`video-translation-select-row${config.hardSubtitles ? '' : ' is-disabled'}`}>
-        <strong>字幕位置</strong>
+        <strong>{t("字幕位置")}</strong>
         <button
           className="video-translation-position-button"
           disabled={!config.hardSubtitles || !hasSourceVideo}
           onClick={() => setPlacementEditorOpen(true)}
-          title={!hasSourceVideo ? '请先上传源视频' : '打开视频编辑器框选字幕位置'}
+          title={!hasSourceVideo ? t("请先上传源视频") : t("打开视频编辑器框选字幕位置")}
           type="button"
         >
           <span className="video-translation-position-copy">
-            <strong>框选字幕位置</strong>
+            <strong>{t("框选字幕位置")}</strong>
             <small>
               {hasSourceVideo
-                ? `距底部约 ${subtitleBottomMargin ?? 0}%`
-                : '请先上传源视频'}
+                ? t("距底部约 {{0}}%", { "0": subtitleBottomMargin ?? 0 })
+                : t("请先上传源视频")}
             </small>
           </span>
           <span className="video-translation-set-badge">
             <SlidersHorizontal size={13} />
-            {subtitleLocation ? '已设置' : '未设置'}
+            {subtitleLocation ? t("已设置") : t("未设置")}
           </span>
         </button>
       </div>
 
       <div className={`video-translation-font-row${config.hardSubtitles ? '' : ' is-disabled'}`}>
-        <span>字号</span>
+        <span>{t("字号")}</span>
         <Select
-          aria-label="硬字幕字号"
+          aria-label={t("硬字幕字号")}
           className="video-translation-antd-select is-font-size"
           disabled={!config.hardSubtitles}
           onChange={(fontSize) => onChange({ ...config, fontSize })}

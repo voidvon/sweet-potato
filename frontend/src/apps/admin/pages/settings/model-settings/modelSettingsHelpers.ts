@@ -17,6 +17,7 @@ import type {
   VideoBillingSettings,
 } from '../../../types';
 import { defaultFormValues } from './modelSettingsConstants';
+import { t } from '@shared/i18n';
 
 export type ModelFormValues = ModelConfig;
 
@@ -112,9 +113,9 @@ function imageGenerationSupportsCustomResolutionOf(record: ModelConfig | null) {
 
 export function imageGenerationSummary(record: ModelConfig) {
   const items = [
-    imageGenerationSupportsCustomResolutionOf(record) ? '支持自定义分辨率' : '固定分辨率',
+    imageGenerationSupportsCustomResolutionOf(record) ? t("支持自定义分辨率") : t("固定分辨率"),
   ].filter(Boolean);
-  return items.join('，') || '默认参数';
+  return items.join('，') || t("默认参数");
 }
 
 export function videoBillingSettingsOf(record: ModelConfig): VideoBillingSettings {

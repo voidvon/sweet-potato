@@ -141,6 +141,10 @@ type statusResponseWriter struct {
 	status int
 }
 
+func (w *statusResponseWriter) ResponseLanguage() string {
+	return responseLanguage(w.ResponseWriter)
+}
+
 func (w *statusResponseWriter) Flush() {
 	if w.status == 0 {
 		w.WriteHeader(http.StatusOK)

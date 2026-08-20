@@ -5,6 +5,7 @@ import { clearLegacyToken, getLoginRoute, getStoredUser, removeStoredUser, store
 import { AppRealtimeEventsProvider, type AppPermissionUpdatedDetail } from './AppRealtimeEvents';
 import { AppRouter } from './AppRouter';
 import type { AuthSession, User } from '@shared/types';
+import { t } from '@shared/i18n';
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
@@ -94,7 +95,7 @@ function App() {
   if (!sessionHydrated) {
     return (
       <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <Spin description="正在同步账号权限..." size="large" />
+        <Spin description={t("正在同步账号权限...")} size="large" />
       </main>
     );
   }
@@ -111,15 +112,15 @@ function App() {
         closable={false}
         footer={(
           <Button onClick={handleAcknowledgePermissionNotice} type="primary">
-            知道了
+            {t("知道了")}
           </Button>
         )}
         keyboard={false}
         maskClosable={false}
         open={Boolean(permissionNotice)}
-        title="账号权限已变更"
+        title={t("账号权限已变更")}
       >
-        当前账号权限已变更，需要重新登录后继续使用。
+        {t("当前账号权限已变更，需要重新登录后继续使用。")}
       </Modal>
       <AppRouter
         key={currentUser?.id || 'anonymous'}

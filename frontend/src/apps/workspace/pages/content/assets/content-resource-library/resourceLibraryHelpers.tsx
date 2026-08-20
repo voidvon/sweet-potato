@@ -8,6 +8,7 @@ import {
   videoWorksFunctionOptions,
 } from './resourceLibraryConfig';
 import type { WorksAssetDateGroup, WorksAssetTab, WorksFunctionOption } from './pageTypes';
+import { t } from '@shared/i18n';
 
 export function fileUrl(asset: ContentAsset) {
   if (!asset.fileUrl) return '';
@@ -32,17 +33,17 @@ function startOfLocalDate(value: Date) {
 
 export function worksAssetDateGroup(asset: ContentAsset, now = new Date()) {
   const date = new Date(asset.createdAt);
-  if (Number.isNaN(date.getTime())) return { key: 'unknown', label: '日期未知' };
+  if (Number.isNaN(date.getTime())) return { key: 'unknown', label: t("日期未知") };
 
   const dateStart = startOfLocalDate(date);
   const todayStart = startOfLocalDate(now);
   const dayDiff = Math.round((todayStart.getTime() - dateStart.getTime()) / (24 * 60 * 60 * 1000));
-  const dateText = `${date.getMonth() + 1}月${date.getDate()}日`;
+  const dateText = t("{{0}}月{{1}}日", { "0": date.getMonth() + 1, "1": date.getDate() });
 
-  if (dayDiff === 0) return { key: dateStart.toISOString(), label: `今天・${dateText}` };
-  if (dayDiff === 1) return { key: dateStart.toISOString(), label: `昨天・${dateText}` };
+  if (dayDiff === 0) return { key: dateStart.toISOString(), label: t("今天・{{0}}", { "0": dateText }) };
+  if (dayDiff === 1) return { key: dateStart.toISOString(), label: t("昨天・{{0}}", { "0": dateText }) };
   if (date.getFullYear() === now.getFullYear()) return { key: dateStart.toISOString(), label: dateText };
-  return { key: dateStart.toISOString(), label: `${date.getFullYear()}年${dateText}` };
+  return { key: dateStart.toISOString(), label: t("{{0}}年{{1}}", { "0": date.getFullYear(), "1": dateText }) };
 }
 
 export function previewFor(asset: ContentAsset, fallbackIcon: string) {

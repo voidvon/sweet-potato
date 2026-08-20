@@ -16,6 +16,7 @@ import {
 } from './model-settings/modelSettingsConstants';
 import { useModelSettingsData } from './model-settings/useModelSettingsData';
 import './ModelSettingsPage.scss';
+import { t } from '@shared/i18n';
 
 export function ModelSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -82,7 +83,7 @@ export function ModelSettingsPage() {
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p>按 LLM、图片、视频、音频分类管理多个模型配置，并为每个类型选择默认模型。</p>
+          <p>{t("按 LLM、图片、视频、音频分类管理多个模型配置，并为每个类型选择默认模型。")}</p>
         </section>
 
         <section className="settings-section">
@@ -94,7 +95,7 @@ export function ModelSettingsPage() {
                 </Button>
               )}
               {activeType === 'llm' && (
-                <Button onClick={modelSettings.openLlmPricingModal}>官方价格管理</Button>
+                <Button onClick={modelSettings.openLlmPricingModal}>{t("官方价格管理")}</Button>
               )}
             </Space>
           </div>

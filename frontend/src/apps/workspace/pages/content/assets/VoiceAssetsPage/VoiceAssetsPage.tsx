@@ -12,6 +12,7 @@ import { useCardGridPageSize } from '../useCardGridPageSize';
 import { useAssetLibrary } from '../useAssetLibrary';
 import { isVoiceSampleAsset } from '../voiceAssetFilters';
 import '../AssetLibraryPages.scss';
+import { t } from '@shared/i18n';
 
 type VoiceAssetsPageProps = {
   currentUser: User;
@@ -28,12 +29,12 @@ function assetUrl(asset?: ContentAsset) {
 function sourceLabel(group: ContentAssetGroup) {
   const source = group.metadata?.source;
   if (source === 'ai_clone') {
-    return 'AI生成';
+    return t("AI生成");
   }
   if (source === 'record_clone') {
-    return '录音克隆';
+    return t("录音克隆");
   }
-  return '本地上传';
+  return t("本地上传");
 }
 
 function cloneStatusFor(group: ContentAssetGroup) {
@@ -43,32 +44,32 @@ function cloneStatusFor(group: ContentAssetGroup) {
 
 function voiceCardStatus(group: ContentAssetGroup) {
   if (group.metadata?.source === 'local_upload') {
-    return '本地上传';
+    return t("本地上传");
   }
   const status = cloneStatusFor(group);
   if (status === 'training') {
-    return '生成中';
+    return t("生成中");
   }
   if (status === 'failed') {
-    return '生成失败';
+    return t("生成失败");
   }
   if (status === 'success') {
-    return 'AI生成';
+    return t("AI生成");
   }
-  return '待生成';
+  return t("待生成");
 }
 
 function formatDuration(asset?: ContentAsset) {
   const duration = asset?.metadata?.duration;
   if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
-    return `${Math.round(duration)}秒`;
+    return t("{{0}}秒", { "0": Math.round(duration) });
   }
   return '';
 }
 
 function formatFileSize(value?: number) {
   if (!value || value <= 0) {
-    return '未知';
+    return t("未知");
   }
   if (value < 1024 * 1024) {
     return `${Math.max(1, Math.round(value / 1024))} KB`;
@@ -134,7 +135,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
       const validated = await validateVoiceAudioFiles(files);
       setPendingCreateFiles(validated.map((item) => item.file));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '音频文件校验失败');
+      message.error(error instanceof Error ? error.message : t("音频文件校验失败"));
     }
   }
 
@@ -157,7 +158,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
 
   async function handleCreateLocal() {
     if (!pendingCreateFiles.length) {
-      message.warning('请先上传音频文件');
+      message.warning(t("请先上传音频文件"));
       return;
     }
     const group = await library.createGroupWithAssets(voiceName, pendingCreateFiles, {
@@ -215,48 +216,48 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
     if (!hasVoiceSamples) {
       return {
         className: 'idle',
-        title: '等待上传音频样本',
-        description: '上传一段干净人声后即可开始克隆音色。',
-        button: '开始克隆音色',
+        title: t("等待上传音频样本"),
+        description: t("上传一段干净人声后即可开始克隆音色。"),
+        button: t("开始克隆音色"),
       };
     }
     if (library.activeGroup?.metadata?.source === 'local_upload') {
       return {
         className: 'success',
-        title: '本地音频已可用',
-        description: '该素材会直接作为声音素材使用，不会触发 AI 克隆。',
-        button: '重新生成',
+        title: t("本地音频已可用"),
+        description: t("该素材会直接作为声音素材使用，不会触发 AI 克隆。"),
+        button: t("重新生成"),
       };
     }
     if (cloneStatus === 'success') {
       return {
         className: 'success',
-        title: '克隆音色已可用',
-        description: clonePreviewAsset ? '音色已生成，可试听默认文案效果。' : '该音库已完成克隆，可在口播合成中选择使用。',
-        button: '重新克隆音色',
+        title: t("克隆音色已可用"),
+        description: clonePreviewAsset ? t("音色已生成，可试听默认文案效果。") : t("该音库已完成克隆，可在口播合成中选择使用。"),
+        button: t("重新克隆音色"),
       };
     }
     if (cloneStatus === 'training') {
       return {
         className: 'running',
-        title: '正在生成中',
-        description: '已向声音克隆服务提交样本，请稍后查看生成结果。',
-        button: '重新提交',
+        title: t("正在生成中"),
+        description: t("已向声音克隆服务提交样本，请稍后查看生成结果。"),
+        button: t("重新提交"),
       };
     }
     if (cloneStatus === 'failed') {
       return {
         className: 'failed',
-        title: '声音克隆失败',
-        description: failureReason || '请检查音频模型配置和样本质量后重试。',
-        button: '重新克隆音色',
+        title: t("声音克隆失败"),
+        description: failureReason || t("请检查音频模型配置和样本质量后重试。"),
+        button: t("重新克隆音色"),
       };
     }
     return {
       className: 'idle',
-      title: '音频样本已上传，等待克隆音色',
-      description: '点击开始克隆后，系统会调用已配置的声音克隆服务生成可复用音色。',
-      button: '开始克隆音色',
+      title: t("音频样本已上传，等待克隆音色"),
+      description: t("点击开始克隆后，系统会调用已配置的声音克隆服务生成可复用音色。"),
+      button: t("开始克隆音色"),
     };
   }
 
@@ -279,14 +280,14 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
             allowClear
             className="voice-board-search"
             onChange={(event) => setSearchKeyword(event.target.value)}
-            placeholder="搜索素材名称..."
+            placeholder={t("搜索素材名称...")}
             prefix={<Search size={17} />}
             size="large"
             value={searchKeyword}
           />
           <div className="voice-board-toolbar-spacer" />
           <AppButton icon={<Plus size={16} />} onClick={() => openCreateModal()} tone="brand" type="primary">
-            本地上传
+            {t("本地上传")}
           </AppButton>
         </div>
 
@@ -294,10 +295,10 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
           <div className="voice-library-grid voice-board-grid" ref={gridRef}>
             {!library.isLoadingGroups && (
               <AssetLibraryCreateCard
-                description="本地上传声音素材"
+                description={t("本地上传声音素材")}
                 icon={<Plus size={30} />}
                 onClick={() => openCreateModal()}
-                title="添加声音素材"
+                title={t("添加声音素材")}
               />
             )}
             {library.isLoadingGroups ? <AssetLibrarySkeletonCards count={1} /> : filteredGroups.map((group) => {
@@ -313,7 +314,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
                   audioTitle={group.name}
                   clickArea={sample ? 'body' : 'card'}
                   key={group.id}
-                  meta={`更新于 ${formatDate(group.updatedAt)}${duration ? ` · ${duration}` : ''}`}
+                  meta={t("更新于 {{0}}{{1}}", { "0": formatDate(group.updatedAt), "1": duration ? ` · ${duration}` : '' })}
                   onClick={() => void openDetail(group.id)}
                   preview={(
                     <>
@@ -329,15 +330,15 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
             {!library.isLoadingGroups && !filteredGroups.length && (
               <AssetLibraryPlaceholderCard
                 icon={<Upload size={30} />}
-                title='暂无匹配声音素材'
-                description='调整搜索条件，或添加一段新的声音样本。'
+                title={t("暂无匹配声音素材")}
+                description={t("调整搜索条件，或添加一段新的声音样本。")}
               />
             )}
           </div>
         </div>
 
         <div className="voice-board-pagination">
-          <span>共 {library.groupTotal} 条</span>
+          <span>{t("共")} {library.groupTotal} {t("条")}</span>
           <Pagination
             current={library.groupPage}
             onChange={library.setGroupPage}
@@ -351,25 +352,25 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
       <Modal
         className="asset-library-themed-modal"
         confirmLoading={library.isUploading}
-        okText="提交"
+        okText={t("提交")}
         onCancel={() => {
           setLocalOpen(false);
           resetCreateForm();
         }}
         onOk={() => void handleCreateLocal()}
         open={localOpen}
-        title="本地上传声音"
+        title={t("本地上传声音")}
         width={720}
       >
         <div className="material-modal-form voice-create-form">
           <label>
-            <span>音频名称</span>
-            <Input onChange={(event) => setVoiceName(event.target.value)} placeholder="例如：沉稳男声-标准版" value={voiceName} />
+            <span>{t("音频名称")}</span>
+            <Input onChange={(event) => setVoiceName(event.target.value)} placeholder={t("例如：沉稳男声-标准版")} value={voiceName} />
           </label>
-          <div className="voice-upload-tip">支持 wav、mp3；单段 2-15 秒，最多 3 段，总时长不超过 {voiceAudioMaxTotalDurationSeconds} 秒，单个文件不超过 15 MB。</div>
+          <div className="voice-upload-tip">{t("支持 wav、mp3；单段 2-15 秒，最多 3 段，总时长不超过")} {voiceAudioMaxTotalDurationSeconds} {t("秒，单个文件不超过 15 MB。")}</div>
           <PendingAudioUpload
             files={pendingCreateFiles}
-            helperText={`支持 wav、mp3；最多 ${voiceAudioMaxFileCount} 段，总时长不超过 ${voiceAudioMaxTotalDurationSeconds} 秒`}
+            helperText={t("支持 wav、mp3；最多 {{0}} 段，总时长不超过 {{1}} 秒", { "0": voiceAudioMaxFileCount, "1": voiceAudioMaxTotalDurationSeconds })}
             maxCount={voiceAudioMaxFileCount}
             onChange={(files) => void applyPendingCreateFiles(files)}
           />
@@ -381,7 +382,7 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
         footer={null}
         onCancel={() => setDetailOpen(false)}
         open={detailOpen}
-        title={library.activeGroup?.name || '声音素材'}
+        title={library.activeGroup?.name || t("声音素材")}
         width={1180}
       >
         {library.activeGroup && (
@@ -392,8 +393,8 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
                 {isVoiceCloneTraining && (
                   <div className="voice-detail-generating">
                     <Spin size="small" />
-                    <strong>正在生成中</strong>
-                    <span>声音克隆服务正在处理样本，生成完成后可试听效果。</span>
+                    <strong>{t("正在生成中")}</strong>
+                    <span>{t("声音克隆服务正在处理样本，生成完成后可试听效果。")}</span>
                   </div>
                 )}
               </div>
@@ -405,14 +406,14 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
                   </div>
                 ) : clonePreviewAsset && cloneStatus === 'success' ? (
                   <div className="voice-preview-player">
-                    <strong>克隆试听</strong>
+                    <strong>{t("克隆试听")}</strong>
                     <audio controls src={assetUrl(clonePreviewAsset)} />
                   </div>
                 ) : null}
                 {library.activeGroup.metadata?.source !== 'local_upload' && (
                   <DetailAudioUpload
                     asset={activeVoiceSample}
-                    displayName="样本音频"
+                    displayName={t("样本音频")}
                     isUploading={library.isUploading}
                     onUploadFile={(file) => void handleReplaceVoiceSample(file)}
                   />
@@ -422,45 +423,45 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
 
             <div className="voice-detail-info">
               <section>
-                <h3>基本信息</h3>
+                <h3>{t("基本信息")}</h3>
                 <div className="voice-detail-row">
-                  <span>素材名称</span>
+                  <span>{t("素材名称")}</span>
                   <div className="voice-detail-name-display">
                     <strong>{library.activeGroup.name}</strong>
                     <Button onClick={() => {
                       setEditingName(library.activeGroup!.name);
                       setNameEditOpen(true);
-                    }} type="link">编辑</Button>
+                    }} type="link">{t("编辑")}</Button>
                   </div>
                 </div>
                 <div className="voice-detail-row">
-                  <span>来源</span>
+                  <span>{t("来源")}</span>
                   <strong>{sourceLabel(library.activeGroup)}</strong>
                 </div>
                 <div className="voice-detail-row">
-                  <span>生成状态</span>
+                  <span>{t("生成状态")}</span>
                   <strong>{clonePanel.title}</strong>
                 </div>
               </section>
 
               <section>
-                <h3>详细信息</h3>
+                <h3>{t("详细信息")}</h3>
                 <div className="voice-detail-row">
-                  <span>音频时长</span>
-                  <strong>{formatDuration(activeVoiceSample) || '未知'}</strong>
+                  <span>{t("音频时长")}</span>
+                  <strong>{formatDuration(activeVoiceSample) || t("未知")}</strong>
                 </div>
                 <div className="voice-detail-row">
-                  <span>文件大小</span>
+                  <span>{t("文件大小")}</span>
                   <strong>{formatFileSize(activeVoiceSample?.fileSize)}</strong>
                 </div>
                 <div className="voice-detail-row">
-                  <span>创建时间</span>
+                  <span>{t("创建时间")}</span>
                   <strong>{formatDateTime(library.activeGroup.createdAt)}</strong>
                 </div>
               </section>
 
               <div className="voice-detail-footer-actions">
-                <Button danger loading={library.isDeletingGroup} onClick={() => void handleDeleteVoiceLibrary()}>删除素材</Button>
+                <Button danger loading={library.isDeletingGroup} onClick={() => void handleDeleteVoiceLibrary()}>{t("删除素材")}</Button>
               </div>
             </div>
           </div>
@@ -469,11 +470,11 @@ export function VoiceAssetsPage({ currentUser }: VoiceAssetsPageProps) {
 
       <Modal
         className="asset-library-themed-modal voice-name-edit-modal"
-        okText="保存"
+        okText={t("保存")}
         onCancel={() => setNameEditOpen(false)}
         onOk={() => void handleRenameVoiceLibrary()}
         open={nameEditOpen}
-        title="编辑素材名称"
+        title={t("编辑素材名称")}
         width={420}
       >
         <Input onChange={(event) => setEditingName(event.target.value)} value={editingName} />

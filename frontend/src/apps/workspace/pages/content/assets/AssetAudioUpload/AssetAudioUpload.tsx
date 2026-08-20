@@ -5,6 +5,7 @@ import { API_BASE_URL } from '../../../../api/request';
 import type { ContentAsset } from '../../../../types';
 import { validateVoiceAudioFiles, voiceAudioAccept, voiceAudioFileKey } from '../../../../utils/voiceAudioUpload';
 import './AssetAudioUpload.scss';
+import { t } from '@shared/i18n';
 
 type PendingAudioUploadProps = {
   files: File[];
@@ -88,13 +89,13 @@ export function PendingAudioUpload({
           await validateVoiceAudioFiles(nextFiles);
           onChange(nextFiles);
         } catch (error) {
-          message.error(error instanceof Error ? error.message : '音频文件校验失败');
+          message.error(error instanceof Error ? error.message : t("音频文件校验失败"));
         }
       }}
       showUploadList={{ showRemoveIcon: false }}
     >
       <button className="audio-upload-control" type="button">
-        <span>上传音频样本</span>
+        <span>{t("上传音频样本")}</span>
         <small>{helperText}</small>
       </button>
     </Upload>
@@ -119,7 +120,7 @@ export function DetailAudioUpload({ asset, displayName, isUploading, onUploadFil
         void validateVoiceAudioFiles([file as File])
           .then(() => onUploadFile(file as File))
           .catch((error) => {
-            message.error(error instanceof Error ? error.message : '音频文件校验失败');
+            message.error(error instanceof Error ? error.message : t("音频文件校验失败"));
           });
         return Upload.LIST_IGNORE;
       }}
@@ -132,8 +133,8 @@ export function DetailAudioUpload({ asset, displayName, isUploading, onUploadFil
       showUploadList={{ showRemoveIcon: false }}
     >
       <button className="audio-upload-control" type="button">
-        <span>{asset ? '覆盖音频样本' : '上传音频样本'}</span>
-        <small>仅支持 wav、mp3，单段 2-15 秒，且不超过 15 MB</small>
+        <span>{asset ? t("覆盖音频样本") : t("上传音频样本")}</span>
+        <small>{t("仅支持 wav、mp3，单段 2-15 秒，且不超过 15 MB")}</small>
       </button>
     </Upload>
   );

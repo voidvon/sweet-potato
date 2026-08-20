@@ -756,12 +756,12 @@ func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		var input chatRequest
 		if err := json.Unmarshal(payload, &input); err != nil {
-			_ = writeWebSocketJSON(connection, map[string]any{"type": "error", "message": "聊天请求格式错误"})
+			_ = writeWebSocketJSON(connection, websocketError(r, http.StatusBadRequest, "聊天请求格式错误"))
 			continue
 		}
 		result, err := s.createChatResponse(user, input)
 		if err != nil {
-			_ = writeWebSocketJSON(connection, map[string]any{"type": "error", "message": err.Error()})
+			_ = writeWebSocketJSON(connection, websocketError(r, http.StatusBadRequest, err.Error()))
 			continue
 		}
 		conversation, _ := result["conversation"].(store.ChatConversation)
@@ -786,6 +786,14 @@ func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
 		if err := writeWebSocketJSON(connection, map[string]any{"type": "done", "conversation": conversation, "messages": messages}); err != nil {
 			return
 		}
+	}
+}
+
+func websocketError(r *http.Request, status int, message string) map[string]any {
+	return map[string]any{
+		"type":    "error",
+		"code":    errorCodeForStatus(status),
+		"message": localizedErrorMessage(resolveRequestLanguage(r.Header.Get("Accept-Language")), status, message),
 	}
 }
 

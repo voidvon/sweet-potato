@@ -1,5 +1,6 @@
 import { beginRequestActivity, endRequestActivity } from './requestActivity';
 import { getLoginRoute, getStoredToken, getStoredUser, removeStoredUser } from '../../utils/session';
+import { getAcceptLanguage, t } from '../../i18n';
 
 function resolveApiBaseUrl() {
   // 使用构建时的环境变量
@@ -90,6 +91,9 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', getAcceptLanguage());
+  }
 
   const requestKey = buildGetRequestKey(path, options, headers);
   if (requestKey) {
@@ -124,8 +128,11 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
         }
         const message = data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
           ? data.message
-          : '服务请求失败';
-        throw new Error(message);
+          : t('服务请求失败');
+        const code = data && typeof data === 'object' && 'code' in data && typeof data.code === 'string'
+          ? data.code
+          : 'request_failed';
+        throw new ApiError(message, response.status, code);
       }
 
       return data as T;
@@ -147,4 +154,11 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
   }
 
   return pendingRequest;
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number, public readonly code: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
 }

@@ -127,6 +127,7 @@ import {
 } from './batch-generation/batchGenerationGrid.utils';
 import { useBatchGenerationColumns } from './batch-generation/useBatchGenerationColumns';
 import './BatchGenerationPage.scss';
+import { t } from '@shared/i18n';
 
 const MAX_ROWS = 200;
 const BATCH_RUNNABLE_STATUSES = new Set<BatchRow['executionStatus']>(['idle', 'failed', 'partial_failed']);
@@ -134,7 +135,7 @@ const LOCAL_ROW_ID_PREFIX = 'local-row:';
 const GRID_ADD_ROW_ID = 'grid-control:add-row';
 const LAST_ACTIVE_SHEET_STORAGE_KEY = 'batch-generation:last-sheet-id';
 const PREFERRED_VIDEO_MODEL_ID = preferredVideoModelId;
-const DEFAULT_SHEET_NAME = '批量';
+const DEFAULT_SHEET_NAME = t("批量");
 
 const gridAddRow: BatchRow = {
   id: GRID_ADD_ROW_ID,
@@ -210,13 +211,13 @@ function SheetTitleEditor({
         <button className="sheet-workspace__title-button" type="button"><strong>{sheet?.name || DEFAULT_SHEET_NAME}</strong><ChevronDown size={18} /></button>
       </Dropdown>
       <Button
-        aria-label="重命名当前表格"
+        aria-label={t("重命名当前表格")}
         className="sheet-workspace__title-edit"
         disabled={!sheet}
         icon={<Pencil size={14} />}
         onClick={() => setEditing(true)}
         size="small"
-        title="重命名"
+        title={t("重命名")}
         type="text"
       />
     </>
@@ -275,7 +276,7 @@ function SheetTabLabel({
         ) : null}
       </span>
       <Tag color={sheet.mediaKind === 'image' ? 'blue' : 'purple'}>
-        {sheet.mediaKind === 'image' ? '图片' : '视频'}
+        {sheet.mediaKind === 'image' ? t("图片") : t("视频")}
       </Tag>
     </span>
   );
@@ -540,7 +541,7 @@ export function BatchGenerationPage() {
         onClick={() => addRowActionRef.current()}
         type="dashed"
       >
-        新增一行
+        {t("新增一行")}
       </Button>
     </div>
   ), []);
@@ -741,7 +742,7 @@ export function BatchGenerationPage() {
         gridCanRevealRef.current = true;
         setGridLayoutReady(true);
         setLatestRun(null);
-        message.error(error instanceof Error ? error.message : '表格加载失败');
+        message.error(error instanceof Error ? error.message : t("表格加载失败"));
       }
     } finally {
       requestFinished = true;
@@ -777,7 +778,7 @@ export function BatchGenerationPage() {
         setCreateModalOpen(Boolean(firstCapability));
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '批量表格加载失败');
+      message.error(error instanceof Error ? error.message : t("批量表格加载失败"));
     } finally {
       initialDataLoadedRef.current = true;
       setLoading(false);
@@ -798,7 +799,7 @@ export function BatchGenerationPage() {
 
   useEffect(() => {
     if (routeBlocker.state !== 'blocked') return;
-    if (window.confirm('当前页面有未保存的修改，确定离开吗？')) {
+    if (window.confirm(t('当前页面有未保存的修改，确定离开吗？'))) {
       routeBlocker.proceed();
       return;
     }
@@ -1057,16 +1058,16 @@ export function BatchGenerationPage() {
       }
       for (const row of rows.filter(isLocalRow)) {
         const [created] = await addBatchRows(detail.sheet.id, [row.params], row.position);
-        if (!created) throw new Error('新增行保存失败');
+        if (!created) throw new Error(t("新增行保存失败"));
         savedRowIds.set(row.id, created.id);
         setRows((current) => withRowPositions(current.map((item) => item.id === row.id ? created : item)));
         setDirtyRowIds((current) => current.filter((id) => id !== row.id));
       }
       if (reload) await loadSheet(detail.sheet.id);
-      if (notify) message.success('已保存');
+      if (notify) message.success(t("已保存"));
       return savedRowIds;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '保存失败');
+      message.error(error instanceof Error ? error.message : t("保存失败"));
       return null;
     } finally {
       setSaving(false);
@@ -1127,7 +1128,7 @@ export function BatchGenerationPage() {
       setDirtyRowIds((current) => current.filter((id) => id !== row.id));
       setSelectedRowIds((current) => current.filter((id) => id !== row.id));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '删除行失败');
+      message.error(error instanceof Error ? error.message : t("删除行失败"));
     }
   }
 
@@ -1135,7 +1136,7 @@ export function BatchGenerationPage() {
     if (!detail) return;
     if (hasUnsavedChanges) {
       if (source === 'batch') {
-        message.warning('请先保存当前改动再执行');
+        message.warning(t("请先保存当前改动再执行"));
         return;
       }
       const savedRowIds = await saveChanges({ notify: false, reload: false });
@@ -1149,7 +1150,7 @@ export function BatchGenerationPage() {
       ? requestedRowIds
       : new Set(targetRows.map((row) => row.id));
     if (!targetRowIds.size) {
-      if (source === 'batch') message.warning('没有可批量执行的待提交或失败项');
+      if (source === 'batch') message.warning(t("没有可批量执行的待提交或失败项"));
       return;
     }
     const previousStatuses = new Map<string, BatchRow['executionStatus']>(
@@ -1169,7 +1170,7 @@ export function BatchGenerationPage() {
     try {
       const run = await startBatchRun(detail.sheet.id, [...targetRowIds]);
       setLatestRun(run);
-      message.success('任务已提交');
+      message.success(t("任务已提交"));
       if (source === 'batch') await loadSheet(detail.sheet.id);
     } catch (error) {
       setRows((current) => current.map((row) => {
@@ -1179,7 +1180,7 @@ export function BatchGenerationPage() {
           : row;
       }));
       if (source === 'batch') setBatchRunning(false);
-      message.error(error instanceof Error ? error.message : '任务提交失败');
+      message.error(error instanceof Error ? error.message : t("任务提交失败"));
     }
   }
 
@@ -1189,10 +1190,10 @@ export function BatchGenerationPage() {
     try {
       const run = await retryBatchRun(latestRun.id);
       setLatestRun(run);
-      message.success('失败行已重新提交');
+      message.success(t("失败行已重新提交"));
     } catch (error) {
       setRetrying(false);
-      message.error(error instanceof Error ? error.message : '重试失败');
+      message.error(error instanceof Error ? error.message : t("重试失败"));
     }
   }
 
@@ -1223,7 +1224,7 @@ export function BatchGenerationPage() {
       }));
       return uploaded;
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材上传失败');
+      message.error(error instanceof Error ? error.message : t("素材上传失败"));
       return [];
     } finally {
       setUploadingCell('');
@@ -1249,7 +1250,7 @@ export function BatchGenerationPage() {
     if (!pending || !selectedFiles.length) return;
     const files = selectedFiles.slice(0, pending.remainingCount);
     if (files.length < selectedFiles.length) {
-      message.warning(`${pending.field.label}最多上传 ${pending.maxCount} 张`);
+      message.warning(t("{{0}}最多上传 {{1}} 张", { "0": pending.field.label, "1": pending.maxCount }));
     }
     void uploadAssets(pending.row, pending.field, files);
   }
@@ -1277,7 +1278,7 @@ export function BatchGenerationPage() {
         await activateSheet(sheet.id);
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '表格创建失败');
+      message.error(error instanceof Error ? error.message : t("表格创建失败"));
     }
   }
 
@@ -1291,7 +1292,7 @@ export function BatchGenerationPage() {
         await activateSheet(next[0].id);
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '表格删除失败');
+      message.error(error instanceof Error ? error.message : t("表格删除失败"));
     }
   }
 
@@ -1300,7 +1301,7 @@ export function BatchGenerationPage() {
     if (!sheet) return;
     const name = value.trim();
     if (!name) {
-      message.error('表名不能为空');
+      message.error(t("表名不能为空"));
       return;
     }
     if (name === sheet.name) {
@@ -1313,9 +1314,9 @@ export function BatchGenerationPage() {
       setDetail((current) => current?.sheet.id === sheetId
         ? { ...current, sheet: updated }
         : current);
-      message.success('重命名成功');
+      message.success(t("重命名成功"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '重命名失败');
+      message.error(error instanceof Error ? error.message : t("重命名失败"));
     }
   }
 
@@ -1323,14 +1324,14 @@ export function BatchGenerationPage() {
     const sheet = sheets.find((item) => item.id === sheetId);
     if (!sheet) return;
     Modal.confirm({
-      cancelText: '取消',
+      cancelText: t("取消"),
       centered: true,
-      content: `即将删除「${sheet.name}」，表内所有数据将丢失，操作不可撤销。`,
+      content: t("即将删除「{{0}}」，表内所有数据将丢失，操作不可撤销。", { "0": sheet.name }),
       maskClosable: true,
       okButtonProps: { danger: true },
-      okText: '删除',
+      okText: t("删除"),
       onOk: () => removeSheet(sheetId),
-      title: '删除批量表格？',
+      title: t("删除批量表格？"),
     });
   }
 
@@ -1468,7 +1469,7 @@ export function BatchGenerationPage() {
     : '720P';
   const currentDuration = durationOptions.some((option) => option.value === globalParams.duration)
     ? String(globalParams.duration)
-    : '10秒';
+    : t("10秒");
   const currentGenerateAudio = globalParams.generateAudio === true;
   const selectedModelConfigId = selectedGlobalModel?.configId || selectedGlobalModel?.id;
   const selectedVideoModelId = selectedGlobalModel?.model;
@@ -1559,7 +1560,7 @@ export function BatchGenerationPage() {
             setGlobalDirty(true);
           }}
           options={activeModelOptions}
-          placeholder="选择模型"
+          placeholder={t("选择模型")}
           popupMatchSelectWidth={false}
           value={selectedGlobalModel?.id}
         />
@@ -1665,8 +1666,8 @@ export function BatchGenerationPage() {
         </Popover>
       );
     }
-    if (field.key === 'aspectRatio') return <Select onChange={update} options={aspectRatioOptions} placeholder="画面比例" value={value as string | undefined} />;
-    if (field.key === 'outputCount') return <Select onChange={update} options={outputCountOptions} placeholder="张数" value={value as number | undefined} />;
+    if (field.key === 'aspectRatio') return <Select onChange={update} options={aspectRatioOptions} placeholder={t("画面比例")} value={value as string | undefined} />;
+    if (field.key === 'outputCount') return <Select onChange={update} options={outputCountOptions} placeholder={t("张数")} value={value as number | undefined} />;
     if (field.key === 'duration') {
       return (
         <Popover
@@ -1705,17 +1706,17 @@ export function BatchGenerationPage() {
     >
       <header className="sheet-workspace__header">
         <div className="sheet-workspace__breadcrumb">
-          <span className="sheet-workspace__dot" /><span>批量</span><span className="sheet-workspace__slash">/</span>
+          <span className="sheet-workspace__dot" /><span>{t("批量")}</span><span className="sheet-workspace__slash">/</span>
           <SheetTitleEditor menuItems={titleMenu} onRename={renameSheet} sheet={activeSheet} />
           <span className="sheet-workspace__slash">/</span>
-          <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{hasExecutingRows ? '执行中' : hasUnsavedChanges ? '未保存' : '已保存'}</span>
+          <span className="sheet-workspace__new-state"><span className="sheet-workspace__state-dot" />{hasExecutingRows ? t("执行中") : hasUnsavedChanges ? t("未保存") : t("已保存")}</span>
         </div>
         <div className="sheet-workspace__header-actions">
-          <Button disabled={switchingSheet || !latestRun?.failedCount || retrying} loading={retrying} icon={<RotateCcw size={15} />} onClick={() => void retryFailed()}>重试所有失败</Button>
+          <Button disabled={switchingSheet || !latestRun?.failedCount || retrying} loading={retrying} icon={<RotateCcw size={15} />} onClick={() => void retryFailed()}>{t("重试所有失败")}</Button>
           <Button disabled={switchingSheet || !batchRunnableRows.length || batchRunning} loading={batchRunning} onClick={() => void runRows(batchRunnableRows.map((row) => row.id), 'batch')} type="primary">
-            {selectedRows.length ? `批量执行(${batchRunnableRows.length})` : '批量执行'}
+            {selectedRows.length ? t("批量执行({{0}})", { "0": batchRunnableRows.length }) : t("批量执行")}
           </Button>
-          <Button disabled={switchingSheet || !hasUnsavedChanges} loading={saving} onClick={() => void saveChanges()} type="primary">保存</Button>
+          <Button disabled={switchingSheet || !hasUnsavedChanges} loading={saving} onClick={() => void saveChanges()} type="primary">{t("保存")}</Button>
         </div>
       </header>
 
@@ -1740,10 +1741,10 @@ export function BatchGenerationPage() {
         type="editable-card"
       />
 
-      <section className="sheet-global-settings" aria-label="全局参数">
+      <section className="sheet-global-settings" aria-label={t("全局参数")}>
         <div className="sheet-global-settings__intro">
-          <strong>全局参数</strong>
-          <span>应用到所有行，行内可覆盖</span>
+          <strong>{t("全局参数")}</strong>
+          <span>{t("应用到所有行，行内可覆盖")}</span>
         </div>
         <div className="sheet-global-settings__divider" />
         {activeCapability?.globalFields.length ? (
@@ -1755,36 +1756,36 @@ export function BatchGenerationPage() {
             .map((field) => (
               <div className="sheet-global-settings__field" key={field.key}>
                 {field.key === 'aspectRatio' && activeCapability.mediaKind === 'video' ? null : (
-                  <span>{field.key === 'aspectRatio' && activeCapability.mediaKind === 'image' ? '画面尺寸' : field.label}</span>
+                  <span>{field.key === 'aspectRatio' && activeCapability.mediaKind === 'image' ? t("画面尺寸") : field.label}</span>
                 )}
                 {renderGlobalField(field)}
               </div>
             ))
         ) : (
-          <span className="sheet-global-settings__empty">此功能无全局参数</span>
+          <span className="sheet-global-settings__empty">{t("此功能无全局参数")}</span>
         )}
       </section>
 
-      <section className="sheet-toolbar" aria-label="表格工具栏">
-        <span>{rows.length} / {MAX_ROWS} 行</span><i />
-        <CompactButton icon={<Plus />} onClick={() => void addRow()}>新增行</CompactButton>
-        <CompactButton disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy />} onClick={() => void copySelectedRows()}>复制</CompactButton>
+      <section className="sheet-toolbar" aria-label={t("表格工具栏")}>
+        <span>{rows.length} / {MAX_ROWS} {t("行")}</span><i />
+        <CompactButton icon={<Plus />} onClick={() => void addRow()}>{t("新增行")}</CompactButton>
+        <CompactButton disabled={!selectedRows.length || rows.length >= MAX_ROWS} icon={<Copy />} onClick={() => void copySelectedRows()}>{t("复制")}</CompactButton>
         <CompactButton
           icon={<Columns3 />}
           onClick={() => {
             gridRef.current?.api.resetColumnState();
             requestAnimationFrame(syncGridContainerWidth);
-            message.success('已恢复默认列宽');
+            message.success(t("已恢复默认列宽"));
           }}
         >
-          列宽
+          {t("列宽")}
         </CompactButton>
       </section>
 
       <div className="sheet-table-area">
         <section
           className={`sheet-grid${gridLayoutReady ? '' : ' sheet-grid--measuring'}`}
-          aria-label="批量生成表格"
+          aria-label={t("批量生成表格")}
           ref={gridContainerRef}
           style={{ width: configuredGridWidth }}
         >
@@ -1806,7 +1807,7 @@ export function BatchGenerationPage() {
             onModelUpdated={scheduleGridReveal}
             onNewColumnsLoaded={syncGridContainerWidth}
             onSelectionChanged={handleGridSelectionChanged}
-            overlayNoRowsTemplate="暂无表格行"
+            overlayNoRowsTemplate={t("暂无表格行")}
               rowData={gridRows}
               rowHeight={56}
             rowSelection={gridRowSelection}
@@ -1890,19 +1891,19 @@ export function BatchGenerationPage() {
 
       <Modal
         centered
-        footer={<><Button onClick={() => setCreateModalOpen(false)}>取消</Button><Button disabled={!selectedCapability} onClick={() => void createSheet(false)}>创建</Button><Button disabled={!selectedCapability} onClick={() => void createSheet(true)} type="primary">创建并进入</Button></>}
+        footer={<><Button onClick={() => setCreateModalOpen(false)}>{t("取消")}</Button><Button disabled={!selectedCapability} onClick={() => void createSheet(false)}>{t("创建")}</Button><Button disabled={!selectedCapability} onClick={() => void createSheet(true)} type="primary">{t("创建并进入")}</Button></>}
         onCancel={() => setCreateModalOpen(false)}
         open={createModalOpen}
-        title="新建批量表格"
+        title={t("新建批量表格")}
       >
         <Flex gap="middle" vertical>
-          <Typography.Paragraph type="secondary">选择功能并命名，一表一功能，创建后不可切换。</Typography.Paragraph>
-          <Typography.Text strong>功能类型</Typography.Text>
+          <Typography.Paragraph type="secondary">{t("选择功能并命名，一表一功能，创建后不可切换。")}</Typography.Paragraph>
+          <Typography.Text strong>{t("功能类型")}</Typography.Text>
           {(['image', 'video'] as const).map((mediaKind) => {
             const options = capabilities.filter((capability) => capability.mediaKind === mediaKind);
             return (
               <Flex gap="small" key={mediaKind} vertical>
-                <Space><Tag color={mediaKind === 'image' ? 'blue' : 'purple'}>{mediaKind === 'image' ? '图片' : '视频'}</Tag><Typography.Text className="batch-generation-create-modal__count" type="secondary">共 {options.length} 项</Typography.Text></Space>
+                <Space><Tag color={mediaKind === 'image' ? 'blue' : 'purple'}>{mediaKind === 'image' ? t("图片") : t("视频")}</Tag><Typography.Text className="batch-generation-create-modal__count" type="secondary">{t("共")} {options.length} {t("项")}</Typography.Text></Space>
                 <Radio.Group
                   className="batch-generation-create-modal__options"
                   onChange={(event) => {
@@ -1920,20 +1921,20 @@ export function BatchGenerationPage() {
               </Flex>
             );
           })}
-          <Typography.Text strong>表名 <Typography.Text type="secondary">（可留空按模板生成）</Typography.Text></Typography.Text>
+          <Typography.Text strong>{t("表名")} <Typography.Text type="secondary">{t("（可留空按模板生成）")}</Typography.Text></Typography.Text>
           <Input maxLength={60} onChange={(event) => setNewSheetName(event.target.value)} placeholder={suggestedSheetName} showCount size="large" value={newSheetName} />
         </Flex>
       </Modal>
 
-      <section className="sheet-remaining">剩余可添加&nbsp;<strong>{MAX_ROWS - rows.length}</strong>&nbsp;/ {MAX_ROWS}</section>
+      <section className="sheet-remaining">{t("剩余可添加&nbsp;")}<strong>{MAX_ROWS - rows.length}</strong>&nbsp;/ {MAX_ROWS}</section>
       <footer className="sheet-task-stats">
-        <span>共 <strong>{rows.length}</strong> 行</span><i />
-        <span className="sheet-task-stats__done"><span className="sheet-task-stats__dot" />完成 <strong>{rowStats.completed}</strong></span>
-        <span className="sheet-task-stats__processing"><span className="sheet-task-stats__dot" />处理中 <strong>{rowStats.processing}</strong></span>
-        <span className="sheet-task-stats__failed"><span className="sheet-task-stats__dot" />失败 <strong>{rowStats.failed}</strong></span>
-        <span className="sheet-task-stats__pending"><span className="sheet-task-stats__dot" />待提交 <strong>{rowStats.pending}</strong></span>
-        <i /><span>累计消耗 <strong>{formatCreditAmount(detail?.stats.actualCredits || 0)}</strong> 积分</span>
-        {hasUnsavedChanges ? <><i /><span className="sheet-task-stats__unsaved">有未保存的改动</span></> : null}
+        <span>{t("共")} <strong>{rows.length}</strong> {t("行")}</span><i />
+        <span className="sheet-task-stats__done"><span className="sheet-task-stats__dot" />{t("完成")} <strong>{rowStats.completed}</strong></span>
+        <span className="sheet-task-stats__processing"><span className="sheet-task-stats__dot" />{t("处理中")} <strong>{rowStats.processing}</strong></span>
+        <span className="sheet-task-stats__failed"><span className="sheet-task-stats__dot" />{t("失败")} <strong>{rowStats.failed}</strong></span>
+        <span className="sheet-task-stats__pending"><span className="sheet-task-stats__dot" />{t("待提交")} <strong>{rowStats.pending}</strong></span>
+        <i /><span>{t("累计消耗")} <strong>{formatCreditAmount(detail?.stats.actualCredits || 0)}</strong> {t("积分")}</span>
+        {hasUnsavedChanges ? <><i /><span className="sheet-task-stats__unsaved">{t("有未保存的改动")}</span></> : null}
       </footer>
     </main>
   );

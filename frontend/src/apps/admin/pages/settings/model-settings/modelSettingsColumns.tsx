@@ -14,6 +14,7 @@ import {
   imageGenerationSummary,
   llmBillingSettingsOf,
 } from './modelSettingsHelpers';
+import { t } from '@shared/i18n';
 
 type GetModelSettingsColumnsOptions = {
   activeType: ModelType;
@@ -31,22 +32,22 @@ type GetModelSettingsColumnsOptions = {
 };
 
 export function getCreateLabel(activeType: ModelType) {
-  return `新增${modelTypeLabelMap[activeType]}`;
+  return t("新增{{0}}", { "0": modelTypeLabelMap[activeType] });
 }
 
 function getEditLabel(activeType: ModelType) {
   return activeType === 'audio'
-    ? '编辑 Key / Base URL'
+    ? t("编辑 Key / Base URL")
     : activeType === 'video'
-      ? '编辑 API Key'
-      : '编辑';
+      ? t("编辑 API Key")
+      : t("编辑");
 }
 function renderDefaultNameCell(value: string, isDefault: boolean, subtitle?: string) {
   return (
     <Space direction="vertical" size={2}>
       <Space>
         <strong>{value}</strong>
-        {isDefault && <Tag color="green">默认</Tag>}
+        {isDefault && <Tag color="green">{t("默认")}</Tag>}
       </Space>
       {subtitle ? <span className="model-subtext">{subtitle}</span> : null}
     </Space>
@@ -54,7 +55,7 @@ function renderDefaultNameCell(value: string, isDefault: boolean, subtitle?: str
 }
 
 function renderConfiguredTag(record: ModelConfig) {
-  return <Tag color={record.apiKey ? 'green' : 'orange'}>{record.apiKey ? '已配置' : '未配置'}</Tag>;
+  return <Tag color={record.apiKey ? 'green' : 'orange'}>{record.apiKey ? t("已配置") : t("未配置")}</Tag>;
 }
 
 export function getModelSettingsColumns({
@@ -72,7 +73,7 @@ export function getModelSettingsColumns({
   videoProviders,
 }: GetModelSettingsColumnsOptions): TableProps<ModelConfig>['columns'] {
   const operationColumn = {
-    title: '操作',
+    title: t("操作"),
     width: activeType === 'image' ? 360 : 260,
     render: (_: unknown, record: ModelConfig) => (
       <Space>
@@ -81,18 +82,18 @@ export function getModelSettingsColumns({
           onClick={() => onSetDefault(record)}
           type={record.isDefault ? 'primary' : 'default'}
         >
-          默认
+          {t("默认")}
         </Button>
         <Button onClick={() => onEdit(record)}>{getEditLabel(activeType)}</Button>
         {activeType !== 'audio' && activeType !== 'video' && (
           <Popconfirm
             disabled={record.isDefault}
-            okText="删除"
-            cancelText="取消"
+            okText={t("删除")}
+            cancelText={t("取消")}
             onConfirm={() => onDelete(record)}
-            title="确认删除该模型配置？"
+            title={t("确认删除该模型配置？")}
           >
-            <Button danger disabled={record.isDefault}>删除</Button>
+            <Button danger disabled={record.isDefault}>{t("删除")}</Button>
           </Popconfirm>
         )}
         {activeType === 'image' && (() => {
@@ -100,18 +101,18 @@ export function getModelSettingsColumns({
           return (
             <>
               <Button
-                aria-label={`上移 ${record.name}`}
+                aria-label={t("上移 {{0}}", { "0": record.name })}
                 disabled={sortingImageModels || index <= 0}
                 icon={<ArrowUpOutlined />}
                 onClick={() => onMoveImageModel(record, -1)}
-                title="上移"
+                title={t("上移")}
               />
               <Button
-                aria-label={`下移 ${record.name}`}
+                aria-label={t("下移 {{0}}", { "0": record.name })}
                 disabled={sortingImageModels || index < 0 || index >= configsByType.image.length - 1}
                 icon={<ArrowDownOutlined />}
                 onClick={() => onMoveImageModel(record, 1)}
-                title="下移"
+                title={t("下移")}
               />
             </>
           );
@@ -123,7 +124,7 @@ export function getModelSettingsColumns({
   if (activeType === 'audio') {
     return [
       {
-        title: '音频配置',
+        title: t("音频配置"),
         dataIndex: 'name',
         render: (value, record) => renderDefaultNameCell(
           value,
@@ -132,19 +133,19 @@ export function getModelSettingsColumns({
         ),
       },
       {
-        title: 'Key 状态',
+        title: t("Key 状态"),
         render: (_, record) => renderConfiguredTag(record),
       },
       {
-        title: '计费参数',
+        title: t("计费参数"),
         width: 280,
         render: (_, record) => {
           const billing = audioBillingSettingsOf(record);
           return (
             <Space direction="vertical" size={2}>
-              <span>倍率 {billing.multiplier.toFixed(2)}</span>
-              <span>克隆 {billing.voiceCloneCredits.toFixed(6)} Credit / 次</span>
-              <span className="model-subtext">合成 {billing.speechCreditsPer1kChars.toFixed(6)} Credit / 1K 字符</span>
+              <span>{t("倍率")} {billing.multiplier.toFixed(2)}</span>
+              <span>{t("克隆")} {billing.voiceCloneCredits.toFixed(6)} {t("Credit / 次")}</span>
+              <span className="model-subtext">{t("合成")} {billing.speechCreditsPer1kChars.toFixed(6)} {t("Credit / 1K 字符")}</span>
             </Space>
           );
         },
@@ -156,7 +157,7 @@ export function getModelSettingsColumns({
           const provider = audioProviders.find((item) => item.id === record.provider);
           return (
             <Space direction="vertical" size={2}>
-              <span className="model-url-text">{record.baseUrl || provider?.defaultBaseUrl || '可留空'}</span>
+              <span className="model-url-text">{record.baseUrl || provider?.defaultBaseUrl || t("可留空")}</span>
               {provider?.baseUrlHelp ? <span className="model-subtext">{provider.baseUrlHelp}</span> : null}
             </Space>
           );
@@ -169,28 +170,28 @@ export function getModelSettingsColumns({
   if (activeType === 'image') {
     return [
       {
-        title: '图片配置',
+        title: t("图片配置"),
         dataIndex: 'name',
         render: (value, record) => renderDefaultNameCell(value, record.isDefault, record.provider),
       },
-      { title: '模型', dataIndex: 'model' },
+      { title: t("模型"), dataIndex: 'model' },
       {
-        title: '生成能力',
+        title: t("生成能力"),
         width: 180,
         render: (_, record) => <span className="model-subtext">{imageGenerationSummary(record)}</span>,
       },
       {
-        title: 'Key 状态',
+        title: t("Key 状态"),
         render: (_, record) => renderConfiguredTag(record),
       },
       {
-        title: '计费参数',
+        title: t("计费参数"),
         width: 240,
         render: (_, record) => {
           const billing = imageBillingSettingsOf(record);
           return (
             <Space direction="vertical" size={2}>
-              <span>{billing.creditsPerRequest.toFixed(2)} Credit / 张</span>
+              <span>{billing.creditsPerRequest.toFixed(2)} {t("Credit / 张")}</span>
             </Space>
           );
         },
@@ -207,12 +208,12 @@ export function getModelSettingsColumns({
   if (activeType === 'video') {
     return [
       {
-        title: '视频配置',
+        title: t("视频配置"),
         dataIndex: 'name',
         render: (value, record) => renderDefaultNameCell(value, record.isDefault),
       },
       {
-        title: '可选模型',
+        title: t("可选模型"),
         render: (_, record) => {
           const provider = videoProviders.find((item) => item.id === record.provider);
           const selectedModel = provider?.models.find((item) => item.id === record.model)
@@ -233,23 +234,23 @@ export function getModelSettingsColumns({
                 onChange={(value) => onVideoModelChange(record, value)}
               />
               <span className="model-subtext">
-                {selectedModel?.description || '生成页按模型能力动态展示参考图、参考视频、参考音频'}
+                {selectedModel?.description || t("生成页按模型能力动态展示参考图、参考视频、参考音频")}
               </span>
             </Space>
           );
         },
       },
       {
-        title: 'Key 状态',
+        title: t("Key 状态"),
         render: (_, record) => renderConfiguredTag(record),
       },
       {
-        title: '计费参数',
+        title: t("计费参数"),
         width: 240,
         render: () => (
           <Space direction="vertical" size={2}>
-            <span>按秒计费</span>
-            <span className="model-subtext">模型 · 清晰度 · 时长</span>
+            <span>{t("按秒计费")}</span>
+            <span className="model-subtext">{t("模型 · 清晰度 · 时长")}</span>
           </Space>
         ),
       },
@@ -267,30 +268,30 @@ export function getModelSettingsColumns({
 
   return [
     {
-      title: '配置名称',
+      title: t("配置名称"),
       dataIndex: 'name',
       render: (value, record) => renderDefaultNameCell(value, record.isDefault),
     },
     {
-      title: '服务商',
+      title: t("服务商"),
       render: (_, record) => findLlmPricing(llmModelPricing, record.provider, record.model)?.providerName || record.provider,
     },
-    { title: '模型', dataIndex: 'model' },
+    { title: t("模型"), dataIndex: 'model' },
     {
-      title: '倍率',
+      title: t("倍率"),
       width: 120,
       render: (_, record) => llmBillingSettingsOf(record).multiplier.toFixed(2),
     },
     {
-      title: '计费参数',
+      title: t("计费参数"),
       width: 320,
       render: (_, record) => {
         const billing = llmBillingSettingsOf(record);
         return (
           <Space direction="vertical" size={2}>
-            <span>输入 {(billing.inputCreditsPer1M * billing.multiplier).toFixed(6)} Credit / 1M</span>
-            <span>输出 {(billing.outputCreditsPer1M * billing.multiplier).toFixed(6)} Credit / 1M</span>
-            <span className="model-subtext">缓存 {(billing.cachedInputCreditsPer1M * billing.multiplier).toFixed(6)} Credit / 1M，启动门槛 {billing.maxOutputCreditsForReserve.toFixed(2)} Credit</span>
+            <span>{t("输入")} {(billing.inputCreditsPer1M * billing.multiplier).toFixed(6)} Credit / 1M</span>
+            <span>{t("输出")} {(billing.outputCreditsPer1M * billing.multiplier).toFixed(6)} Credit / 1M</span>
+            <span className="model-subtext">{t("缓存")} {(billing.cachedInputCreditsPer1M * billing.multiplier).toFixed(6)} {t("Credit / 1M，启动门槛")} {billing.maxOutputCreditsForReserve.toFixed(2)} Credit</span>
           </Space>
         );
       },

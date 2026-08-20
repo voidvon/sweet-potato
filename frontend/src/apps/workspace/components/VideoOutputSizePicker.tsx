@@ -1,4 +1,5 @@
 import './VideoOutputSizePicker.scss';
+import { t } from '@shared/i18n';
 
 export type VideoAspectRatio = '9:16' | '16:9' | '1:1' | '4:3' | '3:4' | '21:9';
 export type VideoResolution = '480P' | '720P';
@@ -22,7 +23,7 @@ export function VideoOutputSizePicker({
   return (
     <div className="video-output-size-picker">
       <section className="video-output-size-picker__section">
-        <h3>选择比例</h3>
+        <h3>{t("选择比例")}</h3>
         <div className="video-output-size-picker__aspect-grid">
           {videoAspectRatioOptions.map((ratio) => (
             <button
@@ -38,7 +39,7 @@ export function VideoOutputSizePicker({
         </div>
       </section>
       <section className="video-output-size-picker__section">
-        <h3>选择分辨率</h3>
+        <h3>{t("选择分辨率")}</h3>
         <div className="video-output-size-picker__resolution-grid">
           {videoResolutionOptions.map((item) => (
             <button

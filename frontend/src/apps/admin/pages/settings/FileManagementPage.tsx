@@ -25,6 +25,7 @@ import {
   resourceTypeLabels,
 } from './file-management/fileManagementFormatters';
 import './FileManagementPage.scss';
+import { t } from '@shared/i18n';
 
 const emptySummary: ManagedFileSummary = {
   totalCount: 0,
@@ -60,7 +61,7 @@ export function FileManagementPage() {
       setTotal(result.total);
       setRecordSummary(result.summary);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '文件列表加载失败');
+      message.error(error instanceof Error ? error.message : t("文件列表加载失败"));
     } finally {
       setLoading(false);
     }
@@ -93,12 +94,12 @@ export function FileManagementPage() {
     try {
       await deleteManagedFile(file);
       if (detailFile?.id === file.id) setDetailFile(null);
-      message.success('文件已删除');
+      message.success(t("文件已删除"));
       await Promise.all([
         loadFiles(files.length === 1 && page > 1 ? page - 1 : page, pageSize),
       ]);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '文件删除失败');
+      message.error(error instanceof Error ? error.message : t("文件删除失败"));
     } finally {
       setDeletingFileId('');
     }
@@ -106,7 +107,7 @@ export function FileManagementPage() {
 
   const columns: ColumnsType<ManagedFile> = [
     {
-      title: '文件',
+      title: t("文件"),
       key: 'file',
       width: 300,
       render: (_, file) => (
@@ -118,21 +119,21 @@ export function FileManagementPage() {
             <Tooltip title={file.originalFileName || file.name}>
               <Typography.Text ellipsis style={{ maxWidth: 220 }}>{file.originalFileName || file.name}</Typography.Text>
             </Tooltip>
-            <Typography.Text type="secondary">{file.mimeType || '未知类型'}</Typography.Text>
+            <Typography.Text type="secondary">{file.mimeType || t("未知类型")}</Typography.Text>
           </Space>
         </Space>
       ),
     },
-    { title: '业务来源', dataIndex: 'resourceType', width: 120, render: (value: string) => resourceTypeLabels[value] || value || '-' },
+    { title: t("业务来源"), dataIndex: 'resourceType', width: 120, render: (value: string) => resourceTypeLabels[value] || value || '-' },
     {
-      title: '存储位置',
+      title: t("存储位置"),
       dataIndex: 'storageProvider',
       width: 110,
-      render: () => <Tag>本地</Tag>,
+      render: () => <Tag>{t("本地")}</Tag>,
     },
-    { title: '文件大小', dataIndex: 'fileSize', width: 110, align: 'right', render: formatBytes },
+    { title: t("文件大小"), dataIndex: 'fileSize', width: 110, align: 'right', render: formatBytes },
     {
-      title: '状态',
+      title: t("状态"),
       dataIndex: 'lifecycleStatus',
       width: 100,
       render: (value: string) => {
@@ -140,27 +141,27 @@ export function FileManagementPage() {
         return <Tag color={meta.color}>{meta.label}</Tag>;
       },
     },
-    { title: '引用', dataIndex: 'referenceCount', width: 80, align: 'right', render: (value: number) => value ? `${value} 处` : '-' },
-    { title: '所属用户', dataIndex: 'username', width: 130, render: (value: string) => value || '-' },
-    { title: '上传时间', dataIndex: 'createdAt', width: 180, render: formatDateTime },
+    { title: t("引用"), dataIndex: 'referenceCount', width: 80, align: 'right', render: (value: number) => value ? t("{{0}} 处", { "0": value }) : '-' },
+    { title: t("所属用户"), dataIndex: 'username', width: 130, render: (value: string) => value || '-' },
+    { title: t("上传时间"), dataIndex: 'createdAt', width: 180, render: formatDateTime },
     {
-      title: '操作',
+      title: t("操作"),
       key: 'actions',
       fixed: 'right',
       width: 220,
       render: (_, file) => (
         <Space size={0}>
-          <Button type="link" href={resolveAssetUrl(file.fileUrl)} target="_blank" icon={<DownloadOutlined />}>下载</Button>
-          <Button type="link" onClick={() => setDetailFile(file)}>详情</Button>
+          <Button type="link" href={resolveAssetUrl(file.fileUrl)} target="_blank" icon={<DownloadOutlined />}>{t("下载")}</Button>
+          <Button type="link" onClick={() => setDetailFile(file)}>{t("详情")}</Button>
           <Popconfirm
-            cancelText="取消"
-            description="删除后无法恢复，确定要删除这个文件吗？"
+            cancelText={t("取消")}
+            description={t("删除后无法恢复，确定要删除这个文件吗？")}
             okButtonProps={{ danger: true, loading: deletingFileId === file.id }}
-            okText="确认删除"
+            okText={t("确认删除")}
             onConfirm={() => void handleDelete(file)}
-            title="二次确认"
+            title={t("二次确认")}
           >
-            <Button danger type="link" icon={<DeleteOutlined />} loading={deletingFileId === file.id}>删除</Button>
+            <Button danger type="link" icon={<DeleteOutlined />} loading={deletingFileId === file.id}>{t("删除")}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -179,7 +180,7 @@ export function FileManagementPage() {
           onApply={applyFilters}
           onRefresh={() => { void loadFiles(); }}
           onReset={resetFilters}
-          summaryText={`共 ${recordSummary.totalCount} 个文件 / ${formatBytes(recordSummary.totalBytes)}`}
+          summaryText={t("共 {{0}} 个文件 / {{1}}", { "0": recordSummary.totalCount, "1": formatBytes(recordSummary.totalBytes) })}
         />
         <div
           className="file-management-table-viewport"
@@ -191,13 +192,13 @@ export function FileManagementPage() {
             columns={columns}
             dataSource={files}
             loading={loading}
-            locale={{ emptyText: '暂无文件记录' }}
+            locale={{ emptyText: t("暂无文件记录") }}
             pagination={{
               current: page,
               pageSize,
               total,
               showSizeChanger: true,
-              showTotal: (count) => `共 ${count} 个文件`,
+              showTotal: (count) => t("共 {{0}} 个文件", { "0": count }),
               onChange: (nextPage, nextPageSize) => void loadFiles(nextPage, nextPageSize),
             }}
             rowKey="id"

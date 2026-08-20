@@ -12,6 +12,7 @@ import {
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import { useWorkspaceHeader } from '../../layouts/ProtectedLayout';
 import './SiteAccessLogPage.scss';
+import { t } from '@shared/i18n';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -114,7 +115,7 @@ export function SiteAccessLogPage() {
       setPageSize(result.pageSize);
       setTotal(result.total);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '访问日志加载失败');
+      message.error(error instanceof Error ? error.message : t("访问日志加载失败"));
     } finally {
       setLoading(false);
     }
@@ -148,23 +149,23 @@ export function SiteAccessLogPage() {
       setRetentionDays(settings.retentionDays);
       settingsForm.setFieldsValue(settings);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '日志设置加载失败');
+      message.error(error instanceof Error ? error.message : t("日志设置加载失败"));
     }
   }
 
   useEffect(() => {
     setHeaderExtra(
       <Space size={8}>
-        <Tooltip title="日志设置">
+        <Tooltip title={t("日志设置")}>
           <Button
-            aria-label="日志设置"
+            aria-label={t("日志设置")}
             className="site-access-log-header-settings"
             icon={<SettingOutlined />}
             onClick={() => void openSettings()}
             type="text"
           />
         </Tooltip>
-        <Typography.Text type="secondary">仅展示最近 {retentionDays} 天的访问记录。</Typography.Text>
+        <Typography.Text type="secondary">{t("仅展示最近")} {retentionDays} {t("天的访问记录。")}</Typography.Text>
       </Space>,
     );
     return () => setHeaderExtra(null);
@@ -174,24 +175,24 @@ export function SiteAccessLogPage() {
     void Promise.all([
       loadLogs(1, 20),
       getSiteAccessLogSettings().then((settings) => setRetentionDays(settings.retentionDays)),
-    ]).catch((error) => message.error(error instanceof Error ? error.message : '访问日志初始化失败'));
+    ]).catch((error) => message.error(error instanceof Error ? error.message : t("访问日志初始化失败")));
   }, []);
 
   const columns = useMemo<ColumnsType<SiteAccessLog>>(() => [
     {
-      title: 'IP 地址',
+      title: t("IP 地址"),
       dataIndex: 'ip',
       width: 180,
       render: (value: string) => <Typography.Text copyable>{value}</Typography.Text>,
     },
     {
-      title: '用户账号',
+      title: t("用户账号"),
       dataIndex: 'username',
       width: 140,
       render: (value: string) => value || <Typography.Text type="secondary">-</Typography.Text>,
     },
     {
-      title: '访问记录',
+      title: t("访问记录"),
       key: 'request',
       width: 280,
       render: (_, record) => (
@@ -204,7 +205,7 @@ export function SiteAccessLogPage() {
       ),
     },
     {
-      title: '访问时间',
+      title: t("访问时间"),
       dataIndex: 'accessedAt',
       width: 180,
       render: (value: string) => dateTimeFormatter.format(new Date(value)),
@@ -216,20 +217,20 @@ export function SiteAccessLogPage() {
       render: (value: string) => <Tooltip title={value}><Typography.Text ellipsis>{value}</Typography.Text></Tooltip>,
     },
     {
-      title: '状态码',
+      title: t("状态码"),
       dataIndex: 'statusCode',
       width: 90,
       render: (value: number) => <Tag color={value >= 400 ? 'red' : value >= 300 ? 'gold' : 'green'}>{value}</Tag>,
     },
     {
-      title: '耗时',
+      title: t("耗时"),
       dataIndex: 'durationMs',
       width: 90,
       align: 'right',
       render: (value: number) => `${value} ms`,
     },
     {
-      title: '访问次数',
+      title: t("访问次数"),
       dataIndex: 'accessCount',
       width: 120,
       align: 'right',
@@ -244,7 +245,7 @@ export function SiteAccessLogPage() {
       const settings = await updateSiteAccessLogSettings(values);
       setRetentionDays(settings.retentionDays);
       setSettingsOpen(false);
-      message.success('日志保留时间已保存');
+      message.success(t("日志保留时间已保存"));
       await loadLogs(1, pageSize);
     } catch (error) {
       if (error instanceof Error) message.error(error.message);
@@ -263,7 +264,7 @@ export function SiteAccessLogPage() {
               className="site-access-log-ip-filter"
               onChange={(event) => setIpInput(event.target.value)}
               onPressEnter={applyFilters}
-              placeholder="输入 IP 地址"
+              placeholder={t("输入 IP 地址")}
               value={ipInput}
             />
             <Input
@@ -271,7 +272,7 @@ export function SiteAccessLogPage() {
               className="site-access-log-username-filter"
               onChange={(event) => setUsernameInput(event.target.value)}
               onPressEnter={applyFilters}
-              placeholder="输入用户账号"
+              placeholder={t("输入用户账号")}
               value={usernameInput}
             />
             <Select
@@ -279,17 +280,17 @@ export function SiteAccessLogPage() {
               className="site-access-log-method-filter"
               onChange={(value) => setMethodInput(value || '')}
               options={methodOptions}
-              placeholder="请求方法"
+              placeholder={t("请求方法")}
               value={methodInput || undefined}
             />
-            <Button icon={<SearchOutlined />} loading={loading} onClick={applyFilters}>查询</Button>
+            <Button icon={<SearchOutlined />} loading={loading} onClick={applyFilters}>{t("查询")}</Button>
             <Button
               disabled={!ipInput && !ipFilter && !usernameInput && !usernameFilter && !methodInput && !methodFilter}
               onClick={resetFilters}
             >
-              重置
+              {t("重置")}
             </Button>
-            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs()}>刷新</Button>
+            <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadLogs()}>{t("刷新")}</Button>
           </Space>
         </div>
         <div
@@ -302,13 +303,13 @@ export function SiteAccessLogPage() {
             columns={columns}
             dataSource={logs}
             loading={loading}
-            locale={{ emptyText: '暂无访问日志' }}
+            locale={{ emptyText: t("暂无访问日志") }}
             pagination={{
               current: page,
               pageSize,
               total,
               showSizeChanger: true,
-              showTotal: (count) => `共 ${count} 条`,
+              showTotal: (count) => t("共 {{0}} 条", { "0": count }),
               onChange: (nextPage, nextPageSize) => void loadLogs(nextPage, nextPageSize),
             }}
             rowKey="id"
@@ -318,22 +319,22 @@ export function SiteAccessLogPage() {
       </section>
 
       <Modal
-        cancelText="取消"
+        cancelText={t("取消")}
         confirmLoading={savingSettings}
-        okText="保存"
+        okText={t("保存")}
         onCancel={() => setSettingsOpen(false)}
         onOk={() => void saveSettings()}
         open={settingsOpen}
-        title="访问日志设置"
+        title={t("访问日志设置")}
       >
         <Form form={settingsForm} layout="vertical" initialValues={{ retentionDays: 7 }}>
           <Form.Item
-            label="日志保留时间"
+            label={t("日志保留时间")}
             name="retentionDays"
-            extra={`超过 ${selectedRetentionDays} 天的日志将被自动清理，最长可配置 7 天。`}
-            rules={[{ required: true, message: '请输入日志保留天数' }]}
+            extra={t("超过 {{0}} 天的日志将被自动清理，最长可配置 7 天。", { "0": selectedRetentionDays })}
+            rules={[{ required: true, message: t("请输入日志保留天数") }]}
           >
-            <InputNumber addonAfter="天" min={1} max={7} precision={0} style={{ width: '100%' }} />
+            <InputNumber addonAfter={t("天")} min={1} max={7} precision={0} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

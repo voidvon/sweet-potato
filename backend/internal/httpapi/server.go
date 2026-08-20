@@ -168,12 +168,13 @@ func (s *Server) taskContext() context.Context {
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w = &localizedResponseWriter{ResponseWriter: w, language: resolveRequestLanguage(r.Header.Get("Accept-Language"))}
 		if origin := allowedCORSOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Add("Vary", "Origin")
 		}
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, X-Requested-With")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -396,5 +397,11 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{"message": message})
+	language := responseLanguage(w)
+	w.Header().Set("Content-Language", language)
+	w.Header().Add("Vary", "Accept-Language")
+	writeJSON(w, status, map[string]string{
+		"code":    errorCodeForStatus(status),
+		"message": localizedErrorMessage(language, status, message),
+	})
 }

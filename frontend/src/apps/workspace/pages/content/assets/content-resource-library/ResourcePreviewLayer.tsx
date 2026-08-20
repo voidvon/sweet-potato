@@ -3,6 +3,7 @@ import { AppImage } from '../../../../components/AppImage';
 import { ResultVideoPreviewModal } from '../../VideoTaskClonePage/components/ResultVideoPreviewModal';
 import { fileUrl, toResultVideoPreview } from './resourceLibraryHelpers';
 import type { ContentResourceLibraryController } from './useContentResourceLibraryController';
+import { t } from '@shared/i18n';
 
 export function ResourcePreviewLayer({ controller }: { controller: ContentResourceLibraryController }) {
   if (controller.resourceType === 'finished_video') {
@@ -27,7 +28,7 @@ export function ResourcePreviewLayer({ controller }: { controller: ContentResour
         footer={null}
         onCancel={controller.closePreviewAsset}
         open={Boolean(controller.previewAsset)}
-        title={controller.previewAsset?.name || '素材预览'}
+        title={controller.previewAsset?.name || t("素材预览")}
         width={760}
       >
         {controller.previewAsset && (
@@ -36,8 +37,8 @@ export function ResourcePreviewLayer({ controller }: { controller: ContentResour
               <video controls ref={controller.previewVideoRef} src={fileUrl(controller.previewAsset)} />
             )}
             {controller.previewAsset.mimeType.startsWith('audio/') && <audio controls src={fileUrl(controller.previewAsset)} />}
-            <p><strong>文件名：</strong>{controller.previewAsset.originalFileName}</p>
-            <p><strong>类型：</strong>{controller.previewAsset.mimeType}</p>
+            <p><strong>{t("文件名：")}</strong>{controller.previewAsset.originalFileName}</p>
+            <p><strong>{t("类型：")}</strong>{controller.previewAsset.mimeType}</p>
           </div>
         )}
       </Modal>
@@ -49,7 +50,7 @@ export function ResourcePreviewLayer({ controller }: { controller: ContentResour
 function ImagePreview({ controller }: { controller: ContentResourceLibraryController }) {
   return (
     <AppImage
-      alt={controller.previewImage?.name || '图片预览'}
+      alt={controller.previewImage?.name || t("图片预览")}
       preview={{
         open: controller.previewImageOpen,
         onOpenChange: controller.setPreviewImageOpen,

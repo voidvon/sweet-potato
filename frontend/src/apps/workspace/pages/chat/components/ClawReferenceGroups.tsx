@@ -5,6 +5,7 @@ import { Fragment, useState } from 'react';
 import type { ChatAttachment } from '../../../types';
 import { resolveAssetUrl } from '../../../api/request';
 import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
+import { t } from '@shared/i18n';
 
 export type ClawReferenceGroupConfig = {
   key: string;
@@ -54,7 +55,7 @@ export function ClawReferenceGroups({
     const maxCount = group.maxCount ?? unlimitedReferenceCount;
     const remainingCount = maxCount - currentCount;
     if (remainingCount <= 0) {
-      message.warning(`${group.label}最多上传 ${group.maxCount} 张`);
+      message.warning(t("{{0}}最多上传 {{1}} 张", { "0": group.label, "1": group.maxCount }));
       return;
     }
 
@@ -62,11 +63,11 @@ export function ClawReferenceGroups({
       file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
     ));
     if (supportedFiles.length < files.length) {
-      message.warning('仅支持图片或 PDF 文件');
+      message.warning(t("仅支持图片或 PDF 文件"));
     }
     const acceptedFiles = supportedFiles.slice(0, remainingCount);
     if (acceptedFiles.length < files.length && group.maxCount) {
-      message.warning(`${group.label}最多上传 ${group.maxCount} 张`);
+      message.warning(t("{{0}}最多上传 {{1}} 张", { "0": group.label, "1": group.maxCount }));
     }
 
     await onAddFiles(group, acceptedFiles);
@@ -114,7 +115,7 @@ export function ClawReferenceGroups({
                 <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
                   <button className="claw-reference-empty" disabled={uploadDisabled} type="button">
                     {!group.required ? (
-                      <span className="claw-reference-badge">可选</span>
+                      <span className="claw-reference-badge">{t("可选")}</span>
                     ) : null}
                     <Plus size={26} strokeWidth={1.6} />
                     <span className="claw-reference-label">{group.label}</span>
@@ -128,7 +129,7 @@ export function ClawReferenceGroups({
                     collapsedCaptionVisibility="top"
                     items={groupAttachments.map((attachment, index) => ({
                       caption: attachment.kind === 'image'
-                        ? `图${groupAttachments.slice(0, index + 1).filter((item) => item.kind === 'image').length + startIndex - 1}`
+                        ? t("图{{0}}", { "0": groupAttachments.slice(0, index + 1).filter((item) => item.kind === 'image').length + startIndex - 1 })
                         : 'PDF',
                       id: attachment.id,
                       name: attachment.name,
@@ -149,7 +150,7 @@ export function ClawReferenceGroups({
                     }}
                     renderAction={readonly || !onRemoveAttachment ? undefined : (item) => (
                       <button
-                        aria-label={`移除 ${item.name}`}
+                        aria-label={t("移除 {{0}}", { "0": item.name })}
                         className="claw-reference-remove"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -163,7 +164,7 @@ export function ClawReferenceGroups({
                   />
                   {!uploadDisabled && !readonly ? (
                     <Upload {...createReferenceUploadProps(group)} disabled={uploadDisabled}>
-                      <button aria-label={`继续上传${group.label}`} className="claw-reference-add" type="button">
+                      <button aria-label={t("继续上传{{0}}", { "0": group.label })} className="claw-reference-add" type="button">
                         <Plus size={18} strokeWidth={1.6} />
                       </button>
                     </Upload>

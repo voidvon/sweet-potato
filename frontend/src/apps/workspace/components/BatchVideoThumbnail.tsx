@@ -1,4 +1,5 @@
-type BatchVideoThumbnailProps = {
+
+import { t } from '@shared/i18n';type BatchVideoThumbnailProps = {
   alt: string
   onPreview: () => void
   src: string
@@ -7,7 +8,7 @@ type BatchVideoThumbnailProps = {
 export function BatchVideoThumbnail({ alt, onPreview, src }: BatchVideoThumbnailProps) {
   return (
     <button
-      aria-label={`预览${alt}`}
+      aria-label={t("预览{{0}}", { "0": alt })}
       className="batch-generation-grid-asset__preview"
       onClick={(event) => {
         event.stopPropagation()

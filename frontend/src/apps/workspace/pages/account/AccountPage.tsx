@@ -35,6 +35,7 @@ import type {
   UserProfilePayload,
 } from '../../types';
 import './AccountPage.scss';
+import { t } from '@shared/i18n';
 
 type AccountPageProps = {
   currentUser: User;
@@ -52,7 +53,7 @@ function formatCreditsCeilTwoDecimals(credits: number) {
 
 function formatDateTime(value?: string | null) {
   if (!value) {
-    return '未登录';
+    return t("未登录");
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -63,21 +64,21 @@ function formatDateTime(value?: string | null) {
 
 function ledgerTypeLabel(entry: MyCreditLedgerEntry) {
   if (entry.type === 'admin_adjust' && entry.creditDelta > 0) {
-    return { color: 'green', text: '充值' };
+    return { color: 'green', text: t("充值") };
   }
   if (entry.type === 'admin_adjust' && entry.creditDelta < 0) {
-    return { color: 'red', text: '人工扣减' };
+    return { color: 'red', text: t("人工扣减") };
   }
   if (entry.type === 'reserve_debit') {
-    return { color: 'gold', text: '预扣' };
+    return { color: 'gold', text: t("预扣") };
   }
   if (entry.type === 'reserve_refund') {
-    return { color: 'blue', text: '退回' };
+    return { color: 'blue', text: t("退回") };
   }
   if (entry.type === 'usage_debit') {
-    return { color: 'purple', text: '业务扣费' };
+    return { color: 'purple', text: t("业务扣费") };
   }
-  return { color: 'volcano', text: '补扣' };
+  return { color: 'volcano', text: t("补扣") };
 }
 
 export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPageProps) {
@@ -107,7 +108,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       setLedger(nextLedger);
       setCreditSummary(nextSummary);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '账户积分信息加载失败');
+      message.error(error instanceof Error ? error.message : t("账户积分信息加载失败"));
     } finally {
       setLedgerLoading(false);
     }
@@ -135,12 +136,12 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
 
   function openLogoutConfirm() {
     Modal.confirm({
-      title: '确认退出登录？',
-      content: '退出后需要重新输入账号和密码才能进入系统。',
+      title: t("确认退出登录？"),
+      content: t("退出后需要重新输入账号和密码才能进入系统。"),
       centered: true,
-      okText: '退出登录',
+      okText: t("退出登录"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       onOk: onLogout,
     });
   }
@@ -152,9 +153,9 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       setCurrentProfile(result.user);
       onUserUpdated(result.user);
       setProfileModalOpen(false);
-      message.success('账号信息已更新');
+      message.success(t("账号信息已更新"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '账号信息更新失败');
+      message.error(error instanceof Error ? error.message : t("账号信息更新失败"));
     } finally {
       setSavingProfile(false);
     }
@@ -166,9 +167,9 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       await updateUserPassword(currentProfile.id, values);
       passwordForm.resetFields();
       setPasswordModalOpen(false);
-      message.success('密码已修改');
+      message.success(t("密码已修改"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '密码修改失败');
+      message.error(error instanceof Error ? error.message : t("密码修改失败"));
     } finally {
       setSavingPassword(false);
     }
@@ -178,19 +179,19 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('头像读取失败'));
+      reader.onerror = () => reject(new Error(t("头像读取失败")));
       reader.readAsDataURL(file);
     });
   }
 
   async function handleAvatarFile(file: File) {
     if (!file.type.startsWith('image/')) {
-      message.error('请选择图片文件');
+      message.error(t("请选择图片文件"));
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      message.error('头像图片不能超过 2MB');
+      message.error(t("头像图片不能超过 2MB"));
       return;
     }
 
@@ -202,9 +203,9 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       });
       setCurrentProfile(result.user);
       onUserUpdated(result.user);
-      message.success('头像已更新');
+      message.success(t("头像已更新"));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '头像上传失败');
+      message.error(error instanceof Error ? error.message : t("头像上传失败"));
     }
   }
 
@@ -219,8 +220,8 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   };
 
   const roleTag = currentProfile.role === 'admin'
-    ? <Tag color="gold">管理员</Tag>
-    : <Tag>普通成员</Tag>;
+    ? <Tag color="gold">{t("管理员")}</Tag>
+    : <Tag>{t("普通成员")}</Tag>;
 
   const rechargeRecords = useMemo(
     () => ledger.filter((entry) => entry.type === 'admin_adjust' && entry.creditDelta > 0),
@@ -229,13 +230,13 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
 
   const ledgerColumns: TableProps<MyCreditLedgerEntry>['columns'] = [
     {
-      title: '时间',
+      title: t("时间"),
       dataIndex: 'createdAt',
       width: 220,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '类型',
+      title: t("类型"),
       width: 120,
       render: (_value, record) => {
         const meta = ledgerTypeLabel(record);
@@ -243,7 +244,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       },
     },
     {
-      title: '变动积分',
+      title: t("变动积分"),
       dataIndex: 'creditDelta',
       width: 160,
       render: (value: number) => (
@@ -253,19 +254,19 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
       ),
     },
     {
-      title: '变动后余额',
+      title: t("变动后余额"),
       dataIndex: 'creditBalanceAfter',
       width: 160,
       render: (value: number) => formatCredits(value),
     },
     {
-      title: '来源',
+      title: t("来源"),
       dataIndex: 'sourceType',
       width: 180,
       render: (value?: string | null) => sourceTypeLabel(value),
     },
     {
-      title: '模型',
+      title: t("模型"),
       dataIndex: 'modelName',
       width: 180,
       render: (value?: string) => value?.trim() || '-',
@@ -275,7 +276,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   const tabItems: TabsProps['items'] = [
     {
       key: 'recharge',
-      label: `充值记录 (${rechargeRecords.length})`,
+      label: t("充值记录 ({{0}})", { "0": rechargeRecords.length }),
       children: (
         <Table
           columns={ledgerColumns}
@@ -289,7 +290,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     },
     {
       key: 'ledger',
-      label: `积分流水 (${ledger.length})`,
+      label: t("积分流水 ({{0}})", { "0": ledger.length }),
       children: (
         <Table
           columns={ledgerColumns}
@@ -307,7 +308,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p>管理头像、昵称、登录密码，以及查看个人积分账单和余额变化。</p>
+          <p>{t("管理头像、昵称、登录密码，以及查看个人积分账单和余额变化。")}</p>
         </section>
 
         <Card>
@@ -322,17 +323,17 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
                 <h2>{currentProfile.displayName || currentProfile.username}</h2>
                 {roleTag}
               </div>
-              <span>账号：{currentProfile.username}</span>
+              <span>{t("账号：")}{currentProfile.username}</span>
             </div>
             <Space>
               <Button icon={<EditOutlined />} onClick={openProfileModal}>
-                修改昵称
+                {t("修改昵称")}
               </Button>
               <Button icon={<LockOutlined />} onClick={openPasswordModal}>
-                修改密码
+                {t("修改密码")}
               </Button>
               <Button danger icon={<LogoutOutlined />} onClick={openLogoutConfirm}>
-                退出登录
+                {t("退出登录")}
               </Button>
             </Space>
           </div>
@@ -341,20 +342,20 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
         <section className="settings-section">
           <div className="settings-section-actions">
           <Button icon={<ReloadOutlined />} onClick={() => void loadCreditLedger()} loading={ledgerLoading}>
-            刷新账单
+            {t("刷新账单")}
           </Button>
           </div>
           <Descriptions bordered column={3} size="small">
-            <Descriptions.Item label="当前积分余额">
+            <Descriptions.Item label={t("当前积分余额")}>
               {formatIntegerCreditAmount(currentProfile.creditBalance || 0)} Credit
             </Descriptions.Item>
-            <Descriptions.Item label="累计充值积分">
+            <Descriptions.Item label={t("累计充值积分")}>
               {formatCredits(creditSummary.totalRechargeCredits)}
             </Descriptions.Item>
-            <Descriptions.Item label="累计消耗积分">
+            <Descriptions.Item label={t("累计消耗积分")}>
               {formatCredits(creditSummary.totalUsageCredits)}
             </Descriptions.Item>
-            <Descriptions.Item label="注册时间">
+            <Descriptions.Item label={t("注册时间")}>
               {formatDateTime(currentProfile.createdAt)}
             </Descriptions.Item>
           </Descriptions>
@@ -370,12 +371,12 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
 
       <Modal
         confirmLoading={savingProfile}
-        okText="保存"
-        cancelText="取消"
+        okText={t("保存")}
+        cancelText={t("取消")}
         onCancel={() => setProfileModalOpen(false)}
         onOk={() => profileForm.submit()}
         open={profileModalOpen}
-        title="修改昵称"
+        title={t("修改昵称")}
       >
         <Form
           form={profileForm}
@@ -383,29 +384,29 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           onFinish={handleProfileSubmit}
           requiredMark={false}
         >
-          <Form.Item label="账号" tooltip="账号用于登录，不支持修改">
+          <Form.Item label={t("账号")} tooltip={t("账号用于登录，不支持修改")}>
             <Input disabled value={currentProfile.username} size="large" />
           </Form.Item>
           <Form.Item
-            label="昵称"
+            label={t("昵称")}
             name="displayName"
             rules={[
-              { required: true, min: 2, message: '请输入至少 2 位昵称' },
+              { required: true, min: 2, message: t("请输入至少 2 位昵称") },
             ]}
           >
-            <Input placeholder="请输入昵称" size="large" />
+            <Input placeholder={t("请输入昵称")} size="large" />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
         confirmLoading={savingPassword}
-        okText="修改"
-        cancelText="取消"
+        okText={t("修改")}
+        cancelText={t("取消")}
         onCancel={() => setPasswordModalOpen(false)}
         onOk={() => passwordForm.submit()}
         open={passwordModalOpen}
-        title="修改密码"
+        title={t("修改密码")}
       >
         <Form
           form={passwordForm}
@@ -414,46 +415,46 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
           requiredMark={false}
         >
           <Form.Item
-            label="当前密码"
+            label={t("当前密码")}
             name="currentPassword"
-            rules={[{ required: true, message: '请输入当前密码' }]}
+            rules={[{ required: true, message: t("请输入当前密码") }]}
           >
             <Input.Password
               autoComplete="current-password"
-              placeholder="请输入当前密码"
+              placeholder={t("请输入当前密码")}
               size="large"
             />
           </Form.Item>
           <Form.Item
-            label="新密码"
+            label={t("新密码")}
             name="nextPassword"
-            rules={[{ required: true, min: 6, message: '新密码至少 6 位' }]}
+            rules={[{ required: true, min: 6, message: t("新密码至少 6 位") }]}
           >
             <Input.Password
               autoComplete="new-password"
-              placeholder="至少 6 位"
+              placeholder={t("至少 6 位")}
               size="large"
             />
           </Form.Item>
           <Form.Item
             dependencies={['nextPassword']}
-            label="确认新密码"
+            label={t("确认新密码")}
             name="confirmPassword"
             rules={[
-              { required: true, message: '请再次输入新密码' },
+              { required: true, message: t("请再次输入新密码") },
               ({ getFieldValue }) => ({
                 validator(_: unknown, value: string | undefined) {
                   if (!value || getFieldValue('nextPassword') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('两次输入的新密码不一致'));
+                  return Promise.reject(new Error(t("两次输入的新密码不一致")));
                 },
               }),
             ]}
           >
             <Input.Password
               autoComplete="new-password"
-              placeholder="再次输入新密码"
+              placeholder={t("再次输入新密码")}
               size="large"
             />
           </Form.Item>

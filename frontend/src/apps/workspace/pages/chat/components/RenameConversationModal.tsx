@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Input, Modal, message } from 'antd';
 import type { ChatConversation } from '../../../types';
 import './RenameConversationModal.scss';
+import { t } from '@shared/i18n';
 
 type RenameConversationModalProps = {
   conversation?: ChatConversation;
@@ -29,7 +30,7 @@ export function RenameConversationModal({
 
     const nextTitle = title.trim();
     if (!nextTitle) {
-      message.warning('会话名称不能为空');
+      message.warning(t("会话名称不能为空"));
       return;
     }
 
@@ -38,14 +39,14 @@ export function RenameConversationModal({
 
   return (
     <Modal
-      cancelText="取消"
+      cancelText={t("取消")}
       centered
       className="chat-rename-modal"
-      okText="保存"
+      okText={t("保存")}
       onCancel={onCancel}
       onOk={() => void handleSubmit()}
       open={open}
-      title="修改会话名"
+      title={t("修改会话名")}
       zIndex={1600}
     >
       <Input
@@ -53,7 +54,7 @@ export function RenameConversationModal({
         maxLength={80}
         onChange={(event) => setTitle(event.target.value)}
         onPressEnter={() => void handleSubmit()}
-        placeholder="请输入会话名称"
+        placeholder={t("请输入会话名称")}
         showCount
         value={title}
       />

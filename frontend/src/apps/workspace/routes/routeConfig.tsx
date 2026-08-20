@@ -41,6 +41,7 @@ import { routePaths } from './paths';
 import type { RouteResourceDisplayInfo } from '@shared/hooks/useRouteResourceNames';
 import type { WorkspaceMenuItem } from '@shared/layouts/WorkspaceShellLayout';
 import type { AuthSession, CreativeModuleCode, User } from '../types';
+import { t } from '@shared/i18n';
 
 const ContentStudioPage = lazy(() => import('../pages/content/ContentStudioPage').then((m) => ({ default: m.ContentStudioPage })));
 const ContentWorkbenchPage = lazy(() => import('../pages/content/ContentWorkbenchPage').then((m) => ({ default: m.ContentWorkbenchPage })));
@@ -172,12 +173,12 @@ type UserGrantState = {
 const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string; selectedIcon: ReactNode }> = {
   material: {
     icon: <FolderOpenOutlined />,
-    label: '素材库',
+    label: t("素材库"),
     selectedIcon: <FolderOpenFilled />,
   },
   video: {
     icon: <VideoCameraOutlined />,
-    label: '视频生成',
+    label: t("视频生成"),
     selectedIcon: <VideoCameraFilled />,
   },
 };
@@ -229,7 +230,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'directory',
     },
     handle: {
-      title: '内容创作工作台',
+      title: t("内容创作工作台"),
     },
   },
   {
@@ -244,7 +245,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '人物素材',
+      title: t("人物素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -268,7 +269,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '人声素材',
+      title: t("人声素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -292,7 +293,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '场景素材',
+      title: t("场景素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -316,7 +317,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '产品素材',
+      title: t("产品素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -341,7 +342,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: '发现',
+      title: t("发现"),
       sidebar: { icon: <CompassOutlined />, selectedIcon: <CompassFilled />, sortOrder: -10 },
     },
   },
@@ -353,7 +354,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
     handle: {
-      title: '图片创作',
+      title: t("图片创作"),
     },
   },
   {
@@ -369,7 +370,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: '批量',
+      title: t("批量"),
       surface: 'studio',
       sidebar: {
         icon: <TableOutlined />,
@@ -391,7 +392,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: '作品',
+      title: t("作品"),
       surface: 'studio',
       sidebar: {
         icon: <FolderOutlined />,
@@ -415,12 +416,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: '视频创作',
+      title: t("视频创作"),
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
         icon: <VideoCameraOutlined />,
-        label: '视频创作',
+        label: t("视频创作"),
         selectedIcon: <VideoCameraFilled />,
       },
       contentNavigation: {
@@ -440,7 +441,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       />,
     ),
     handle: {
-      title: '账号中心',
+      title: t("账号中心"),
       surface: 'studio',
     },
   },
@@ -957,7 +958,7 @@ export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?
     sidebarItems.push({
       key: routePaths.defaultModule,
       icon: <PictureOutlined />,
-      label: resourceInfoMap?.get('web.module.chat')?.name || '图片创作',
+      label: resourceInfoMap?.get('web.module.chat')?.name || t("图片创作"),
       orderIndex: resourceInfoMap?.get('web.module.chat')?.orderIndex ?? Number.MAX_SAFE_INTEGER,
       selectedIcon: <PictureFilled />,
       sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
@@ -1000,7 +1001,7 @@ export function getWorkspaceLayoutState(currentUser: User, pathname: string, mat
   const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined)
     || matchedHandle?.sidebar?.label
     || resolveRouteTitle(matchedHandle?.title, pathname)
-    || '工作台';
+    || t("工作台");
   const selectedMenuKey = pathname === routePaths.defaultModule
     ? chatMenuKey
     : topLevelRoutes.find((item) => item.key === pathname)?.key

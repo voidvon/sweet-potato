@@ -3,6 +3,7 @@ import { ImageOff, LoaderCircle, Pause, Play, Plus, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import './MediaAttachmentStack.scss';
+import { t } from '@shared/i18n';
 
 export type MediaAttachmentItem = {
   background?: string;
@@ -240,7 +241,7 @@ export function MediaAttachmentStack({
     const action = showAction
       ? renderAction?.(item, originalIndex) ?? (onRemove ? (
         <button
-          aria-label={`删除${item.name}`}
+          aria-label={t("删除{{0}}", { "0": item.name })}
           className="media-attachment-stack__delete"
           onClick={(event) => {
             event.stopPropagation();
@@ -255,7 +256,7 @@ export function MediaAttachmentStack({
 
     return (
       <div
-        aria-label={canPreview ? `预览${item.name}` : undefined}
+        aria-label={canPreview ? t("预览{{0}}", { "0": item.name }) : undefined}
         className={`media-attachment-stack__item is-${item.type}${expanded ? ' is-expanded' : ''}${collapsedHidden && !expanded && !keepVisibleWhileCollapsing ? ' is-collapsed-hidden' : ''}${canPreview ? ' is-clickable' : ''}`}
         key={item.id}
         onClick={canPreview ? () => preview(item, originalIndex) : undefined}
@@ -278,7 +279,7 @@ export function MediaAttachmentStack({
               ) : null}
               {showCaption && item.caption ? <span className="media-attachment-stack__caption">{item.caption}</span> : null}
               {item.status === 'uploading' ? (
-                <span aria-label="图片上传中" className="media-attachment-stack__uploading">
+                <span aria-label={t("图片上传中")} className="media-attachment-stack__uploading">
                   <LoaderCircle size={15} />
                 </span>
               ) : null}
@@ -408,7 +409,7 @@ function UnavailableContent() {
   return (
     <span className="media-attachment-stack__unavailable">
       <ImageOff aria-hidden="true" size={18} strokeWidth={1.7} />
-      <span>已清理或过期</span>
+      <span>{t("已清理或过期")}</span>
     </span>
   );
 }

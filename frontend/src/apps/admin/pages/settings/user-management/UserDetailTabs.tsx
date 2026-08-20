@@ -16,6 +16,7 @@ import {
   pricingModeLabel,
   usageModelName,
 } from './userManagementFormatters';
+import { t } from '@shared/i18n';
 
 type UserDetailTabsProps = {
   billableUsage: AdminBillableUsageRecord[];
@@ -38,13 +39,13 @@ export function UserDetailTabs({
 
   const ledgerColumns: TableProps<AdminCreditLedgerEntry>['columns'] = [
     {
-      title: '时间',
+      title: t("时间"),
       dataIndex: 'createdAt',
       width: 200,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '类型',
+      title: t("类型"),
       width: 120,
       render: (_value, record) => {
         const meta = ledgerTypeLabel(record);
@@ -52,7 +53,7 @@ export function UserDetailTabs({
       },
     },
     {
-      title: '变动积分',
+      title: t("变动积分"),
       dataIndex: 'creditDelta',
       width: 140,
       render: (value: number) => (
@@ -62,13 +63,13 @@ export function UserDetailTabs({
       ),
     },
     {
-      title: '变动后余额',
+      title: t("变动后余额"),
       dataIndex: 'creditBalanceAfter',
       width: 160,
       render: (value: number) => formatCredits(value),
     },
     {
-      title: '来源',
+      title: t("来源"),
       dataIndex: 'sourceType',
       width: 180,
       render: (value?: string | null) => sourceTypeLabel(value),
@@ -77,44 +78,44 @@ export function UserDetailTabs({
 
   const usageColumns: TableProps<AdminLlmUsageRecord>['columns'] = [
     {
-      title: '时间',
+      title: t("时间"),
       dataIndex: 'createdAt',
       width: 200,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '模型',
+      title: t("模型"),
       width: 180,
       render: (_value, record) => usageModelName(record),
     },
     {
-      title: '输入 Tokens',
+      title: t("输入 Tokens"),
       dataIndex: 'promptTokens',
       width: 140,
     },
     {
-      title: '输出 Tokens',
+      title: t("输出 Tokens"),
       dataIndex: 'completionTokens',
       width: 140,
     },
     {
-      title: '缓存命中 Tokens',
+      title: t("缓存命中 Tokens"),
       dataIndex: 'cachedPromptTokens',
       width: 160,
     },
     {
-      title: '消耗积分',
+      title: t("消耗积分"),
       dataIndex: 'creditCost',
       width: 140,
       render: (value: number) => formatCredits(value),
     },
     {
-      title: '状态',
+      title: t("状态"),
       dataIndex: 'status',
       width: 100,
       render: (value: AdminLlmUsageRecord['status']) => (
         <Tag color={value === 'completed' ? 'green' : 'red'}>
-          {value === 'completed' ? '成功' : '失败'}
+          {value === 'completed' ? t("成功") : t("失败")}
         </Tag>
       ),
     },
@@ -122,13 +123,13 @@ export function UserDetailTabs({
 
   const billableUsageColumns: TableProps<AdminBillableUsageRecord>['columns'] = [
     {
-      title: '时间',
+      title: t("时间"),
       dataIndex: 'createdAt',
       width: 200,
       render: (value: string) => formatDateTime(value),
     },
     {
-      title: '类型',
+      title: t("类型"),
       width: 140,
       render: (_value, record) => {
         const meta = billableCategoryLabel(record.category);
@@ -136,35 +137,35 @@ export function UserDetailTabs({
       },
     },
     {
-      title: '模型/服务',
+      title: t("模型/服务"),
       width: 180,
       render: (_value, record) => billableUsageName(record),
     },
     {
-      title: '计费模式',
+      title: t("计费模式"),
       dataIndex: 'pricingMode',
       width: 140,
       render: (value: AdminBillableUsageRecord['pricingMode']) => pricingModeLabel(value),
     },
     {
-      title: '来源',
+      title: t("来源"),
       dataIndex: 'sourceType',
       width: 180,
       render: (value: string) => billableUsageSourceLabel({ sourceType: value }),
     },
     {
-      title: '消耗积分',
+      title: t("消耗积分"),
       dataIndex: 'creditCost',
       width: 140,
       render: (value: number) => formatCredits(value),
     },
     {
-      title: '状态',
+      title: t("状态"),
       dataIndex: 'status',
       width: 100,
       render: (value: AdminBillableUsageRecord['status']) => (
         <Tag color={value === 'completed' ? 'green' : 'red'}>
-          {value === 'completed' ? '成功' : '失败'}
+          {value === 'completed' ? t("成功") : t("失败")}
         </Tag>
       ),
     },
@@ -173,7 +174,7 @@ export function UserDetailTabs({
   const detailTabItems: TabsProps['items'] = [
     {
       key: 'recharge',
-      label: `充值记录 (${rechargeRecords.length})`,
+      label: t("充值记录 ({{0}})", { "0": rechargeRecords.length }),
       children: (
         <Table
           columns={ledgerColumns}
@@ -186,7 +187,7 @@ export function UserDetailTabs({
     },
     {
       key: 'ledger',
-      label: `积分流水 (${ledger.length})`,
+      label: t("积分流水 ({{0}})", { "0": ledger.length }),
       children: (
         <Table
           columns={ledgerColumns}
@@ -199,7 +200,7 @@ export function UserDetailTabs({
     },
     {
       key: 'usage',
-      label: `LLM 用量 (${usage.length})`,
+      label: t("LLM 用量 ({{0}})", { "0": usage.length }),
       children: (
         <Table
           columns={usageColumns}
@@ -212,7 +213,7 @@ export function UserDetailTabs({
     },
     {
       key: 'billable-usage',
-      label: `业务消费 (${billableUsage.length})`,
+      label: t("业务消费 ({{0}})", { "0": billableUsage.length }),
       children: (
         <Table
           columns={billableUsageColumns}
@@ -228,13 +229,13 @@ export function UserDetailTabs({
   return (
     <>
       <Descriptions bordered column={3} size="small">
-        <Descriptions.Item label="当前积分余额">
+        <Descriptions.Item label={t("当前积分余额")}>
           {formatIntegerCreditAmount(user.creditBalance)} Credit
         </Descriptions.Item>
-        <Descriptions.Item label="累计充值积分">
+        <Descriptions.Item label={t("累计充值积分")}>
           {formatCredits(user.totalRechargeCredits)}
         </Descriptions.Item>
-        <Descriptions.Item label="累计消耗积分">
+        <Descriptions.Item label={t("累计消耗积分")}>
           {formatCredits(user.totalUsageCredits)}
         </Descriptions.Item>
       </Descriptions>

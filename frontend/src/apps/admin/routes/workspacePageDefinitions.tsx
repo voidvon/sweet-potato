@@ -15,6 +15,7 @@ import { ContentStudioRouteFallback } from '@shared/components/RouteLoadingFallb
 import { AccountPage } from '@shared/pages/AccountPage';
 import type { User } from '@shared/types';
 import { routePaths } from './paths';
+import { t } from '@shared/i18n';
 
 const ModelSettingsPage = lazy(() => import('../pages/settings/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })));
 const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettingsPage').then((m) => ({ default: m.BillingSettingsPage })));
@@ -72,7 +73,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: (currentUser, handlers) => withStudioSuspense(
       <AccountPage currentUser={currentUser} onLogout={handlers.onLogout} onUserUpdated={handlers.onUserUpdated} />,
     ),
-    handle: { title: '账号中心', surface: 'studio' },
+    handle: { title: t("账号中心"), surface: 'studio' },
   },
   {
     key: 'settings-route-resources',
@@ -80,7 +81,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.routeResourceManagement,
     element: () => withStudioSuspense(<RouteResourceManagementPage />),
     routeResourceKey: 'admin.system.route_resources',
-    handle: { title: '路由管理', surface: 'studio', sidebar: { icon: <ApartmentOutlined />, level: 'top' } },
+    handle: { title: t("路由管理"), surface: 'studio', sidebar: { icon: <ApartmentOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -90,7 +91,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withStudioSuspense(<RoleManagementPage />),
     routeResourceKey: 'admin.users.roles',
     handle: {
-      title: '角色管理',
+      title: t("角色管理"),
       surface: 'studio',
       sidebar: { groupKey: 'users', icon: <SafetyCertificateOutlined />, level: 'child' },
     },
@@ -103,7 +104,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withStudioSuspense(<UserManagementPage />),
     routeResourceKey: 'admin.users.accounts',
     handle: {
-      title: '账号管理',
+      title: t("账号管理"),
       surface: 'studio',
       sidebar: { groupKey: 'users', icon: <UserOutlined />, level: 'child' },
     },
@@ -115,7 +116,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.allWorks,
     element: () => withStudioSuspense(<AllWorksPage />),
     routeResourceKey: 'admin.all_works',
-    handle: { title: '全部作品', surface: 'studio', sidebar: { icon: <AppstoreOutlined />, level: 'top' } },
+    handle: { title: t("全部作品"), surface: 'studio', sidebar: { icon: <AppstoreOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -124,7 +125,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.discover,
     element: () => withStudioSuspense(<DiscoverManagementPage />),
     routeResourceKey: 'admin.discover',
-    handle: { title: '发现', surface: 'studio', sidebar: { icon: <AppstoreOutlined />, level: 'top' } },
+    handle: { title: t("发现"), surface: 'studio', sidebar: { icon: <AppstoreOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -133,7 +134,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.billingSettings,
     element: () => withStudioSuspense(<BillingSettingsPage />),
     routeResourceKey: 'admin.system.billing',
-    handle: { title: '积分设置', surface: 'studio', sidebar: { icon: <CreditCardOutlined />, level: 'top' } },
+    handle: { title: t("积分设置"), surface: 'studio', sidebar: { icon: <CreditCardOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -142,7 +143,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.modelSettings,
     element: () => withStudioSuspense(<ModelSettingsPage />),
     routeResourceKey: 'admin.system.models',
-    handle: { title: '模型配置', surface: 'studio', sidebar: { icon: <RobotOutlined />, level: 'top' } },
+    handle: { title: t("模型配置"), surface: 'studio', sidebar: { icon: <RobotOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -151,7 +152,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.fileManagement,
     element: () => withStudioSuspense(<FileManagementPage />),
     routeResourceKey: 'admin.system.file_management',
-    handle: { title: '文件管理', surface: 'studio', sidebar: { icon: <FileOutlined />, level: 'top' } },
+    handle: { title: t("文件管理"), surface: 'studio', sidebar: { icon: <FileOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -160,7 +161,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.temporaryAssetCleanup,
     element: () => withStudioSuspense(<TemporaryAssetCleanupPage />),
     routeResourceKey: 'admin.system.temporary_assets',
-    handle: { title: '临时素材清理', surface: 'studio', sidebar: { icon: <ClearOutlined />, level: 'top' } },
+    handle: { title: t("临时素材清理"), surface: 'studio', sidebar: { icon: <ClearOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -169,7 +170,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.systemSettings,
     element: () => withStudioSuspense(<SystemSettingsPage />),
     routeResourceKey: 'admin.system.settings',
-    handle: { title: '系统设置', surface: 'studio', sidebar: { icon: <SettingOutlined />, level: 'top' } },
+    handle: { title: t("系统设置"), surface: 'studio', sidebar: { icon: <SettingOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {
@@ -178,7 +179,7 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     fullPath: routePaths.siteAccessLogs,
     element: () => withStudioSuspense(<SiteAccessLogPage />),
     routeResourceKey: 'admin.system.access_logs',
-    handle: { title: '站点访问日志', surface: 'studio', sidebar: { icon: <HistoryOutlined />, level: 'top' } },
+    handle: { title: t("站点访问日志"), surface: 'studio', sidebar: { icon: <HistoryOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
 ];

@@ -13,13 +13,14 @@ import { PromptModal } from './PromptModal';
 import { TalkingVideoImageMaterials } from './TalkingVideoPanel';
 import { resolveLocalMaterialUrl } from '../materialUrl';
 import './TalkingVideoGenerationModal.scss';
+import { t } from '@shared/i18n';
 
 const audioKind: MaterialKind = {
   key: 'audio',
-  label: '口播声音',
-  hint: '限 1 段，≤ 15 秒',
+  label: t("口播声音"),
+  hint: t("限 1 段，≤ 15 秒"),
   maxCount: 1,
-  meta: '可选',
+  meta: t("可选"),
 };
 
 export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneState }) {
@@ -51,7 +52,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
 
   const copyPrompt = async () => {
     await navigator.clipboard.writeText(draft);
-    message.success('提示词已复制');
+    message.success(t("提示词已复制"));
   };
 
   return (
@@ -64,11 +65,11 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
           {!confirmed && (
             <div className="talking-video-modal-confirmation">
               <div>
-                <strong>请确认提示词是否符合预期。提示词会直接影响最终视频效果。</strong>
+                <strong>{t("请确认提示词是否符合预期。提示词会直接影响最终视频效果。")}</strong>
                 <span>
                   {promptModified
-                    ? '您已修改系统生成的提示词，请确认内容后继续生成。'
-                    : '您当前未修改系统生成的提示词，如确认使用当前提示词，请点击确认后继续生成。'}
+                    ? t("您已修改系统生成的提示词，请确认内容后继续生成。")
+                    : t("您当前未修改系统生成的提示词，如确认使用当前提示词，请点击确认后继续生成。")}
                 </span>
               </div>
               <Button
@@ -77,20 +78,20 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 size="small"
                 variant="solid"
               >
-                确认使用当前提示词
+                {t("确认使用当前提示词")}
               </Button>
             </div>
           )}
 
           <p className="talking-video-modal-audio-note">
             {audioFiles.length
-              ? '已选择参考音频，最终视频将使用该素材锁定口播声线。'
-              : '未上传参考音频，最终视频将由模型按提示词中的台词自动生成口播声线，声音风格可能与预期有偏差。'}
+              ? t("已选择参考音频，最终视频将使用该素材锁定口播声线。")
+              : t("未上传参考音频，最终视频将由模型按提示词中的台词自动生成口播声线，声音风格可能与预期有偏差。")}
           </p>
 
           <div className="talking-video-modal-submit-row">
             <div className="talking-video-modal-parameters">
-              <span>镜头比例</span>
+              <span>{t("镜头比例")}</span>
               <Dropdown
                 menu={{
                   items: ratioOptions.map((ratio) => ({ key: ratio, label: ratio })),
@@ -108,7 +109,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                   <ChevronDown size={14} />
                 </Button>
               </Dropdown>
-              <span>模型</span>
+              <span>{t("模型")}</span>
               <Dropdown
                 menu={{
                   items: modelOptions.map((model) => ({ key: model, label: model })),
@@ -119,7 +120,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
               >
                 <Button icon={<Layers3 size={15} />}>{state.model}<ChevronDown size={14} /></Button>
               </Dropdown>
-              <span>清晰度</span>
+              <span>{t("清晰度")}</span>
               <Dropdown
                 menu={{
                   items: qualityOptions.map((quality) => ({ key: quality.label, label: quality.label })),
@@ -145,7 +146,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
                 onClick={() => void state.generateTalkingVideoFromPrompt(draft)}
                 type="primary"
               >
-                {state.isTalkingVideoSubmitting ? '提交中…' : '提交生成'}
+                {state.isTalkingVideoSubmitting ? t("提交中…") : t("提交生成")}
               </Button>
             </div>
           </div>
@@ -156,8 +157,8 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
       keyboard={!promptExpanded}
       title={(
         <span className="talking-video-modal-heading">
-          <strong>生成视频</strong>
-          <small>选择参考图片、参考音频和镜头比例后提交</small>
+          <strong>{t("生成视频")}</strong>
+          <small>{t("选择参考图片、参考音频和镜头比例后提交")}</small>
         </span>
       )}
       width="min(1180px, calc(100vw - 48px))"
@@ -166,11 +167,11 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         <div className="talking-video-modal-materials">
           <TalkingVideoImageMaterials
             description=""
-            headerNote="模特必填，按 模特 → 产品 → 背景 → 细节 顺序参与生成；总图片数不超过 9 张"
+            headerNote={t("模特必填，按 模特 → 产品 → 背景 → 细节 顺序参与生成；总图片数不超过 9 张")}
             onImageFiles={state.fillTalkingVideoGenerationImageFiles}
             onImageRemove={(materialId) => state.removeTalkingVideoGenerationMaterial('image', materialId)}
             selectedMaterials={state.talkingVideoGenerationMaterials}
-            title="参考图片"
+            title={t("参考图片")}
           />
 
           <TalkingVideoAudioSelector state={state} />
@@ -179,20 +180,20 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
         <section className="talking-video-modal-prompt">
           <div className="talking-video-modal-prompt-actions">
             <Button
-              aria-label="复制提示词"
+              aria-label={t("复制提示词")}
               className="talking-video-modal-prompt-action"
               icon={<Copy size={16} />}
               onClick={() => void copyPrompt()}
-              title="复制提示词"
+              title={t("复制提示词")}
               type="text"
             />
             <Button
-              aria-label="全屏编辑提示词"
+              aria-label={t("全屏编辑提示词")}
               className="talking-video-modal-prompt-action video-task-expand"
               icon={<Maximize size={18} />}
               onClick={() => setPromptExpanded(true)}
               shape="circle"
-              title="全屏编辑提示词"
+              title={t("全屏编辑提示词")}
               type="text"
             />
           </div>
@@ -203,7 +204,7 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
               setConfirmed(false);
             }}
             onPlaceholderFiles={state.fillTalkingVideoGenerationMentionFiles}
-            placeholder="检查并调整口播分镜提示词"
+            placeholder={t("检查并调整口播分镜提示词")}
             prompt={draft}
             selectedMaterials={editorMaterials}
             suggestionContainer="body"
@@ -213,17 +214,17 @@ export function TalkingVideoGenerationModal({ state }: { state: VideoTaskCloneSt
       </Modal>
       {promptExpanded ? (
         <PromptModal
-          description="检查和调整口播分镜提示词，输入 @ 可引用参考素材"
+          description={t("检查和调整口播分镜提示词，输入 @ 可引用参考素材")}
           onClose={() => setPromptExpanded(false)}
           onPlaceholderFiles={state.fillTalkingVideoGenerationMentionFiles}
           onPromptChange={(value) => {
             setDraft(value);
             setConfirmed(false);
           }}
-          placeholder="检查并调整口播分镜提示词"
+          placeholder={t("检查并调整口播分镜提示词")}
           prompt={draft}
           selectedMaterials={editorMaterials}
-          title="编辑提示词"
+          title={t("编辑提示词")}
         />
       ) : null}
     </>
@@ -237,8 +238,8 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
   const selectedAudio = audioFiles[0];
   const audioItems = useMemo(() => audioFiles.map((file): MediaAttachmentItem => ({
     background: 'var(--color-surface-muted)',
-    caption: '口播',
-    detail: file.audioDuration ? `${Math.round(file.audioDuration)}s` : '音频',
+    caption: t("口播"),
+    detail: file.audioDuration ? `${Math.round(file.audioDuration)}s` : t("音频"),
     id: file.id,
     src: resolveLocalMaterialUrl(file),
     name: file.name,
@@ -272,7 +273,7 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
   return (
     <section className="talking-video-modal-audio">
       <header>
-        <div><Music2 size={16} /><strong>参考音频</strong></div>
+        <div><Music2 size={16} /><strong>{t("参考音频")}</strong></div>
         <Popover
           content={libraryContent}
           onOpenChange={setLibraryOpen}
@@ -281,7 +282,7 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
           placement="bottomRight"
           trigger="click"
         >
-          <Button icon={<Library size={14} />} shape="round" size="small">素材库</Button>
+          <Button icon={<Library size={14} />} shape="round" size="small">{t("素材库")}</Button>
         </Popover>
       </header>
       <input
@@ -301,12 +302,12 @@ function TalkingVideoAudioSelector({ state }: { state: VideoTaskCloneState }) {
         ) : (
           <button onClick={() => inputRef.current?.click()} type="button">
             <Upload size={16} />
-            <span>上传音频</span>
-            <small>或点击「素材库」插入</small>
+            <span>{t("上传音频")}</span>
+            <small>{t("或点击「素材库」插入")}</small>
           </button>
         )}
       </div>
-      <p>仅支持一段 MP3/WAV 音频，时长不超过 15 秒。</p>
+      <p>{t("仅支持一段 MP3/WAV 音频，时长不超过 15 秒。")}</p>
     </section>
   );
 }

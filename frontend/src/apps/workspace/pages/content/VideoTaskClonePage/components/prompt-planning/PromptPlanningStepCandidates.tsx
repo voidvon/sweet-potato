@@ -7,6 +7,7 @@ import './PromptPlanningSharedFields.scss';
 import './PromptPlanningStepCandidatesCards.scss';
 import './PromptPlanningStepCandidatesThinking.scss';
 import './PromptPlanningStepCandidates.scss';
+import { t } from '@shared/i18n';
 
 type PromptPlanningStepCandidatesProps = {
   controller: PromptPlanningController;
@@ -63,9 +64,9 @@ export function PromptPlanningStepCandidates({ controller }: PromptPlanningStepC
           >
             <div>
               <span className={`video-task-epa-thinking-dot${isGenerating ? ' is-running' : ''}`} />
-              <strong>深度思考过程</strong>
+              <strong>{t("深度思考过程")}</strong>
             </div>
-            <span>{isThinkingCollapsed ? '展开' : '收起'} {isThinkingCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>
+            <span>{isThinkingCollapsed ? t("展开") : t("收起")} {isThinkingCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>
           </button>
           {!isThinkingCollapsed ? (
             <pre
@@ -84,7 +85,7 @@ export function PromptPlanningStepCandidates({ controller }: PromptPlanningStepC
                 <>
                   {'\n'}
                   <span className="video-task-epa-thinking-placeholder">
-                    思考中
+                    {t("思考中")}
                     <span aria-hidden="true" className="video-task-epa-thinking-dots">
                       <i />
                       <i />
@@ -110,7 +111,7 @@ export function PromptPlanningStepCandidates({ controller }: PromptPlanningStepC
                   onClick={() => void handleSelectCandidate(candidate)}
                   type="button"
                 >
-                  <span className="video-task-epa-candidate-pill">脚本{index + 1}</span>
+                  <span className="video-task-epa-candidate-pill">{t("脚本")}{index + 1}</span>
                   <strong>{candidate.title}</strong>
                   <p>{candidate.summary}</p>
                 </button>
@@ -121,15 +122,15 @@ export function PromptPlanningStepCandidates({ controller }: PromptPlanningStepC
           <section className="video-task-epa-script-card">
             <div className="video-task-epa-script-head">
               <div className="video-task-epa-script-title">
-                <strong>选中脚本（逐秒分镜）</strong>
-                <span>点「编辑」可微调，确认后回填</span>
+                <strong>{t("选中脚本（逐秒分镜）")}</strong>
+                <span>{t("点「编辑」可微调，确认后回填")}</span>
               </div>
               <button
                 className="video-task-epa-edit-btn"
                 onClick={() => setIsEditingScript((current) => !current)}
                 type="button"
               >
-                {isEditingScript ? '完成' : '编辑'}
+                {isEditingScript ? t("完成") : t("编辑")}
               </button>
             </div>
             <textarea
@@ -145,7 +146,7 @@ export function PromptPlanningStepCandidates({ controller }: PromptPlanningStepC
           </section>
         </>
       ) : !showStep4Loading ? (
-        <div className="video-task-epa-empty-hint">脚本生成完成后，这里会展示候选脚本与逐秒分镜。</div>
+        <div className="video-task-epa-empty-hint">{t("脚本生成完成后，这里会展示候选脚本与逐秒分镜。")}</div>
       ) : null}
     </>
   );

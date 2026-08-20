@@ -6,6 +6,7 @@ import {
   VideoCameraOutlined,
 } from '@ant-design/icons';
 import type { ManagedFileMediaType } from '../../../api/file-management';
+import { t } from '@shared/i18n';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -18,20 +19,20 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
 });
 
 export const resourceTypeLabels: Record<string, string> = {
-  digital_human: '数字人',
-  virtual_portrait: '形象素材',
-  voice: '音色',
-  scene: '场景',
-  product: '商品',
-  finished_video: '成片',
-  real_person: '真人素材',
-  other: '其他',
+  digital_human: t("数字人"),
+  virtual_portrait: t("形象素材"),
+  voice: t("音色"),
+  scene: t("场景"),
+  product: t("商品"),
+  finished_video: t("成片"),
+  real_person: t("真人素材"),
+  other: t("其他"),
 };
 
 export const lifecycleLabels: Record<string, { color: string; label: string }> = {
-  temporary: { color: 'gold', label: '临时' },
-  retained: { color: 'blue', label: '已引用' },
-  permanent: { color: 'green', label: '永久' },
+  temporary: { color: 'gold', label: t("临时") },
+  retained: { color: 'blue', label: t("已引用") },
+  permanent: { color: 'green', label: t("永久") },
 };
 
 export function formatBytes(bytes: number) {

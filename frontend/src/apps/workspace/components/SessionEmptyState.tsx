@@ -1,5 +1,6 @@
 import { MessageSquarePlus } from 'lucide-react';
 import './SessionEmptyState.scss';
+import { t } from '@shared/i18n';
 
 type SessionEmptyStateProps = {
   description: string;
@@ -12,7 +13,7 @@ export function SessionEmptyState({ description }: SessionEmptyStateProps) {
         <MessageSquarePlus size={18} strokeWidth={1.8} />
       </span>
       <span className="session-empty-state-copy">
-        <strong>暂无会话</strong>
+        <strong>{t("暂无会话")}</strong>
         <span>{description}</span>
       </span>
     </div>

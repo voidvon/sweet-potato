@@ -7,6 +7,7 @@ import type {
   PaginatedResult,
 } from '../../types';
 import { request } from '../request';
+import { t } from '@shared/i18n';
 
 enum Api {
   realPersonValidationSession = '/api/content/real-person/validation-session',
@@ -254,7 +255,7 @@ export async function uploadContentAssetDirect(payload: {
     body: payload.file,
   });
   if (!uploadResponse.ok) {
-    throw new Error(`文件上传到对象存储失败（${uploadResponse.status}）`);
+    throw new Error(t("文件上传到对象存储失败（{{0}}）", { "0": uploadResponse.status }));
   }
   return request<ContentAsset>(Api.completeDirectUpload, {
     method: 'POST',

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { downloadUrlAsFile } from '@shared/utils/download';
 import './AppImage.scss';
+import { t } from '@shared/i18n';
 
 export type AppImageDownload = {
   fileName?: string;
@@ -31,9 +32,9 @@ function downloadFileName(url: string, fallback?: string) {
     return fallback;
   }
   try {
-    return decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() || '') || '图片';
+    return decodeURIComponent(new URL(url, window.location.href).pathname.split('/').pop() || '') || t("图片");
   } catch {
-    return '图片';
+    return t("图片");
   }
 }
 
@@ -50,7 +51,7 @@ function appendDownloadAction(originalNode: ReactNode, onDownload: () => void) {
       className={`${actionsClassName}-action app-image-preview-download`}
       key="download"
       onClick={onDownload}
-      title="下载"
+      title={t("下载")}
       type="button"
     >
       <DownloadOutlined />
@@ -66,7 +67,7 @@ function runDownload(
     ? onDownload(download)
     : downloadUrlAsFile(download.url, downloadFileName(download.url, download.fileName));
   void Promise.resolve(operation).catch((error) => {
-    message.error(error instanceof Error ? error.message : '图片下载失败');
+    message.error(error instanceof Error ? error.message : t("图片下载失败"));
   });
 }
 

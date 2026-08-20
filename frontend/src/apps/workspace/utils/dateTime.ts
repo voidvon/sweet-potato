@@ -1,4 +1,5 @@
-const DAY_MS = 24 * 60 * 60 * 1000;
+
+import { t } from '@shared/i18n';const DAY_MS = 24 * 60 * 60 * 1000;
 
 function pad2(value: number) {
   return String(value).padStart(2, '0');
@@ -23,7 +24,7 @@ function startOfLocalWeek(date: Date) {
 }
 
 function weekdayLabel(date: Date) {
-  const labels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  const labels = [t("星期日"), t("星期一"), t("星期二"), t("星期三"), t("星期四"), t("星期五"), t("星期六")];
   return labels[date.getDay()] || '';
 }
 
@@ -51,10 +52,10 @@ export function formatRelativeCalendarDateTime(value?: string | Date | null, now
     return timeText;
   }
   if (dayDiff === 1) {
-    return `昨天 ${timeText}`;
+    return t("昨天 {{0}}", { "0": timeText });
   }
   if (dayDiff === 2) {
-    return `前天 ${timeText}`;
+    return t("前天 {{0}}", { "0": timeText });
   }
   if (dateDay.getTime() >= startOfLocalWeek(now).getTime()) {
     return `${weekdayLabel(date)} ${timeText}`;

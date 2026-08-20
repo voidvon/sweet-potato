@@ -13,6 +13,7 @@ import { useVideoTaskCloneState } from './useVideoTaskCloneState';
 import type { ToolOption } from './types';
 import type { User, VideoGenerationTask } from '../../../types';
 import './VideoTaskClonePage.scss';
+import { t } from '@shared/i18n';
 
 type VideoTaskClonePageProps = {
   currentUser: User;
@@ -54,11 +55,11 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
     }
 
     Modal.confirm({
-      cancelText: '取消',
-      content: '当前视频创作已有内容，继续编辑将使用这条生成记录的配置覆盖现有内容。',
-      okText: '覆盖并编辑',
+      cancelText: t("取消"),
+      content: t("当前视频创作已有内容，继续编辑将使用这条生成记录的配置覆盖现有内容。"),
+      okText: t("覆盖并编辑"),
       onOk: applyRecordToForm,
-      title: '确定覆盖内容？',
+      title: t("确定覆盖内容？"),
     });
   };
 
@@ -75,7 +76,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
 
   return (
     <div className={pageClassName}>
-      <section className="video-task-left" aria-label="视频生成功能">
+      <section className="video-task-left" aria-label={t("视频生成功能")}>
         <ToolSwitcher
           currentTool={state.tool}
           isOpen={state.showToolMenu}
@@ -103,17 +104,17 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
       {state.expandedPrompt && (
         <PromptModal
           description={state.tool.key === 'marketing-video'
-            ? '补充生成或解析方向，输入 @ 引用商品素材'
+            ? t("补充生成或解析方向，输入 @ 引用商品素材")
             : undefined}
           onClose={() => state.setExpandedPrompt(false)}
           onPlaceholderFiles={state.fillMentionPlaceholderFiles}
           onPromptChange={state.setPrompt}
           placeholder={state.tool.key === 'marketing-video'
-            ? '补充你希望生成或解析的方向，输入 @ 引用素材'
+            ? t("补充你希望生成或解析的方向，输入 @ 引用素材")
             : undefined}
           prompt={state.prompt}
           selectedMaterials={state.selectedMaterials}
-          title={state.tool.key === 'marketing-video' ? '提示词 / 要求' : undefined}
+          title={state.tool.key === 'marketing-video' ? t("提示词 / 要求") : undefined}
         />
       )}
 

@@ -15,6 +15,7 @@ import type {
   SelectedMaterials,
 } from '../../types';
 import type { ConfirmedReferenceVideo } from '../ReferenceVideoCard';
+import { t } from '@shared/i18n';
 
 export function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {
   return Array.isArray(value) ? value : [];
@@ -99,9 +100,9 @@ export function hasSessionMaterialBundle(session: PlanningSession) {
 
 export function implicitUploadGroupName(resourceType: ContentAssetResourceType) {
   if (resourceType === 'voice') {
-    return '视频制作参考音频';
+    return t("视频制作参考音频");
   }
-  return '视频制作参考素材';
+  return t("视频制作参考素材");
 }
 
 export async function ensureUploadGroupId(input: {
@@ -152,7 +153,7 @@ export async function ensureMaterialAssetIds(input: {
       return file.assetId;
     }
     if (!file.file) {
-      throw new Error(`缺少待上传素材文件：${file.name}`);
+      throw new Error(t("缺少待上传素材文件：{{0}}", { "0": file.name }));
     }
     const uploaded = await uploadContentAsset({
       file: file.file,

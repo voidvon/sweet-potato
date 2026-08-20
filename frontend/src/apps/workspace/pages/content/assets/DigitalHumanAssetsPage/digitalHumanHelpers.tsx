@@ -2,6 +2,7 @@ import { Image, Spin, message } from 'antd'
 import type { UploadFile } from 'antd'
 import type { ContentAsset } from '../../../../types'
 import { API_BASE_URL } from '../../../../api/request'
+import { t } from '@shared/i18n';
 
 export function fileUrl(asset: ContentAsset) {
   const localMirrorUrl = metadataUrl(asset, 'localMirrorUrl')
@@ -82,7 +83,7 @@ export function filesFromUploadList(fileList: UploadFile[]) {
 export async function downloadAsset(
   asset: ContentAsset,
   groupName: string,
-  label = '数字人',
+  label = t('数字人'),
 ) {
   const url = fileUrl(asset)
   const extension = asset.originalFileName.includes('.')
@@ -92,7 +93,7 @@ export async function downloadAsset(
     .toISOString()
     .replace(/[-:]/g, '')
     .replace(/\..+$/, '')
-  const fileName = `${label}三视图-${safeDownloadName(groupName)}-${time}${extension}`
+  const fileName = t("{{0}}三视图-{{1}}-{{2}}{{3}}", { "0": label, "1": safeDownloadName(groupName), "2": time, "3": extension })
   browserDownload(url, fileName)
 }
 
@@ -110,7 +111,7 @@ function safeDownloadName(value: string) {
     value
       .replace(/[\\/:*?"<>|]+/g, '-')
       .replace(/\s+/g, ' ')
-      .trim() || '未命名'
+      .trim() || t("未命名")
   )
 }
 
@@ -127,9 +128,9 @@ export function DigitalHumanResultPreview({
     return (
       <div className="digital-human-result-generating">
         <Spin size="large" />
-        <strong>图片生成中</strong>
+        <strong>{t("图片生成中")}</strong>
         <span>
-          模型正在合成三视图，可能需要几十秒到数分钟，您可以关闭弹窗，稍后再查看。
+          {t("模型正在合成三视图，可能需要几十秒到数分钟，您可以关闭弹窗，稍后再查看。")}
         </span>
       </div>
     )
@@ -137,7 +138,7 @@ export function DigitalHumanResultPreview({
   if (failureReason) {
     return (
       <div className="digital-human-result-failed">
-        <strong>三视图生成失败</strong>
+        <strong>{t("三视图生成失败")}</strong>
         <span>{failureReason}</span>
       </div>
     )

@@ -5,6 +5,7 @@ import { PendingImageUpload } from '../../AssetImageUpload'
 import { filesFromUploadList } from '../digitalHumanHelpers'
 import type { DigitalHumanAssetsController } from '../useDigitalHumanAssetsController'
 import './DigitalHumanCreateModals.scss'
+import { t } from '@shared/i18n';
 
 export function DigitalHumanCreateModals({
   controller,
@@ -18,7 +19,7 @@ export function DigitalHumanCreateModals({
         footer={null}
         onCancel={() => controller.setChoiceOpen(false)}
         open={controller.choiceOpen}
-        title={`添加${controller.label}素材`}
+        title={t("添加{{0}}素材", { "0": controller.label })}
         width={760}
       >
         <div className="digital-human-create-choice-grid">
@@ -27,16 +28,16 @@ export function DigitalHumanCreateModals({
             type="button"
           >
             <FolderUp size={58} />
-            <strong>本地上传</strong>
-            <span>上传已有{controller.label}图片</span>
+            <strong>{t("本地上传")}</strong>
+            <span>{t("上传已有")}{controller.label}{t("图片")}</span>
           </button>
           <button
             onClick={() => controller.openCreateModal('ai')}
             type="button"
           >
             <Bot size={58} />
-            <strong>AI生成</strong>
-            <span>上传训练照片生成三视图</span>
+            <strong>{t("AI生成")}</strong>
+            <span>{t("上传训练照片生成三视图")}</span>
           </button>
         </div>
       </Modal>
@@ -47,7 +48,7 @@ export function DigitalHumanCreateModals({
           controller.createMode === 'local'
             ? [
                 <Button key="cancel" onClick={controller.closeCreateModal}>
-                  取消
+                  {t("取消")}
                 </Button>,
                 <Button
                   form="digital-human-local-create-form"
@@ -56,7 +57,7 @@ export function DigitalHumanCreateModals({
                   loading={controller.library.isUploading}
                   type="primary"
                 >
-                  提交素材
+                  {t("提交素材")}
                 </Button>,
               ]
             : null
@@ -65,8 +66,8 @@ export function DigitalHumanCreateModals({
         open={controller.createOpen}
         title={
           controller.createMode === 'local'
-            ? `本地上传${controller.label}`
-            : `AI生成${controller.label}`
+            ? t("本地上传{{0}}", { "0": controller.label })
+            : t("AI生成{{0}}", { "0": controller.label })
         }
         width={controller.createMode === 'local' ? 760 : 1180}
       >
@@ -95,29 +96,29 @@ function LocalCreateForm({
       wrapperCol={{ flex: 1 }}
     >
       <Form.Item
-        label="人像名称"
+        label={t("人像名称")}
         name="name"
         rules={[
           {
             required: true,
             whitespace: true,
-            message: `请输入${controller.label}名称`,
+            message: t("请输入{{0}}名称", { "0": controller.label }),
           },
         ]}
       >
         <Input
           onChange={(event) => controller.setAvatarName(event.target.value)}
-          placeholder={`请输入${controller.label}名称`}
+          placeholder={t("请输入{{0}}名称", { "0": controller.label })}
           value={controller.avatarName}
         />
       </Form.Item>
       <Form.Item
         help={
           !controller.pendingCreateFiles.length
-            ? `请先上传${controller.label}图片`
+            ? t("请先上传{{0}}图片", { "0": controller.label })
             : undefined
         }
-        label="人像图片"
+        label={t("人像图片")}
         required
         style={{ marginBottom: 0 }}
         validateStatus={
@@ -150,7 +151,7 @@ function LocalCreateForm({
               type="button"
             >
               <PlusOutlined />
-              <div style={{ marginTop: 8 }}>上传</div>
+              <div style={{ marginTop: 8 }}>{t("上传")}</div>
             </button>
           )}
         </Upload>
@@ -168,10 +169,10 @@ function AiCreateForm({
     <div className="digital-human-create-modal">
       <div className="digital-human-create-left">
         <label className="digital-human-name-row">
-          <span>{controller.label}名称：</span>
+          <span>{controller.label}{t("名称：")}</span>
           <Input
             onChange={(event) => controller.setAvatarName(event.target.value)}
-            placeholder={`请输入${controller.label}名称`}
+            placeholder={t("请输入{{0}}名称", { "0": controller.label })}
             value={controller.avatarName}
           />
         </label>
@@ -186,7 +187,7 @@ function AiCreateForm({
             controller.setAgreementChecked(event.target.checked)
           }
         >
-          我已阅读并同意 <a>《使用协议》</a>
+          {t("我已阅读并同意")} <a>{t("《使用协议》")}</a>
         </Checkbox>
         <Button
           className="digital-human-submit"
@@ -195,37 +196,37 @@ function AiCreateForm({
           onClick={() => void controller.handleCreate()}
           type="primary"
         >
-          提交照片训练
+          {t("提交照片训练")}
         </Button>
       </div>
       <div className="digital-human-create-rules">
         <section>
-          <h3>照片要求：</h3>
+          <h3>{t("照片要求：")}</h3>
           <ul>
-            <li>建议上传全身正面、侧面、背面照片，以及头部正面和侧面近景</li>
-            <li>照片格式：JPG、PNG、WEBP</li>
-            <li>画面清晰，光线均匀，主体完整无遮挡</li>
-            <li>单张照片建议小于 20MB</li>
+            <li>{t("建议上传全身正面、侧面、背面照片，以及头部正面和侧面近景")}</li>
+            <li>{t("照片格式：JPG、PNG、WEBP")}</li>
+            <li>{t("画面清晰，光线均匀，主体完整无遮挡")}</li>
+            <li>{t("单张照片建议小于 20MB")}</li>
           </ul>
         </section>
         <section>
-          <h3>免责声明：</h3>
+          <h3>{t("免责声明：")}</h3>
           <ul>
-            <li>请确认您上传的照片已获得本人或团队授权</li>
-            <li>请勿上传涉黄、涉赌、涉毒、政治敏感或其他违法违规内容</li>
-            <li>因违规上传或使用导致的法律责任由使用者自行承担</li>
+            <li>{t("请确认您上传的照片已获得本人或团队授权")}</li>
+            <li>{t("请勿上传涉黄、涉赌、涉毒、政治敏感或其他违法违规内容")}</li>
+            <li>{t("因违规上传或使用导致的法律责任由使用者自行承担")}</li>
           </ul>
         </section>
         <section className="digital-human-bad-examples">
-          <h3>拍摄不佳示例</h3>
+          <h3>{t("拍摄不佳示例")}</h3>
           <div>
             {[
-              '表情干扰',
-              '五官遮挡',
-              '拍摄比例',
-              '衣着不整',
-              '动作干扰',
-              '多重人脸',
+              t("表情干扰"),
+              t("五官遮挡"),
+              t("拍摄比例"),
+              t("衣着不整"),
+              t("动作干扰"),
+              t("多重人脸"),
             ].map((item) => (
               <span key={item}>
                 <i>🙂</i>

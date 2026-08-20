@@ -14,6 +14,7 @@ import {
   type SidebarMenuMeta,
   type WorkspacePageDefinition,
 } from './workspacePageDefinitions';
+import { t } from '@shared/i18n';
 
 export type WorkspaceRouteState = {
   activeOpenKeys: string[];
@@ -36,7 +37,7 @@ type SidebarNavigationItem = {
 };
 
 const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string }> = {
-  users: { icon: <TeamOutlined />, label: '用户管理' },
+  users: { icon: <TeamOutlined />, label: t("用户管理") },
 };
 
 function resolveResourceInfo(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
@@ -134,7 +135,7 @@ export function getWorkspaceLayoutState(
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
   const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined)
     || resolveRouteTitle(matchedHandle?.title, pathname)
-    || '管理后台';
+    || t("管理后台");
 
   return {
     activeOpenKeys: selectedGroup ? [selectedGroup] : [],

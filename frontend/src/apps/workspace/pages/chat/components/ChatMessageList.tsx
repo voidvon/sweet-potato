@@ -17,6 +17,7 @@ import { MarkdownContent, splitThinking } from '../utils/markdown';
 import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
 import { formatRelativeCalendarDateTime } from '../../../utils/dateTime';
 import './ChatMessageList.scss';
+import { t } from '@shared/i18n';
 
 type ChatMessageListProps = {
   hasStreamingAssistant: boolean;
@@ -78,10 +79,10 @@ function imageDownloadFileName(
   contentType: string,
   downloadedAt: Date,
 ) {
-  const moduleName = imageGeneration?.modeTitle?.trim() || '图片生成';
+  const moduleName = imageGeneration?.modeTitle?.trim() || t("图片生成");
   const resolution = imageGeneration?.resolution?.trim()
     || imageGeneration?.outputSize?.trim()
-    || (attachment.width && attachment.height ? `${attachment.width}x${attachment.height}` : '未知分辨率');
+    || (attachment.width && attachment.height ? `${attachment.width}x${attachment.height}` : t("未知分辨率"));
   const pad = (value: number) => String(value).padStart(2, '0');
   const timestamp = `${pad(downloadedAt.getMonth() + 1)}${pad(downloadedAt.getDate())}-${pad(downloadedAt.getHours())}${pad(downloadedAt.getMinutes())}`;
   return `${moduleName}-${resolution}-${timestamp}.${imageExtension(contentType, attachment.name)}`;
@@ -125,7 +126,7 @@ export function ChatMessageList({
         if (!ignore) {
           setImageConfigs([]);
           message.error({
-            content: error instanceof Error ? error.message : '图片模型配置加载失败',
+            content: error instanceof Error ? error.message : t("图片模型配置加载失败"),
             key: 'image-model-config-load-error',
           });
         }
@@ -171,7 +172,7 @@ export function ChatMessageList({
     return (
       <span className={['chat-image-unavailable', className].filter(Boolean).join(' ')}>
         <ImageOff aria-hidden="true" size={22} strokeWidth={1.7} />
-        <span>图片已清理或过期</span>
+        <span>{t("图片已清理或过期")}</span>
       </span>
     );
   }
@@ -200,15 +201,15 @@ export function ChatMessageList({
       } else if (!fallbackCopyText(content)) {
         throw new Error('copy_failed');
       }
-      message.success('已复制');
+      message.success(t("已复制"));
     } catch {
       try {
         if (!fallbackCopyText(content)) {
           throw new Error('copy_failed');
         }
-        message.success('已复制');
+        message.success(t("已复制"));
       } catch {
-        message.error('复制失败');
+        message.error(t("复制失败"));
       }
     }
   }
@@ -239,7 +240,7 @@ export function ChatMessageList({
       <MediaAttachmentStack
         collapsedCaptionVisibility="top"
         items={imageAttachments.map((attachment, index) => ({
-          caption: `图${index + 1}`,
+          caption: t("图{{0}}", { "0": index + 1 }),
           id: attachment.id,
           name: attachment.name,
           previewSrc: resolveAssetUrl(attachment.url),
@@ -282,7 +283,7 @@ export function ChatMessageList({
     const ungroupedAttachments = imageAttachments.filter((attachment) => !renderedAttachmentIds.has(attachment.id));
     if (ungroupedAttachments.length) {
       groupedAttachments.reference = ungroupedAttachments;
-      visibleGroups.push({ key: 'reference', label: '参考图' });
+      visibleGroups.push({ key: 'reference', label: t("参考图") });
     }
 
     if (!visibleGroups.length) {
@@ -318,7 +319,7 @@ export function ChatMessageList({
     const attachment = option.attachment;
     const kind = attachment ? mentionKindForAttachment(attachment) : 'image';
     const previewUrl = attachment?.kind === 'image' && attachment.url ? resolveAssetUrl(attachment.url) : '';
-    const fallbackIcon = kind === 'audio' ? '♪' : kind === 'video' ? '视' : option.label.slice(0, 1);
+    const fallbackIcon = kind === 'audio' ? '♪' : kind === 'video' ? t("视") : option.label.slice(0, 1);
     return (
       <span
         className="mention-rich-textarea-chip chat-user-message-mention-chip"
@@ -345,7 +346,7 @@ export function ChatMessageList({
 
   function renderReadonlyRichText(value: string, attachments: ChatAttachment[]) {
     const mentionOptions = attachments.map((attachment, index) => {
-      const label = `图${index + 1}`;
+      const label = t("图{{0}}", { "0": index + 1 });
       return {
         attachment,
         label,
@@ -426,7 +427,7 @@ export function ChatMessageList({
   ) {
     const response = await fetch(resolveAssetUrl(attachment.url));
     if (!response.ok) {
-      throw new Error('图片下载失败');
+      throw new Error(t("图片下载失败"));
     }
     const blob = await response.blob();
     const objectUrl = window.URL.createObjectURL(blob);
@@ -451,7 +452,7 @@ export function ChatMessageList({
     attachments.forEach((attachment, index) => {
       window.setTimeout(() => {
         void downloadAttachment(attachment, imageGeneration, downloadedAt).catch((error) => {
-          message.error(error instanceof Error ? error.message : '图片下载失败');
+          message.error(error instanceof Error ? error.message : t("图片下载失败"));
         });
       }, index * 120);
     });
@@ -459,18 +460,18 @@ export function ChatMessageList({
 
   function confirmRegenerateImage(previousUserMessage: ChatMessage | undefined, assistantMessage: ChatMessage) {
     if (assistantMessage.isCompleted === false) {
-      message.warning('图片正在生成中，完成后再试');
+      message.warning(t("图片正在生成中，完成后再试"));
       return;
     }
     if (!previousUserMessage) {
       return;
     }
     Modal.confirm({
-      title: '再次生成',
+      title: t("再次生成"),
       centered: true,
-      content: '将使用上一条提示词和参考图重新生成图片，确认继续？',
-      okText: '再次生成',
-      cancelText: '取消',
+      content: t("将使用上一条提示词和参考图重新生成图片，确认继续？"),
+      okText: t("再次生成"),
+      cancelText: t("取消"),
       onOk() {
         onRegenerateImage(previousUserMessage, assistantMessage, resolveImageGenerationCreditCost(assistantMessage, previousUserMessage));
       },
@@ -479,16 +480,16 @@ export function ChatMessageList({
 
   function confirmDeleteImageResult(messageItem: ChatMessage) {
     if (messageItem.isCompleted === false) {
-      message.warning('图片正在生成中，完成后再删除');
+      message.warning(t("图片正在生成中，完成后再删除"));
       return;
     }
     Modal.confirm({
-      title: '删除生图结果',
+      title: t("删除生图结果"),
       centered: true,
-      content: '删除后这条生图结果将从当前对话中移除，确认删除？',
-      okText: '删除',
+      content: t("删除后这条生图结果将从当前对话中移除，确认删除？"),
+      okText: t("删除"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       onOk() {
         onDeleteMessage(messageItem);
       },
@@ -497,12 +498,12 @@ export function ChatMessageList({
 
   function confirmDeleteUserMessage(messageItem: ChatMessage) {
     Modal.confirm({
-      title: '删除消息',
+      title: t("删除消息"),
       centered: true,
-      content: '删除后这条消息将从当前对话中移除，确认删除？',
-      okText: '删除',
+      content: t("删除后这条消息将从当前对话中移除，确认删除？"),
+      okText: t("删除"),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: t("取消"),
       onOk() {
         onDeleteMessage(messageItem);
       },
@@ -546,8 +547,8 @@ export function ChatMessageList({
       return null;
     }
     return (
-      <span className="chat-image-generation-cost" aria-label={`消耗 ${formatCreditAmount(creditCost)} Credit`}>
-        消耗
+      <span className="chat-image-generation-cost" aria-label={t("消耗 {{0}} Credit", { "0": formatCreditAmount(creditCost) })}>
+        {t("消耗")}
         <CreditIcon />
         {formatCreditAmount(creditCost)}
       </span>
@@ -556,7 +557,7 @@ export function ChatMessageList({
 
   function regenerateLabel(previousUserMessage: ChatMessage | undefined) {
     const count = Number(previousUserMessage?.capabilityContext?.imageGeneration?.regenerationCount || 0);
-    return count > 0 ? `再次生成·${count}` : '再次生成';
+    return count > 0 ? t("再次生成·{{0}}", { "0": count }) : t("再次生成");
   }
 
   function imageModelName(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
@@ -579,7 +580,7 @@ export function ChatMessageList({
   }
 
   function renderImageGenerationModeTag(imageGeneration: ImageGenerationContext | undefined) {
-    const modeTitle = imageGeneration?.modeTitle || '图片生成';
+    const modeTitle = imageGeneration?.modeTitle || t("图片生成");
     const modeTone = imageGenerationModeToneMap[imageGeneration?.modeKey || ''] || 'blue';
     return <Tag className={`chat-image-generation-mode-tag tone-${modeTone}`}>{modeTitle}</Tag>;
   }
@@ -774,10 +775,10 @@ export function ChatMessageList({
                                 key={`failed-${index}`}
                                 style={imageGenerationCellStyle(undefined, imageGenerationContext)}
                               >
-                                <Tooltip title={failure?.message || answerContent || '图片生成失败'}>
+                                <Tooltip title={failure?.message || answerContent || t("图片生成失败")}>
                                   <CloseCircleOutlined className="chat-image-generation-failed-icon" />
                                 </Tooltip>
-                                <span>生成失败</span>
+                                <span>{t("生成失败")}</span>
                               </div>
                             ) : (
                               <div
@@ -813,7 +814,7 @@ export function ChatMessageList({
                           size="small"
                           variant="filled"
                         >
-                          继续编辑
+                          {t("继续编辑")}
                         </Button>
                         <Dropdown
                           menu={{
@@ -821,7 +822,7 @@ export function ChatMessageList({
                               {
                                 key: 'download',
                                 icon: <DownloadOutlined />,
-                                label: '下载',
+                                label: t("下载"),
                                 disabled: !imageAttachments.length || !canOperateImageGeneration,
                                 onClick: () => downloadGeneratedImages(imageAttachments, imageGenerationContext),
                               },
@@ -829,7 +830,7 @@ export function ChatMessageList({
                                 danger: true,
                                 key: 'delete',
                                 icon: <DeleteOutlined />,
-                                label: '删除',
+                                label: t("删除"),
                                 disabled: !canOperateImageGeneration,
                                 onClick: () => confirmDeleteImageResult(item),
                               },
@@ -839,7 +840,7 @@ export function ChatMessageList({
                           trigger={['click']}
                         >
                           <Button
-                            aria-label="更多操作"
+                            aria-label={t("更多操作")}
                             className="chat-image-generation-more"
                             color="default"
                             disabled={!canOperateImageGeneration}
@@ -854,7 +855,7 @@ export function ChatMessageList({
                     <>
                       {renderImageGenerationHeader(item, previousUserMessage)}
                       <div className="chat-image-generation-error">
-                        {answerContent || '图片生成失败'}
+                        {answerContent || t("图片生成失败")}
                       </div>
                       <div className="chat-image-generation-actions">
                         {renderImageGenerationCreditCost(item, previousUserMessage)}
@@ -878,7 +879,7 @@ export function ChatMessageList({
                           size="small"
                           variant="filled"
                         >
-                          继续编辑
+                          {t("继续编辑")}
                         </Button>
                       </div>
                     </>
@@ -895,7 +896,7 @@ export function ChatMessageList({
                       <summary>
                         <span className="chat-thinking-summary">
                           <ChevronRight className="chat-thinking-summary-icon" size={16} />
-                          <span>{item.isCompleted === false ? '正在思考' : '思考过程'}</span>
+                          <span>{item.isCompleted === false ? t("正在思考") : t("思考过程")}</span>
                         </span>
                       </summary>
                       <MarkdownContent content={thinkingContent} />
@@ -903,7 +904,7 @@ export function ChatMessageList({
                   )}
                   {item.role === 'assistant' ? (
                     <>
-                      {answerContent ? <MarkdownContent content={answerContent} /> : <div className="chat-answer-placeholder">正在组织回答...</div>}
+                      {answerContent ? <MarkdownContent content={answerContent} /> : <div className="chat-answer-placeholder">{t("正在组织回答...")}</div>}
                       {attachmentList}
                     </>
                   ) : (
@@ -925,7 +926,7 @@ export function ChatMessageList({
                             size="small"
                             variant="filled"
                           >
-                            复制
+                            {t("复制")}
                           </Button>
                         ) : null}
                         <Button
@@ -937,7 +938,7 @@ export function ChatMessageList({
                           size="small"
                           variant="filled"
                         >
-                          重新编辑
+                          {t("重新编辑")}
                         </Button>
                         <Dropdown
                           menu={{
@@ -946,7 +947,7 @@ export function ChatMessageList({
                                 danger: true,
                                 key: 'delete',
                                 icon: <DeleteOutlined />,
-                                label: '删除',
+                                label: t("删除"),
                                 disabled: sending,
                                 onClick: () => confirmDeleteUserMessage(item),
                               },
@@ -955,7 +956,7 @@ export function ChatMessageList({
                           trigger={['click']}
                         >
                           <Button
-                            aria-label="更多操作"
+                            aria-label={t("更多操作")}
                             className="chat-image-generation-more"
                             color="default"
                             disabled={sending}
@@ -987,7 +988,7 @@ export function ChatMessageList({
                 {item.role === 'assistant' && (
                   <div className="chat-assistant-message-hover-actions">
                     <Button
-                      aria-label="复制消息"
+                      aria-label={t("复制消息")}
                       className="chat-assistant-message-hover-button"
                       shape="circle"
                       icon={<CopyOutlined />}

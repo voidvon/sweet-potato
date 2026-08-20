@@ -1,4 +1,5 @@
 import './VideoDurationPicker.scss';
+import { t } from '@shared/i18n';
 
 export type VideoDurationOption = {
   label: string;
@@ -16,7 +17,7 @@ export function VideoDurationPicker({
 }) {
   return (
     <div className="video-duration-picker">
-      <h3>选择时长</h3>
+      <h3>{t("选择时长")}</h3>
       <div className="video-duration-picker__grid">
         {options.map((option) => (
           <button

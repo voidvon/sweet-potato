@@ -11,9 +11,11 @@ import {
 } from '@ant-design/icons';
 import { useLocation, useMatches, useNavigate, useOutlet, type UIMatch } from 'react-router-dom';
 import { AppRequestLoading } from '../components/AppRequestLoading';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { CreditIcon } from '../components/CreditIcon';
 import { formatIntegerCreditAmount } from '../utils/credits';
 import './WorkspaceShellLayout.scss';
+import { t } from '@shared/i18n';
 
 const SHOW_TUTORIAL_ACTION = false;
 
@@ -121,9 +123,9 @@ export function useWorkspaceHeader() {
 }
 
 export function WorkspaceShellLayout<User extends ShellUser>({
-  accountLabel = '账号中心',
+  accountLabel = t('账号中心'),
   accountPath,
-  appName = '萌猫',
+  appName = t('萌猫'),
   appSubtitle,
   brandLogoSrc,
   currentUser,
@@ -187,18 +189,18 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   const settingsItems: MenuProps['items'] = [
     { key: 'account', icon: <UserOutlined />, label: accountLabel },
-    { key: 'logout', danger: true, icon: <LogoutOutlined />, label: '退出登录' },
+    { key: 'logout', danger: true, icon: <LogoutOutlined />, label: t("退出登录") },
   ];
 
   const handleSettingsClick: NonNullable<MenuProps['onClick']> = ({ key }) => {
     if (key === 'logout') {
       Modal.confirm({
-        title: '确认退出登录？',
-        content: '退出后需要重新输入账号和密码才能进入系统。',
+        title: t("确认退出登录？"),
+        content: t("退出后需要重新输入账号和密码才能进入系统。"),
         centered: true,
-        okText: '退出登录',
+        okText: t("退出登录"),
         okButtonProps: { danger: true },
-        cancelText: '取消',
+        cancelText: t("取消"),
         onOk: () => {
           onLogout();
           navigate(loginPath, { replace: true });
@@ -225,35 +227,36 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   const handleInvite = async () => {
     try {
       await copyText(window.location.origin);
-      message.success('邀请链接已复制，快分享给好友吧');
+      message.success(t("邀请链接已复制，快分享给好友吧"));
     } catch {
-      message.error('复制失败，请手动复制当前网址');
+      message.error(t("复制失败，请手动复制当前网址"));
     }
   };
 
   const renderGlobalActions = (floating = false) => (
     <div
-      aria-label="全局操作"
+      aria-label={t("全局操作")}
       className={`workspace-global-actions${floating ? ' workspace-global-actions-floating' : ''}`}
     >
+      <LanguageSwitcher />
       {!currentUser ? (
         <button
           className="workspace-global-action workspace-login-action"
           onClick={() => navigate(loginPath)}
           type="button"
         >
-          <span>登录</span>
+          <span>{t("登录")}</span>
         </button>
       ) : (
         <>
           {SHOW_TUTORIAL_ACTION ? (
             <button
               className="workspace-global-action workspace-global-action-secondary"
-              onClick={() => message.info('教程内容正在完善，敬请期待')}
+              onClick={() => message.info(t("教程内容正在完善，敬请期待"))}
               type="button"
             >
               <QuestionCircleOutlined />
-              <span>教程</span>
+              <span>{t("教程")}</span>
             </button>
           ) : null}
           <div className="workspace-credit-actions">
@@ -263,16 +266,16 @@ export function WorkspaceShellLayout<User extends ShellUser>({
               type="button"
             >
               <CreditIcon />
-              <span className="workspace-credit-label">总积分</span>
+              <span className="workspace-credit-label">{t("总积分")}</span>
               <strong>{formatIntegerCreditAmount(currentUser.creditBalance || 0)}</strong>
             </button>
             <button
               className="workspace-credit-action workspace-recharge-label"
-              onClick={() => message.info('如需充值，请联系管理员')}
+              onClick={() => message.info(t("如需充值，请联系管理员"))}
               type="button"
             >
               <PlusCircleOutlined />
-              <span>充值</span>
+              <span>{t("充值")}</span>
             </button>
           </div>
           <button
@@ -281,7 +284,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
             type="button"
           >
             <UserAddOutlined />
-            <span>邀请好友</span>
+            <span>{t("邀请好友")}</span>
           </button>
           <Dropdown
             classNames={{ root: 'settings-dropdown-overlay' }}
@@ -289,7 +292,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
             placement="bottomRight"
             trigger={['click']}
           >
-            <button aria-label="打开账户菜单" className="workspace-account-trigger" type="button">
+            <button aria-label={t("打开账户菜单")} className="workspace-account-trigger" type="button">
               {renderAccountAvatar('workspace-account-avatar', 36)}
             </button>
           </Dropdown>
@@ -354,7 +357,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
                 <SettingOutlined />
               </span>
             </span>
-            <span className="settings-mobile-label">设置与支持</span>
+            <span className="settings-mobile-label">{t("设置与支持")}</span>
           </button>
         </Dropdown>
       ) : null}
@@ -363,7 +366,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   return (
     <main className={`app-shell${compactSidebar ? ' app-shell-compact-sidebar' : ''}`}>
-      <aside aria-label="主导航" className="sidebar desktop-sidebar">
+      <aside aria-label={t("主导航")} className="sidebar desktop-sidebar">
         <div className="brand">
           <img className="brand-logo" src={brandLogoSrc} alt={appName} />
           <div className="brand-copy">
@@ -375,7 +378,7 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       </aside>
 
       {compactSidebar && mobileBottomNavItems.length > 0 ? (
-        <nav aria-label="移动端底部导航" className="mobile-bottom-nav">
+        <nav aria-label={t("移动端底部导航")} className="mobile-bottom-nav">
           {mobileBottomNavItems.map((item) => {
             const selected = location.pathname === item.key;
             return (

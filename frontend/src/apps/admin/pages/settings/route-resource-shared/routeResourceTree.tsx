@@ -2,13 +2,14 @@ import { Space, Tag } from 'antd';
 import type { TreeDataNode } from 'antd';
 import type { ManagedRouteResource, RouteResourcePlatform, RouteResourceType } from '../../../types';
 import { flattenRouteResources } from './routeResourceNormalize';
+import { t } from '@shared/i18n';
 
 export function resourceTypeMeta(type: RouteResourceType) {
   switch (type) {
     case 'directory':
-      return { color: 'blue', text: '目录' };
+      return { color: 'blue', text: t("目录") };
     case 'menu':
-      return { color: 'geekblue', text: '菜单' };
+      return { color: 'geekblue', text: t("菜单") };
     default:
       return { color: 'default', text: type };
   }

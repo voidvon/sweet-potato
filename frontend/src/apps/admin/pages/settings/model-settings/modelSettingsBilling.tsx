@@ -1,5 +1,6 @@
 import type { LlmBillingSettings, LlmModelPricing } from '../../../types';
 import { toNumericValue } from './modelSettingsHelpers';
+import { t } from '@shared/i18n';
 
 export type LlmPriceTableRow = {
   key: string;
@@ -24,9 +25,9 @@ export function renderLlmPriceLines(
   options: { multiplier?: number; official?: boolean } = {},
 ) {
   const priceRows = [
-    { label: '输入价格', value: billing.inputCreditsPer1M },
-    { label: '补全价格', value: billing.outputCreditsPer1M },
-    { label: '缓存价格', value: billing.cachedInputCreditsPer1M },
+    { label: t("输入价格"), value: billing.inputCreditsPer1M },
+    { label: t("补全价格"), value: billing.outputCreditsPer1M },
+    { label: t("缓存价格"), value: billing.cachedInputCreditsPer1M },
   ];
   const multiplier = options.multiplier ?? 1;
 
@@ -48,9 +49,9 @@ export function renderLlmPriceLines(
 
 export function renderCompactLlmOfficialPriceLines(pricing: LlmModelPricing) {
   const priceRows = [
-    { label: '输入价格', value: pricing.inputPricePer1M },
-    { label: '补全价格', value: pricing.outputPricePer1M },
-    { label: '缓存价格', value: pricing.cachedInputPricePer1M },
+    { label: t("输入价格"), value: pricing.inputPricePer1M },
+    { label: t("补全价格"), value: pricing.outputPricePer1M },
+    { label: t("缓存价格"), value: pricing.cachedInputPricePer1M },
   ];
 
   return (

@@ -84,6 +84,7 @@ import {
   serializeStep1Draft,
   type AnalysisDraft,
 } from './planningSessionHelpers';
+import { t } from '@shared/i18n';
 
 type UsePromptPlanningControllerInput = {
   currentUser: User;
@@ -141,10 +142,10 @@ export function usePromptPlanningController({
   const isBusy = busyAction !== 'idle' || isAnalyzing || isGenerating;
   const analysisCreditLabel = analysisCredits === null
     ? ''
-    : ` · ${analysisCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}积分`;
+    : t(" · {{0}}积分", { "0": analysisCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 }) });
   const generationCreditLabel = generationCredits === null
     ? ''
-    : ` · ${generationCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 })}积分`;
+    : t(" · {{0}}积分", { "0": generationCredits.toLocaleString('zh-CN', { maximumFractionDigits: 6 }) });
   const resolvedStep = session ? resolvePlanningStep(session) : 'step1';
   const resolvedStepIndex = planningStepIndex(resolvedStep);
   const activeStep = useMemo<PlanningUiStep>(() => {
@@ -340,7 +341,7 @@ export function usePromptPlanningController({
         if (!disposed) {
           setAnalysisCredits(null);
           setGenerationCredits(null);
-          setErrorMessage('积分配置加载失败，请关闭弹窗后重试。');
+          setErrorMessage(t("积分配置加载失败，请关闭弹窗后重试。"));
         }
       });
     return () => {
@@ -416,7 +417,7 @@ export function usePromptPlanningController({
           setSession(fullSession);
           updateBusyAction('idle');
           setErrorMessage(fullSession.status === 'failed'
-            ? fullSession.errorMessage || '素材分析失败，请重试。'
+            ? fullSession.errorMessage || t("素材分析失败，请重试。")
             : '');
           if (fullSession.status === 'confirming') {
             setMaterials((current) => sanitizePlanningMaterials(replaceSeedMaterials(
@@ -434,7 +435,7 @@ export function usePromptPlanningController({
           return;
         }
         updateBusyAction('idle');
-        setErrorMessage(error instanceof Error ? error.message : '策划进度拉取失败');
+        setErrorMessage(error instanceof Error ? error.message : t("策划进度拉取失败"));
       }
     };
     void poll();
@@ -528,7 +529,7 @@ export function usePromptPlanningController({
     if (item.key === 'audio') {
       const file = incomingFiles.find(isAllowedAudioFile);
       if (!file) {
-        setErrorMessage('参考音频仅支持 MP3 或 WAV 格式。');
+        setErrorMessage(t("参考音频仅支持 MP3 或 WAV 格式。"));
         return;
       }
       const duration = await readAudioDuration(file);
@@ -613,7 +614,7 @@ export function usePromptPlanningController({
       return;
     }
     if (imageFiles.length === 0) {
-      setErrorMessage('请至少选择 1 张商品图后再开始识别。');
+      setErrorMessage(t("请至少选择 1 张商品图后再开始识别。"));
       return;
     }
     analyzeLockRef.current = true;
@@ -678,7 +679,7 @@ export function usePromptPlanningController({
       }
     } catch (error) {
       updateBusyAction('idle');
-      setErrorMessage(error instanceof Error ? error.message : '策划分析失败');
+      setErrorMessage(error instanceof Error ? error.message : t("策划分析失败"));
     } finally {
       analyzeLockRef.current = false;
     }
@@ -703,7 +704,7 @@ export function usePromptPlanningController({
         referenceBreakdown: analysisDraft.useBreakdown ? session.analysis.referenceBreakdown : null,
         materialCaptions: analysisDraft.materialCaptions.map((caption, index) => ({
           ...caption,
-          label: `图片${index + 1}`,
+          label: t("图片{{0}}", { "0": index + 1 }),
           description: caption.description.trim(),
         })),
         productInsights: normalizeProductInsights(analysisDraft.productInsights),
@@ -717,7 +718,7 @@ export function usePromptPlanningController({
       setViewStep(resolvePlanningStep(next));
     } catch (error) {
       updateBusyAction('idle');
-      setErrorMessage(error instanceof Error ? error.message : '确认分析信息失败');
+      setErrorMessage(error instanceof Error ? error.message : t("确认分析信息失败"));
     }
   };
 
@@ -775,7 +776,7 @@ export function usePromptPlanningController({
         uiStep: 'step3',
       }));
       updateBusyAction('idle');
-      setErrorMessage(error instanceof Error ? error.message : '候选脚本生成失败');
+      setErrorMessage(error instanceof Error ? error.message : t("候选脚本生成失败"));
     } finally {
       generateLockRef.current = false;
     }
@@ -811,25 +812,25 @@ export function usePromptPlanningController({
         return;
       }
       setSelectedCandidateId(previousId);
-      setErrorMessage(error instanceof Error ? error.message : '切换候选失败');
+      setErrorMessage(error instanceof Error ? error.message : t("切换候选失败"));
     }
   };
 
   const handleApply = async () => {
     if (!session || !selectedCandidate) {
-      setErrorMessage('请先选择一个可应用的候选脚本。');
+      setErrorMessage(t("请先选择一个可应用的候选脚本。"));
       return;
     }
     if (session.status !== 'ready_to_apply') {
-      setErrorMessage('当前策划结果尚未进入可应用状态。');
+      setErrorMessage(t("当前策划结果尚未进入可应用状态。"));
       return;
     }
     if (applyBlockedByDirty) {
-      setErrorMessage('上游信息已变更，请重新识别或重新生成后再应用。');
+      setErrorMessage(t("上游信息已变更，请重新识别或重新生成后再应用。"));
       return;
     }
     if (!session.generation.candidates.some((candidate) => candidate.id === selectedCandidate.id)) {
-      setErrorMessage('当前候选脚本已失效，请重新生成或重新选择。');
+      setErrorMessage(t("当前候选脚本已失效，请重新生成或重新选择。"));
       return;
     }
     updateBusyAction('applying');
@@ -852,7 +853,7 @@ export function usePromptPlanningController({
       onApplyPlanningResult(finalPayload);
     } catch (error) {
       updateBusyAction('idle');
-      setErrorMessage(error instanceof Error ? error.message : '应用策划结果失败');
+      setErrorMessage(error instanceof Error ? error.message : t("应用策划结果失败"));
     }
   };
 
@@ -889,7 +890,7 @@ export function usePromptPlanningController({
     const nextFile = {
       assetId: result.assetId,
       id: `video-${crypto.randomUUID()}`,
-      name: result.originalFileName || result.name || selection.file.name || '参考视频 01',
+      name: result.originalFileName || result.name || selection.file.name || t("参考视频 01"),
       serverFileUrl: result.fileUrl,
       storedFileName: result.storedFileName,
       type: 'video',

@@ -2,6 +2,14 @@
 
 团队统一契约文档：`.plans/video-expert-skill-flow/docs/api-contracts.md`。
 
+## 2026-08-20 API 国际化与错误契约
+
+- 客户端使用标准请求头 `Accept-Language` 声明首选语言；当前支持 `zh-CN` 和 `en-US`，未提供或不支持的语言回退为 `zh-CN`。不要新增自定义 `lang` Header，也不要在每个 JSON 请求体中重复传语言。
+- HTTP 错误统一返回 `{ "code": string, "message": string }`。`code` 是稳定、与语言无关的机器标识；前端分支、日志聚合和自动化测试只能依赖 `code` 或 HTTP 状态，不得比较 `message`。
+- `message` 是可直接展示的本地化文本。后端按 `Accept-Language` 选择语言，并在错误响应中返回 `Content-Language`；响应同时包含 `Vary: Accept-Language`，避免共享缓存混用语言。
+- 当前通用错误码包括 `bad_request`、`unauthorized`、`forbidden`、`not_found`、`method_not_allowed`、`conflict`、`payload_too_large`、`unsupported_media_type`、`rate_limited` 和 `internal_error`。新增需要前端采取特定动作的领域错误时，应增加更具体的稳定错误码，不要复用中文错误句子作为标识。
+- WebSocket 握手沿用浏览器发送的 `Accept-Language`，错误事件同样返回 `{ type: "error", code, message }`。SSE/EventSource 握手也使用浏览器语言；可由应用发起的 `fetch` 流会显式附带当前应用语言。
+
 ## 2026-07-28 批量生成表格与执行契约
 
 - 所有接口要求 `web.module.content.batch_generation` 权限。

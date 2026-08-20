@@ -12,6 +12,7 @@ import type { PromptPlanningController } from './usePromptPlanningController';
 import './PromptPlanningSharedFields.scss';
 import './PromptPlanningStepMaterialsUploads.scss';
 import './PromptPlanningStepMaterials.scss';
+import { t } from '@shared/i18n';
 
 type PromptPlanningStepMaterialsProps = {
   controller: PromptPlanningController;
@@ -40,7 +41,7 @@ export function PromptPlanningStepMaterials({ controller }: PromptPlanningStepMa
 
   return (
     <>
-      <FieldHeading title="商品素材" subtitle="必填 · 1-9 张 · 可拖入/粘贴" />
+      <FieldHeading title={t("商品素材")} subtitle={t("必填 · 1-9 张 · 可拖入/粘贴")} />
       <div className="video-task-epa-product-slot">
         <MaterialSlot
           item={imageMaterial}
@@ -54,8 +55,8 @@ export function PromptPlanningStepMaterials({ controller }: PromptPlanningStepMa
       </div>
 
       <FieldHeading
-        title="参考视频"
-        subtitle="选填 · 1条 · AI 拆解节奏/镜头/结构，脚本参考其结构"
+        title={t("参考视频")}
+        subtitle={t("选填 · 1条 · AI 拆解节奏/镜头/结构，脚本参考其结构")}
       />
       {referenceVideoFile ? (
         <ReferenceVideoCard
@@ -67,14 +68,14 @@ export function PromptPlanningStepMaterials({ controller }: PromptPlanningStepMa
       ) : (
         <button className="video-task-epa-upload-bar" onClick={triggerVideoInput} type="button">
           <Video size={20} />
-          <strong>点击上传参考视频</strong>
-          <span>支持 mp4 / mov，识别时会自动拆解节奏与镜头结构</span>
+          <strong>{t("点击上传参考视频")}</strong>
+          <span>{t("支持 mp4 / mov，识别时会自动拆解节奏与镜头结构")}</span>
         </button>
       )}
 
       <FieldHeading
-        title="参考音色"
-        subtitle="选填 · 1段 · 口播照这个音色配音（锁音色）"
+        title={t("参考音色")}
+        subtitle={t("选填 · 1段 · 口播照这个音色配音（锁音色）")}
       />
       {referenceAudioFile ? (
         <AudioReferenceCard
@@ -88,17 +89,17 @@ export function PromptPlanningStepMaterials({ controller }: PromptPlanningStepMa
         <button className="video-task-epa-audio-upload" onClick={triggerAudioInput} type="button">
           <div className="video-task-epa-audio-upload-main">
             <Music4 size={16} />
-            <strong>点击上传参考音色</strong>
+            <strong>{t("点击上传参考音色")}</strong>
           </div>
-          <span>mp3 / wav · 口播对口型用该音色</span>
+          <span>{t("mp3 / wav · 口播对口型用该音色")}</span>
         </button>
       )}
 
-      <FieldHeading title="想介绍的商品" subtitle="选填 · 多主体时帮 AI 聚焦" />
+      <FieldHeading title={t("想介绍的商品")} subtitle={t("选填 · 多主体时帮 AI 聚焦")} />
       <input
         className="video-task-epa-inline-input"
         onChange={(event) => setProductName(event.currentTarget.value)}
-        placeholder="如：连衣裙"
+        placeholder={t("如：连衣裙")}
         type="text"
         value={productName}
       />
