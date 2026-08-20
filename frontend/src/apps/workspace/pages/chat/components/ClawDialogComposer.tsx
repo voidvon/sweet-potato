@@ -416,6 +416,7 @@ export function ClawDialogComposer({
   const selectedToolbarControls = selectedMode.toolbarControls ?? defaultToolbarControls;
   const outputCountStrategy = selectedMode.outputCountStrategy ?? 'selectable';
   const showImageModelControl = selectedToolbarControls.includes('model');
+  const showLlmModelControl = selectedMode.key === 'dialog';
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount') && outputCountStrategy === 'selectable';
   const showBackgroundControl = selectedToolbarControls.includes('background');
@@ -705,7 +706,7 @@ export function ClawDialogComposer({
     }
     if (canStartGeneration) {
       onSend({
-        modelConfigId: selectedLlmModel?.id || null,
+        modelConfigId: showLlmModelControl ? selectedLlmModel?.id || null : null,
         imageModelConfigId: selectedImageModel?.config.id || null,
         capabilityContext: {
           imageGeneration: {
@@ -760,7 +761,7 @@ export function ClawDialogComposer({
         <div className="claw-dialog-intro">
           <span className="claw-dialog-intro-brand">
             <span className="claw-dialog-intro-dot" aria-hidden="true" />
-            {t("萌猫 AI")}
+            {t("地瓜 AI")}
           </span>
           <span className="claw-dialog-intro-title">{t("把商品图变成上新视觉")}</span>
         </div>
@@ -831,7 +832,7 @@ export function ClawDialogComposer({
                 <ChevronDown size={11} />
               </Button>
             </Dropdown>
-            {showImageModelControl ? (
+            {showLlmModelControl ? (
               <Dropdown
                 menu={{
                   items: llmModelMenuItems,

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="frontend/public/app-logo.png" alt="Sweet Potato" width="96" />
+<img src="frontend/public/app-logo.png" alt="Sweet Potato AI" width="96" />
 
-# Sweet Potato
+# Sweet Potato AI
 
 **A self-hosted AI content production workspace**
 
@@ -18,7 +18,7 @@
 
 ## Overview
 
-Sweet Potato is a self-hosted AI content workspace for organizing media, generating and managing content, and operating video workflows from one web application. The frontend and backend are shipped together as a single Go executable with an embedded React/Vite web application.
+Sweet Potato AI is a self-hosted AI content workspace for organizing media, generating and managing content, and operating video workflows from one web application. The frontend and backend are shipped together as a single Go executable with an embedded React/Vite web application.
 
 It is designed for individual creators, content teams, and internal tools that need a practical workspace around text, images, videos, assets, and model integrations without a separate Node.js process in production.
 
@@ -49,17 +49,17 @@ Open the [latest release](https://github.com/voidvon/sweet-potato/releases) and 
 
 | Platform | Asset |
 | --- | --- |
-| Linux x86_64 | `sweet-potato-v0.1.54-linux-amd64.tar.gz` |
-| Linux ARM64 | `sweet-potato-v0.1.54-linux-arm64.tar.gz` |
-| macOS Intel | `sweet-potato-v0.1.54-darwin-amd64.tar.gz` |
-| macOS Apple Silicon | `sweet-potato-v0.1.54-darwin-arm64.tar.gz` |
-| Windows x86_64 | `sweet-potato-v0.1.54-windows-amd64.zip` |
+| Linux x86_64 | `sweet-potato-v0.1.55-linux-amd64.tar.gz` |
+| Linux ARM64 | `sweet-potato-v0.1.55-linux-arm64.tar.gz` |
+| macOS Intel | `sweet-potato-v0.1.55-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `sweet-potato-v0.1.55-darwin-arm64.tar.gz` |
+| Windows x86_64 | `sweet-potato-v0.1.55-windows-amd64.zip` |
 
-Verify downloads with [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.54/SHA256SUMS.txt), then extract the archive and run the binary:
+Verify downloads with [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.55/SHA256SUMS.txt), then extract the archive and run the binary:
 
 ```bash
 mkdir -p /opt/sweet-potato
-tar -xzf sweet-potato-v0.1.54-linux-amd64.tar.gz -C /opt/sweet-potato
+tar -xzf sweet-potato-v0.1.55-linux-amd64.tar.gz -C /opt/sweet-potato
 cd /opt/sweet-potato
 ./sweet-potato
 ```
@@ -141,7 +141,7 @@ Browser
   |
   | HTTP / SSE / WebSocket
   v
-Sweet Potato Go server
+Sweet Potato AI Go server
   |- HTTP API and authentication
   |- SQLite stores and migrations
   |- Local file service

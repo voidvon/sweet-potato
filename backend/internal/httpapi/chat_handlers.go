@@ -241,6 +241,7 @@ var errChatAgentNotFound = errors.New("智能体不存在")
 func (s *Server) createChatResponse(user store.User, input chatRequest) (map[string]any, error) {
 	content := strings.TrimSpace(input.Content)
 	imageRequest := isImageGenerationRequest(input)
+	directImageRequest := imageRequest && !input.AutoImageGeneration
 	imageDecision := imageGenerationDecision{}
 	if content == "" && len(input.Attachments) == 0 && !imageRequest {
 		return nil, errors.New("消息内容不能为空")
@@ -249,35 +250,46 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	if agentID == "" {
 		agentID = "quick-answer"
 	}
-	agent, found, err := s.store.FindAgent(agentID)
-	if err != nil {
-		return nil, err
+	var agent store.Agent
+	var model store.ModelConfig
+	var llmModelID *string
+	if !directImageRequest {
+		var found bool
+		var err error
+		agent, found, err = s.store.FindAgent(agentID)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, errChatAgentNotFound
+		}
+		model, err = s.resolveLLMModelConfig(user.ID, pointerValue(input.ModelConfigID), pointerValue(agent.ModelConfigID))
+		if err != nil {
+			return nil, err
+		}
+		llmModelID = stringPointer(model.ID)
 	}
-	if !found {
-		return nil, errChatAgentNotFound
-	}
-	model, err := s.resolveLLMModelConfig(user.ID, pointerValue(input.ModelConfigID), pointerValue(agent.ModelConfigID))
-	if err != nil {
-		return nil, err
-	}
-	conversation, found, err := s.resolveChatConversation(user.ID, input, agentID, model.ID)
+	conversation, found, err := s.resolveChatConversation(user.ID, input, agentID, llmModelID)
 	if err != nil {
 		return nil, err
 	}
 	if !found {
 		title := makeChatTitle(content)
-		conversation, err = s.store.SaveChatConversation(store.ChatConversation{UserID: user.ID, Title: title, AgentID: agentID, ModelConfigID: stringPointer(model.ID)}, true)
+		conversation, err = s.store.SaveChatConversation(store.ChatConversation{UserID: user.ID, Title: title, AgentID: agentID, ModelConfigID: llmModelID}, true)
 		if err != nil {
 			return nil, err
 		}
 	}
-	userMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "user", Content: content, AgentID: agentID, ModelConfigID: stringPointer(model.ID), Attachments: input.Attachments, CapabilityContext: input.CapabilityContext, IsCompleted: true})
+	userMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "user", Content: content, AgentID: agentID, ModelConfigID: llmModelID, Attachments: input.Attachments, CapabilityContext: input.CapabilityContext, IsCompleted: true})
 	if err != nil {
 		return nil, err
 	}
-	history, err := s.store.ListChatMessages(conversation.ID)
-	if err != nil {
-		return nil, err
+	var history []store.ChatMessage
+	if !directImageRequest {
+		history, err = s.store.ListChatMessages(conversation.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var answer, reasoning string
 	var assistantAttachments []any
@@ -336,7 +348,7 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 			return nil, err
 		}
 	}
-	assistantMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "assistant", Content: answer, ReasoningContent: stringPointerOrNil(reasoning), ImageModelConfigID: imageModelID, ImageGenerationExpectedCount: imageExpectedCount, AgentID: agentID, ModelConfigID: stringPointer(model.ID), Attachments: assistantAttachments, IsCompleted: true})
+	assistantMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "assistant", Content: answer, ReasoningContent: stringPointerOrNil(reasoning), ImageModelConfigID: imageModelID, ImageGenerationExpectedCount: imageExpectedCount, AgentID: agentID, ModelConfigID: llmModelID, Attachments: assistantAttachments, IsCompleted: true})
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +359,9 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	metadata["previewText"] = makeConversationPreview(answer)
 	conversation.Metadata = metadata
 	conversation.AgentID = agentID
-	conversation.ModelConfigID = stringPointer(model.ID)
+	if llmModelID != nil {
+		conversation.ModelConfigID = llmModelID
+	}
 	conversation, err = s.store.SaveChatConversation(conversation, false)
 	if err != nil {
 		return nil, err
@@ -551,7 +565,7 @@ func pointerValue(value *string) string {
 	return *value
 }
 
-func (s *Server) resolveChatConversation(userID string, input chatRequest, agentID, modelID string) (store.ChatConversation, bool, error) {
+func (s *Server) resolveChatConversation(userID string, input chatRequest, agentID string, modelID *string) (store.ChatConversation, bool, error) {
 	if strings.TrimSpace(input.ConversationID) == "" {
 		return store.ChatConversation{}, false, nil
 	}
@@ -566,7 +580,9 @@ func (s *Server) resolveChatConversation(userID string, input chatRequest, agent
 		return store.ChatConversation{}, false, errors.New("无权访问该对话")
 	}
 	conversation.AgentID = agentID
-	conversation.ModelConfigID = stringPointer(modelID)
+	if modelID != nil {
+		conversation.ModelConfigID = modelID
+	}
 	return conversation, true, nil
 }
 

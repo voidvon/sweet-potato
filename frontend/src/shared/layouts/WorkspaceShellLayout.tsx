@@ -128,7 +128,7 @@ export function useWorkspaceHeader() {
 export function WorkspaceShellLayout<User extends ShellUser>({
   accountLabel = t('账号中心'),
   accountPath,
-  appName = t('萌猫'),
+  appName = t('地瓜'),
   appSubtitle,
   brandLogoSrc,
   currentUser,

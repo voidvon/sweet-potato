@@ -40,7 +40,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
   return (
     <AuthExperience
       brandContext="Admin Console"
-      brandName={t("萌猫 AI")}
+      brandName={t("地瓜 AI")}
       description={t("集中管理用户、内容案例、积分与模型配置，让每一项运营决策都有清晰入口。")}
       eyebrow={t("安全、清晰、可控的管理中心")}
       highlights={[

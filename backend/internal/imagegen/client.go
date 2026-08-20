@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -72,7 +74,15 @@ func (c Client) Generate(ctx context.Context, input GenerateInput) ([]Output, er
 	if input.Count > 4 {
 		input.Count = 4
 	}
+	items, err := c.generate(ctx, input)
+	if err != nil && strings.EqualFold(strings.TrimSpace(input.Background), "transparent") && transparentBackgroundUnsupported(err) {
+		input.Background = "opaque"
+		items, err = c.generate(ctx, input)
+	}
+	return items, err
+}
 
+func (c Client) generate(ctx context.Context, input GenerateInput) ([]Output, error) {
 	if c.isOpenAI() && len(input.References) > 0 {
 		results := make([]Output, 0, input.Count)
 		for index := 0; index < input.Count; index++ {
@@ -93,6 +103,11 @@ func (c Client) Generate(ctx context.Context, input GenerateInput) ([]Output, er
 		return nil, errors.New("image model returned no images")
 	}
 	return items, nil
+}
+
+func transparentBackgroundUnsupported(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "transparent background") && strings.Contains(message, "not supported")
 }
 
 func (c Client) generateJSON(ctx context.Context, input GenerateInput) ([]Output, error) {
@@ -178,7 +193,10 @@ func (c Client) generateMultipartEdit(ctx context.Context, input GenerateInput) 
 		if name == "." || name == "" || name == "/" {
 			name = "reference.png"
 		}
-		part, err := writer.CreateFormFile("image[]", name)
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{"name": "image[]", "filename": name}))
+		header.Set("Content-Type", valueOr(strings.TrimSpace(asset.MimeType), "image/png"))
+		part, err := writer.CreatePart(header)
 		if err != nil {
 			return nil, err
 		}

@@ -12,7 +12,7 @@ const isAdminRoute = window.location.pathname === '/admin'
   || window.location.pathname.startsWith('/admin/');
 
 if (isAdminRoute) {
-  document.title = t('萌猫 AI 后台');
+  document.title = t('地瓜 AI 后台');
 }
 
 const locale = getLocale();

@@ -2,7 +2,7 @@
   "name": "sweet-potato-web",
   "version": "0.1.53",
   "private": true,
-  "description": "Sweet Potato web app based on React",
+  "description": "Sweet Potato AI web app based on React",
   "scripts": {
     "dev": "node ./scripts/dev.cjs",
     "dev:web": "node ./scripts/dev.cjs",
@@ -16,7 +16,7 @@
   },
   "keywords": [
     "React",
-    "Sweet Potato"
+    "Sweet Potato AI"
   ],
   "author": "",
   "license": "Apache",

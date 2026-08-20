@@ -2,9 +2,9 @@ import generatedMessages from './en.generated.json';
 
 export const englishMessages: Record<string, string> = {
   ...generatedMessages,
-  '萌猫': 'Mengmao',
-  '萌猫 AI': 'Mengmao AI',
-  '萌猫 AI 后台': 'Mengmao AI Admin',
+  '地瓜': 'Sweet Potato AI',
+  '地瓜 AI': 'Sweet Potato AI',
+  '地瓜 AI 后台': 'Sweet Potato AI Admin',
   '让每一个灵感更快成为作品': 'Turn every idea into content, faster',
   '一站式完成': 'Create everything in one place',
   '图片与视频创作': 'Images and videos, from idea to final',

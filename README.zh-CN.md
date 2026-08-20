@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="frontend/public/app-logo.png" alt="Sweet Potato" width="96" />
+<img src="frontend/public/app-logo.png" alt="Sweet Potato AI" width="96" />
 
-# Sweet Potato
+# 地瓜 AI / Sweet Potato AI
 
 **自托管的 AI 内容生产工作台**
 
@@ -18,7 +18,7 @@
 
 ## 项目简介
 
-Sweet Potato 是一个面向个人创作者、内容团队和内部业务工具的自托管 AI 内容工作台，用于统一管理素材、生成内容和运行视频工作流。前端与后端最终会打包为一个 Go 可执行文件，React/Vite 网页资源会直接嵌入其中，生产环境不需要额外运行 Node.js 服务。
+地瓜 AI（Sweet Potato AI）是一个面向个人创作者、内容团队和内部业务工具的自托管 AI 内容工作台，用于统一管理素材、生成内容和运行视频工作流。前端与后端最终会打包为一个 Go 可执行文件，React/Vite 网页资源会直接嵌入其中，生产环境不需要额外运行 Node.js 服务。
 
 ## 主要特性
 
@@ -47,17 +47,17 @@ Sweet Potato 是一个面向个人创作者、内容团队和内部业务工具�
 
 | 平台 | 文件 |
 | --- | --- |
-| Linux x86_64 | `sweet-potato-v0.1.54-linux-amd64.tar.gz` |
-| Linux ARM64 | `sweet-potato-v0.1.54-linux-arm64.tar.gz` |
-| macOS Intel | `sweet-potato-v0.1.54-darwin-amd64.tar.gz` |
-| macOS Apple Silicon | `sweet-potato-v0.1.54-darwin-arm64.tar.gz` |
-| Windows x86_64 | `sweet-potato-v0.1.54-windows-amd64.zip` |
+| Linux x86_64 | `sweet-potato-v0.1.55-linux-amd64.tar.gz` |
+| Linux ARM64 | `sweet-potato-v0.1.55-linux-arm64.tar.gz` |
+| macOS Intel | `sweet-potato-v0.1.55-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `sweet-potato-v0.1.55-darwin-arm64.tar.gz` |
+| Windows x86_64 | `sweet-potato-v0.1.55-windows-amd64.zip` |
 
-可以使用 Release 中的 [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.54/SHA256SUMS.txt) 校验下载文件。以 Linux amd64 为例：
+可以使用 Release 中的 [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.55/SHA256SUMS.txt) 校验下载文件。以 Linux amd64 为例：
 
 ```bash
 mkdir -p /opt/sweet-potato
-tar -xzf sweet-potato-v0.1.54-linux-amd64.tar.gz -C /opt/sweet-potato
+tar -xzf sweet-potato-v0.1.55-linux-amd64.tar.gz -C /opt/sweet-potato
 cd /opt/sweet-potato
 ./sweet-potato
 ```
@@ -139,7 +139,7 @@ make dev
   |
   | HTTP / SSE / WebSocket
   v
-Sweet Potato Go 服务
+地瓜 AI Go 服务
   |- HTTP API 与鉴权
   |- SQLite 存储与迁移
   |- 本地文件服务

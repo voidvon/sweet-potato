@@ -49,7 +49,7 @@ export function AuthPage({ onAuthed }: AuthPageProps) {
   return (
     <AuthExperience
       brandContext="AI Creative Workspace"
-      brandName={t("萌猫 AI")}
+      brandName={t("地瓜 AI")}
       description={t("从灵感、提示词到图片与视频作品，在一个更专注、更顺畅的创作空间里完成。")}
       eyebrow={t("让每一个灵感更快成为作品")}
       highlights={[

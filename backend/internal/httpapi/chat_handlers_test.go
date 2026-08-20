@@ -1,6 +1,11 @@
 package httpapi
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"sweet-potato-go/internal/imagegen"
+)
 
 func TestImageDecisionFallbackOnlyMatchesExplicitGenerationRefusal(t *testing.T) {
 	cases := []struct {
@@ -41,5 +46,42 @@ func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
 		if enum[index] != want[index] {
 			t.Fatalf("background enum = %#v, want %#v", enum, want)
 		}
+	}
+}
+
+func TestImageGenerationPromptFallsBackToModeHint(t *testing.T) {
+	server := &Server{}
+	contextValue := map[string]any{
+		"imageGeneration": map[string]any{
+			"modeKey":    "cutout",
+			"promptText": "",
+			"promptHint": "把 图1 的背景去掉，按所选底色输出。",
+		},
+	}
+	if got := server.imageGenerationPrompt("", contextValue, nil); got != "把 图1 的背景去掉，按所选底色输出。" {
+		t.Fatalf("prompt = %q", got)
+	}
+}
+
+func TestPrepareCutoutGenerationUsesOpaqueGreenScreen(t *testing.T) {
+	prompt, options, applyChromaKey := prepareCutoutGeneration("移除背景", "cutout", imagegen.GenerateInput{Background: "transparent"})
+	if !applyChromaKey {
+		t.Fatal("expected chroma key processing")
+	}
+	if options.Background != "opaque" || options.OutputFormat != "png" {
+		t.Fatalf("options = %+v", options)
+	}
+	if !strings.Contains(prompt, "#00FF00") || !strings.Contains(prompt, "不透明图片") {
+		t.Fatalf("prompt = %q", prompt)
+	}
+}
+
+func TestPrepareCutoutGenerationLeavesOpaqueOutputUnchanged(t *testing.T) {
+	prompt, options, applyChromaKey := prepareCutoutGeneration("移除背景", "cutout", imagegen.GenerateInput{Background: "opaque"})
+	if applyChromaKey {
+		t.Fatal("opaque output must not use chroma key processing")
+	}
+	if prompt != "移除背景" || options.Background != "opaque" || options.OutputFormat != "" {
+		t.Fatalf("prompt = %q, options = %+v", prompt, options)
 	}
 }

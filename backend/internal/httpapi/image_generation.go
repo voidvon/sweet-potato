@@ -92,6 +92,7 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("图片提示词不能为空")
 	}
+	prompt, options, applyChromaKey := prepareCutoutGeneration(prompt, mode, options)
 	options.Prompt = prompt
 	options.Count = count
 	client := imagegen.Client{BaseURL: model.BaseURL, APIKey: model.APIKey, Provider: model.Provider, Model: model.Model, PublicBase: strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")}
@@ -110,6 +111,18 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 	}
 	assets := make([]store.ContentAsset, 0, len(outputs))
 	for index, output := range outputs {
+		if applyChromaKey {
+			processed, processErr := imagegen.ApplyGreenChromaKey(output.Bytes)
+			if processErr != nil {
+				for _, created := range assets {
+					_ = os.Remove(created.FilePath)
+					_, _ = s.store.DeleteContentAsset(created.ID, userID)
+				}
+				return nil, fmt.Errorf("处理抠图透明通道失败: %w", processErr)
+			}
+			output.Bytes = processed
+			output.MimeType = "image/png"
+		}
 		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model)
 		if persistErr != nil {
 			for _, created := range assets {
@@ -121,6 +134,18 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 		assets = append(assets, asset)
 	}
 	return assets, nil
+}
+
+func prepareCutoutGeneration(prompt, mode string, options imagegen.GenerateInput) (string, imagegen.GenerateInput, bool) {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	background := strings.ToLower(strings.TrimSpace(options.Background))
+	if (mode != "cutout" && mode != "image.cutout") || (background != "" && background != "transparent") {
+		return prompt, options, false
+	}
+	chromaKeyPrompt := "绿幕处理要求：模型只需输出不透明图片，不要尝试生成透明通道。主体之外的所有区域必须使用均匀纯色 #00FF00 填充。绿色背景不得包含纹理、渐变、阴影、反射、光斑或其他物体，主体边缘清晰且不要染绿。"
+	options.Background = "opaque"
+	options.OutputFormat = "png"
+	return strings.TrimSpace(prompt + "\n" + chromaKeyPrompt), options, true
 }
 
 func optionsWithReferences(options imagegen.GenerateInput, references []store.ContentAsset) imagegen.GenerateInput {
@@ -216,6 +241,7 @@ func (s *Server) imageGenerationOptions(contextValue map[string]any, params map[
 func (s *Server) imageGenerationPrompt(content string, contextValue map[string]any, params map[string]any) string {
 	generation := objectValue(contextValue["imageGeneration"])
 	prompt := valueOr(stringValue(generation, "promptText"), strings.TrimSpace(content))
+	prompt = valueOr(prompt, stringValue(generation, "promptHint"))
 	return valueOr(prompt, stringValue(params, "prompt"))
 }
 

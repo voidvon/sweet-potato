@@ -19,7 +19,7 @@ export function AdminProtectedLayout({ currentUser, onLogout }: AdminProtectedLa
   return (
     <WorkspaceShellLayout
       accountPath={routePaths.account}
-      appName={t("萌猫 AI")}
+      appName={t("地瓜 AI")}
       appSubtitle={t("后台管理")}
       brandLogoSrc={sidebarLogo}
       currentUser={currentUser}

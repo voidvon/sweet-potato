@@ -809,13 +809,16 @@ export function useChatSession() {
     imageModelConfigId?: string | null;
     modelConfigId?: string | null;
   }) => {
+    const imageModeKey = options?.capabilityContext?.imageGeneration?.modeKey;
+    const usesImageAgent = imageModeKey === 'dialog';
     await sendMessage({
       capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
       modelConfigId: options?.modelConfigId || null,
-      autoImageGeneration: location.pathname === '/app/image',
+      requestedCapabilities: imageModeKey && !usesImageAgent ? ['image_generation'] : undefined,
+      autoImageGeneration: location.pathname === '/app/image' && usesImageAgent,
     });
-  }, [sendMessage]);
+  }, [location.pathname, sendMessage]);
 
   const sendPresetMessage = useCallback(async (content: string) => {
     await sendMessage({ content, attachments: [], clearComposer: false });
@@ -875,6 +878,8 @@ export function useChatSession() {
           },
         }
       : undefined;
+    const imageModeKey = nextCapabilityContext?.imageGeneration?.modeKey;
+    const usesImageAgent = imageModeKey === 'dialog';
     await sendMessage({
       content: messageItem.content,
       attachments: messageAttachments,
@@ -883,7 +888,8 @@ export function useChatSession() {
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,
       modelConfigId: messageItem.modelConfigId || null,
-      autoImageGeneration: location.pathname === '/app/image',
+      requestedCapabilities: imageModeKey && !usesImageAgent ? ['image_generation'] : undefined,
+      autoImageGeneration: location.pathname === '/app/image' && usesImageAgent,
     });
   }, [location.pathname, sendMessage]);
 

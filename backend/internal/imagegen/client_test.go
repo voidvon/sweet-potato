@@ -3,6 +3,7 @@ package imagegen
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -48,6 +49,46 @@ func TestGenerateOpenAIImageFromBase64(t *testing.T) {
 	}
 }
 
+func TestGenerateRetriesWithOpaqueBackgroundWhenTransparentIsUnsupported(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requests++
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if requests == 1 {
+			if body["background"] != "transparent" {
+				t.Fatalf("first background = %#v, want transparent", body["background"])
+			}
+			writer.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"error": map[string]any{"message": "Transparent background is not supported for this model."},
+			})
+			return
+		}
+		if body["background"] != "opaque" {
+			t.Fatalf("retry background = %#v, want opaque", body["background"])
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated"))},
+		}})
+	}))
+	defer server.Close()
+
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "compatible-image-model"}).Generate(t.Context(), GenerateInput{
+		Prompt:     "design a logo",
+		Count:      1,
+		Background: "transparent",
+	})
+	if err != nil {
+		t.Fatalf("generate image: %v", err)
+	}
+	if requests != 2 || len(results) != 1 || string(results[0].Bytes) != "generated" {
+		t.Fatalf("requests = %d, results = %+v", requests, results)
+	}
+}
+
 func TestGenerateSeedreamIncludesReferenceImages(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "reference.png")
@@ -85,6 +126,63 @@ func TestGenerateSeedreamIncludesReferenceImages(t *testing.T) {
 		t.Fatalf("generate image: %v", err)
 	}
 	if len(results) != 2 || string(results[0].Bytes) != "generated" {
+		t.Fatalf("unexpected results: %+v", results)
+	}
+}
+
+func TestGenerateOpenAIEditPreservesReferenceMIMEType(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "reference.png")
+	if err := os.WriteFile(path, []byte("reference"), 0o644); err != nil {
+		t.Fatalf("write reference: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/images/edits" {
+			t.Fatalf("path = %s", request.URL.Path)
+		}
+		reader, err := request.MultipartReader()
+		if err != nil {
+			t.Fatalf("multipart reader: %v", err)
+		}
+		foundImage := false
+		for {
+			part, nextErr := reader.NextPart()
+			if nextErr == io.EOF {
+				break
+			}
+			if nextErr != nil {
+				t.Fatalf("next multipart part: %v", nextErr)
+			}
+			if part.FormName() != "image[]" {
+				continue
+			}
+			foundImage = true
+			if got := part.Header.Get("Content-Type"); got != "image/png" {
+				t.Fatalf("image content type = %q, want image/png", got)
+			}
+		}
+		if !foundImage {
+			t.Fatal("missing image multipart part")
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated"))},
+		}})
+	}))
+	defer server.Close()
+
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(t.Context(), GenerateInput{
+		Prompt: "remove the text",
+		Count:  1,
+		References: []store.ContentAsset{{
+			OriginalFileName: "reference.png",
+			FilePath:         path,
+			MimeType:         "image/png",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("generate image edit: %v", err)
+	}
+	if len(results) != 1 || string(results[0].Bytes) != "generated" {
 		t.Fatalf("unexpected results: %+v", results)
 	}
 }
