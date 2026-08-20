@@ -17,7 +17,9 @@ import (
 	"time"
 
 	"sweet-potato-go/internal/auth"
+	"sweet-potato-go/internal/buildinfo"
 	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/selfupdate"
 	"sweet-potato-go/internal/store"
 	"sweet-potato-go/internal/vod"
 )
@@ -39,6 +41,10 @@ type Server struct {
 	taskCtx      context.Context
 	taskCancel   context.CancelFunc
 	taskWG       sync.WaitGroup
+	updater      *selfupdate.Manager
+	updateMu     sync.Mutex
+	updating     bool
+	updateReady  chan selfupdate.StagedUpdate
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -73,6 +79,8 @@ func New(cfg config.Config) (*Server, error) {
 		rateWindows: make(map[string]rateLimitWindow),
 		taskCtx:     taskCtx,
 		taskCancel:  taskCancel,
+		updater:     selfupdate.NewManager(),
+		updateReady: make(chan selfupdate.StagedUpdate, 1),
 	}
 	server.mux.HandleFunc("GET /api/health", server.handleHealth)
 	server.mux.HandleFunc("GET /health", server.handleHealth)
@@ -136,6 +144,8 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("PUT /api/system-settings/rate-limits", server.handleRateLimitSettings)
 	server.mux.HandleFunc("GET /api/system-settings/ip-blacklist", server.handleIPBlacklistSettings)
 	server.mux.HandleFunc("PUT /api/system-settings/ip-blacklist", server.handleIPBlacklistSettings)
+	server.mux.HandleFunc("GET /api/system/update", server.handleSystemUpdateCheck)
+	server.mux.HandleFunc("POST /api/system/update", server.handleSystemUpdate)
 	server.mux.HandleFunc("/api/access-logs/", server.handleAccessLogs)
 	server.mux.HandleFunc("GET /api/access-logs", server.handleAccessLogs)
 	server.mux.HandleFunc("/api/file-management/", server.handleFileManagement)
@@ -167,6 +177,10 @@ func (s *Server) taskContext() context.Context {
 		return s.taskCtx
 	}
 	return context.Background()
+}
+
+func (s *Server) UpdateRequested() <-chan selfupdate.StagedUpdate {
+	return s.updateReady
 }
 
 func (s *Server) Handler() http.Handler {
@@ -230,6 +244,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"service": "sweet-potato-server",
+		"version": buildinfo.Current(),
 	})
 }
 

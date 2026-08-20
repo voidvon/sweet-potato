@@ -47,6 +47,7 @@ var foundationResources = []seededResource{
 	{ID: "rr-admin-system-temporary-assets", Name: "临时素材清理", NameEN: "Temporary Asset Cleanup", ResourceKey: "admin.system.temporary_assets", ResourceType: "menu", Platform: "admin", Path: "/system/temporary-assets", PermissionCode: "admin.route.system.temporary_assets.view", SortOrder: 80},
 	{ID: "rr-admin-system-settings", Name: "系统设置", NameEN: "System Settings", ResourceKey: "admin.system.settings", ResourceType: "menu", Platform: "admin", Path: "/system/settings", PermissionCode: "admin.route.system.settings.view", SortOrder: 90},
 	{ID: "rr-admin-system-access-logs", Name: "站点访问日志", NameEN: "Site Access Logs", ResourceKey: "admin.system.access_logs", ResourceType: "menu", Platform: "admin", Path: "/system/access-logs", PermissionCode: "admin.route.system.access_logs.view", SortOrder: 100},
+	{ID: "rr-admin-system-about", Name: "关于我们", NameEN: "About", ResourceKey: "admin.system.about", ResourceType: "menu", Platform: "admin", Path: "/system/about", PermissionCode: "admin.route.system.about.view", SortOrder: 110},
 }
 
 type seededModel struct {

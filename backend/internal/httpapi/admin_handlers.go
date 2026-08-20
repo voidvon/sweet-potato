@@ -22,6 +22,7 @@ const (
 	permissionSettings       = "admin.route.system.settings.view"
 	permissionAccessLogs     = "admin.route.system.access_logs.view"
 	permissionFileManagement = "admin.route.system.file_management.view"
+	permissionAbout          = "admin.route.system.about.view"
 )
 
 func (s *Server) requireUser(w http.ResponseWriter, r *http.Request, permissions ...string) (store.User, bool) {

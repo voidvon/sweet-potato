@@ -1,6 +1,8 @@
 ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 GO_DIR := $(ROOT_DIR)/backend
 GO_BIN := $(GO_DIR)/bin/sweet-potato
+VERSION := $(shell tr -d '\r\n' < $(ROOT_DIR)/VERSION)
+GO_VERSION_LDFLAG := -X sweet-potato-go/internal/buildinfo.Version=$(VERSION)
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 FRONTEND_DIST_DIR := $(FRONTEND_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
@@ -13,7 +15,7 @@ build:
 	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)"' EXIT; \
 	$(MAKE) embed-static; \
 	mkdir -p "$(GO_DIR)/bin"; \
-	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/sweet-potato ./cmd/sweetpotato
+	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w $(GO_VERSION_LDFLAG)' -o bin/sweet-potato ./cmd/sweetpotato
 
 embed-static:
 	cd "$(FRONTEND_DIR)" && npm run build
@@ -29,7 +31,7 @@ run:
 	set -e; \
 	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)"' EXIT; \
 	$(MAKE) embed-static; \
-	cd "$(GO_DIR)" && CGO_ENABLED=0 go run ./cmd/sweetpotato
+	cd "$(GO_DIR)" && CGO_ENABLED=0 go run -ldflags='$(GO_VERSION_LDFLAG)' ./cmd/sweetpotato
 
 dev:
 	bash "$(ROOT_DIR)/scripts/dev.sh"

@@ -22,5 +22,8 @@ make build
 发布产物是 `backend/bin/sweet-potato`。版本号不通过包管理器同步，也不需要额外的
 前端、桌面或服务进程参与构建。
 
+`make build` 会同时把 `VERSION` 注入 Go 可执行文件。不要使用未注入版本号的普通
+`go build` 产物发布，否则后台无法判断当前版本，也会禁用服务器自动更新。
+
 普通页面和 `/admin` 管理页面共用入口生成的 `version.js`。发布前应确认该文件中的版本
 与根目录 `VERSION` 一致，并使用 `make build` 重新生成最终可执行文件。

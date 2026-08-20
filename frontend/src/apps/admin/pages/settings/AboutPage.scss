@@ -1,0 +1,38 @@
+.about-page {
+  max-width: 960px;
+}
+
+.about-page-content {
+  min-width: 0;
+}
+
+.about-page-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.about-page-header .ant-typography {
+  margin: 0;
+}
+
+.about-page .ant-descriptions-item-label {
+  color: #667085;
+  width: 132px;
+}
+
+.about-page .ant-descriptions-item-content .ant-btn-link {
+  height: auto;
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  .about-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .about-page .ant-descriptions-item-label {
+    width: 108px;
+  }
+}

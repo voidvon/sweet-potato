@@ -12,17 +12,25 @@ import (
 
 	"sweet-potato-go/internal/config"
 	"sweet-potato-go/internal/httpapi"
+	"sweet-potato-go/internal/selfupdate"
 )
 
 func main() {
+	if handled, err := selfupdate.RunUpdateHelper(os.Args[1:]); handled {
+		if err != nil {
+			slog.Error("apply server update failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+	selfupdate.CleanupUpdateHelper()
+
 	cfg := config.Load()
 	apiServer, err := httpapi.New(cfg)
 	if err != nil {
 		slog.Error("initialize Go server failed", "error", err)
 		os.Exit(1)
 	}
-	defer apiServer.Close()
-
 	server := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           apiServer.Handler(),
@@ -42,11 +50,13 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	var pendingUpdate *selfupdate.StagedUpdate
 	select {
 	case err := <-serverErrors:
 		slog.Error("Go server stopped unexpectedly", "error", err)
-		return
 	case <-stop:
+	case update := <-apiServer.UpdateRequested():
+		pendingUpdate = &update
 	}
 
 	shutdownContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -54,5 +64,16 @@ func main() {
 	if err := server.Shutdown(shutdownContext); err != nil {
 		slog.Error("Go server shutdown failed", "error", err)
 		os.Exit(1)
+	}
+	if err := apiServer.Close(); err != nil {
+		slog.Error("close Go server failed", "error", err)
+		os.Exit(1)
+	}
+	if pendingUpdate != nil {
+		slog.Info("activating server update", "version", pendingUpdate.Version)
+		if err := selfupdate.ActivateAndRestart(*pendingUpdate); err != nil {
+			slog.Error("activate server update failed", "error", err)
+			os.Exit(1)
+		}
 	}
 }

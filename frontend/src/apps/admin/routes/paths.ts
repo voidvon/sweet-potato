@@ -12,6 +12,7 @@ export const routePaths = {
   temporaryAssetCleanup: '/admin/system/temporary-assets',
   systemSettings: '/admin/system/settings',
   siteAccessLogs: '/admin/system/access-logs',
+  about: '/admin/system/about',
   userManagement: '/admin/users',
   roleManagement: '/admin/users/roles',
   accountManagement: '/admin/users/accounts',

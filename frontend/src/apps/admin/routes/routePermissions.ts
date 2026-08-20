@@ -14,6 +14,7 @@ const routePermissionCodes: Record<string, string> = {
   'admin.system.temporary_assets': 'admin.route.system.temporary_assets.view',
   'admin.system.settings': 'admin.route.system.settings.view',
   'admin.system.access_logs': 'admin.route.system.access_logs.view',
+  'admin.system.about': 'admin.route.system.about.view',
 };
 
 function hasRouteGrant(currentUser: User, route: WorkspacePageDefinition) {

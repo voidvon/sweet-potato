@@ -5,6 +5,7 @@ import {
   CreditCardOutlined,
   FileOutlined,
   HistoryOutlined,
+  InfoCircleOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -28,6 +29,7 @@ const SystemSettingsPage = lazy(() => import('../pages/settings/SystemSettingsPa
 const SiteAccessLogPage = lazy(() => import('../pages/settings/SiteAccessLogPage').then((m) => ({ default: m.SiteAccessLogPage })));
 const AllWorksPage = lazy(() => import('../pages/works/AllWorksPage').then((m) => ({ default: m.AllWorksPage })));
 const DiscoverManagementPage = lazy(() => import('../pages/discover/DiscoverManagementPage').then((m) => ({ default: m.DiscoverManagementPage })));
+const AboutPage = lazy(() => import('../pages/settings/AboutPage').then((m) => ({ default: m.AboutPage })));
 
 export type WorkspaceRouteHandlers = {
   onLogout: () => void;
@@ -180,6 +182,15 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withStudioSuspense(<SiteAccessLogPage />),
     routeResourceKey: 'admin.system.access_logs',
     handle: { title: t("站点访问日志"), surface: 'studio', sidebar: { icon: <HistoryOutlined />, level: 'top' } },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-about',
+    path: 'system/about',
+    fullPath: routePaths.about,
+    element: (currentUser) => withStudioSuspense(<AboutPage canUpdate={currentUser.role === 'admin'} />),
+    routeResourceKey: 'admin.system.about',
+    handle: { title: t("关于我们"), surface: 'studio', sidebar: { icon: <InfoCircleOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
 ];
