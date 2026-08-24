@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +24,14 @@ type localizedResponseWriter struct {
 
 func (w *localizedResponseWriter) ResponseLanguage() string {
 	return w.language
+}
+
+func (w *localizedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	return hijacker.Hijack()
 }
 
 func resolveRequestLanguage(header string) string {

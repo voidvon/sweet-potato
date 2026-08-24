@@ -126,11 +126,12 @@ export function deleteChatAttachment(assetId: string) {
   });
 }
 
-export function createChatMessage(payload: SendChatPayload) {
-  return request<ChatConversationDetail>(Api.messages, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+export function createChatMessage(payload: SendChatPayload, options?: { signal?: AbortSignal }) {
+	return request<ChatConversationDetail>(Api.messages, {
+		method: 'POST',
+		body: JSON.stringify(payload),
+		signal: options?.signal,
+	});
 }
 
 function createAbortError() {
@@ -153,9 +154,19 @@ export async function streamChatMessage(
     }
 
     const socket = new WebSocket(resolveWebSocketUrl(Api.streamMessageWs));
+    const turnId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     let settled = false;
 
     const handleAbort = () => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          method: 'turn/interrupt',
+          id: `interrupt-${turnId}`,
+          params: { turnId },
+        }));
+      }
       settle(() => reject(createAbortError()));
     };
 
@@ -178,12 +189,59 @@ export async function streamChatMessage(
         settle(() => reject(createAbortError()));
         return;
       }
-      socket.send(JSON.stringify(payload));
+      socket.send(JSON.stringify({ method: 'turn/start', id: turnId, params: payload }));
     };
 
     socket.onmessage = (message) => {
       try {
-        const event = JSON.parse(message.data) as ChatStreamEvent;
+        const event = JSON.parse(message.data) as ChatStreamEvent & {
+          id?: string;
+          method?: string;
+          params?: Record<string, unknown>;
+          error?: { message?: string };
+        };
+        if (event.error) {
+          settle(() => reject(new Error(event.error.message || t("聊天请求失败"))));
+          return;
+        }
+        if (event.method === 'turn/started' || (event.id && !event.method)) return;
+        if (event.method === 'thread/updated') {
+          const conversation = event.params?.conversation as ChatConversation | undefined;
+          if (conversation) onEvent({ type: 'conversation', conversation });
+          return;
+        }
+        if (event.method === 'item/agentMessage/delta') {
+          onEvent({ type: 'answer_delta', delta: String(event.params?.delta || '') });
+          return;
+        }
+        if (event.method === 'item/reasoning/delta') {
+          onEvent({ type: 'reasoning_delta', delta: String(event.params?.delta || '') });
+          return;
+        }
+        if (event.method === 'item/completed') {
+          const item = event.params || {};
+          const completedMessage = item.message as ChatMessage | undefined;
+          if (completedMessage && item.kind === 'user_message') onEvent({ type: 'user_message', message: completedMessage });
+          if (completedMessage && item.kind === 'assistant_message') onEvent({ type: 'assistant_message', message: completedMessage });
+          return;
+        }
+        if (event.method === 'turn/completed') {
+          const params = event.params || {};
+          const turn = params.turn as { status?: string; error?: string } | undefined;
+          if (turn?.status === 'interrupted') {
+            settle(() => reject(createAbortError()));
+            return;
+          }
+          if (turn?.status === 'failed') {
+            settle(() => reject(new Error(turn.error || t("聊天请求失败"))));
+            return;
+          }
+          const conversation = params.conversation as ChatConversation;
+          const messages = params.messages as ChatMessage[];
+          onEvent({ type: 'done', conversation, messages });
+          settle(resolve);
+          return;
+        }
         if (event.type === 'error') {
           settle(() => reject(new Error(event.message)));
           return;

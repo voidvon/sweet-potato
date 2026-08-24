@@ -3,7 +3,6 @@ import { Modal, message } from 'antd';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   clearChatConversationMessages,
-  createChatMessage,
   deleteChatAttachment,
   deleteChatConversation,
   deleteChatMessage,
@@ -565,7 +564,6 @@ export function useChatSession() {
     const requestedCapabilities = override?.requestedCapabilities;
     const autoImageGeneration = override?.autoImageGeneration === true;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
-    const usesSynchronousChat = isImageGenerationRequest || autoImageGeneration;
     const contentForSend = content || (isImageGenerationRequest ? '' : t("请分析附件内容"));
     const resolvedCapabilityContext = override?.capabilityContext || {};
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
@@ -626,43 +624,6 @@ export function useChatSession() {
     scrollToBottom(true);
 
     try {
-      if (usesSynchronousChat) {
-        const result = await createChatMessage({
-          userId: currentUser.id,
-          conversationId: activeConversationId,
-          editMessageId,
-          agentId: activeAgent.id,
-          attachments: sendingAttachments,
-          content: contentForSend,
-          capabilityContext: resolvedCapabilityContext,
-          imageModelConfigId: resolvedImageModelConfigId,
-          modelConfigId: resolvedModelConfigId,
-          requestedCapabilities,
-          autoImageGeneration,
-        });
-        setInput('');
-        setAttachments([]);
-        setComposerDraftContext(undefined);
-        setComposerDraftImageModelConfigId(undefined);
-        setComposerDraftModelConfigId(undefined);
-        setActiveConversationId(result.conversation.id);
-        syncConversationUrl(result.conversation.id);
-        setMessages((currentMessages) => result.messages.map((messageItem) => {
-          const currentMessage = currentMessages.find((item) => item.id === messageItem.id);
-          return {
-            ...messageItem,
-            capability: messageItem.capability ?? currentMessage?.capability,
-            generationJobId: messageItem.generationJobId ?? currentMessage?.generationJobId,
-            imageGenerationExpectedCount: messageItem.imageGenerationExpectedCount ?? currentMessage?.imageGenerationExpectedCount,
-            imageGenerationFailures: messageItem.imageGenerationFailures ?? currentMessage?.imageGenerationFailures,
-            creditCost: messageItem.creditCost ?? currentMessage?.creditCost,
-          };
-        }));
-        scrollToBottom(true);
-        await refreshConversations();
-        return;
-      }
-
       await streamChatMessage(
         {
           userId: currentUser.id,
@@ -675,6 +636,7 @@ export function useChatSession() {
           imageModelConfigId: resolvedImageModelConfigId,
           modelConfigId: resolvedModelConfigId,
           requestedCapabilities,
+          autoImageGeneration,
         },
         (event) => {
           if (event.type === 'conversation') {

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
@@ -8,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"sweet-potato-go/internal/store"
@@ -224,7 +227,7 @@ func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	result, err := s.createChatResponse(user, input)
+	result, err := s.createChatResponseContext(r.Context(), user, input)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, errChatAgentNotFound) {
@@ -241,6 +244,10 @@ func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request)
 var errChatAgentNotFound = errors.New("智能体不存在")
 
 func (s *Server) createChatResponse(user store.User, input chatRequest) (response map[string]any, responseErr error) {
+	return s.createChatResponseContext(context.Background(), user, input)
+}
+
+func (s *Server) createChatResponseContext(ctx context.Context, user store.User, input chatRequest) (response map[string]any, responseErr error) {
 	content := strings.TrimSpace(input.Content)
 	imageRequest := isImageGenerationRequest(input)
 	directImageRequest := imageRequest && !input.AutoImageGeneration
@@ -307,7 +314,11 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (respons
 		}
 		assistantMessage.IsCompleted = true
 		if responseErr != nil {
-			assistantMessage.Content = responseErr.Error()
+			if errors.Is(responseErr, context.Canceled) {
+				assistantMessage.Content = "已停止生成"
+			} else {
+				assistantMessage.Content = responseErr.Error()
+			}
 		} else if strings.TrimSpace(assistantMessage.Content) == "" {
 			assistantMessage.Content = "回复已中断，请重新发送。"
 		}
@@ -326,7 +337,7 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (respons
 	var imageModelID *string
 	var imageExpectedCount *int
 	if input.AutoImageGeneration {
-		imageDecision, err = s.decideImageGeneration(user.ID, model, agent, history, input.CapabilityContext)
+		imageDecision, err = s.decideImageGeneration(ctx, user.ID, model, agent, history, input.CapabilityContext)
 		if err != nil {
 			return nil, err
 		}
@@ -356,7 +367,7 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (respons
 		}
 		mode := valueOr(stringValue(generation, "modeKey"), "image_generation")
 		title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
-		assets, generateErr := s.generateImageAssets(user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil)
+		assets, generateErr := s.generateImageAssetsContext(ctx, user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil)
 		if generateErr != nil {
 			return nil, generateErr
 		}
@@ -373,7 +384,7 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (respons
 			answer = "我可以帮你生成图片，请描述想要的画面。"
 		}
 	} else {
-		answer, reasoning, err = s.completeChat(model, agent, history)
+		answer, reasoning, err = s.completeChat(ctx, model, agent, history)
 		if err != nil {
 			return nil, err
 		}
@@ -478,7 +489,7 @@ type imageGenerationDecision struct {
 
 // decideImageGeneration lets the configured chat model choose whether the
 // image tool is needed. The server still validates and executes the tool.
-func (s *Server) decideImageGeneration(userID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
+func (s *Server) decideImageGeneration(ctx context.Context, userID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
 	messages, err := s.chatResponsesInput(userID, history)
 	if err != nil {
 		return imageGenerationDecision{}, err
@@ -490,7 +501,7 @@ func (s *Server) decideImageGeneration(userID string, model store.ModelConfig, a
 	contextJSON, _ := json.Marshal(contextValue)
 	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
-	result, err := callResponses(model, messages, []map[string]any{imageGenerationTool()})
+	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent, imageGenerationTool()))
 	if err != nil {
 		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
 	}
@@ -656,6 +667,10 @@ type responsesResult struct {
 }
 
 func callResponses(model store.ModelConfig, input []map[string]any, tools []map[string]any) (responsesResult, error) {
+	return callResponsesContext(context.Background(), model, input, tools)
+}
+
+func callResponsesContext(ctx context.Context, model store.ModelConfig, input []map[string]any, tools []map[string]any) (responsesResult, error) {
 	if strings.TrimSpace(model.APIKey) == "" {
 		return responsesResult{}, errors.New("LLM 模型未配置 API Key")
 	}
@@ -685,6 +700,7 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
 	request.Header.Set("Authorization", "Bearer "+model.APIKey)
+	request = request.WithContext(ctx)
 	response, err := (&http.Client{Timeout: 2 * time.Minute}).Do(request)
 	if err != nil {
 		return responsesResult{}, err
@@ -695,15 +711,19 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 		return responsesResult{}, err
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		slog.Error("Responses API returned non-success status", "provider", model.Provider, "model", model.Model, "base_url", baseURL, "status", response.StatusCode, "content_type", response.Header.Get("Content-Type"), "body", truncateResponsesDiagnostic(string(raw)))
 		return responsesResult{}, fmt.Errorf("Responses API 返回 %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
 	}
 	contentType := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))
 	if contentType != "text/event-stream" {
+		slog.Error("Responses API returned unexpected content type", "provider", model.Provider, "model", model.Model, "base_url", baseURL, "status", response.StatusCode, "content_type", response.Header.Get("Content-Type"), "body", truncateResponsesDiagnostic(string(raw)))
 		return responsesResult{}, fmt.Errorf("Responses API 必须返回 text/event-stream，实际返回 %q", response.Header.Get("Content-Type"))
 	}
 	result, err := parseResponsesSSE(raw)
 	if err != nil {
-		return responsesResult{}, fmt.Errorf("解析 Responses SSE 响应失败: %w", err)
+		diagnostics := responsesSSEDiagnostics(raw)
+		slog.Error("failed to parse Responses SSE", "provider", model.Provider, "model", model.Model, "base_url", baseURL, "status", response.StatusCode, "content_type", response.Header.Get("Content-Type"), "body_bytes", len(raw), "tools", responseToolNames(tools), "diagnostics", diagnostics, "error", err)
+		return responsesResult{}, fmt.Errorf("解析 Responses SSE 响应失败: %w（SSE诊断: %s）", err, formatResponsesDiagnostics(diagnostics))
 	}
 	if len(result.Output) == 0 {
 		return responsesResult{}, errors.New("Responses API 没有返回有效 output")
@@ -711,55 +731,182 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 	return result, nil
 }
 
-// parseResponsesSSE extracts the final Responses object from an SSE stream.
-// OpenAI-compatible providers may emit many intermediate events; the
-// response.completed event contains the complete output required by callers.
-func parseResponsesSSE(raw []byte) (responsesResult, error) {
+func responseToolNames(tools []map[string]any) []string {
+	result := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		name := stringValue(tool, "name")
+		if name == "" {
+			name = stringValue(tool, "type")
+		}
+		if name != "" {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+func truncateResponsesDiagnostic(value string) string {
+	value = strings.TrimSpace(value)
+	const limit = 1200
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit] + "…"
+}
+
+func responsesSSEDiagnostics(raw []byte) map[string]any {
+	events := []string{}
+	dataTypes := []string{}
+	lastData := ""
+	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+		if strings.HasPrefix(line, "event:") {
+			event := strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			if event != "" && (len(events) == 0 || events[len(events)-1] != event) {
+				events = append(events, event)
+			}
+		}
+		if strings.HasPrefix(line, "data:") {
+			lastData = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			var envelope struct {
+				Type string `json:"type"`
+			}
+			if json.Unmarshal([]byte(lastData), &envelope) == nil && envelope.Type != "" {
+				dataTypes = append(dataTypes, envelope.Type)
+			}
+		}
+	}
+	return map[string]any{"events": events, "dataTypes": dataTypes, "lastData": truncateResponsesDiagnostic(lastData), "hasDone": strings.Contains(string(raw), "[DONE]"), "hasCompleted": strings.Contains(string(raw), "response.completed")}
+}
+
+func formatResponsesDiagnostics(diagnostics map[string]any) string {
+	encoded, err := json.Marshal(diagnostics)
+	if err != nil {
+		return fmt.Sprintf("%v", diagnostics)
+	}
+	return string(encoded)
+}
+
+type responsesSSEEvent struct {
+	Name string
+	Data map[string]any
+}
+
+type responsesTurnState struct {
+	completed bool
+	failed    error
+	result    responsesResult
+	items     map[string]*responsesOutputItem
+	itemOrder []string
+}
+
+func newResponsesTurnState() *responsesTurnState {
+	return &responsesTurnState{items: map[string]*responsesOutputItem{}}
+}
+
+func (state *responsesTurnState) apply(event responsesSSEEvent) error {
+	typ := stringValue(event.Data, "type")
+	if typ == "" {
+		typ = event.Name
+	}
+	if typ == "response.failed" {
+		if errValue := objectValue(event.Data["error"]); len(errValue) > 0 {
+			state.failed = fmt.Errorf("Responses API 生成失败: %s", formatResponsesDiagnostics(errValue))
+		} else {
+			state.failed = errors.New("Responses API 生成失败")
+		}
+		return state.failed
+	}
+	if typ == "response.output_item.added" || typ == "response.output_item.done" {
+		item := objectValue(event.Data["item"])
+		if stringValue(item, "type") == "function_call" {
+			state.ensureFunction(stringValue(item, "id"), stringValue(item, "name"), stringValue(item, "arguments"))
+		}
+	}
+	if typ == "response.function_call_arguments.delta" || typ == "response.function_call_arguments.done" {
+		item := state.ensureFunction(stringValue(event.Data, "item_id"), "", "")
+		if delta := stringValue(event.Data, "delta"); delta != "" {
+			item.Arguments += delta
+		}
+		if arguments := stringValue(event.Data, "arguments"); arguments != "" {
+			item.Arguments = arguments
+		}
+	}
+	if typ == "response.output_text.delta" {
+		state.result.OutputText += stringValue(event.Data, "delta")
+	}
+	if typ == "response.reasoning_summary_text.delta" || typ == "response.reasoning_text.delta" {
+		state.result.Output = append(state.result.Output, responsesOutputItem{Type: "reasoning", Summary: []responsesOutputSummary{{Text: stringValue(event.Data, "delta")}}})
+	}
+	if typ != "response.completed" {
+		return nil
+	}
+	state.completed = true
+	response := objectValue(event.Data["response"])
+	if len(response) > 0 {
+		encoded, _ := json.Marshal(response)
+		var result responsesResult
+		if err := json.Unmarshal(encoded, &result); err != nil {
+			return fmt.Errorf("response.completed 数据无效: %w", err)
+		}
+		if result.OutputText != "" {
+			state.result.OutputText = result.OutputText
+		}
+		if len(result.Output) > 0 {
+			state.result.Output = result.Output
+		}
+	}
+	if len(state.result.Output) == 0 && len(state.itemOrder) > 0 {
+		for _, id := range state.itemOrder {
+			state.result.Output = append(state.result.Output, *state.items[id])
+		}
+	}
+	return nil
+}
+
+func (state *responsesTurnState) ensureFunction(id, name, arguments string) *responsesOutputItem {
+	if id == "" {
+		id = fmt.Sprintf("function_%d", len(state.itemOrder))
+	}
+	item := state.items[id]
+	if item == nil {
+		item = &responsesOutputItem{Type: "function_call"}
+		state.items[id] = item
+		state.itemOrder = append(state.itemOrder, id)
+	}
+	if name != "" {
+		item.Name = name
+	}
+	if arguments != "" {
+		item.Arguments = arguments
+	}
+	return item
+}
+
+func decodeResponsesSSE(raw []byte) ([]responsesSSEEvent, error) {
 	var eventName string
 	var dataLines []string
-	flush := func() (responsesResult, error) {
+	events := []responsesSSEEvent{}
+	flush := func() error {
 		if eventName == "" && len(dataLines) == 0 {
-			return responsesResult{}, nil
+			return nil
 		}
-		data := strings.TrimSpace(strings.Join(dataLines, "\n"))
 		name := strings.TrimSpace(eventName)
-		eventName = ""
-		dataLines = nil
+		data := strings.TrimSpace(strings.Join(dataLines, "\n"))
+		eventName, dataLines = "", nil
 		if data == "" || data == "[DONE]" {
-			return responsesResult{}, nil
+			return nil
 		}
-		var envelope struct {
-			Type     string          `json:"type"`
-			Response json.RawMessage `json:"response"`
-			Error    json.RawMessage `json:"error"`
+		var object map[string]any
+		if err := json.Unmarshal([]byte(data), &object); err != nil {
+			return fmt.Errorf("事件 %s 数据无效: %w", name, err)
 		}
-		if err := json.Unmarshal([]byte(data), &envelope); err != nil {
-			return responsesResult{}, fmt.Errorf("事件 %s 数据无效: %w", name, err)
-		}
-		if name == "response.failed" || envelope.Type == "response.failed" {
-			if len(envelope.Error) > 0 {
-				return responsesResult{}, fmt.Errorf("Responses API 生成失败: %s", strings.TrimSpace(string(envelope.Error)))
-			}
-			return responsesResult{}, errors.New("Responses API 生成失败")
-		}
-		if name != "response.completed" && envelope.Type != "response.completed" {
-			return responsesResult{}, nil
-		}
-		if len(envelope.Response) == 0 {
-			return responsesResult{}, errors.New("response.completed 缺少 response")
-		}
-		var result responsesResult
-		if err := json.Unmarshal(envelope.Response, &result); err != nil {
-			return responsesResult{}, fmt.Errorf("response.completed 数据无效: %w", err)
-		}
-		return result, nil
+		events = append(events, responsesSSEEvent{Name: name, Data: object})
+		return nil
 	}
-
 	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
 		if line == "" {
-			result, err := flush()
-			if err != nil || len(result.Output) > 0 || strings.TrimSpace(result.OutputText) != "" {
-				return result, err
+			if err := flush(); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -770,14 +917,34 @@ func parseResponsesSSE(raw []byte) (responsesResult, error) {
 			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
 		}
 	}
-	result, err := flush()
+	if err := flush(); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// parseResponsesSSE reduces the provider event stream into one completed turn.
+func parseResponsesSSE(raw []byte) (responsesResult, error) {
+	events, err := decodeResponsesSSE(raw)
 	if err != nil {
 		return responsesResult{}, err
 	}
-	if len(result.Output) == 0 && strings.TrimSpace(result.OutputText) == "" {
+	state := newResponsesTurnState()
+	for _, event := range events {
+		if err := state.apply(event); err != nil {
+			return responsesResult{}, err
+		}
+	}
+	if state.failed != nil {
+		return responsesResult{}, state.failed
+	}
+	if !state.completed {
 		return responsesResult{}, errors.New("SSE 响应未包含 response.completed")
 	}
-	return result, nil
+	if len(state.result.Output) == 0 && strings.TrimSpace(state.result.OutputText) == "" {
+		return responsesResult{}, errors.New("response.completed 未包含可用 output")
+	}
+	return state.result, nil
 }
 
 func imageGenerationTool() map[string]any {
@@ -798,6 +965,18 @@ func imageGenerationTool() map[string]any {
 			"required": []string{"prompt"},
 		},
 	}
+}
+
+func webSearchTool() map[string]any {
+	return map[string]any{"type": "web_search"}
+}
+
+func agentResponsesTools(agent store.Agent, additional ...map[string]any) []map[string]any {
+	tools := append([]map[string]any(nil), additional...)
+	if agent.WebSearchEnabled {
+		tools = append(tools, webSearchTool())
+	}
+	return tools
 }
 
 func responseOutputText(result responsesResult) string {
@@ -833,7 +1012,7 @@ func responseReasoningText(result responsesResult) string {
 	return strings.TrimSpace(strings.Join(parts, ""))
 }
 
-func (s *Server) completeChat(model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
+func (s *Server) completeChat(ctx context.Context, model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
 	messages := make([]map[string]any, 0, len(history)+1)
 	if strings.TrimSpace(agent.SystemPrompt) != "" {
 		messages = append(messages, map[string]any{"role": "system", "content": agent.SystemPrompt})
@@ -841,7 +1020,7 @@ func (s *Server) completeChat(model store.ModelConfig, agent store.Agent, histor
 	for _, item := range history {
 		messages = append(messages, map[string]any{"role": item.Role, "content": item.Content})
 	}
-	result, err := callResponses(model, messages, nil)
+	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent))
 	if err != nil {
 		return "", "", fmt.Errorf("调用模型失败: %w", err)
 	}
@@ -907,63 +1086,182 @@ func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
 	if _, err := connection.Write([]byte(response)); err != nil {
 		return
 	}
+	session := &chatWebSocketSession{server: s, connection: connection, user: user}
+	defer session.cancelActive()
 	for {
 		payload, opcode, err := readWebSocketFrame(buffered)
 		if err != nil || opcode == 8 {
 			return
 		}
 		if opcode == 9 {
-			_ = writeWebSocketFrame(connection, 10, payload)
+			_ = session.writeFrame(10, payload)
 			continue
 		}
 		if opcode != 1 {
 			continue
 		}
-		var input chatRequest
-		if err := json.Unmarshal(payload, &input); err != nil {
-			_ = writeWebSocketJSON(connection, websocketError(r, http.StatusBadRequest, "聊天请求格式错误"))
+		var command chatTurnCommand
+		if err := json.Unmarshal(payload, &command); err != nil {
+			_ = session.writeJSON(chatTurnError(nil, http.StatusBadRequest, "聊天请求格式错误"))
 			continue
 		}
-		result, err := s.createChatResponse(user, input)
-		if err != nil {
-			status := http.StatusBadRequest
-			if errors.Is(err, store.ErrChatResponseInProgress) {
-				status = http.StatusConflict
-			}
-			_ = writeWebSocketJSON(connection, websocketError(r, status, err.Error()))
-			continue
+		if command.Method == "" {
+			command.Method = "turn/start"
+			command.ID = randomIDForHTTP()
+			command.Params = json.RawMessage(payload)
 		}
-		conversation, _ := result["conversation"].(store.ChatConversation)
-		messages, _ := result["messages"].([]store.ChatMessage)
-		if err := writeWebSocketJSON(connection, map[string]any{"type": "conversation", "conversation": conversation}); err != nil {
-			return
-		}
-		if len(messages) >= 2 {
-			if err := writeWebSocketJSON(connection, map[string]any{"type": "user_message", "message": messages[len(messages)-2]}); err != nil {
-				return
-			}
-			assistant := messages[len(messages)-1]
-			for _, chunk := range splitTextChunks(assistant.Content, 80) {
-				if err := writeWebSocketJSON(connection, map[string]any{"type": "answer_delta", "delta": chunk}); err != nil {
-					return
+		switch command.Method {
+		case "turn/start":
+			if err := session.startTurn(command); err != nil {
+				status := http.StatusBadRequest
+				if errors.Is(err, store.ErrChatResponseInProgress) {
+					status = http.StatusConflict
 				}
+				_ = session.writeJSON(chatTurnError(command.ID, status, err.Error()))
 			}
-			if err := writeWebSocketJSON(connection, map[string]any{"type": "assistant_message", "message": assistant}); err != nil {
-				return
+		case "turn/interrupt":
+			if err := session.interruptTurn(command); err != nil {
+				_ = session.writeJSON(chatTurnError(command.ID, http.StatusBadRequest, err.Error()))
 			}
-		}
-		if err := writeWebSocketJSON(connection, map[string]any{"type": "done", "conversation": conversation, "messages": messages}); err != nil {
-			return
+		default:
+			_ = session.writeJSON(chatTurnError(command.ID, http.StatusNotFound, "不支持的聊天命令"))
 		}
 	}
 }
 
-func websocketError(r *http.Request, status int, message string) map[string]any {
-	return map[string]any{
-		"type":    "error",
-		"code":    errorCodeForStatus(status),
-		"message": localizedErrorMessage(resolveRequestLanguage(r.Header.Get("Accept-Language")), status, message),
+type chatTurnCommand struct {
+	Method string          `json:"method"`
+	ID     any             `json:"id"`
+	Params json.RawMessage `json:"params"`
+}
+
+type chatTurnInterruptParams struct {
+	TurnID string `json:"turnId"`
+}
+
+type activeChatTurn struct {
+	id     string
+	cancel context.CancelFunc
+}
+
+type chatWebSocketSession struct {
+	server     *Server
+	connection net.Conn
+	user       store.User
+	writeMu    sync.Mutex
+	turnMu     sync.Mutex
+	active     *activeChatTurn
+}
+
+func (session *chatWebSocketSession) writeFrame(opcode byte, payload []byte) error {
+	session.writeMu.Lock()
+	defer session.writeMu.Unlock()
+	return writeWebSocketFrame(session.connection, opcode, payload)
+}
+
+func (session *chatWebSocketSession) writeJSON(value any) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return err
 	}
+	return session.writeFrame(1, payload)
+}
+
+func (session *chatWebSocketSession) startTurn(command chatTurnCommand) error {
+	var input chatRequest
+	if len(command.Params) == 0 || json.Unmarshal(command.Params, &input) != nil {
+		return errors.New("聊天请求格式错误")
+	}
+	turnID := strings.TrimSpace(fmt.Sprint(command.ID))
+	if turnID == "" || turnID == "<nil>" {
+		turnID = randomIDForHTTP()
+	}
+	session.turnMu.Lock()
+	if session.active != nil {
+		session.turnMu.Unlock()
+		return store.ErrChatResponseInProgress
+	}
+	ctx, cancel := context.WithCancel(session.server.taskContext())
+	session.active = &activeChatTurn{id: turnID, cancel: cancel}
+	session.turnMu.Unlock()
+	if err := session.writeJSON(map[string]any{"id": command.ID, "result": map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress"}}}); err != nil {
+		cancel()
+		session.clearTurn(turnID)
+		return err
+	}
+	if err := session.writeJSON(map[string]any{"method": "turn/started", "params": map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress"}}}); err != nil {
+		cancel()
+		session.clearTurn(turnID)
+		return err
+	}
+	go session.runTurn(ctx, turnID, input)
+	return nil
+}
+
+func (session *chatWebSocketSession) interruptTurn(command chatTurnCommand) error {
+	var params chatTurnInterruptParams
+	if len(command.Params) > 0 && json.Unmarshal(command.Params, &params) != nil {
+		return errors.New("中止请求格式错误")
+	}
+	session.turnMu.Lock()
+	active := session.active
+	if active == nil || (params.TurnID != "" && params.TurnID != active.id) {
+		session.turnMu.Unlock()
+		return errors.New("当前没有可中止的任务")
+	}
+	active.cancel()
+	session.turnMu.Unlock()
+	return session.writeJSON(map[string]any{"id": command.ID, "result": map[string]any{}})
+}
+
+func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string, input chatRequest) {
+	result, err := session.server.createChatResponseContext(ctx, session.user, input)
+	if err != nil {
+		status := "failed"
+		message := err.Error()
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			status = "interrupted"
+			message = "已停止生成"
+		}
+		_ = session.writeJSON(map[string]any{"method": "turn/completed", "params": map[string]any{"turn": map[string]any{"id": turnID, "status": status, "error": message}}})
+		session.clearTurn(turnID)
+		return
+	}
+	conversation, _ := result["conversation"].(store.ChatConversation)
+	messages, _ := result["messages"].([]store.ChatMessage)
+	_ = session.writeJSON(map[string]any{"method": "thread/updated", "params": map[string]any{"conversation": conversation}})
+	if len(messages) >= 2 {
+		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "user_message", "message": messages[len(messages)-2]}})
+		assistant := messages[len(messages)-1]
+		for _, chunk := range splitTextChunks(assistant.Content, 80) {
+			_ = session.writeJSON(map[string]any{"method": "item/agentMessage/delta", "params": map[string]any{"delta": chunk}})
+		}
+		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "assistant_message", "message": assistant}})
+	}
+	_ = session.writeJSON(map[string]any{"method": "turn/completed", "params": map[string]any{"turn": map[string]any{"id": turnID, "status": "completed"}, "conversation": conversation, "messages": messages}})
+	session.clearTurn(turnID)
+}
+
+func (session *chatWebSocketSession) clearTurn(turnID string) {
+	session.turnMu.Lock()
+	defer session.turnMu.Unlock()
+	if session.active != nil && session.active.id == turnID {
+		session.active.cancel()
+		session.active = nil
+	}
+}
+
+func (session *chatWebSocketSession) cancelActive() {
+	session.turnMu.Lock()
+	defer session.turnMu.Unlock()
+	if session.active != nil {
+		session.active.cancel()
+		session.active = nil
+	}
+}
+
+func chatTurnError(id any, status int, message string) map[string]any {
+	return map[string]any{"id": id, "error": map[string]any{"code": status, "message": message}}
 }
 
 func splitTextChunks(value string, max int) []string {
@@ -1021,14 +1319,6 @@ func readWebSocketFrame(reader io.Reader) ([]byte, byte, error) {
 		}
 	}
 	return payload, opcode, nil
-}
-
-func writeWebSocketJSON(connection net.Conn, value any) error {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	return writeWebSocketFrame(connection, 1, payload)
 }
 
 func writeWebSocketFrame(connection net.Conn, opcode byte, payload []byte) error {

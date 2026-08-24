@@ -155,10 +155,15 @@ VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`, model.ID, model.Type, model.Na
 		return fmt.Errorf("seed temporary asset settings: %w", err)
 	}
 	if _, err := db.Exec(`INSERT OR IGNORE INTO agents (id, name, description, icon, built_in, capabilities, run_mode, system_prompt, tools, skills, retrieval_strategy, web_search_enabled, multimodal, created_at)
-VALUES ('quick-answer', '快速问答', '适合直接向模型提问，快速获得结构化答案。', 'chat', 1, '["chat","fileUpload","mention"]', 'quick', '你是一个高效、准确的 AI 助手，回答要简洁清楚。', '[]', '["通用问答"]', 'semantic', 0, '{"imageUpload":false,"fileUpload":true}', ?),
+VALUES ('quick-answer', '快速问答', '适合直接向模型提问，快速获得结构化答案。', 'chat', 1, '["chat","fileUpload","mention"]', 'quick', '你是一个高效、准确的 AI 助手，回答要简洁清楚。', '[]', '["通用问答"]', 'semantic', 1, '{"imageUpload":false,"fileUpload":true}', ?),
        ('reasoning', '智能推理', '适合复杂任务拆解、策略推演和多步骤分析。', 'cube', 1, '["chat","reasoning","fileUpload","mention"]', 'reasoning', '你是一个擅长推理和拆解复杂问题的智能体。', '["任务拆解","步骤推理"]', '["复杂问题分析"]', 'hybrid', 0, '{"imageUpload":false,"fileUpload":true}', ?),
        ('data-analyst', '数据分析师', '适合指标分析、表格解释和运营数据洞察。', 'chart', 1, '["chat","analysis","fileUpload"]', 'quick', '你是一个严谨的数据分析师，善于用指标和结论表达。', '["指标解释"]', '["数据洞察"]', 'keyword', 0, '{"imageUpload":false,"fileUpload":true}', ?)`, now, now, now); err != nil {
 		return fmt.Errorf("seed agents: %w", err)
+	}
+	// Keep the built-in quick-answer agent current for databases created by
+	// earlier versions, where web search defaulted to disabled.
+	if _, err := db.Exec(`UPDATE agents SET web_search_enabled = 1 WHERE id = 'quick-answer' AND built_in = 1`); err != nil {
+		return fmt.Errorf("enable quick-answer web search: %w", err)
 	}
 	return nil
 }

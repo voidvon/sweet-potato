@@ -89,6 +89,10 @@ func imageDefaultBaseURL(provider string) string {
 }
 
 func (s *Server) generateImageAssets(userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string) ([]store.ContentAsset, error) {
+	return s.generateImageAssetsContext(context.Background(), userID, model, prompt, count, references, options, mode, title, parentAssetID)
+}
+
+func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string) ([]store.ContentAsset, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("图片提示词不能为空")
 	}
@@ -96,7 +100,7 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 	options.Prompt = prompt
 	options.Count = count
 	client := imagegen.Client{BaseURL: model.BaseURL, APIKey: model.APIKey, Provider: model.Provider, Model: model.Model, PublicBase: strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")}
-	ctx, cancel := context.WithTimeout(s.taskContext(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 	outputs, err := client.Generate(ctx, optionsWithReferences(options, references))
 	if err != nil {
