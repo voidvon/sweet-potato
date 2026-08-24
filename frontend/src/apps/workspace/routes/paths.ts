@@ -9,6 +9,7 @@ export const routePaths = {
   contentDefault: '/app/content/create_video',
   contentModule: (moduleCode = ':moduleCode') => `/app/content/${moduleCode}`,
   account: '/app/account',
+  accountInfo: '/app/account/profile',
   models: '/app/models',
   noPermission: '/app/no-permission',
 };

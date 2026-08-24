@@ -516,6 +516,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
   const resolvedMinHeight = minHeight ?? Math.max(minRows, 1) * 25 + 40;
   const optionsRef = useRef(options);
   const onPlaceholderClickRef = useRef(onPlaceholderClick);
+  const suggestionActiveRef = useRef(false);
   const pendingLocalValuesRef = useRef<string[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [fallbackMenuOpen, setFallbackMenuOpen] = useState(false);
@@ -602,8 +603,23 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
     }
   };
 
-  const handleFallbackKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (disabled || !fallbackMentionMenu) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) {
+      return;
+    }
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.nativeEvent.isComposing
+      && !fallbackMenuOpen
+      && !suggestionActiveRef.current
+      && onSubmit
+    ) {
+      event.preventDefault();
+      onSubmit();
+      return;
+    }
+    if (!fallbackMentionMenu) {
       return;
     }
     if (event.key === '@') {
@@ -611,10 +627,6 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
       return;
     }
     if (!fallbackMenuOpen) {
-      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && onSubmit) {
-        event.preventDefault();
-        onSubmit();
-      }
       return;
     }
     if (event.key === 'Escape') {
@@ -755,6 +767,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
 
             return {
               onStart: (props) => {
+                suggestionActiveRef.current = true;
                 component = new ReactRenderer(MentionList, {
                   editor: props.editor,
                   props: {
@@ -784,6 +797,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
                 return component?.ref?.onKeyDown(props) ?? false;
               },
               onExit() {
+                suggestionActiveRef.current = false;
                 unmount?.();
                 component?.destroy();
                 component = null;
@@ -884,7 +898,7 @@ export const MentionRichTextarea = forwardRef<MentionRichTextareaRef, MentionRic
         className,
       ].filter(Boolean).join(' ')}
       onMouseDown={handleContainerMouseDown}
-      onKeyDownCapture={handleFallbackKeyDown}
+      onKeyDownCapture={handleKeyDown}
       ref={containerRef}
       style={{ minHeight: resolvedMinHeight }}
     >

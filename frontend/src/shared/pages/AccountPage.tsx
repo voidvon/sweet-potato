@@ -137,7 +137,10 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   async function handleProfileSubmit(values: UserProfilePayload) {
     setSavingProfile(true);
     try {
-      const result = await updateUserProfile(currentProfile.id, values);
+      const result = await updateUserProfile(currentProfile.id, {
+        ...values,
+        avatarUrl: currentProfile.avatarUrl || '',
+      });
       setCurrentProfile(result.user);
       onUserUpdated(result.user);
       setProfileModalOpen(false);
@@ -308,7 +311,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p>{t("管理头像、用户名、登录密码，以及查看个人积分账单和余额变化。")}</p>
+          <p>{t("管理头像、昵称、登录密码，以及查看个人积分账单和余额变化。")}</p>
         </section>
 
         <Card>
@@ -327,7 +330,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             </div>
             <Space>
               <Button icon={<EditOutlined />} onClick={openProfileModal}>
-                {t("修改用户名")}
+                {t("修改昵称")}
               </Button>
               <Button icon={<LockOutlined />} onClick={openPasswordModal}>
                 {t("修改密码")}
@@ -372,7 +375,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
         onCancel={() => setProfileModalOpen(false)}
         onOk={() => profileForm.submit()}
         open={profileModalOpen}
-        title={t("修改用户名")}
+        title={t("修改昵称")}
       >
         <Form
           form={profileForm}
@@ -384,13 +387,13 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             <Input disabled value={currentProfile.username} size="large" />
           </Form.Item>
           <Form.Item
-            label={t("用户名")}
+            label={t("昵称")}
             name="displayName"
             rules={[
-              { required: true, min: 2, message: t("请输入至少 2 位用户名") },
+              { required: true, min: 2, message: t("请输入至少 2 位昵称") },
             ]}
           >
-            <Input placeholder={t("请输入用户名")} size="large" />
+            <Input placeholder={t("请输入昵称")} size="large" />
           </Form.Item>
         </Form>
       </Modal>

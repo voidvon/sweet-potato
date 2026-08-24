@@ -31,11 +31,13 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
     { key: routePaths.contentModule('create_video'), label: t("视频创作"), icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
     { key: routePaths.contentRoot, label: t("素材"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
     { key: routePaths.contentModule('finished_assets'), label: t("作品"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
-    { key: routePaths.account, label: t("我的"), icon: <UserOutlined /> },
+    { key: routePaths.accountInfo, label: t("我的"), icon: <UserOutlined /> },
   ];
 
   return (
     <WorkspaceShellLayout
+      accountInfoPath={routePaths.accountInfo}
+      accountLabel={t("通用设置")}
       accountPath={routePaths.account}
       appName={t("地瓜 AI")}
       appSubtitle={t("专业版")}

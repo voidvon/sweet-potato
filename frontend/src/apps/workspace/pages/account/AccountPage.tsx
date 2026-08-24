@@ -41,6 +41,7 @@ type AccountPageProps = {
   currentUser: User;
   onLogout: () => void;
   onUserUpdated: (user: User) => void;
+  view?: 'profile' | 'settings';
 };
 
 function formatCredits(credits: number) {
@@ -81,7 +82,7 @@ function ledgerTypeLabel(entry: MyCreditLedgerEntry) {
   return { color: 'volcano', text: t("补扣") };
 }
 
-export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPageProps) {
+export function AccountPage({ currentUser, onLogout, onUserUpdated, view = 'settings' }: AccountPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCreditTab = searchParams.get('tab') === 'ledger' ? 'ledger' : 'recharge';
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -119,8 +120,10 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   }, [currentUser]);
 
   useEffect(() => {
-    void loadCreditLedger();
-  }, []);
+    if (view === 'settings') {
+      void loadCreditLedger();
+    }
+  }, [view]);
 
   function openProfileModal() {
     profileForm.setFieldsValue({
@@ -149,7 +152,10 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
   async function handleProfileSubmit(values: UserProfilePayload) {
     setSavingProfile(true);
     try {
-      const result = await updateUserProfile(currentProfile.id, values);
+      const result = await updateUserProfile(currentProfile.id, {
+        ...values,
+        avatarUrl: currentProfile.avatarUrl || '',
+      });
       setCurrentProfile(result.user);
       onUserUpdated(result.user);
       setProfileModalOpen(false);
@@ -308,10 +314,12 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
     <ContentStudioLayout>
       <section className="settings-page">
         <section className="settings-header">
-          <p>{t("管理头像、昵称、登录密码，以及查看个人积分账单和余额变化。")}</p>
+          <p>{view === 'profile'
+            ? t("管理头像和昵称；登录账号用于身份识别，不支持修改。")
+            : t("管理登录密码，以及查看个人积分账单和余额变化。")}</p>
         </section>
 
-        <Card>
+        {view === 'profile' ? <Card>
           <div className="account-profile">
             <Upload {...avatarUploadProps}>
               <button className="account-avatar-button" type="button">
@@ -329,17 +337,28 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
               <Button icon={<EditOutlined />} onClick={openProfileModal}>
                 {t("修改昵称")}
               </Button>
-              <Button icon={<LockOutlined />} onClick={openPasswordModal}>
-                {t("修改密码")}
-              </Button>
-              <Button danger icon={<LogoutOutlined />} onClick={openLogoutConfirm}>
-                {t("退出登录")}
-              </Button>
             </Space>
           </div>
-        </Card>
+        </Card> : (
+          <Card title={t("安全设置")}>
+            <div className="account-security-row">
+              <div>
+                <strong>{t("登录账号")}</strong>
+                <span>{currentProfile.username}</span>
+              </div>
+              <Space wrap>
+                <Button icon={<LockOutlined />} onClick={openPasswordModal}>
+                  {t("修改密码")}
+                </Button>
+                <Button danger icon={<LogoutOutlined />} onClick={openLogoutConfirm}>
+                  {t("退出登录")}
+                </Button>
+              </Space>
+            </div>
+          </Card>
+        )}
 
-        <section className="settings-section">
+        {view === 'settings' ? <><section className="settings-section">
           <div className="settings-section-actions">
           <Button icon={<ReloadOutlined />} onClick={() => void loadCreditLedger()} loading={ledgerLoading}>
             {t("刷新账单")}
@@ -368,8 +387,9 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             onChange={(tab) => setSearchParams({ tab }, { replace: true })}
           />
         </section>
+        </> : null}
 
-      <Modal
+      {view === 'profile' ? <Modal
         confirmLoading={savingProfile}
         okText={t("保存")}
         cancelText={t("取消")}
@@ -397,9 +417,9 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             <Input placeholder={t("请输入昵称")} size="large" />
           </Form.Item>
         </Form>
-      </Modal>
+      </Modal> : null}
 
-      <Modal
+      {view === 'settings' ? <Modal
         confirmLoading={savingPassword}
         okText={t("修改")}
         cancelText={t("取消")}
@@ -459,7 +479,7 @@ export function AccountPage({ currentUser, onLogout, onUserUpdated }: AccountPag
             />
           </Form.Item>
         </Form>
-      </Modal>
+      </Modal> : null}
       </section>
     </ContentStudioLayout>
   );

@@ -56,6 +56,7 @@ type ShellUser = {
 };
 
 type WorkspaceShellLayoutProps<User extends ShellUser> = {
+  accountInfoPath?: string;
   accountLabel?: string;
   accountPath: string;
   appName?: string;
@@ -126,6 +127,7 @@ export function useWorkspaceHeader() {
 }
 
 export function WorkspaceShellLayout<User extends ShellUser>({
+  accountInfoPath,
   accountLabel = t('账号中心'),
   accountPath,
   appName = t('地瓜'),
@@ -193,7 +195,8 @@ export function WorkspaceShellLayout<User extends ShellUser>({
   }, [routeState.currentMenuTitle]);
 
   const settingsItems: MenuProps['items'] = [
-    { key: 'account', icon: <UserOutlined />, label: accountLabel },
+    ...(accountInfoPath ? [{ key: 'account-info', icon: <UserOutlined />, label: t("账号信息") }] : []),
+    { key: 'account', icon: <SettingOutlined />, label: accountLabel },
     ...(modelManagementPath ? [{ key: 'models', icon: <RobotOutlined />, label: t("模型管理") }] : []),
     { key: 'logout', danger: true, icon: <LogoutOutlined />, label: t("退出登录") },
   ];
@@ -216,6 +219,10 @@ export function WorkspaceShellLayout<User extends ShellUser>({
     }
     if (key === 'account') {
       navigate(accountPath);
+      return;
+    }
+    if (key === 'account-info' && accountInfoPath) {
+      navigate(accountInfoPath);
       return;
     }
     if (key === 'models' && modelManagementPath) {

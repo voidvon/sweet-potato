@@ -800,6 +800,7 @@ export function ClawDialogComposer({
                 className="claw-dialog-rich-textarea"
                 editorClassName="claw-dialog-rich-editor"
                 emptyText={t("暂无可引用图片")}
+                enableHardBreak
                 menuTitle={t("可引用图片")}
                 minRows={2}
                 onChange={onInputChange}

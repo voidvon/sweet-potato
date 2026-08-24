@@ -442,6 +442,23 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
   },
   {
+    key: 'account-info',
+    path: 'account/profile',
+    fullPath: routePaths.accountInfo,
+    element: (currentUser, handlers) => withStudioSuspense(
+      <AccountPage
+        currentUser={currentUser}
+        onLogout={handlers.onLogout}
+        onUserUpdated={handlers.onUserUpdated}
+        view="profile"
+      />,
+    ),
+    handle: {
+      title: t("账号信息"),
+      surface: 'studio',
+    },
+  },
+  {
     key: 'account',
     path: 'account',
     fullPath: routePaths.account,
@@ -450,10 +467,11 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
         currentUser={currentUser}
         onLogout={handlers.onLogout}
         onUserUpdated={handlers.onUserUpdated}
+        view="settings"
       />,
     ),
     handle: {
-      title: t("账号中心"),
+      title: t("通用设置"),
       surface: 'studio',
     },
   },

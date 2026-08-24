@@ -77,7 +77,12 @@ func Open(dataDir string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	result := &Store{db: db}
+	if err := result.RecoverInterruptedChatResponses(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("recover interrupted chat responses: %w", err)
+	}
+	return result, nil
 }
 
 func (s *Store) Close() error {
@@ -210,6 +215,9 @@ func migrateFoundation(db *sql.DB) error {
 		if err := ensureColumn(db, column.table, column.column, column.definition); err != nil {
 			return err
 		}
+	}
+	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_conversation_active_assistant ON chat_messages(conversation_id) WHERE role = 'assistant' AND is_completed = 0`); err != nil {
+		return fmt.Errorf("create active chat response index: %w", err)
 	}
 	return nil
 }

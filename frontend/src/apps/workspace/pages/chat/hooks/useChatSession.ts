@@ -82,6 +82,7 @@ export function useChatSession() {
   const [composerDraftContext, setComposerDraftContext] = useState<SendChatPayload['capabilityContext']>();
   const [composerDraftImageModelConfigId, setComposerDraftImageModelConfigId] = useState<string | null>();
   const [composerDraftModelConfigId, setComposerDraftModelConfigId] = useState<string | null>();
+  const [composerEditMessageId, setComposerEditMessageId] = useState<string>();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentUser = useMemo(() => getStoredUser(), []);
   const currentUserId = currentUser?.id;
@@ -215,6 +216,7 @@ export function useChatSession() {
     }
     setActiveConversationId(conversationId);
     setAttachments([]);
+    setComposerEditMessageId(undefined);
     setUserHasScrolledUp(false);
     try {
       const detail = await getChatConversation(conversationId);
@@ -365,6 +367,7 @@ export function useChatSession() {
     clearConversationOverlayLoadingHideTimer();
     setActiveConversationId(undefined);
     setAttachments([]);
+    setComposerEditMessageId(undefined);
     setMessages([]);
     setIsResolvingConversation(false);
     setConversationOverlayLoadingVisible(false);
@@ -555,6 +558,7 @@ export function useChatSession() {
     const sendingAttachments = messageAttachments;
     const previousMessages = messages;
     const previousConversationId = activeConversationId;
+    const previousEditMessageId = composerEditMessageId;
     const editMessageId = override?.editMessageId;
     const editTargetIndex = editMessageId ? messages.findIndex((item) => item.id === editMessageId && item.role === 'user') : -1;
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
@@ -604,6 +608,7 @@ export function useChatSession() {
       setComposerDraftContext(undefined);
       setComposerDraftImageModelConfigId(undefined);
       setComposerDraftModelConfigId(undefined);
+      setComposerEditMessageId(undefined);
     }
     if (editTargetIndex >= 0) {
       setMessages([
@@ -792,6 +797,7 @@ export function useChatSession() {
 
       setInput(content);
       setAttachments(sendingAttachments);
+      setComposerEditMessageId(previousEditMessageId);
       setActiveConversationId(previousConversationId);
       syncConversationUrl(previousConversationId || null);
       setMessages(previousMessages);
@@ -802,7 +808,7 @@ export function useChatSession() {
       }
       setSending(false);
     }
-  }, [activeAgent, activeConversationId, attachments, currentUser, input, location.pathname, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
+  }, [activeAgent, activeConversationId, attachments, composerEditMessageId, currentUser, input, location.pathname, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
 
   const sendCurrentMessage = useCallback(async (options?: {
     capabilityContext?: SendChatPayload['capabilityContext'];
@@ -815,10 +821,11 @@ export function useChatSession() {
       capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
       modelConfigId: options?.modelConfigId || null,
+      editMessageId: composerEditMessageId,
       requestedCapabilities: imageModeKey && !usesImageAgent ? ['image_generation'] : undefined,
       autoImageGeneration: location.pathname === '/app/image' && usesImageAgent,
     });
-  }, [location.pathname, sendMessage]);
+  }, [composerEditMessageId, location.pathname, sendMessage]);
 
   const sendPresetMessage = useCallback(async (content: string) => {
     await sendMessage({ content, attachments: [], clearComposer: false });
@@ -917,6 +924,7 @@ export function useChatSession() {
     setComposerDraftContext(messageItem.capabilityContext);
     setComposerDraftImageModelConfigId(messageItem.imageModelConfigId || undefined);
     setComposerDraftModelConfigId(messageItem.modelConfigId || undefined);
+    setComposerEditMessageId(messageItem.id);
     setContinueEditFocusToken((value) => value + 1);
   }, []);
 

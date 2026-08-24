@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+var ErrChatResponseInProgress = errors.New("AI 正在回复中，请等待当前回复完成")
+var ErrChatEditMessageNotFound = errors.New("要重新编辑的消息不存在")
+
 type ChatConversation struct {
 	ID            string         `json:"id"`
 	UserID        string         `json:"userId"`
@@ -199,7 +202,7 @@ func (s *Store) SaveChatConversation(item ChatConversation, insert bool) (ChatCo
 }
 
 func (s *Store) ListChatMessages(conversationID string) ([]ChatMessage, error) {
-	rows, err := s.db.Query(`SELECT id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, credit_cost, created_at FROM chat_messages WHERE conversation_id = ? ORDER BY created_at ASC`, conversationID)
+	rows, err := s.db.Query(`SELECT id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, credit_cost, created_at FROM chat_messages WHERE conversation_id = ? ORDER BY rowid ASC`, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,6 +262,19 @@ func scanMessage(scanner rowScanner) (ChatMessage, error) {
 }
 
 func (s *Store) SaveChatMessage(item ChatMessage) (ChatMessage, error) {
+	item = prepareChatMessage(item)
+	if err := insertChatMessage(s.db, item); err != nil {
+		return ChatMessage{}, err
+	}
+	result, _, err := s.FindChatMessage(item.ID)
+	return result, err
+}
+
+type chatMessageExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func prepareChatMessage(item ChatMessage) ChatMessage {
 	if item.ID == "" {
 		item.ID = mustRandomID()
 	}
@@ -274,12 +290,115 @@ func (s *Store) SaveChatMessage(item ChatMessage) (ChatMessage, error) {
 	if item.Attachments == nil {
 		item.Attachments = []any{}
 	}
-	_, err := s.db.Exec(`INSERT INTO chat_messages (id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, credit_cost, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ConversationID, item.Role, item.Content, encodeNullableObject(item.CapabilityContext), nullableStringValue(item.ImageModelConfigID), nullableStringValue(item.GenerationJobID), nullableIntPointer(item.ImageGenerationExpectedCount), encodeJSON(item.ImageGenerationFailures), nullableStringValue(item.ReasoningContent), encodeJSON(item.Actions), item.AgentID, nullableStringValue(item.ModelConfigID), encodeJSON(item.Attachments), boolInt(item.IsCompleted), nullableFloatPointer(item.CreditCost), item.CreatedAt)
+	return item
+}
+
+func insertChatMessage(execer chatMessageExecer, item ChatMessage) error {
+	_, err := execer.Exec(`INSERT INTO chat_messages (id, conversation_id, role, content, capability_context, image_model_config_id, generation_job_id, image_generation_expected_count, image_generation_failures, reasoning_content, actions, agent_id, model_config_id, attachments, is_completed, credit_cost, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.ConversationID, item.Role, item.Content, encodeNullableObject(item.CapabilityContext), nullableStringValue(item.ImageModelConfigID), nullableStringValue(item.GenerationJobID), nullableIntPointer(item.ImageGenerationExpectedCount), encodeJSON(item.ImageGenerationFailures), nullableStringValue(item.ReasoningContent), encodeJSON(item.Actions), item.AgentID, nullableStringValue(item.ModelConfigID), encodeJSON(item.Attachments), boolInt(item.IsCompleted), nullableFloatPointer(item.CreditCost), item.CreatedAt)
+	return err
+}
+
+// BeginChatResponse atomically persists a user turn and its pending assistant
+// response. For a newly created conversation, blockAnyUserResponse also guards
+// refreshes that have not learned the conversation ID yet.
+func (s *Store) BeginChatResponse(userID string, blockAnyUserResponse bool, userMessage, assistantMessage ChatMessage) (ChatMessage, ChatMessage, error) {
+	tx, err := s.db.Begin()
 	if err != nil {
-		return ChatMessage{}, err
+		return ChatMessage{}, ChatMessage{}, err
 	}
-	result, _, err := s.FindChatMessage(item.ID)
-	return result, err
+	defer tx.Rollback()
+
+	var activeCount int
+	if blockAnyUserResponse {
+		err = tx.QueryRow(`SELECT COUNT(*) FROM chat_messages m JOIN chat_conversations c ON c.id = m.conversation_id WHERE c.user_id = ? AND m.role = 'assistant' AND m.is_completed = 0`, userID).Scan(&activeCount)
+	} else {
+		err = tx.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE conversation_id = ? AND role = 'assistant' AND is_completed = 0`, userMessage.ConversationID).Scan(&activeCount)
+	}
+	if err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if activeCount > 0 {
+		return ChatMessage{}, ChatMessage{}, ErrChatResponseInProgress
+	}
+
+	userMessage = prepareChatMessage(userMessage)
+	assistantMessage = prepareChatMessage(assistantMessage)
+	if err := insertChatMessage(tx, userMessage); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if err := insertChatMessage(tx, assistantMessage); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "unique") {
+			return ChatMessage{}, ChatMessage{}, ErrChatResponseInProgress
+		}
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	return userMessage, assistantMessage, nil
+}
+
+// BeginEditedChatResponse replaces a previous user turn and removes every turn
+// after it. Keeping the original message ID and timestamp makes the edit an
+// in-place branch replacement while the newly generated assistant response is
+// appended immediately after the retained history.
+func (s *Store) BeginEditedChatResponse(userID, editMessageID string, userMessage, assistantMessage ChatMessage) (ChatMessage, ChatMessage, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	defer tx.Rollback()
+
+	var targetConversationID, targetRole, targetCreatedAt string
+	var targetRowID int64
+	err = tx.QueryRow(`SELECT m.conversation_id, m.role, m.created_at, m.rowid
+		FROM chat_messages m
+		JOIN chat_conversations c ON c.id = m.conversation_id
+		WHERE m.id = ? AND c.user_id = ?`, editMessageID, userID).Scan(&targetConversationID, &targetRole, &targetCreatedAt, &targetRowID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ChatMessage{}, ChatMessage{}, ErrChatEditMessageNotFound
+	}
+	if err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if targetRole != "user" || targetConversationID != userMessage.ConversationID {
+		return ChatMessage{}, ChatMessage{}, ErrChatEditMessageNotFound
+	}
+
+	var activeCount int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE conversation_id = ? AND role = 'assistant' AND is_completed = 0`, targetConversationID).Scan(&activeCount); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if activeCount > 0 {
+		return ChatMessage{}, ChatMessage{}, ErrChatResponseInProgress
+	}
+
+	if _, err := tx.Exec(`DELETE FROM chat_messages WHERE conversation_id = ? AND rowid >= ?`, targetConversationID, targetRowID); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	userMessage.ID = editMessageID
+	userMessage.CreatedAt = targetCreatedAt
+	userMessage = prepareChatMessage(userMessage)
+	assistantMessage = prepareChatMessage(assistantMessage)
+	if err := insertChatMessage(tx, userMessage); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if err := insertChatMessage(tx, assistantMessage); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "unique") {
+			return ChatMessage{}, ChatMessage{}, ErrChatResponseInProgress
+		}
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return ChatMessage{}, ChatMessage{}, err
+	}
+	return userMessage, assistantMessage, nil
+}
+
+func (s *Store) RecoverInterruptedChatResponses() error {
+	const interruptedMessage = "服务重启，当前回复已中断，请重新发送。"
+	_, err := s.db.Exec(`UPDATE chat_messages SET is_completed = 1, content = CASE WHEN TRIM(content) = '' THEN ? ELSE content END WHERE role = 'assistant' AND is_completed = 0`, interruptedMessage)
+	return err
 }
 
 func (s *Store) UpdateChatMessage(item ChatMessage) (ChatMessage, error) {

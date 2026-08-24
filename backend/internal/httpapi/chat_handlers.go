@@ -229,6 +229,8 @@ func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request)
 		status := http.StatusBadRequest
 		if errors.Is(err, errChatAgentNotFound) {
 			status = http.StatusNotFound
+		} else if errors.Is(err, store.ErrChatResponseInProgress) {
+			status = http.StatusConflict
 		}
 		writeError(w, status, err.Error())
 		return
@@ -238,7 +240,7 @@ func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request)
 
 var errChatAgentNotFound = errors.New("智能体不存在")
 
-func (s *Server) createChatResponse(user store.User, input chatRequest) (map[string]any, error) {
+func (s *Server) createChatResponse(user store.User, input chatRequest) (response map[string]any, responseErr error) {
 	content := strings.TrimSpace(input.Content)
 	imageRequest := isImageGenerationRequest(input)
 	directImageRequest := imageRequest && !input.AutoImageGeneration
@@ -273,6 +275,10 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(input.EditMessageID) != "" && !found {
+		return nil, store.ErrChatEditMessageNotFound
+	}
+	createdConversation := !found
 	if !found {
 		title := makeChatTitle(content)
 		conversation, err = s.store.SaveChatConversation(store.ChatConversation{UserID: user.ID, Title: title, AgentID: agentID, ModelConfigID: llmModelID}, true)
@@ -280,16 +286,40 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 			return nil, err
 		}
 	}
-	userMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "user", Content: content, AgentID: agentID, ModelConfigID: llmModelID, Attachments: input.Attachments, CapabilityContext: input.CapabilityContext, IsCompleted: true})
+	userMessageInput := store.ChatMessage{ConversationID: conversation.ID, Role: "user", Content: content, AgentID: agentID, ModelConfigID: llmModelID, Attachments: input.Attachments, CapabilityContext: input.CapabilityContext, IsCompleted: true}
+	assistantMessageInput := store.ChatMessage{ConversationID: conversation.ID, Role: "assistant", Content: "", AgentID: agentID, ModelConfigID: llmModelID, IsCompleted: false}
+	var userMessage, assistantMessage store.ChatMessage
+	if editMessageID := strings.TrimSpace(input.EditMessageID); editMessageID != "" {
+		userMessage, assistantMessage, err = s.store.BeginEditedChatResponse(user.ID, editMessageID, userMessageInput, assistantMessageInput)
+	} else {
+		userMessage, assistantMessage, err = s.store.BeginChatResponse(user.ID, createdConversation, userMessageInput, assistantMessageInput)
+	}
 	if err != nil {
+		if createdConversation && errors.Is(err, store.ErrChatResponseInProgress) {
+			_ = s.store.DeleteChatConversation(conversation.ID, user.ID)
+		}
 		return nil, err
 	}
+	responseFinalized := false
+	defer func() {
+		if responseFinalized {
+			return
+		}
+		assistantMessage.IsCompleted = true
+		if responseErr != nil {
+			assistantMessage.Content = responseErr.Error()
+		} else if strings.TrimSpace(assistantMessage.Content) == "" {
+			assistantMessage.Content = "回复已中断，请重新发送。"
+		}
+		_, _ = s.store.UpdateChatMessage(assistantMessage)
+	}()
 	var history []store.ChatMessage
 	if !directImageRequest {
 		history, err = s.store.ListChatMessages(conversation.ID)
 		if err != nil {
 			return nil, err
 		}
+		history = chatHistoryWithoutMessage(history, assistantMessage.ID)
 	}
 	var answer, reasoning string
 	var assistantAttachments []any
@@ -348,10 +378,17 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 			return nil, err
 		}
 	}
-	assistantMessage, err := s.store.SaveChatMessage(store.ChatMessage{ConversationID: conversation.ID, Role: "assistant", Content: answer, ReasoningContent: stringPointerOrNil(reasoning), ImageModelConfigID: imageModelID, ImageGenerationExpectedCount: imageExpectedCount, AgentID: agentID, ModelConfigID: llmModelID, Attachments: assistantAttachments, IsCompleted: true})
+	assistantMessage.Content = answer
+	assistantMessage.ReasoningContent = stringPointerOrNil(reasoning)
+	assistantMessage.ImageModelConfigID = imageModelID
+	assistantMessage.ImageGenerationExpectedCount = imageExpectedCount
+	assistantMessage.Attachments = assistantAttachments
+	assistantMessage.IsCompleted = true
+	assistantMessage, err = s.store.UpdateChatMessage(assistantMessage)
 	if err != nil {
 		return nil, err
 	}
+	responseFinalized = true
 	metadata := conversation.Metadata
 	if metadata == nil {
 		metadata = map[string]any{}
@@ -373,6 +410,16 @@ func (s *Server) createChatResponse(user store.User, input chatRequest) (map[str
 	_ = userMessage
 	_ = assistantMessage
 	return map[string]any{"conversation": conversation, "messages": messages}, nil
+}
+
+func chatHistoryWithoutMessage(messages []store.ChatMessage, messageID string) []store.ChatMessage {
+	result := make([]store.ChatMessage, 0, len(messages))
+	for _, message := range messages {
+		if message.ID != messageID {
+			result = append(result, message)
+		}
+	}
+	return result
 }
 
 func (s *Server) resolveLLMModelConfig(userID, requestedID, agentModelID string) (store.ModelConfig, error) {
@@ -616,7 +663,10 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
-	payload := map[string]any{"model": model.Model, "input": input}
+	// Responses calls follow the Codex/OpenAI streaming protocol. We consume
+	// the stream internally and expose a completed result to the rest of the
+	// server, so callers do not need to know about SSE framing.
+	payload := map[string]any{"model": model.Model, "input": input, "stream": true}
 	if model.Temperature > 0 {
 		payload["temperature"] = model.Temperature
 	}
@@ -633,6 +683,7 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 		return responsesResult{}, err
 	}
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
 	request.Header.Set("Authorization", "Bearer "+model.APIKey)
 	response, err := (&http.Client{Timeout: 2 * time.Minute}).Do(request)
 	if err != nil {
@@ -646,12 +697,85 @@ func callResponses(model store.ModelConfig, input []map[string]any, tools []map[
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return responsesResult{}, fmt.Errorf("Responses API 返回 %d: %s", response.StatusCode, strings.TrimSpace(string(raw)))
 	}
-	var result responsesResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return responsesResult{}, fmt.Errorf("解析 Responses 响应失败: %w", err)
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))
+	if contentType != "text/event-stream" {
+		return responsesResult{}, fmt.Errorf("Responses API 必须返回 text/event-stream，实际返回 %q", response.Header.Get("Content-Type"))
+	}
+	result, err := parseResponsesSSE(raw)
+	if err != nil {
+		return responsesResult{}, fmt.Errorf("解析 Responses SSE 响应失败: %w", err)
 	}
 	if len(result.Output) == 0 {
 		return responsesResult{}, errors.New("Responses API 没有返回有效 output")
+	}
+	return result, nil
+}
+
+// parseResponsesSSE extracts the final Responses object from an SSE stream.
+// OpenAI-compatible providers may emit many intermediate events; the
+// response.completed event contains the complete output required by callers.
+func parseResponsesSSE(raw []byte) (responsesResult, error) {
+	var eventName string
+	var dataLines []string
+	flush := func() (responsesResult, error) {
+		if eventName == "" && len(dataLines) == 0 {
+			return responsesResult{}, nil
+		}
+		data := strings.TrimSpace(strings.Join(dataLines, "\n"))
+		name := strings.TrimSpace(eventName)
+		eventName = ""
+		dataLines = nil
+		if data == "" || data == "[DONE]" {
+			return responsesResult{}, nil
+		}
+		var envelope struct {
+			Type     string          `json:"type"`
+			Response json.RawMessage `json:"response"`
+			Error    json.RawMessage `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(data), &envelope); err != nil {
+			return responsesResult{}, fmt.Errorf("事件 %s 数据无效: %w", name, err)
+		}
+		if name == "response.failed" || envelope.Type == "response.failed" {
+			if len(envelope.Error) > 0 {
+				return responsesResult{}, fmt.Errorf("Responses API 生成失败: %s", strings.TrimSpace(string(envelope.Error)))
+			}
+			return responsesResult{}, errors.New("Responses API 生成失败")
+		}
+		if name != "response.completed" && envelope.Type != "response.completed" {
+			return responsesResult{}, nil
+		}
+		if len(envelope.Response) == 0 {
+			return responsesResult{}, errors.New("response.completed 缺少 response")
+		}
+		var result responsesResult
+		if err := json.Unmarshal(envelope.Response, &result); err != nil {
+			return responsesResult{}, fmt.Errorf("response.completed 数据无效: %w", err)
+		}
+		return result, nil
+	}
+
+	for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n") {
+		if line == "" {
+			result, err := flush()
+			if err != nil || len(result.Output) > 0 || strings.TrimSpace(result.OutputText) != "" {
+				return result, err
+			}
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "event:"):
+			eventName = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "data:"):
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	result, err := flush()
+	if err != nil {
+		return responsesResult{}, err
+	}
+	if len(result.Output) == 0 && strings.TrimSpace(result.OutputText) == "" {
+		return responsesResult{}, errors.New("SSE 响应未包含 response.completed")
 	}
 	return result, nil
 }
@@ -802,7 +926,11 @@ func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 		result, err := s.createChatResponse(user, input)
 		if err != nil {
-			_ = writeWebSocketJSON(connection, websocketError(r, http.StatusBadRequest, err.Error()))
+			status := http.StatusBadRequest
+			if errors.Is(err, store.ErrChatResponseInProgress) {
+				status = http.StatusConflict
+			}
+			_ = writeWebSocketJSON(connection, websocketError(r, status, err.Error()))
 			continue
 		}
 		conversation, _ := result["conversation"].(store.ChatConversation)

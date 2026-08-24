@@ -32,6 +32,26 @@ func TestResponsesOutputTextUsesMessageOutputText(t *testing.T) {
 	}
 }
 
+func TestParseResponsesSSEReturnsCompletedResponse(t *testing.T) {
+	raw := []byte("event: response.created\ndata: {\"type\":\"response.created\"}\n\n" +
+		"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"生成\"}\n\n" +
+		"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"output_text\":\"生成完成\",\"output\":[{\"type\":\"message\"}]}}\n\n")
+	result, err := parseResponsesSSE(raw)
+	if err != nil {
+		t.Fatalf("parse SSE: %v", err)
+	}
+	if result.OutputText != "生成完成" || len(result.Output) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestParseResponsesSSEReturnsProviderFailure(t *testing.T) {
+	_, err := parseResponsesSSE([]byte("event: response.failed\ndata: {\"type\":\"response.failed\",\"error\":{\"message\":\"quota exceeded\"}}\n\n"))
+	if err == nil || !strings.Contains(err.Error(), "quota exceeded") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
 	tool := imageGenerationTool()
 	parameters := tool["parameters"].(map[string]any)

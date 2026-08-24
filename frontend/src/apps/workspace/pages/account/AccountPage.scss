@@ -38,3 +38,35 @@
   display: grid;
   gap: 16px;
 }
+
+.account-security-row {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.account-security-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.account-security-row span {
+  color: var(--color-neutral-500);
+}
+
+@media (max-width: 720px) {
+  .account-profile {
+    align-items: flex-start;
+    grid-template-columns: auto 1fr;
+  }
+
+  .account-profile > .ant-space {
+    grid-column: 1 / -1;
+  }
+
+  .account-security-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

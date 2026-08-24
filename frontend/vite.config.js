@@ -26,8 +26,10 @@ export default defineConfig(() => {
       port: devPort,
       strictPort: true,
       proxy: {
-        '/api': { target: backendProxyTarget, changeOrigin: true },
-        '/files': { target: backendProxyTarget, changeOrigin: true },
+        // Preserve the browser-facing host so the backend's origin guard can
+        // recognize LAN access to the Vite server as same-origin traffic.
+        '/api': { target: backendProxyTarget, changeOrigin: false },
+        '/files': { target: backendProxyTarget, changeOrigin: false },
       },
     },
     publicDir: 'public',

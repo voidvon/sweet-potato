@@ -82,7 +82,7 @@ export function ClawSidebar({
                       <Button
                         aria-label={t("会话操作")}
                         className="video-workbench-item-action chat-session-action"
-                        icon={<MoreHorizontal size={18} />}
+                        icon={<MoreHorizontal size={16} />}
                         onClick={(event) => event.stopPropagation()}
                         type="text"
                       />
