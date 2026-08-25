@@ -13,6 +13,7 @@ import (
 
 func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 	imageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
 			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated-image"))},
 		}})

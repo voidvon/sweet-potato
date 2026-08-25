@@ -225,14 +225,22 @@ func (c Client) send(request *http.Request) ([]Output, error) {
 	if err != nil {
 		return nil, err
 	}
-	var record map[string]any
-	if err := json.Unmarshal(raw, &record); err != nil {
+	record, err := decodeImageModelResponse(raw, response.Header.Get("Content-Type"))
+	if err != nil {
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("image model returned %d: %s", response.StatusCode, imageResponseDiagnostic(raw))
+		}
 		return nil, fmt.Errorf("invalid image model response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return nil, fmt.Errorf("image model returned %d: %s", response.StatusCode, responseMessage(record, string(raw)))
 	}
 	items := responseItems(record)
+	if len(items) == 0 {
+		if message := responseMessage(record, ""); message != "" {
+			return nil, fmt.Errorf("image model returned an error: %s", message)
+		}
+	}
 	results := make([]Output, 0, len(items))
 	for _, item := range items {
 		if item.B64JSON != "" {
@@ -253,6 +261,153 @@ func (c Client) send(request *http.Request) ([]Output, error) {
 		results = append(results, Output{Bytes: data, URL: item.URL, MimeType: valueOr(mimeType, outputMime(item.Raw, "image/png")), Raw: item.Raw})
 	}
 	return results, nil
+}
+
+func decodeImageModelResponse(raw []byte, contentType string) (map[string]any, error) {
+	mediaType := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	switch {
+	case mediaType == "application/json" || strings.HasSuffix(mediaType, "+json"):
+		var record map[string]any
+		if err := json.Unmarshal(raw, &record); err != nil {
+			return nil, fmt.Errorf("response declared %s but contained invalid JSON: %w", mediaType, err)
+		}
+		return record, nil
+	case mediaType == "text/event-stream":
+		return decodeImageModelSSE(raw)
+	case mediaType != "" && mediaType != "application/octet-stream":
+		return nil, fmt.Errorf("unexpected image response Content-Type %q", contentType)
+	}
+
+	// A few OpenAI-compatible gateways omit Content-Type. Keep a bounded
+	// compatibility path for those responses, while never overriding an
+	// explicit JSON or SSE declaration above.
+	var record map[string]any
+	if err := json.Unmarshal(raw, &record); err == nil {
+		return record, nil
+	}
+	if looksLikeImageSSE(raw) {
+		return decodeImageModelSSE(raw)
+	}
+	return nil, errors.New("image response omitted Content-Type and was neither JSON nor SSE")
+}
+
+func looksLikeImageSSE(raw []byte) bool {
+	value := strings.TrimSpace(string(raw))
+	return strings.HasPrefix(value, "event:") || strings.HasPrefix(value, "data:") || strings.HasPrefix(value, ":")
+}
+
+func decodeImageModelSSE(raw []byte) (map[string]any, error) {
+	lines := strings.Split(strings.ReplaceAll(string(raw), "\r\n", "\n"), "\n")
+	itemsByIndex := map[int]map[string]any{}
+	var fullRecord map[string]any
+	var errorRecord map[string]any
+	eventName := ""
+	dataLines := []string{}
+	flush := func() error {
+		if len(dataLines) == 0 {
+			eventName = ""
+			return nil
+		}
+		payload := strings.TrimSpace(strings.Join(dataLines, "\n"))
+		dataLines = dataLines[:0]
+		currentEvent := eventName
+		eventName = ""
+		if payload == "" || payload == "[DONE]" {
+			return nil
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(payload), &event); err != nil {
+			return fmt.Errorf("decode image SSE event %q: %w", currentEvent, err)
+		}
+		if strings.Contains(strings.ToLower(currentEvent+" "+stringValue(event, "type")), "error") || event["error"] != nil {
+			errorRecord = event
+		}
+		if len(responseItems(event)) > 0 {
+			fullRecord = event
+			return nil
+		}
+		for _, key := range []string{"response", "result"} {
+			if nested, ok := event[key].(map[string]any); ok && len(responseItems(nested)) > 0 {
+				fullRecord = nested
+				return nil
+			}
+		}
+		if stringValue(event, "b64_json") != "" || stringValue(event, "url") != "" {
+			itemsByIndex[imageSSEItemIndex(event)] = event
+		}
+		return nil
+	}
+	for _, line := range lines {
+		if line == "" {
+			if err := flush(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "event:"):
+			eventName = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		case strings.HasPrefix(line, "data:"):
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		case strings.HasPrefix(line, ":"):
+			// SSE comment/heartbeat.
+		default:
+			return nil, fmt.Errorf("unexpected image response line %q", truncateImageDiagnostic(line))
+		}
+	}
+	if err := flush(); err != nil {
+		return nil, err
+	}
+	if fullRecord != nil {
+		return fullRecord, nil
+	}
+	if len(itemsByIndex) > 0 {
+		largestIndex := 0
+		for index := range itemsByIndex {
+			if index > largestIndex {
+				largestIndex = index
+			}
+		}
+		items := make([]any, 0, len(itemsByIndex))
+		for index := 0; index <= largestIndex; index++ {
+			if item, ok := itemsByIndex[index]; ok {
+				items = append(items, item)
+			}
+		}
+		return map[string]any{"data": items}, nil
+	}
+	if errorRecord != nil {
+		return errorRecord, nil
+	}
+	return nil, errors.New("image SSE response contained no image data")
+}
+
+func imageSSEItemIndex(record map[string]any) int {
+	for _, key := range []string{"partial_image_index", "image_index", "index"} {
+		switch value := record[key].(type) {
+		case float64:
+			if value >= 0 {
+				return int(value)
+			}
+		case int:
+			if value >= 0 {
+				return value
+			}
+		}
+	}
+	return 0
+}
+
+func imageResponseDiagnostic(raw []byte) string {
+	return truncateImageDiagnostic(strings.TrimSpace(string(raw)))
+}
+
+func truncateImageDiagnostic(value string) string {
+	const limit = 800
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit] + "…"
 }
 
 func (c Client) newRequest(ctx context.Context, method, endpoint string, body io.Reader) (*http.Request, error) {

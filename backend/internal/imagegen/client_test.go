@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"sweet-potato-go/internal/store"
@@ -49,10 +50,60 @@ func TestGenerateOpenAIImageFromBase64(t *testing.T) {
 	}
 }
 
+func TestGenerateOpenAIImageFromSSE(t *testing.T) {
+	preview := base64.StdEncoding.EncodeToString([]byte("preview"))
+	completed := base64.StdEncoding.EncodeToString([]byte("completed"))
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		_, _ = writer.Write([]byte("event: image_generation.partial_image\n" +
+			"data: {\"type\":\"image_generation.partial_image\",\"partial_image_index\":0,\"b64_json\":\"" + preview + "\"}\n\n" +
+			"event: image_generation.completed\n" +
+			"data: {\"type\":\"image_generation.completed\",\"partial_image_index\":0,\"b64_json\":\"" + completed + "\"}\n\n" +
+			"data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree"})
+	if err != nil {
+		t.Fatalf("generate image: %v", err)
+	}
+	if len(results) != 1 || string(results[0].Bytes) != "completed" {
+		t.Fatalf("unexpected results: %+v", results)
+	}
+}
+
+func TestGenerateReportsSSEErrorMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		writer.WriteHeader(http.StatusBadRequest)
+		_, _ = writer.Write([]byte("event: error\ndata: {\"type\":\"error\",\"error\":{\"message\":\"unsupported size\"}}\n\n"))
+	}))
+	defer server.Close()
+
+	_, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree"})
+	if err == nil || !strings.Contains(err.Error(), "unsupported size") {
+		t.Fatalf("error = %v, want upstream SSE message", err)
+	}
+}
+
+func TestGenerateRejectsSSEDeclaredAsJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte("event: image_generation.completed\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	_, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree"})
+	if err == nil || !strings.Contains(err.Error(), "declared application/json") {
+		t.Fatalf("error = %v, want declared Content-Type mismatch", err)
+	}
+}
+
 func TestGenerateRetriesWithOpaqueBackgroundWhenTransparentIsUnsupported(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requests++
+		writer.Header().Set("Content-Type", "application/json")
 		var body map[string]any
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -96,6 +147,7 @@ func TestGenerateSeedreamIncludesReferenceImages(t *testing.T) {
 		t.Fatalf("write reference: %v", err)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
 		var body map[string]any
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 			t.Fatalf("decode request: %v", err)
@@ -137,6 +189,7 @@ func TestGenerateOpenAIEditPreservesReferenceMIMEType(t *testing.T) {
 		t.Fatalf("write reference: %v", err)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
 		if request.URL.Path != "/v1/images/edits" {
 			t.Fatalf("path = %s", request.URL.Path)
 		}

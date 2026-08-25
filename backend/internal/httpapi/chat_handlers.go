@@ -324,13 +324,18 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		}
 		_, _ = s.store.UpdateChatMessage(assistantMessage)
 	}()
-	var history []store.ChatMessage
-	if !directImageRequest {
-		history, err = s.store.ListChatMessages(conversation.ID)
+	history, err := s.store.ListChatMessages(conversation.ID)
+	if err != nil {
+		return nil, err
+	}
+	history = chatHistoryWithoutMessage(history, assistantMessage.ID)
+	if imageRequest || input.AutoImageGeneration {
+		input.CapabilityContext = resolveImageGenerationAspectRatio(content, input.CapabilityContext, history, userMessage.ID)
+		userMessage.CapabilityContext = input.CapabilityContext
+		userMessage, err = s.store.UpdateChatMessage(userMessage)
 		if err != nil {
 			return nil, err
 		}
-		history = chatHistoryWithoutMessage(history, assistantMessage.ID)
 	}
 	var answer, reasoning string
 	var assistantAttachments []any
@@ -499,7 +504,7 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。当前工作台上下文：" + string(contextJSON)
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
 	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent, imageGenerationTool()))
 	if err != nil {
@@ -575,9 +580,14 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	for key, value := range generation {
 		copyGeneration[key] = value
 	}
-	for source, target := range map[string]string{"prompt": "promptText", "count": "outputCount", "size": "outputSize", "aspect_ratio": "aspectRatio", "resolution": "resolution", "background": "outputBackground"} {
+	for source, target := range map[string]string{"prompt": "promptText", "count": "outputCount", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
 		if value, ok := arguments[source]; ok {
 			copyGeneration[target] = value
+		}
+	}
+	if currentRatio := stringValue(copyGeneration, "aspectRatio"); currentRatio == "" || strings.EqualFold(currentRatio, "auto") {
+		if value, ok := arguments["aspect_ratio"]; ok {
+			copyGeneration["aspectRatio"] = value
 		}
 	}
 	result["imageGeneration"] = copyGeneration
@@ -958,7 +968,7 @@ func imageGenerationTool() map[string]any {
 				"prompt":       map[string]any{"type": "string", "description": "最终图片生成提示词"},
 				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 4},
 				"size":         map[string]any{"type": "string"},
-				"aspect_ratio": map[string]any{"type": "string"},
+				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
 				"resolution":   map[string]any{"type": "string"},
 				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "opaque", "auto"}},
 			},

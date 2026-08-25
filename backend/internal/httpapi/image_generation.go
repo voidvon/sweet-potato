@@ -127,6 +127,17 @@ func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, 
 			output.Bytes = processed
 			output.MimeType = "image/png"
 		}
+		if ratio := strings.TrimSpace(options.AspectRatio); ratio != "" && !strings.EqualFold(ratio, "auto") {
+			processed, processErr := cropImageToAspectRatio(output.Bytes, output.MimeType, ratio)
+			if processErr != nil {
+				for _, created := range assets {
+					_ = os.Remove(created.FilePath)
+					_, _ = s.store.DeleteContentAsset(created.ID, userID)
+				}
+				return nil, fmt.Errorf("校正生成图片比例失败: %w", processErr)
+			}
+			output.Bytes = processed
+		}
 		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model)
 		if persistErr != nil {
 			for _, created := range assets {

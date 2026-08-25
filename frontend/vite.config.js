@@ -28,7 +28,9 @@ export default defineConfig(() => {
       proxy: {
         // Preserve the browser-facing host so the backend's origin guard can
         // recognize LAN access to the Vite server as same-origin traffic.
-        '/api': { target: backendProxyTarget, changeOrigin: false },
+        // WebSocket chat turns share the /api namespace; explicitly enable
+        // Upgrade forwarding or Vite will leave the browser handshake pending.
+        '/api': { target: backendProxyTarget, changeOrigin: false, ws: true },
         '/files': { target: backendProxyTarget, changeOrigin: false },
       },
     },
