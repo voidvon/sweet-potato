@@ -64,6 +64,13 @@ var foundationModels = []seededModel{
 	{ID: "openai-image", Type: "image", Name: "OpenAI Images", Provider: "openai-images", Model: "gpt-image-1", BaseURL: "https://api.openai.com/v1", Temperature: 0.7, SortOrder: 1, Settings: map[string]any{"imageSize": "1024x1024", "imageGeneration": map[string]any{"adapter": "compatible"}, "billing": map[string]any{"creditsPerRequest": 0, "priceSource": "official-manual"}}},
 }
 
+var foundationLLMMetadata = []LlmModelPricing{
+	{ID: "openai:gpt-5.6-sol", Provider: "openai", ProviderName: "OpenAI", Model: "gpt-5.6-sol", DisplayName: "GPT-5.6 Sol", DefaultBaseURL: "https://api.openai.com/v1", Currency: "USD", InputPricePer1M: 4, OutputPricePer1M: 20, CachedInputPricePer1M: 0.4, ContextWindowTokens: 272000, EffectiveWindowPercent: 95, PriceSource: "openai-official", PriceUpdatedAt: "2026-08-25"},
+	{ID: "openai:gpt-4.1-mini", Provider: "openai", ProviderName: "OpenAI", Model: "gpt-4.1-mini", DisplayName: "GPT-4.1 Mini", DefaultBaseURL: "https://api.openai.com/v1", Currency: "USD", InputPricePer1M: 0.4, OutputPricePer1M: 1.6, CachedInputPricePer1M: 0.1, ContextWindowTokens: 1047576, EffectiveWindowPercent: 95, PriceSource: "openai-official", PriceUpdatedAt: "2026-08-25"},
+	{ID: "openai:gpt-4.1", Provider: "openai", ProviderName: "OpenAI", Model: "gpt-4.1", DisplayName: "GPT-4.1", DefaultBaseURL: "https://api.openai.com/v1", Currency: "USD", InputPricePer1M: 2, OutputPricePer1M: 8, CachedInputPricePer1M: 0.5, ContextWindowTokens: 1047576, EffectiveWindowPercent: 95, PriceSource: "openai-official", PriceUpdatedAt: "2026-08-25"},
+	{ID: "openai:gpt-4o", Provider: "openai", ProviderName: "OpenAI", Model: "gpt-4o", DisplayName: "GPT-4o", DefaultBaseURL: "https://api.openai.com/v1", Currency: "USD", InputPricePer1M: 2.5, OutputPricePer1M: 10, CachedInputPricePer1M: 1.25, ContextWindowTokens: 128000, EffectiveWindowPercent: 95, PriceSource: "openai-official", PriceUpdatedAt: "2026-08-25"},
+}
+
 func migrateFoundationSeed(db *sql.DB) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if _, err := db.Exec(`
@@ -142,6 +149,17 @@ SELECT id, role_id, COALESCE(created_at, ?) FROM users WHERE role_id IS NOT NULL
 id, type, name, provider, model, api_key, base_url, temperature, settings, is_default, sort_order, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`, model.ID, model.Type, model.Name, model.Provider, model.Model, model.BaseURL, model.Temperature, string(settings), boolInt(model.IsDefault), model.SortOrder, now, now); err != nil {
 			return fmt.Errorf("seed model %s: %w", model.ID, err)
+		}
+	}
+
+	for _, metadata := range foundationLLMMetadata {
+		if metadata.DisplayName != "" {
+			if _, err := db.Exec(`INSERT OR IGNORE INTO llm_model_pricing (id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, context_window_tokens, effective_context_window_percent, price_source, price_updated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, metadata.ID, metadata.Provider, metadata.ProviderName, metadata.Model, metadata.DisplayName, metadata.DefaultBaseURL, metadata.Currency, metadata.InputPricePer1M, metadata.OutputPricePer1M, metadata.CachedInputPricePer1M, metadata.ContextWindowTokens, metadata.EffectiveWindowPercent, metadata.PriceSource, metadata.PriceUpdatedAt, now, now); err != nil {
+				return fmt.Errorf("seed LLM metadata %s: %w", metadata.ID, err)
+			}
+		}
+		if _, err := db.Exec(`UPDATE llm_model_pricing SET context_window_tokens = ?, effective_context_window_percent = ? WHERE id = ? AND context_window_tokens = 0`, metadata.ContextWindowTokens, metadata.EffectiveWindowPercent, metadata.ID); err != nil {
+			return fmt.Errorf("backfill LLM metadata %s: %w", metadata.ID, err)
 		}
 	}
 

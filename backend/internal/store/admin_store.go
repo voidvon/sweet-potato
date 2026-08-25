@@ -81,20 +81,22 @@ type ModelConfig struct {
 }
 
 type LlmModelPricing struct {
-	ID                    string  `json:"id"`
-	Provider              string  `json:"provider"`
-	ProviderName          string  `json:"providerName"`
-	Model                 string  `json:"model"`
-	DisplayName           string  `json:"displayName"`
-	DefaultBaseURL        string  `json:"defaultBaseUrl"`
-	Currency              string  `json:"currency"`
-	InputPricePer1M       float64 `json:"inputPricePer1M"`
-	OutputPricePer1M      float64 `json:"outputPricePer1M"`
-	CachedInputPricePer1M float64 `json:"cachedInputPricePer1M"`
-	PriceSource           string  `json:"priceSource"`
-	PriceUpdatedAt        string  `json:"priceUpdatedAt"`
-	CreatedAt             string  `json:"createdAt"`
-	UpdatedAt             string  `json:"updatedAt"`
+	ID                     string  `json:"id"`
+	Provider               string  `json:"provider"`
+	ProviderName           string  `json:"providerName"`
+	Model                  string  `json:"model"`
+	DisplayName            string  `json:"displayName"`
+	DefaultBaseURL         string  `json:"defaultBaseUrl"`
+	Currency               string  `json:"currency"`
+	InputPricePer1M        float64 `json:"inputPricePer1M"`
+	OutputPricePer1M       float64 `json:"outputPricePer1M"`
+	CachedInputPricePer1M  float64 `json:"cachedInputPricePer1M"`
+	ContextWindowTokens    int64   `json:"contextWindowTokens"`
+	EffectiveWindowPercent int     `json:"effectiveContextWindowPercent"`
+	PriceSource            string  `json:"priceSource"`
+	PriceUpdatedAt         string  `json:"priceUpdatedAt"`
+	CreatedAt              string  `json:"createdAt"`
+	UpdatedAt              string  `json:"updatedAt"`
 }
 
 type BillingSettings struct {
@@ -1060,7 +1062,7 @@ func (s *Store) ReorderModelConfigs(modelType string, ids []string) error {
 }
 
 func (s *Store) ListPricing() ([]LlmModelPricing, error) {
-	rows, err := s.db.Query(`SELECT id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, price_source, price_updated_at, created_at, updated_at FROM llm_model_pricing ORDER BY provider_name, display_name`)
+	rows, err := s.db.Query(`SELECT id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, context_window_tokens, effective_context_window_percent, price_source, price_updated_at, created_at, updated_at FROM llm_model_pricing ORDER BY provider_name, display_name`)
 	if err != nil {
 		return nil, err
 	}
@@ -1068,12 +1070,26 @@ func (s *Store) ListPricing() ([]LlmModelPricing, error) {
 	result := make([]LlmModelPricing, 0)
 	for rows.Next() {
 		var item LlmModelPricing
-		if err := rows.Scan(&item.ID, &item.Provider, &item.ProviderName, &item.Model, &item.DisplayName, &item.DefaultBaseURL, &item.Currency, &item.InputPricePer1M, &item.OutputPricePer1M, &item.CachedInputPricePer1M, &item.PriceSource, &item.PriceUpdatedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Provider, &item.ProviderName, &item.Model, &item.DisplayName, &item.DefaultBaseURL, &item.Currency, &item.InputPricePer1M, &item.OutputPricePer1M, &item.CachedInputPricePer1M, &item.ContextWindowTokens, &item.EffectiveWindowPercent, &item.PriceSource, &item.PriceUpdatedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, err
 		}
 		result = append(result, item)
 	}
 	return result, rows.Err()
+}
+
+func (s *Store) FindPricing(provider, model string) (LlmModelPricing, bool, error) {
+	var item LlmModelPricing
+	err := s.db.QueryRow(`SELECT id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, context_window_tokens, effective_context_window_percent, price_source, price_updated_at, created_at, updated_at FROM llm_model_pricing WHERE lower(provider) = lower(?) AND model = ?`, strings.TrimSpace(provider), strings.TrimSpace(model)).Scan(
+		&item.ID, &item.Provider, &item.ProviderName, &item.Model, &item.DisplayName, &item.DefaultBaseURL, &item.Currency, &item.InputPricePer1M, &item.OutputPricePer1M, &item.CachedInputPricePer1M, &item.ContextWindowTokens, &item.EffectiveWindowPercent, &item.PriceSource, &item.PriceUpdatedAt, &item.CreatedAt, &item.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return LlmModelPricing{}, false, nil
+	}
+	if err != nil {
+		return LlmModelPricing{}, false, err
+	}
+	return item, true, nil
 }
 
 func (s *Store) SavePricing(item LlmModelPricing, insert bool) (LlmModelPricing, error) {
@@ -1086,19 +1102,28 @@ func (s *Store) SavePricing(item LlmModelPricing, insert bool) (LlmModelPricing,
 	if item.Currency != "USD" && item.Currency != "CNY" {
 		return LlmModelPricing{}, errors.New("币种不支持")
 	}
+	if item.ContextWindowTokens < 0 {
+		return LlmModelPricing{}, errors.New("上下文窗口不能小于 0")
+	}
+	if item.EffectiveWindowPercent == 0 {
+		item.EffectiveWindowPercent = 95
+	}
+	if item.EffectiveWindowPercent < 1 || item.EffectiveWindowPercent > 100 {
+		return LlmModelPricing{}, errors.New("有效上下文比例必须在 1 到 100 之间")
+	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if item.PriceUpdatedAt == "" {
 		item.PriceUpdatedAt = now[:10]
 	}
 	if insert {
 		item.CreatedAt, item.UpdatedAt = now, now
-		_, err := s.db.Exec(`INSERT INTO llm_model_pricing (id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, price_source, price_updated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.Provider, item.ProviderName, item.Model, item.DisplayName, item.DefaultBaseURL, item.Currency, item.InputPricePer1M, item.OutputPricePer1M, item.CachedInputPricePer1M, item.PriceSource, item.PriceUpdatedAt, item.CreatedAt, item.UpdatedAt)
+		_, err := s.db.Exec(`INSERT INTO llm_model_pricing (id, provider, provider_name, model, display_name, default_base_url, currency, input_price_per_1m, output_price_per_1m, cached_input_price_per_1m, context_window_tokens, effective_context_window_percent, price_source, price_updated_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, item.ID, item.Provider, item.ProviderName, item.Model, item.DisplayName, item.DefaultBaseURL, item.Currency, item.InputPricePer1M, item.OutputPricePer1M, item.CachedInputPricePer1M, item.ContextWindowTokens, item.EffectiveWindowPercent, item.PriceSource, item.PriceUpdatedAt, item.CreatedAt, item.UpdatedAt)
 		if err != nil {
 			return LlmModelPricing{}, err
 		}
 	} else {
 		item.UpdatedAt = now
-		_, err := s.db.Exec(`UPDATE llm_model_pricing SET provider = ?, provider_name = ?, model = ?, display_name = ?, default_base_url = ?, currency = ?, input_price_per_1m = ?, output_price_per_1m = ?, cached_input_price_per_1m = ?, price_source = ?, price_updated_at = ?, updated_at = ? WHERE id = ?`, item.Provider, item.ProviderName, item.Model, item.DisplayName, item.DefaultBaseURL, item.Currency, item.InputPricePer1M, item.OutputPricePer1M, item.CachedInputPricePer1M, item.PriceSource, item.PriceUpdatedAt, item.UpdatedAt, item.ID)
+		_, err := s.db.Exec(`UPDATE llm_model_pricing SET provider = ?, provider_name = ?, model = ?, display_name = ?, default_base_url = ?, currency = ?, input_price_per_1m = ?, output_price_per_1m = ?, cached_input_price_per_1m = ?, context_window_tokens = ?, effective_context_window_percent = ?, price_source = ?, price_updated_at = ?, updated_at = ? WHERE id = ?`, item.Provider, item.ProviderName, item.Model, item.DisplayName, item.DefaultBaseURL, item.Currency, item.InputPricePer1M, item.OutputPricePer1M, item.CachedInputPricePer1M, item.ContextWindowTokens, item.EffectiveWindowPercent, item.PriceSource, item.PriceUpdatedAt, item.UpdatedAt, item.ID)
 		if err != nil {
 			return LlmModelPricing{}, err
 		}

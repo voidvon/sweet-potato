@@ -1030,7 +1030,21 @@ func defaultLLMModel() store.ModelConfig {
 }
 
 func pricingInput(input map[string]any) store.LlmModelPricing {
-	return store.LlmModelPricing{Provider: stringValue(input, "provider"), ProviderName: stringValue(input, "providerName"), Model: stringValue(input, "model"), DisplayName: stringValue(input, "displayName"), DefaultBaseURL: stringValue(input, "defaultBaseUrl"), Currency: stringValue(input, "currency"), InputPricePer1M: toNumber(input["inputPricePer1M"], 0), OutputPricePer1M: toNumber(input["outputPricePer1M"], 0), CachedInputPricePer1M: toNumber(input["cachedInputPricePer1M"], 0), PriceSource: stringValue(input, "priceSource"), PriceUpdatedAt: stringValue(input, "priceUpdatedAt")}
+	return store.LlmModelPricing{
+		Provider:               stringValue(input, "provider"),
+		ProviderName:           stringValue(input, "providerName"),
+		Model:                  stringValue(input, "model"),
+		DisplayName:            stringValue(input, "displayName"),
+		DefaultBaseURL:         stringValue(input, "defaultBaseUrl"),
+		Currency:               stringValue(input, "currency"),
+		InputPricePer1M:        toNumber(input["inputPricePer1M"], 0),
+		OutputPricePer1M:       toNumber(input["outputPricePer1M"], 0),
+		CachedInputPricePer1M:  toNumber(input["cachedInputPricePer1M"], 0),
+		ContextWindowTokens:    int64(toNumber(input["contextWindowTokens"], 0)),
+		EffectiveWindowPercent: int(toNumber(input["effectiveContextWindowPercent"], 95)),
+		PriceSource:            stringValue(input, "priceSource"),
+		PriceUpdatedAt:         stringValue(input, "priceUpdatedAt"),
+	}
 }
 
 func applyBillingMap(settings *store.BillingSettings, input map[string]any) {

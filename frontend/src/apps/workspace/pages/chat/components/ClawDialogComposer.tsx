@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import { listUserImageModelConfigs, listUserModelConfigs } from '@shared/api/user-model-config';
-import type { ChatAttachment, ModelConfig, SendChatPayload } from '../../../types';
+import type { ChatAttachment, ChatContextUsage, ModelConfig, SendChatPayload } from '../../../types';
 import { MentionRichTextarea, type MentionRichTextareaOption, type MentionRichTextareaRef } from '../../../components/MentionRichTextarea';
 import {
   ImageOutputSizePicker,
@@ -49,6 +49,8 @@ type ClawDialogComposerProps = {
   composerDraftContext?: SendChatPayload['capabilityContext'];
   composerDraftImageModelConfigId?: string | null;
   composerDraftModelConfigId?: string | null;
+  conversationModelConfigId?: string | null;
+  contextUsage?: ChatContextUsage;
   input: string;
   onAddFiles: (files: File[], options?: {
     clientGroupKey?: string;
@@ -381,6 +383,8 @@ export function ClawDialogComposer({
   composerDraftContext,
   composerDraftImageModelConfigId,
   composerDraftModelConfigId,
+  conversationModelConfigId,
+  contextUsage,
   input,
   onAddFiles,
   onInputChange,
@@ -593,8 +597,24 @@ export function ClawDialogComposer({
     }
   }, [selectableLlmModels, selectedModelConfigId]);
 
+  useEffect(() => {
+    if (conversationModelConfigId && selectableLlmModels.some((config) => config.id === conversationModelConfigId)) {
+      setSelectedModelConfigId(conversationModelConfigId);
+    }
+  }, [conversationModelConfigId, selectableLlmModels]);
+
   const selectedLlmModel = selectableLlmModels.find((config) => config.id === selectedModelConfigId)
     || selectableLlmModels[0];
+  const visibleContextUsage = selectedMode.key === 'dialog'
+    && contextUsage
+    && contextUsage.modelConfigId === selectedLlmModel?.id
+    && Boolean(contextUsage.contextWindow)
+    && typeof contextUsage.usedPercent === 'number'
+    ? contextUsage
+    : undefined;
+  const contextUsageLabel = visibleContextUsage
+    ? `${visibleContextUsage.usedPercent}%`
+    : '';
   const personalLlmModelItems = selectableLlmModels
     .filter((config) => config.scope === 'personal')
     .map((config) => ({ key: config.id!, label: config.name || config.model }));
@@ -926,6 +946,20 @@ export function ClawDialogComposer({
           </div>
 
           <div className="claw-dialog-submit">
+            {visibleContextUsage ? (
+              <span
+                className="claw-context-usage"
+                title={t("已使用 {{0}} / {{1}} 有效 Token，默认窗口 {{2}}，有效比例 {{3}}%，剩余 {{4}}%", {
+                  "0": new Intl.NumberFormat().format(visibleContextUsage.usedTokens),
+                  "1": new Intl.NumberFormat().format(visibleContextUsage.contextWindow || 0),
+                  "2": new Intl.NumberFormat().format(visibleContextUsage.maxContextWindow || visibleContextUsage.contextWindow || 0),
+                  "3": visibleContextUsage.effectiveContextWindowPercent ?? 100,
+                  "4": visibleContextUsage.remainingPercent ?? 0,
+                })}
+              >
+                {contextUsageLabel}
+              </span>
+            ) : null}
             {!canStartGeneration ? (
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}

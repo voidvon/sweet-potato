@@ -342,10 +342,14 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 	var imageModelID *string
 	var imageExpectedCount *int
 	var assistantCapabilityContext map[string]any
+	var contextUsage map[string]any
 	if input.AutoImageGeneration {
 		imageDecision, err = s.decideImageGeneration(ctx, user.ID, model, agent, history, input.CapabilityContext)
 		if err != nil {
 			return nil, err
+		}
+		if isDialogImageContext(input.CapabilityContext) {
+			contextUsage = s.imageDialogContextUsage(model, imageDecision.Usage)
 		}
 		imageRequest = imageDecision.Generate
 		if !imageRequest && explicitImageIntent(content) && imageDecisionNeedsFallback(imageDecision.Answer) {
@@ -420,6 +424,9 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		metadata = map[string]any{}
 	}
 	metadata["previewText"] = makeConversationPreview(answer)
+	if contextUsage != nil {
+		metadata["contextUsage"] = contextUsage
+	}
 	conversation.Metadata = metadata
 	conversation.AgentID = agentID
 	if llmModelID != nil {
@@ -503,6 +510,7 @@ type imageGenerationDecision struct {
 	HasReferenceSelection bool
 	ReferenceAssets       []store.ContentAsset
 	NeedsReferenceVision  bool
+	Usage                 responsesUsage
 }
 
 // decideImageGeneration lets the configured chat model choose whether the
@@ -528,6 +536,7 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 			return imageGenerationDecision{}, finalizeErr
 		}
 		if !finalized.Generate {
+			decision.Usage = finalized.Usage
 			return decision, nil
 		}
 		finalized.HasReferenceSelection = true
@@ -558,7 +567,7 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, model store.Mo
 	if err != nil {
 		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
 	}
-	decision := imageGenerationDecision{Answer: responseOutputText(result)}
+	decision := imageGenerationDecision{Answer: responseOutputText(result), Usage: result.Usage}
 	for _, item := range result.Output {
 		if item.Type != "function_call" || item.Name != "image_generation" {
 			continue
@@ -727,6 +736,30 @@ type responsesOutputItem struct {
 type responsesResult struct {
 	Output     []responsesOutputItem `json:"output"`
 	OutputText string                `json:"output_text"`
+	Usage      responsesUsage        `json:"usage"`
+}
+
+type responsesUsage struct {
+	InputTokens       int64 `json:"input_tokens"`
+	CachedInputTokens int64 `json:"-"`
+	OutputTokens      int64 `json:"output_tokens"`
+	ReasoningTokens   int64 `json:"-"`
+	TotalTokens       int64 `json:"total_tokens"`
+	Estimated         bool  `json:"-"`
+	InputTokenDetails struct {
+		CachedTokens int64 `json:"cached_tokens"`
+	} `json:"input_tokens_details"`
+	OutputTokenDetails struct {
+		ReasoningTokens int64 `json:"reasoning_tokens"`
+	} `json:"output_tokens_details"`
+}
+
+func (usage *responsesUsage) normalize() {
+	usage.CachedInputTokens = usage.InputTokenDetails.CachedTokens
+	usage.ReasoningTokens = usage.OutputTokenDetails.ReasoningTokens
+	if usage.TotalTokens <= 0 {
+		usage.TotalTokens = usage.InputTokens + usage.OutputTokens
+	}
 }
 
 func callResponses(model store.ModelConfig, input []map[string]any, tools []map[string]any) (responsesResult, error) {
@@ -791,7 +824,57 @@ func callResponsesContext(ctx context.Context, model store.ModelConfig, input []
 	if len(result.Output) == 0 {
 		return responsesResult{}, errors.New("Responses API 没有返回有效 output")
 	}
+	if result.Usage.TotalTokens <= 0 {
+		result.Usage = estimateResponsesUsage(input, tools, result)
+	}
 	return result, nil
+}
+
+func estimateResponsesUsage(input []map[string]any, tools []map[string]any, result responsesResult) responsesUsage {
+	inputValue := map[string]any{"input": input, "tools": tools}
+	outputValue := map[string]any{"output": result.Output, "output_text": result.OutputText}
+	inputBytes, _ := json.Marshal(normalizeTokenEstimateValue(inputValue))
+	outputBytes, _ := json.Marshal(outputValue)
+	inputTokens := int64((len(inputBytes) + 3) / 4)
+	outputTokens := int64((len(outputBytes) + 3) / 4)
+	return responsesUsage{
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  inputTokens + outputTokens,
+		Estimated:    true,
+	}
+}
+
+func normalizeTokenEstimateValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[key] = normalizeTokenEstimateValue(item)
+		}
+		return result
+	case []map[string]any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = normalizeTokenEstimateValue(item)
+		}
+		return result
+	case []any:
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = normalizeTokenEstimateValue(item)
+		}
+		return result
+	case string:
+		lower := strings.ToLower(typed)
+		if strings.HasPrefix(lower, "data:image/") {
+			if marker := strings.Index(lower, ";base64,"); marker >= 0 {
+				const resizedImageBytesEstimate = 7373
+				return typed[:marker+len(";base64,")] + strings.Repeat("x", resizedImageBytesEstimate)
+			}
+		}
+	}
+	return value
 }
 
 func responseToolNames(tools []map[string]any) []string {
@@ -917,6 +1000,8 @@ func (state *responsesTurnState) apply(event responsesSSEEvent) error {
 		if len(result.Output) > 0 {
 			state.result.Output = result.Output
 		}
+		result.Usage.normalize()
+		state.result.Usage = result.Usage
 	}
 	if len(state.result.Output) == 0 && len(state.itemOrder) > 0 {
 		for _, id := range state.itemOrder {

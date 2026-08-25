@@ -195,6 +195,8 @@ export type LlmModelPricing = {
   inputPricePer1M: number;
   outputPricePer1M: number;
   cachedInputPricePer1M: number;
+  contextWindowTokens: number;
+  effectiveContextWindowPercent: number;
   priceSource: string;
   priceUpdatedAt: string;
   createdAt?: string;

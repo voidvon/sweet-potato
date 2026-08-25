@@ -43,8 +43,20 @@ export function LlmPricingModal({
     },
     {
       title: t("官方价格"),
-      width: 320,
+      width: 280,
       render: (_, record) => renderCompactLlmOfficialPriceLines(record),
+    },
+    {
+      title: t("上下文容量"),
+      width: 180,
+      render: (_, record) => record.contextWindowTokens > 0
+        ? (
+          <Space direction="vertical" size={2}>
+            <span>{new Intl.NumberFormat().format(record.contextWindowTokens)} Token</span>
+            <span className="model-subtext">{t("有效 {{0}}%", { "0": record.effectiveContextWindowPercent })}</span>
+          </Space>
+        )
+        : <span className="model-subtext">{t("未知")}</span>,
     },
     {
       title: t("操作"),
@@ -89,7 +101,7 @@ export function LlmPricingModal({
           tableLayout="fixed"
           pagination={false}
           rowKey={(record) => record.id}
-          scroll={{ x: 1040, y: 'calc(80vh - 220px)' }}
+          scroll={{ x: 1180, y: 'calc(80vh - 220px)' }}
         />
       </div>
     </Modal>

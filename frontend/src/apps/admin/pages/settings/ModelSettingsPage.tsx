@@ -122,6 +122,10 @@ export function ModelSettingsPage() {
           editingRecord={modelSettings.editingRecord}
           llmModelPricing={modelSettings.llmModelPricing}
           onCancel={() => modelSettings.setModalOpen(false)}
+          onOpenLlmPricing={() => {
+            modelSettings.setModalOpen(false);
+            modelSettings.openLlmPricingModal();
+          }}
           onSaved={() => {
             void modelSettings.handleModelSaved(activeType);
           }}

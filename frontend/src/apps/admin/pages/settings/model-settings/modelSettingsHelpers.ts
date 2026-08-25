@@ -19,7 +19,7 @@ import type {
 import { defaultFormValues } from './modelSettingsConstants';
 import { t } from '@shared/i18n';
 
-export type ModelFormValues = ModelConfig;
+export type ModelFormValues = ModelConfig & { llmPricingId?: string };
 
 export function saveModelConfig(values: ModelConfig) {
   return values.id ? updateModelConfig(values.id, values) : createModelConfig(values);

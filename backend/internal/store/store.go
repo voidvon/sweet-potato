@@ -142,6 +142,8 @@ func migrateFoundation(db *sql.DB) error {
 		{"marketing_video_storyboards", "video_task_id", "video_task_id TEXT"},
 		{"llm_usage_records", "credit_base_cost", "credit_base_cost REAL NOT NULL DEFAULT 0"},
 		{"llm_usage_records", "credit_billed_cost", "credit_billed_cost REAL NOT NULL DEFAULT 0"},
+		{"llm_model_pricing", "context_window_tokens", "context_window_tokens INTEGER NOT NULL DEFAULT 0"},
+		{"llm_model_pricing", "effective_context_window_percent", "effective_context_window_percent INTEGER NOT NULL DEFAULT 95"},
 		{"credit_ledger", "credit_base_cost", "credit_base_cost REAL"},
 		{"credit_ledger", "credit_billed_cost", "credit_billed_cost REAL"},
 		{"billable_usage_records", "credit_base_cost", "credit_base_cost REAL NOT NULL DEFAULT 0"},

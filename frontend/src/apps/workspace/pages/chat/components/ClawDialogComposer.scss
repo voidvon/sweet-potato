@@ -3,9 +3,9 @@
   display: grid;
   gap: 12px;
   margin: 0 auto;
-  max-width: 818px;
+  max-width: 956px;
   padding: 0 8px 14px;
-  width: 818px;
+  width: 956px;
 }
 
 .claw-dialog-intro {
@@ -264,7 +264,7 @@
   align-items: center;
   display: grid;
   gap: 9px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content;
   padding: 12px 16px;
 }
 
@@ -272,13 +272,32 @@
 .claw-dialog-submit {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
   gap: 7px;
   min-width: 0;
 }
 
+.claw-dialog-options {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.claw-dialog-options > * {
+  flex: 0 0 auto;
+}
+
 .claw-dialog-submit {
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.claw-context-usage {
+  color: var(--color-neutral-500);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .claw-option-button.ant-btn {

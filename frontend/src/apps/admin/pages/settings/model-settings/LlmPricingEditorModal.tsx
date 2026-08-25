@@ -38,6 +38,8 @@ export function LlmPricingEditorModal({
       inputPricePer1M: 0,
       outputPricePer1M: 0,
       cachedInputPricePer1M: 0,
+      contextWindowTokens: 0,
+      effectiveContextWindowPercent: 95,
       priceSource: 'official-manual',
       priceUpdatedAt: '',
     });
@@ -152,6 +154,22 @@ export function LlmPricingEditorModal({
             rules={[{ required: true, message: t("请输入缓存价格") }]}
           >
             <InputNumber min={0} precision={6} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            extra={t("填写应用默认采用的上下文窗口；0 表示未知，可小于模型公开上限。")}
+            label={t("上下文窗口 (Token)")}
+            name="contextWindowTokens"
+            rules={[{ required: true, message: t("请输入上下文窗口") }]}
+          >
+            <InputNumber min={0} precision={0} step={1000} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            extra={t("为系统提示词、工具和模型输出预留空间，Codex 默认采用 95%。")}
+            label={t("有效上下文比例 (%)")}
+            name="effectiveContextWindowPercent"
+            rules={[{ required: true, message: t("请输入有效上下文比例") }]}
+          >
+            <InputNumber min={1} max={100} precision={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
             label={t("价格来源")}

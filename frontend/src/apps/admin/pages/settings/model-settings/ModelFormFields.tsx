@@ -1,5 +1,6 @@
 import {
   AutoComplete,
+  Button,
   Checkbox,
   Form,
   Input,
@@ -7,7 +8,7 @@ import {
   Select,
   Table,
 } from 'antd';
-import type { FormInstance, TableProps } from 'antd';
+import type { TableProps } from 'antd';
 import type {
   AudioModelProviderOption,
   VideoModelProviderOption,
@@ -18,7 +19,6 @@ import type {
   ModelType,
 } from '../../../types';
 import { LlmPriceTableRow, renderLlmPriceLines } from './modelSettingsBilling';
-import type { ModelFormValues } from './modelSettingsHelpers';
 import { toNumericValue } from './modelSettingsHelpers';
 import { t } from '@shared/i18n';
 
@@ -118,18 +118,22 @@ export function AudioVideoModelFields({
 
 type StandardModelFieldsProps = {
   activeType: ModelType;
-  form: FormInstance<ModelFormValues>;
   imageModelOptions: Array<{ label: string; value: string; disabled?: boolean }>;
   imageProviderOptions: Array<{ label: string; value: string }>;
   onImageProviderChange: (providerId: string) => void;
+  llmModelOptions: Array<{ label: string; value: string }>;
+  onLlmModelChange: (pricingId: string) => void;
+  onOpenLlmPricing: () => void;
 };
 
 export function StandardModelFields({
   activeType,
-  form,
   imageModelOptions,
   imageProviderOptions,
+  llmModelOptions,
   onImageProviderChange,
+  onLlmModelChange,
+  onOpenLlmPricing,
 }: StandardModelFieldsProps) {
   return (
     <div className="antd-form-grid">
@@ -155,20 +159,49 @@ export function StandardModelFields({
           <Input disabled={activeType === 'llm'} placeholder="openai-images / volcengine-seedream / Runway" />
         )}
       </Form.Item>
-      <Form.Item
-        label={t("模型名称")}
-        name="model"
-        rules={[{ required: true, message: t("请输入模型名称") }]}
-      >
-        {activeType === 'image' ? (
-          <AutoComplete
-            options={imageModelOptions}
-            placeholder={t("请输入或选择图片模型")}
+      {activeType === 'llm' ? (
+        <Form.Item
+          label={t("模型名称")}
+          name="llmPricingId"
+          rules={[{ required: true, message: t("请选择模型") }]}
+        >
+          <Select
+            onChange={onLlmModelChange}
+            options={llmModelOptions}
+            placeholder={t("请选择官方模型")}
+            popupRender={(menu) => (
+              <>
+                {menu}
+                <div className="llm-model-select-footer">
+                  <Button block onClick={onOpenLlmPricing} type="text">
+                    {t("添加模型")}
+                  </Button>
+                </div>
+              </>
+            )}
           />
-        ) : (
-          <Input placeholder={t("gpt-5.6 / doubao-seedream-5-0-260128 / 自定义模型 ID")} />
-        )}
-      </Form.Item>
+        </Form.Item>
+      ) : (
+        <Form.Item
+          label={t("模型名称")}
+          name="model"
+          rules={[{ required: true, message: t("请输入模型名称") }]}
+        >
+          {activeType === 'image' ? (
+            <AutoComplete
+              options={imageModelOptions}
+              placeholder={t("请输入或选择图片模型")}
+            />
+          ) : (
+            <Input placeholder={t("doubao-seedream-5-0-260128 / 自定义模型 ID")} />
+          )}
+        </Form.Item>
+      )}
+      {activeType === 'llm' ? (
+        <Form.Item hidden name="model">
+          <Input />
+        </Form.Item>
+      ) : null}
       {activeType === 'llm' && (
         <Form.Item label="Temperature" name="temperature">
           <InputNumber max={2} min={0} step={0.1} style={{ width: '100%' }} />

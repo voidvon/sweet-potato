@@ -108,8 +108,27 @@ export type ChatConversation = {
   modelConfigId?: string | null;
   metadata?: {
     previewText?: string;
+    contextUsage?: ChatContextUsage;
   };
   createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatContextUsage = {
+  modelConfigId: string;
+  model: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  usedTokens: number;
+  estimated: boolean;
+  contextWindow?: number;
+  maxContextWindow?: number;
+  effectiveContextWindowPercent?: number;
+  contextWindowSource?: 'config' | 'catalog';
+  usedPercent?: number;
+  remainingPercent?: number;
   updatedAt: string;
 };
 

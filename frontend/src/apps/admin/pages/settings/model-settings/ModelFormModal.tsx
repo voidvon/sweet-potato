@@ -30,6 +30,7 @@ type ModelFormModalProps = {
   editingRecord: ModelConfig | null;
   open: boolean;
   onCancel: () => void;
+  onOpenLlmPricing: () => void;
   onSaved: () => void;
 };
 
@@ -42,6 +43,7 @@ export function ModelFormModal({
   editingRecord,
   open,
   onCancel,
+  onOpenLlmPricing,
   onSaved,
 }: ModelFormModalProps) {
   const [form] = Form.useForm<ModelFormValues>();
@@ -72,11 +74,16 @@ export function ModelFormModal({
     }
     return options;
   }, [form, selectedImageProvider]);
+  const llmModelOptions = useMemo(() => llmModelPricing.map((pricing) => ({
+    label: `${pricing.displayName} (${pricing.providerName})`,
+    value: pricing.id,
+  })), [llmModelPricing]);
 
   function applyLlmPricing(pricing: LlmModelPricing) {
     const currentSettings = (form.getFieldValue('settings') || {}) as Record<string, unknown>;
     const currentBilling = ((currentSettings.billing || {}) as Partial<LlmBillingSettings>);
     form.setFieldsValue({
+      llmPricingId: pricing.id,
       provider: pricing.provider,
       model: pricing.model,
       baseUrl: pricing.defaultBaseUrl,
@@ -123,6 +130,7 @@ export function ModelFormModal({
     if (!open) {
       return;
     }
+    form.resetFields();
     form.setFieldsValue({
       ...defaultFormValues,
       type: activeType,
@@ -145,7 +153,7 @@ export function ModelFormModal({
   async function handleSubmit(values: ModelFormValues) {
     setSaving(true);
     try {
-      const payload = values;
+      const { llmPricingId, ...payload } = values;
       if (activeType === 'audio' && editingRecord) {
         if (!audioProvider) {
           throw new Error(t("音频服务商不存在"));
@@ -165,20 +173,17 @@ export function ModelFormModal({
         }));
       } else {
         if (activeType === 'llm') {
-          const pricing = findLlmPricing(llmModelPricing, payload.provider, payload.model);
+          const pricing = llmModelPricing.find((item) => item.id === llmPricingId);
           if (!pricing) {
-            await saveModelConfig({
-              ...defaultFormValues,
-              ...editingRecord,
-              ...payload,
-              type: activeType,
-              settings: payload.settings || {},
-            });
-            message.success(t("模型配置已保存"));
-            onSaved();
-            return;
+            throw new Error(t("请选择官方价格目录中的模型"));
           }
-          const currentBilling = ((payload.settings || {}) as Record<string, unknown>).billing as Partial<LlmBillingSettings> | undefined;
+          const llmSettings = { ...((payload.settings || {}) as Record<string, unknown>) };
+          delete llmSettings.contextWindowTokens;
+          delete llmSettings.contextWindow;
+          delete llmSettings.modelContextWindow;
+          delete llmSettings.effectiveContextWindowPercent;
+          delete llmSettings.effectiveWindowPercent;
+          const currentBilling = llmSettings.billing as Partial<LlmBillingSettings> | undefined;
           await saveModelConfig({
             ...defaultFormValues,
             ...editingRecord,
@@ -188,7 +193,7 @@ export function ModelFormModal({
             model: pricing.model,
             baseUrl: pricing.defaultBaseUrl,
             settings: {
-              ...(payload.settings || {}),
+              ...llmSettings,
               billing: llmBillingFromPricing(pricing, currentBilling || {}),
             },
           });
@@ -237,10 +242,17 @@ export function ModelFormModal({
         ) : (
           <StandardModelFields
             activeType={activeType}
-            form={form}
             imageModelOptions={imageModelOptions}
             imageProviderOptions={imageProviderOptions}
+            llmModelOptions={llmModelOptions}
             onImageProviderChange={handleImageProviderChange}
+            onLlmModelChange={(pricingId) => {
+              const pricing = llmModelPricing.find((item) => item.id === pricingId);
+              if (pricing) {
+                applyLlmPricing(pricing);
+              }
+            }}
+            onOpenLlmPricing={onOpenLlmPricing}
           />
         )}
       </Form>

@@ -19,7 +19,9 @@ import { t } from '@shared/i18n';
 import './UserModelSettingsPage.scss';
 
 type PersonalModelType = 'llm' | 'image';
-type UserModelForm = ModelConfig & { supportsCustomResolution?: boolean };
+type UserModelForm = ModelConfig & {
+  supportsCustomResolution?: boolean;
+};
 
 function emptyModel(type: PersonalModelType, provider?: ImageModelProviderOption): UserModelForm {
   if (type === 'image') {

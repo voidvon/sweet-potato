@@ -38,6 +38,8 @@ export function ChatPage() {
       composerDraftContext={chat.composerDraftContext}
       composerDraftImageModelConfigId={chat.composerDraftImageModelConfigId}
       composerDraftModelConfigId={chat.composerDraftModelConfigId}
+      conversationModelConfigId={chat.activeConversation?.modelConfigId}
+      contextUsage={chat.activeConversation?.metadata?.contextUsage}
       continueEditFocusToken={chat.continueEditFocusToken}
       input={chat.input}
       onAddFiles={chat.addAttachments}

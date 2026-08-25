@@ -224,6 +224,8 @@ const foundationSchema = `
       input_price_per_1m REAL NOT NULL DEFAULT 0,
       output_price_per_1m REAL NOT NULL DEFAULT 0,
       cached_input_price_per_1m REAL NOT NULL DEFAULT 0,
+      context_window_tokens INTEGER NOT NULL DEFAULT 0,
+      effective_context_window_percent INTEGER NOT NULL DEFAULT 95,
       price_source TEXT NOT NULL DEFAULT 'official-manual',
       price_updated_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
