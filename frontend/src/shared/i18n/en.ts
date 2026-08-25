@@ -2,6 +2,7 @@ import generatedMessages from './en.generated.json';
 
 export const englishMessages: Record<string, string> = {
   ...generatedMessages,
+  '附件': 'Attachment',
   '地瓜': 'Sweet Potato AI',
   '地瓜 AI': 'Sweet Potato AI',
   '地瓜 AI 后台': 'Sweet Potato AI Admin',
