@@ -138,7 +138,8 @@ func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, 
 			}
 			output.Bytes = processed
 		}
-		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model, references)
+		output, encodingMetadata := optimizeGeneratedImageForStorage(output)
+		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model, references, encodingMetadata)
 		if persistErr != nil {
 			for _, created := range assets {
 				_ = os.Remove(created.FilePath)
@@ -201,7 +202,7 @@ func imageGenerationRequestMode(references []store.ContentAsset) string {
 	return "generation"
 }
 
-func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.Output, mode, title, prompt string, slotIndex int, parentAssetID *string, model store.ModelConfig, references []store.ContentAsset) (store.ContentAsset, error) {
+func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.Output, mode, title, prompt string, slotIndex int, parentAssetID *string, model store.ModelConfig, references []store.ContentAsset, encodingMetadata map[string]any) (store.ContentAsset, error) {
 	if len(output.Bytes) == 0 {
 		return store.ContentAsset{}, errors.New("图片模型返回了空文件")
 	}
@@ -229,6 +230,9 @@ func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.O
 		"referenceAssetIds": contentAssetIDs(references),
 		"referenceCount":    len(references),
 		"requestMode":       imageGenerationRequestMode(references),
+	}
+	for key, value := range encodingMetadata {
+		metadata[key] = value
 	}
 	asset, err := s.store.CreateContentAsset(store.ContentAsset{
 		UserID:           userID,
