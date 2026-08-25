@@ -9,6 +9,7 @@ import { getContentNavigationRoutes } from '../../routes/routeConfig';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User, VideoGenerationTask } from '../../types';
 import './ContentWorkbenchPage.scss';
 import { t } from '@shared/i18n';
+import { useRouteResourceInfoMap } from '@shared/hooks/useRouteResourceNames';
 
 type ContentWorkbenchPageProps = {
   currentUser: User;
@@ -74,7 +75,11 @@ const moduleMeta: Record<string, {
 
 export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps) {
   const navigate = useNavigate();
-  const contentNavigationRoutes = useMemo(() => getContentNavigationRoutes(currentUser), [currentUser]);
+  const routeResourceInfoMap = useRouteResourceInfoMap('web');
+  const contentNavigationRoutes = useMemo(
+    () => getContentNavigationRoutes(currentUser, routeResourceInfoMap),
+    [currentUser, routeResourceInfoMap],
+  );
   const [groups, setGroups] = useState<ContentAssetGroup[]>([]);
   const [assets, setAssets] = useState<ContentAsset[]>([]);
   const [videoTasks, setVideoTasks] = useState<VideoGenerationTask[]>([]);

@@ -138,7 +138,7 @@ func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, 
 			}
 			output.Bytes = processed
 		}
-		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model)
+		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model, references)
 		if persistErr != nil {
 			for _, created := range assets {
 				_ = os.Remove(created.FilePath)
@@ -168,7 +168,40 @@ func optionsWithReferences(options imagegen.GenerateInput, references []store.Co
 	return options
 }
 
-func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.Output, mode, title, prompt string, slotIndex int, parentAssetID *string, model store.ModelConfig) (store.ContentAsset, error) {
+func imageGenerationResultContext(generation map[string]any, inputPrompt, resolvedPrompt string, references []store.ContentAsset) map[string]any {
+	result := make(map[string]any, len(generation)+6)
+	for key, value := range generation {
+		result[key] = value
+	}
+	referenceAttachments := make([]any, 0, len(references))
+	for _, reference := range references {
+		referenceAttachments = append(referenceAttachments, chatAttachmentPayload(reference))
+	}
+	result["inputPrompt"] = strings.TrimSpace(inputPrompt)
+	result["resolvedPrompt"] = strings.TrimSpace(resolvedPrompt)
+	result["referenceAttachments"] = referenceAttachments
+	result["referenceAssetIds"] = contentAssetIDs(references)
+	result["referenceCount"] = len(references)
+	result["requestMode"] = imageGenerationRequestMode(references)
+	return map[string]any{"imageGeneration": result}
+}
+
+func contentAssetIDs(assets []store.ContentAsset) []string {
+	ids := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		ids = append(ids, asset.ID)
+	}
+	return ids
+}
+
+func imageGenerationRequestMode(references []store.ContentAsset) string {
+	if len(references) > 0 {
+		return "edit"
+	}
+	return "generation"
+}
+
+func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.Output, mode, title, prompt string, slotIndex int, parentAssetID *string, model store.ModelConfig, references []store.ContentAsset) (store.ContentAsset, error) {
 	if len(output.Bytes) == 0 {
 		return store.ContentAsset{}, errors.New("图片模型返回了空文件")
 	}
@@ -183,16 +216,19 @@ func (s *Server) persistGeneratedImage(userID, groupID string, output imagegen.O
 		title = "生成图片"
 	}
 	metadata := map[string]any{
-		"generatedBy":      "image_model",
-		"generationStatus": "completed",
-		"modelConfigId":    model.ID,
-		"modelScope":       valueOr(personalModelScope(model), "system"),
-		"provider":         model.Provider,
-		"model":            model.Model,
-		"mode":             valueOr(mode, "image_generation"),
-		"prompt":           prompt,
-		"slotIndex":        slotIndex,
-		"generatedAt":      time.Now().UTC().Format(time.RFC3339Nano),
+		"generatedBy":       "image_model",
+		"generationStatus":  "completed",
+		"modelConfigId":     model.ID,
+		"modelScope":        valueOr(personalModelScope(model), "system"),
+		"provider":          model.Provider,
+		"model":             model.Model,
+		"mode":              valueOr(mode, "image_generation"),
+		"prompt":            prompt,
+		"slotIndex":         slotIndex,
+		"generatedAt":       time.Now().UTC().Format(time.RFC3339Nano),
+		"referenceAssetIds": contentAssetIDs(references),
+		"referenceCount":    len(references),
+		"requestMode":       imageGenerationRequestMode(references),
 	}
 	asset, err := s.store.CreateContentAsset(store.ContentAsset{
 		UserID:           userID,

@@ -590,13 +590,66 @@ export function ChatMessageList({
   }
 
   function renderImageGenerationHeader(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
-    const imageGeneration = previousUserMessage?.capabilityContext?.imageGeneration || messageItem.capabilityContext?.imageGeneration;
+    const imageGeneration = {
+      ...(previousUserMessage?.capabilityContext?.imageGeneration || {}),
+      ...(messageItem.capabilityContext?.imageGeneration || {}),
+    };
     const modelLabel = imageGenerationModelLabel(messageItem, previousUserMessage, imageGeneration);
     return (
       <div className="chat-image-generation-header">
         {renderImageGenerationModeTag(imageGeneration)}
         {modelLabel ? <span className="chat-image-generation-model-name">{modelLabel}</span> : null}
         <time dateTime={messageItem.createdAt}>{formatRelativeCalendarDateTime(messageItem.createdAt)}</time>
+      </div>
+    );
+  }
+
+  function renderImageGenerationInputs(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
+    const resultContext = messageItem.capabilityContext?.imageGeneration;
+    const previousContext = previousUserMessage?.capabilityContext?.imageGeneration;
+    const resolvedPrompt = resultContext?.resolvedPrompt?.trim() || '';
+    const referenceAttachments = resultContext?.referenceAttachments || [];
+    const isConfirmedReferenceDialogGeneration = (resultContext?.modeKey || previousContext?.modeKey) === 'dialog'
+      && Boolean(resolvedPrompt)
+      && resultContext?.referenceAttachments !== undefined
+      && referenceAttachments.length > 0;
+    if (!isConfirmedReferenceDialogGeneration) {
+      return null;
+    }
+
+    return (
+      <div className="chat-image-generation-inputs">
+        <div className="chat-image-generation-input-row">
+          <span className="chat-image-generation-input-label">{t("生成输入")}</span>
+          <p title={resolvedPrompt}>{resolvedPrompt || t("未记录")}</p>
+        </div>
+        <div className="chat-image-generation-input-row references">
+          <span className="chat-image-generation-input-label">{t("参考图片")}</span>
+          {referenceAttachments.length ? (
+            <Image.PreviewGroup>
+              <div className="chat-image-generation-reference-list">
+                {referenceAttachments.map((attachment) => (
+                  unavailableImageUrls.has(attachment.url) ? (
+                    <span className="chat-image-generation-reference unavailable" key={attachment.id}>
+                      <ImageOff size={16} />
+                    </span>
+                  ) : (
+                    <Image
+                      alt={attachment.name}
+                      className="chat-image-generation-reference"
+                      height={44}
+                      key={attachment.id}
+                      onError={() => markImageUnavailable(attachment.url)}
+                      src={resolveAssetUrl(attachment.url)}
+                      width={44}
+                    />
+                  )
+                ))}
+              </div>
+            </Image.PreviewGroup>
+          ) : null}
+          <small>{t("已携带 {{0}} 张", { "0": referenceAttachments.length })}</small>
+        </div>
       </div>
     );
   }
@@ -659,7 +712,10 @@ export function ChatMessageList({
             const imageGenerationFailures = item.imageGenerationFailures || [];
             const previousUserMessage = [...messages.slice(0, messageIndex)].reverse().find((messageItem) => messageItem.role === 'user');
             const previousImageGenerationContext = previousUserMessage?.capabilityContext?.imageGeneration;
-            const imageGenerationContext = previousImageGenerationContext || item.capabilityContext?.imageGeneration;
+            const imageGenerationContext = {
+              ...(previousImageGenerationContext || {}),
+              ...(item.capabilityContext?.imageGeneration || {}),
+            };
             const isImageGenerationAssistant = item.role === 'assistant'
               && (
                 item.capability === 'image_generation'
@@ -739,6 +795,7 @@ export function ChatMessageList({
                   {imageGenerationSlotCount ? (
                     <>
                       {renderImageGenerationHeader(item, previousUserMessage)}
+                      {renderImageGenerationInputs(item, previousUserMessage)}
                       <AppImage.PreviewGroup
                         downloads={imageAttachments.map((attachment) => ({
                           fileName: attachment.name,
@@ -858,6 +915,7 @@ export function ChatMessageList({
                   ) : (
                     <>
                       {renderImageGenerationHeader(item, previousUserMessage)}
+                      {renderImageGenerationInputs(item, previousUserMessage)}
                       <div className="chat-image-generation-error">
                         {answerContent || t("图片生成失败")}
                       </div>

@@ -248,6 +248,14 @@
   margin: 0;
 }
 
+.workspace-header-title-skeleton {
+  background: var(--color-skeleton-fill, #e8e8e8);
+  border-radius: 4px;
+  display: block;
+  height: 18px;
+  width: 64px;
+}
+
 .workspace-header-global {
   position: sticky;
   top: 0;

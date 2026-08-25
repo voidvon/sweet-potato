@@ -181,6 +181,36 @@ func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
 	}
 }
 
+func TestImageGenerationResultContextRecordsResolvedInputAndReferences(t *testing.T) {
+	references := []store.ContentAsset{{
+		ID:               "reference-2",
+		OriginalFileName: "figure-2.png",
+		MimeType:         "image/png",
+		FileSize:         128,
+		FileURL:          "/files/figure-2.png",
+	}}
+	contextValue := imageGenerationResultContext(
+		map[string]any{"modeKey": "dialog", "modeTitle": "对话生图"},
+		"参考图2重新生成",
+		"仅以第二张图为视觉参考",
+		references,
+	)
+	generation := objectValue(contextValue["imageGeneration"])
+	if got := stringValue(generation, "resolvedPrompt"); got != "仅以第二张图为视觉参考" {
+		t.Fatalf("resolved prompt = %q", got)
+	}
+	if got := stringValue(generation, "requestMode"); got != "edit" {
+		t.Fatalf("request mode = %q, want edit", got)
+	}
+	if got := int(numberValue(generation["referenceCount"], 0)); got != 1 {
+		t.Fatalf("reference count = %d, want 1", got)
+	}
+	attachments, ok := generation["referenceAttachments"].([]any)
+	if !ok || len(attachments) != 1 || stringValue(objectValue(attachments[0]), "assetId") != "reference-2" {
+		t.Fatalf("reference attachments = %#v", generation["referenceAttachments"])
+	}
+}
+
 func TestAgentResponsesToolsIncludesHostedWebSearchWhenEnabled(t *testing.T) {
 	tools := agentResponsesTools(store.Agent{WebSearchEnabled: true}, imageGenerationTool())
 	if len(tools) != 2 {

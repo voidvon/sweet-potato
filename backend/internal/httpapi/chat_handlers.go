@@ -341,6 +341,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 	var assistantAttachments []any
 	var imageModelID *string
 	var imageExpectedCount *int
+	var assistantCapabilityContext map[string]any
 	if input.AutoImageGeneration {
 		imageDecision, err = s.decideImageGeneration(ctx, user.ID, model, agent, history, input.CapabilityContext)
 		if err != nil {
@@ -366,12 +367,20 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		prompt := strings.TrimSpace(s.imageGenerationPrompt(content, input.CapabilityContext, nil))
 		prompt = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(prompt, "@生图", ""), "＠生图", ""))
 		count := imageGenerationCount(input.CapabilityContext, nil)
-		references, referenceErr := s.imageReferences(user.ID, input.Attachments, input.CapabilityContext, nil)
-		if referenceErr != nil {
-			return nil, referenceErr
+		var references []store.ContentAsset
+		if input.AutoImageGeneration && imageDecision.HasReferenceSelection {
+			references = imageDecision.ReferenceAssets
+		} else {
+			var referenceErr error
+			references, referenceErr = s.imageReferences(user.ID, input.Attachments, input.CapabilityContext, nil)
+			if referenceErr != nil {
+				return nil, referenceErr
+			}
 		}
 		mode := valueOr(stringValue(generation, "modeKey"), "image_generation")
 		title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
+		assistantCapabilityContext = imageGenerationResultContext(generation, content, prompt, references)
+		assistantMessage.CapabilityContext = assistantCapabilityContext
 		assets, generateErr := s.generateImageAssetsContext(ctx, user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil)
 		if generateErr != nil {
 			return nil, generateErr
@@ -395,6 +404,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		}
 	}
 	assistantMessage.Content = answer
+	assistantMessage.CapabilityContext = assistantCapabilityContext
 	assistantMessage.ReasoningContent = stringPointerOrNil(reasoning)
 	assistantMessage.ImageModelConfigID = imageModelID
 	assistantMessage.ImageGenerationExpectedCount = imageExpectedCount
@@ -487,9 +497,12 @@ func (s *Server) resolveLLMModelConfig(userID, requestedID, agentModelID string)
 }
 
 type imageGenerationDecision struct {
-	Generate  bool
-	Arguments map[string]any
-	Answer    string
+	Generate              bool
+	Arguments             map[string]any
+	Answer                string
+	HasReferenceSelection bool
+	ReferenceAssets       []store.ContentAsset
+	NeedsReferenceVision  bool
 }
 
 // decideImageGeneration lets the configured chat model choose whether the
@@ -499,14 +512,49 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 	if err != nil {
 		return imageGenerationDecision{}, err
 	}
+	candidates, err := s.imageReferenceCandidates(userID, history, 8)
+	if err != nil {
+		return imageGenerationDecision{}, err
+	}
+	decision, err := s.callImageGenerationDecision(ctx, model, agent, messages, candidates, contextValue, false)
+	if err != nil {
+		return imageGenerationDecision{}, err
+	}
+	if decision.HasReferenceSelection && len(decision.ReferenceAssets) > 0 {
+		selectedCandidates := imageReferenceCandidatesForAssets(candidates, decision.ReferenceAssets)
+		selectedCandidates = imageReferenceCandidatesWithThumbnails(selectedCandidates)
+		finalized, finalizeErr := s.callImageGenerationDecision(ctx, model, agent, messages, selectedCandidates, contextValue, true)
+		if finalizeErr != nil {
+			return imageGenerationDecision{}, finalizeErr
+		}
+		if !finalized.Generate {
+			return decision, nil
+		}
+		finalized.HasReferenceSelection = true
+		finalized.ReferenceAssets = decision.ReferenceAssets
+		return finalized, nil
+	}
+	if !decision.NeedsReferenceVision || len(candidates) == 0 {
+		return decision, nil
+	}
+	candidates = imageReferenceCandidatesWithThumbnails(candidates)
+	return s.callImageGenerationDecision(ctx, model, agent, messages, candidates, contextValue, true)
+}
+
+func (s *Server) callImageGenerationDecision(ctx context.Context, model store.ModelConfig, agent store.Agent, messages []map[string]any, candidates []imageReferenceCandidate, contextValue map[string]any, includePreviews bool) (imageGenerationDecision, error) {
+	messages = appendImageReferenceCandidates(messages, candidates, includePreviews)
 	systemPrompt := strings.TrimSpace(agent.SystemPrompt)
 	if systemPrompt == "" {
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当前工作台上下文：" + string(contextJSON)
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
+	if includePreviews {
+		systemPrompt += "候选图片的低清预览已提供，请直接完成选择，inspect_reference_images 返回 false。最终 prompt 必须与 reference_asset_ids 严格一致：不得沿用历史对话中的附件编号。只选一张时，统一称为“提供的参考图片”，不使用图1、图2或第几张。选中多张时，可按 selected_reference_position 使用“参考图1”至“参考图N”，该位置就是实际发送顺序。对未选图片的排除要求，必须改写为具体可见的构图、造型、色彩或元素特征，不得引用其历史编号。"
+	}
+	systemPrompt += "当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
-	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent, imageGenerationTool()))
+	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent, imageGenerationTool(candidateAssetIDs(candidates)...)))
 	if err != nil {
 		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
 	}
@@ -521,6 +569,11 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 		}
 		decision.Generate = true
 		decision.Arguments = arguments
+		if rawIDs, ok := arguments["reference_asset_ids"]; ok {
+			decision.HasReferenceSelection = true
+			decision.ReferenceAssets = selectedImageReferenceAssets(candidates, stringSlice(rawIDs))
+		}
+		decision.NeedsReferenceVision = boolValue(arguments["inspect_reference_images"]) && !includePreviews
 		break
 	}
 	return decision, nil
@@ -957,7 +1010,11 @@ func parseResponsesSSE(raw []byte) (responsesResult, error) {
 	return state.result, nil
 }
 
-func imageGenerationTool() map[string]any {
+func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
+	referenceItems := map[string]any{"type": "string"}
+	if len(referenceAssetIDs) > 0 {
+		referenceItems["enum"] = referenceAssetIDs
+	}
 	return map[string]any{
 		"type":        "function",
 		"name":        "image_generation",
@@ -971,8 +1028,18 @@ func imageGenerationTool() map[string]any {
 				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
 				"resolution":   map[string]any{"type": "string"},
 				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "opaque", "auto"}},
+				"reference_asset_ids": map[string]any{
+					"type":        "array",
+					"description": "从系统提供的当前对话候选图片中选择生图所需的参考图 asset_id；不需要参考图时返回空数组",
+					"items":       referenceItems,
+					"maxItems":    8,
+				},
+				"inspect_reference_images": map[string]any{
+					"type":        "boolean",
+					"description": "仅当必须查看候选图片的视觉内容才能决定参考图时返回 true；可根据结构化位置或文件名决定时返回 false",
+				},
 			},
-			"required": []string{"prompt"},
+			"required": []string{"prompt", "reference_asset_ids", "inspect_reference_images"},
 		},
 	}
 }

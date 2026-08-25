@@ -140,6 +140,12 @@ export type SendChatPayload = {
       outputBackground?: 'transparent' | 'opaque' | 'auto';
       aspectRatio?: string;
       resolution?: string;
+      inputPrompt?: string;
+      resolvedPrompt?: string;
+      referenceAttachments?: ChatAttachment[];
+      referenceAssetIds?: string[];
+      referenceCount?: number;
+      requestMode?: 'edit' | 'generation';
       referenceGroups?: Array<{
         key: string;
         label: string;

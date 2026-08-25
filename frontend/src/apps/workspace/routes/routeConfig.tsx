@@ -172,15 +172,13 @@ type UserGrantState = {
   resourceKeys: Set<string>;
 };
 
-const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; label: string; selectedIcon: ReactNode }> = {
+const sidebarGroupMeta: Record<SidebarGroupKey, { icon: ReactNode; selectedIcon: ReactNode }> = {
   material: {
     icon: <FolderOpenOutlined />,
-    label: t("素材库"),
     selectedIcon: <FolderOpenFilled />,
   },
   video: {
     icon: <VideoCameraOutlined />,
-    label: t("视频生成"),
     selectedIcon: <VideoCameraFilled />,
   },
 };
@@ -247,7 +245,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: t("人物素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -271,7 +268,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: t("人声素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -295,7 +291,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: t("场景素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -319,7 +314,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: t("产品素材"),
       surface: 'studio',
       sidebar: {
         groupKey: 'material',
@@ -344,7 +338,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
       resourceType: 'menu',
     },
     handle: {
-      title: t("发现"),
       sidebar: { icon: <CompassOutlined />, selectedIcon: <CompassFilled />, sortOrder: -10 },
     },
   },
@@ -355,9 +348,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     anonymousElement: () => withChatSuspense(<ChatPage />),
     element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
-    handle: {
-      title: t("生图"),
-    },
+    handle: {},
   },
   {
     key: 'content-batch-generation',
@@ -372,7 +363,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: t("批量"),
       surface: 'studio',
       sidebar: {
         icon: <TableOutlined />,
@@ -394,7 +384,6 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: t("作品"),
       surface: 'studio',
       sidebar: {
         icon: <FolderOutlined />,
@@ -418,12 +407,10 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: t("视频"),
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
         icon: <VideoCameraOutlined />,
-        label: t("视频"),
         selectedIcon: <VideoCameraFilled />,
       },
       contentNavigation: {
@@ -579,6 +566,13 @@ function resolveResourceName(route: WorkspacePageDefinition, resourceInfoMap?: M
   return resolveResourceInfo(route, resourceInfoMap)?.name;
 }
 
+function resolveNavigationName(route: WorkspacePageDefinition, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
+  if (route.routeResource?.resourceKey) {
+    return resolveResourceName(route, resourceInfoMap);
+  }
+  return route.handle?.sidebar?.label || resolveRouteTitle(route.handle?.title, route.fullPath) || undefined;
+}
+
 function findResourceInfoById(resourceInfoMap: Map<string, RouteResourceDisplayInfo>, id: string) {
   return Array.from(resourceInfoMap.values()).find((resource) => resource.id === id);
 }
@@ -619,7 +613,7 @@ function resolveRouteSidebarGroup(
   return {
     key: staticGroupKey,
     icon: sidebarGroupMeta[staticGroupKey].icon,
-    label: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.name || sidebarGroupMeta[staticGroupKey].label,
+    label: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.name || '',
     orderIndex: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.orderIndex ?? Number.MAX_SAFE_INTEGER,
     selectedIcon: sidebarGroupMeta[staticGroupKey].selectedIcon,
     sortOrder: resourceInfoMap?.get(sidebarGroupResourceKeys[staticGroupKey])?.sortOrder,
@@ -909,31 +903,25 @@ export function createAppRouteObjects({
   ];
 }
 
-const allContentNavigationRoutes: ContentNavigationRoute[] = workspacePageDefinitions
-  .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { contentNavigation: { code: CreativeModuleCode } } } => Boolean(route.handle?.contentNavigation))
-  .map((route) => ({
-    code: route.handle.contentNavigation.code,
-    name: resolveRouteTitle(route.handle.title, route.fullPath) || '',
-    path: route.fullPath,
-  }));
-
-export const contentNavigationRoutes = allContentNavigationRoutes;
-
-export function getContentNavigationRoutes(currentUser: User): ContentNavigationRoute[] {
+export function getContentNavigationRoutes(currentUser: User, resourceInfoMap: Map<string, RouteResourceDisplayInfo>): ContentNavigationRoute[] {
   return workspacePageDefinitions
     .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { contentNavigation: { code: CreativeModuleCode } } } => (
       Boolean(route.handle?.contentNavigation) && isVisibleWorkspacePage(route, currentUser)
     ))
-    .map((route) => ({
-      code: route.handle.contentNavigation.code,
-      name: resolveRouteTitle(route.handle.title, route.fullPath) || '',
-      path: route.fullPath,
-    }));
+    .flatMap((route) => {
+      const name = resolveNavigationName(route, resourceInfoMap);
+      return name ? [{
+        code: route.handle.contentNavigation.code,
+        name,
+        path: route.fullPath,
+      }] : [];
+    });
 }
 
 function buildSidebarNavigation(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   const sidebarRoutes = getMenuVisibleWorkspacePages(currentUser, resourceInfoMap)
-    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar));
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta } } => Boolean(route.handle?.sidebar))
+    .filter((route) => Boolean(resolveNavigationName(route, resourceInfoMap)));
   const groups = new Map<string, SidebarNavigationGroup>();
 
   sidebarRoutes.forEach((route) => {
@@ -949,7 +937,7 @@ function buildSidebarNavigation(currentUser: User | null, resourceInfoMap?: Map<
     };
     existingGroup.children.push({
       icon: route.handle.sidebar.icon,
-      label: resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+      label: resolveNavigationName(route, resourceInfoMap) || '',
       orderIndex: getRouteOrderIndex(route, resourceInfoMap),
       path: route.fullPath,
       selectedIcon: route.handle.sidebar.selectedIcon,
@@ -969,14 +957,15 @@ function buildSidebarNavigation(currentUser: User | null, resourceInfoMap?: Map<
 
 function buildTopLevelSidebarRoutes(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>) {
   return getMenuVisibleWorkspacePages(currentUser, resourceInfoMap)
-    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta; title: RouteTitle } } => Boolean(route.handle?.sidebar))
+    .filter((route): route is WorkspacePageDefinition & { handle: AppRouteHandle & { sidebar: SidebarMenuMeta } } => Boolean(route.handle?.sidebar))
+    .filter((route) => Boolean(resolveNavigationName(route, resourceInfoMap)))
     .filter((route) => resolveRouteSidebarGroup(route, resourceInfoMap) === null)
     .sort((left, right) => compareByResourceSort(left, right, resourceInfoMap))
     .map((route) => ({
       key: route.fullPath,
       icon: route.handle.sidebar.icon,
       label: renderSidebarMenuLabel(
-        resolveResourceName(route, resourceInfoMap) || route.handle.sidebar.label || resolveRouteTitle(route.handle.title, route.fullPath) || '',
+        resolveNavigationName(route, resourceInfoMap) || '',
         route.handle.sidebar.tag,
       ),
       orderIndex: getRouteOrderIndex(route, resourceInfoMap),
@@ -997,18 +986,19 @@ function renderSidebarMenuLabel(label: string, tag?: SidebarMenuMeta['tag']) {
 export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?: Map<string, RouteResourceDisplayInfo>): WorkspaceMenuItem[] {
   const groups = buildSidebarNavigation(currentUser, resourceInfoMap);
   const sidebarItems: SortableWorkspaceMenuItem[] = [];
+  const chatResource = resourceInfoMap?.get(chatRouteGrant.resourceKey || '');
 
-  if (
+  if (chatResource && (
     (currentUser && hasRouteGrant(currentUser, chatRouteGrant))
-    || resourceInfoMap?.get(chatRouteGrant.resourceKey || '')?.visibilityMode === 'always'
-  ) {
+    || chatResource.visibilityMode === 'always'
+  )) {
     sidebarItems.push({
       key: routePaths.defaultModule,
       icon: <PictureOutlined />,
-      label: resourceInfoMap?.get('web.module.chat')?.name || t("生图"),
-      orderIndex: resourceInfoMap?.get('web.module.chat')?.orderIndex ?? Number.MAX_SAFE_INTEGER,
+      label: chatResource.name,
+      orderIndex: chatResource.orderIndex,
       selectedIcon: <PictureFilled />,
-      sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,
+      sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? chatResource.sortOrder,
     });
   }
 
@@ -1045,10 +1035,9 @@ export function getWorkspaceLayoutState(currentUser: User, pathname: string, mat
     .find((handle) => handle);
   const selectedGroup = groups.find((group) => group.children.some((item) => item.path === pathname))?.key;
   const matchedRoute = workspacePageDefinitions.find((route) => route.fullPath === pathname);
-  const currentMenuTitle = (matchedRoute ? resolveResourceName(matchedRoute, resourceInfoMap) : undefined)
-    || matchedHandle?.sidebar?.label
-    || resolveRouteTitle(matchedHandle?.title, pathname)
-    || t("工作台");
+  const currentMenuTitle = matchedRoute?.routeResource?.resourceKey
+    ? resolveResourceName(matchedRoute, resourceInfoMap) || ''
+    : matchedHandle?.sidebar?.label || resolveRouteTitle(matchedHandle?.title, pathname) || t("工作台");
   const selectedMenuKey = pathname === routePaths.defaultModule
     ? chatMenuKey
     : topLevelRoutes.find((item) => item.key === pathname)?.key

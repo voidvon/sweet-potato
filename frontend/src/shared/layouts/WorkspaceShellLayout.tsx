@@ -187,7 +187,9 @@ export function WorkspaceShellLayout<User extends ShellUser>({
 
   useEffect(() => {
     const defaultDocumentTitle = defaultDocumentTitleRef.current;
-    document.title = `${routeState.currentMenuTitle} | ${defaultDocumentTitle}`;
+    document.title = routeState.currentMenuTitle
+      ? `${routeState.currentMenuTitle} | ${defaultDocumentTitle}`
+      : defaultDocumentTitle;
 
     return () => {
       document.title = defaultDocumentTitle;
@@ -416,7 +418,9 @@ export function WorkspaceShellLayout<User extends ShellUser>({
       <section className={`workspace${routeState.isChatPage ? ' chat-workspace' : ''}${routeState.isContentStudioPage ? ' workspace-studio' : ''}${routeState.isContentStudioVideoCreatePage ? ' workspace-studio-video-create' : ''}`}>
         {!routeState.hideWorkspaceHeader ? (
           <header className={`workspace-header${showGlobalActions ? ' workspace-header-global' : ''}`}>
-            <h1>{routeState.currentMenuTitle}</h1>
+            <h1>
+              {routeState.currentMenuTitle || <span aria-hidden="true" className="workspace-header-title-skeleton" />}
+            </h1>
             {headerExtra ? (
               <div className="workspace-header-extra">
                 {headerExtra}

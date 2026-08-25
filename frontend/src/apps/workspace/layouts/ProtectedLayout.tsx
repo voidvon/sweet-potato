@@ -26,13 +26,17 @@ export { useWorkspaceHeader };
 export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps) {
   const defaultPath = currentUser ? getDefaultAppPath(currentUser) : routePaths.discover;
   const routeResourceInfoMap = useRouteResourceInfoMap('web');
-  const mobileBottomNavItems: WorkspaceBottomNavItem[] = [
-    { key: routePaths.defaultModule, label: t("生图"), icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
-    { key: routePaths.contentModule('create_video'), label: t("视频"), icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
-    { key: routePaths.contentRoot, label: t("素材"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
-    { key: routePaths.contentModule('finished_assets'), label: t("作品"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
-    { key: routePaths.accountInfo, label: t("我的"), icon: <UserOutlined /> },
+  const resourceBottomNavItems = [
+    { key: routePaths.defaultModule, resourceKey: 'web.module.chat', icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
+    { key: routePaths.contentModule('create_video'), resourceKey: 'web.module.content.create_video', icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
+    { key: routePaths.contentRoot, resourceKey: 'web.root.content', icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
+    { key: routePaths.contentModule('finished_assets'), resourceKey: 'web.module.content.finished_assets', icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
   ];
+  const mobileBottomNavItems: WorkspaceBottomNavItem[] = resourceBottomNavItems.flatMap((item) => {
+    const name = routeResourceInfoMap.get(item.resourceKey)?.name;
+    return name ? [{ ...item, label: name }] : [];
+  });
+  mobileBottomNavItems.push({ key: routePaths.accountInfo, label: t("我的"), icon: <UserOutlined /> });
 
   return (
     <WorkspaceShellLayout
