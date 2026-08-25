@@ -284,6 +284,33 @@ func TestModelConfigResponsesDoNotExposeAPIKeys(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedUsersCanReadLLMConfigs(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir(), AuthTokenSecret: "test-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+
+	// The first account is the administrator; the second receives the normal
+	// onboarding role with no business-module permissions. Reading available
+	// models is a global runtime capability and only requires authentication.
+	if _, err := server.store.CreateUser("model-admin", "password123", "Model Admin"); err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	user, err := server.store.CreateUser("image-user", "password123", "Image User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := server.tokens.Create(user.ID, user.Role, user.AuthVersion)
+	request := httptest.NewRequest(http.MethodGet, "/api/model-configs?type=llm", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+}
+
 func TestEmbeddedStaticFallbackWithoutFrontendBundle(t *testing.T) {
 	server, err := New(config.Config{DataDir: t.TempDir()})
 	if err != nil {

@@ -494,11 +494,10 @@ func (s *Server) handleDeleteRouteResource(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) handleListModelConfigs(w http.ResponseWriter, r *http.Request) {
 	typeName := strings.TrimSpace(r.URL.Query().Get("type"))
-	if typeName == "image" {
-		if _, ok := s.requireUser(w, r, "admin.route.system.models.view", "web.module.chat"); !ok {
-			return
-		}
-	} else if _, ok := s.requireUser(w, r, permissionModels); !ok {
+	// Reading available models is a runtime capability shared by workspace
+	// features. Keep management permissions for mutations, but do not couple
+	// this read-only endpoint to any particular module or admin route.
+	if _, ok := s.requireUser(w, r); !ok {
 		return
 	}
 	models, err := s.store.ListModelConfigs(typeName)
