@@ -4,13 +4,10 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"image"
-	"image/color"
-	_ "image/gif"
-	"image/jpeg"
-	_ "image/png"
-	"os"
 	"strings"
+
+	"github.com/disintegration/imaging"
+	"github.com/gen2brain/webp"
 
 	"sweet-potato-go/internal/store"
 )
@@ -182,11 +179,7 @@ func imageDecisionThumbnailDataURL(path string, maxDimension int) (string, error
 	if strings.TrimSpace(path) == "" || maxDimension < 1 {
 		return "", fmt.Errorf("图片路径或缩略图尺寸无效")
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	source, _, err := image.Decode(bytes.NewReader(data))
+	source, err := imaging.Open(path, imaging.AutoOrientation(true))
 	if err != nil {
 		return "", err
 	}
@@ -205,24 +198,10 @@ func imageDecisionThumbnailDataURL(path string, maxDimension int) (string, error
 	}
 	targetWidth := max(1, int(float64(width)*scale))
 	targetHeight := max(1, int(float64(height)*scale))
-	target := image.NewRGBA(image.Rect(0, 0, targetWidth, targetHeight))
-	for y := 0; y < targetHeight; y++ {
-		sourceY := bounds.Min.Y + y*height/targetHeight
-		for x := 0; x < targetWidth; x++ {
-			sourceX := bounds.Min.X + x*width/targetWidth
-			pixel := color.NRGBAModel.Convert(source.At(sourceX, sourceY)).(color.NRGBA)
-			alpha := uint32(pixel.A)
-			target.SetRGBA(x, y, color.RGBA{
-				R: uint8((uint32(pixel.R)*alpha + 255*(255-alpha)) / 255),
-				G: uint8((uint32(pixel.G)*alpha + 255*(255-alpha)) / 255),
-				B: uint8((uint32(pixel.B)*alpha + 255*(255-alpha)) / 255),
-				A: 255,
-			})
-		}
-	}
+	target := imaging.Resize(source, targetWidth, targetHeight, imaging.Lanczos)
 	var encoded bytes.Buffer
-	if err := jpeg.Encode(&encoded, target, &jpeg.Options{Quality: 70}); err != nil {
+	if err := webp.Encode(&encoded, target, webp.Options{Quality: 80, Method: 6}); err != nil {
 		return "", err
 	}
-	return "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes()), nil
+	return "data:image/webp;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes()), nil
 }

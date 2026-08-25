@@ -278,10 +278,10 @@ func createTestImageReferenceAsset(t *testing.T, dataStore *store.Store, dataDir
 
 func decodeTestThumbnail(t *testing.T, dataURL string) image.Image {
 	t.Helper()
-	if !strings.HasPrefix(dataURL, "data:image/jpeg;base64,") {
+	if !strings.HasPrefix(dataURL, "data:image/webp;base64,") {
 		t.Fatalf("thumbnail URL prefix = %q", dataURL)
 	}
-	encoded := strings.TrimPrefix(dataURL, "data:image/jpeg;base64,")
+	encoded := strings.TrimPrefix(dataURL, "data:image/webp;base64,")
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		t.Fatalf("decode base64: %v", err)
