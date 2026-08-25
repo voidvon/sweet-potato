@@ -71,8 +71,14 @@ func TestOpenBackfillsDefaultDisplayNameTranslations(t *testing.T) {
 	if _, err := dataStore.Exec(`UPDATE route_resources SET name_en = 'Image Creation' WHERE id = 'rr-web.module.chat'`); err != nil {
 		t.Fatalf("set legacy route translation: %v", err)
 	}
+	if _, err := dataStore.Exec(`UPDATE route_resources SET name = '图片创作' WHERE id = 'rr-web.module.chat'`); err != nil {
+		t.Fatalf("set legacy route name: %v", err)
+	}
 	if _, err := dataStore.Exec(`UPDATE route_resources SET name_en = 'Video Creation' WHERE id = 'rr-web.module.content.create_video'`); err != nil {
 		t.Fatalf("set legacy video route translation: %v", err)
+	}
+	if _, err := dataStore.Exec(`UPDATE route_resources SET name = '视频创作' WHERE id = 'rr-web.module.content.create_video'`); err != nil {
+		t.Fatalf("set legacy video route name: %v", err)
 	}
 	if _, err := dataStore.Exec(`
 INSERT INTO discover_categories (id, name, name_en, slug, sort_order, status, created_at, updated_at)
@@ -91,12 +97,12 @@ VALUES ('talking', '口播', '', 'talking', 0, 'active', ?, ?),
 	}
 	defer dataStore.Close()
 	resource, found, err := dataStore.FindRouteResource("rr-web.module.chat")
-	if err != nil || !found || resource.NameEN != "Image" {
-		t.Fatalf("route translation = %q, found=%v err=%v", resource.NameEN, found, err)
+	if err != nil || !found || resource.Name != "生图" || resource.NameEN != "Image" {
+		t.Fatalf("route name = %q, translation = %q, found=%v err=%v", resource.Name, resource.NameEN, found, err)
 	}
 	resource, found, err = dataStore.FindRouteResource("rr-web.module.content.create_video")
-	if err != nil || !found || resource.NameEN != "Video" {
-		t.Fatalf("video route translation = %q, found=%v err=%v", resource.NameEN, found, err)
+	if err != nil || !found || resource.Name != "视频" || resource.NameEN != "Video" {
+		t.Fatalf("video route name = %q, translation = %q, found=%v err=%v", resource.Name, resource.NameEN, found, err)
 	}
 	categories, err := dataStore.ListDiscoverCategories(true)
 	if err != nil {

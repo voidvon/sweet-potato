@@ -14,7 +14,7 @@ import { t } from '@shared/i18n';
 export const modules: ModuleItem[] = [
   {
     id: 'claw',
-    title: t("图片创作"),
+    title: t("生图"),
     subtitle: t("AI 生图工作台"),
     priority: 'P0',
     icon: ImagePlus,

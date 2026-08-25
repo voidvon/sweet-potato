@@ -27,8 +27,8 @@ export function ProtectedLayout({ currentUser, onLogout }: ProtectedLayoutProps)
   const defaultPath = currentUser ? getDefaultAppPath(currentUser) : routePaths.discover;
   const routeResourceInfoMap = useRouteResourceInfoMap('web');
   const mobileBottomNavItems: WorkspaceBottomNavItem[] = [
-    { key: routePaths.defaultModule, label: t("图片创作"), icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
-    { key: routePaths.contentModule('create_video'), label: t("视频创作"), icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
+    { key: routePaths.defaultModule, label: t("生图"), icon: <PictureOutlined />, selectedIcon: <PictureFilled /> },
+    { key: routePaths.contentModule('create_video'), label: t("视频"), icon: <VideoCameraOutlined />, selectedIcon: <VideoCameraFilled /> },
     { key: routePaths.contentRoot, label: t("素材"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
     { key: routePaths.contentModule('finished_assets'), label: t("作品"), icon: <FolderOpenOutlined />, selectedIcon: <FolderFilled /> },
     { key: routePaths.accountInfo, label: t("我的"), icon: <UserOutlined /> },

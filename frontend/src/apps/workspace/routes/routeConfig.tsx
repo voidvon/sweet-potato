@@ -356,7 +356,7 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withChatSuspense(<ChatPage />),
     routeResource: chatRouteGrant,
     handle: {
-      title: t("图片创作"),
+      title: t("生图"),
     },
   },
   {
@@ -418,12 +418,12 @@ const workspacePageDefinitions: WorkspacePageDefinition[] = [
     },
     handle: {
       hideWorkspaceHeader: true,
-      title: t("视频创作"),
+      title: t("视频"),
       surface: 'immersive',
       sidebar: {
         groupKey: 'video',
         icon: <VideoCameraOutlined />,
-        label: t("视频创作"),
+        label: t("视频"),
         selectedIcon: <VideoCameraFilled />,
       },
       contentNavigation: {
@@ -1005,7 +1005,7 @@ export function buildSidebarMenuItems(currentUser: User | null, resourceInfoMap?
     sidebarItems.push({
       key: routePaths.defaultModule,
       icon: <PictureOutlined />,
-      label: resourceInfoMap?.get('web.module.chat')?.name || t("图片创作"),
+      label: resourceInfoMap?.get('web.module.chat')?.name || t("生图"),
       orderIndex: resourceInfoMap?.get('web.module.chat')?.orderIndex ?? Number.MAX_SAFE_INTEGER,
       selectedIcon: <PictureFilled />,
       sortOrder: resourceInfoMap?.get('web.root.chat')?.sortOrder ?? resourceInfoMap?.get('web.module.chat')?.sortOrder ?? 0,

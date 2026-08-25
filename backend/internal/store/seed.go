@@ -27,8 +27,8 @@ type seededResource struct {
 var foundationResources = []seededResource{
 	{ID: "rr-web-discover", Name: "发现", NameEN: "Discover", ResourceKey: "web.discover", ResourceType: "menu", Platform: "web", Path: "/app/discover", PermissionCode: "web.route.discover.view", VisibilityMode: "always", GrantDefault: true},
 	{ID: "rr-web-root-content", Name: "素材", NameEN: "Assets", ResourceKey: "web.root.content", ResourceType: "directory", Platform: "web", Path: "/app/content", PermissionCode: "web.directory.content", SortOrder: 40},
-	{ID: "rr-web.module.chat", Name: "图片创作", NameEN: "Image", ResourceKey: "web.module.chat", ResourceType: "menu", Platform: "web", Path: "/app/image", PermissionCode: "web.module.chat", SortOrder: 10, GrantDefault: true},
-	{ID: "rr-web.module.content.create_video", Name: "视频创作", NameEN: "Video", ResourceKey: "web.module.content.create_video", ResourceType: "menu", Platform: "web", Path: "/app/content/create_video", PermissionCode: "web.module.content.create_video", SortOrder: 20, GrantDefault: true},
+	{ID: "rr-web.module.chat", Name: "生图", NameEN: "Image", ResourceKey: "web.module.chat", ResourceType: "menu", Platform: "web", Path: "/app/image", PermissionCode: "web.module.chat", SortOrder: 10, GrantDefault: true},
+	{ID: "rr-web.module.content.create_video", Name: "视频", NameEN: "Video", ResourceKey: "web.module.content.create_video", ResourceType: "menu", Platform: "web", Path: "/app/content/create_video", PermissionCode: "web.module.content.create_video", SortOrder: 20, GrantDefault: true},
 	{ID: "rr-web.module.content.virtual_portrait_assets", ParentID: "rr-web-root-content", Name: "人物素材", NameEN: "Character Assets", ResourceKey: "web.module.content.virtual_portrait_assets", ResourceType: "menu", Platform: "web", Path: "/app/content/virtual_portrait_assets", PermissionCode: "web.module.content.virtual_portrait_assets", SortOrder: 10, GrantDefault: true},
 	{ID: "rr-web.module.content.ai_voice", ParentID: "rr-web-root-content", Name: "人声素材", NameEN: "Voice Assets", ResourceKey: "web.module.content.ai_voice", ResourceType: "menu", Platform: "web", Path: "/app/content/ai_voice", PermissionCode: "web.module.content.ai_voice", SortOrder: 20, GrantDefault: true},
 	{ID: "rr-web.module.content.scene_library", ParentID: "rr-web-root-content", Name: "场景素材", NameEN: "Scene Assets", ResourceKey: "web.module.content.scene_library", ResourceType: "menu", Platform: "web", Path: "/app/content/scene_library", PermissionCode: "web.module.content.scene_library", SortOrder: 30, GrantDefault: true},
@@ -94,6 +94,12 @@ VALUES ('role-default-full-access', 'default-full-access', '默认全量权限',
 	}
 	if _, err := db.Exec(`UPDATE route_resources SET name_en = 'Video' WHERE id = 'rr-web.module.content.create_video' AND name_en = 'Video Creation'`); err != nil {
 		return fmt.Errorf("update default video route translation: %w", err)
+	}
+	if _, err := db.Exec(`UPDATE route_resources SET name = '生图' WHERE id = 'rr-web.module.chat' AND name = '图片创作'`); err != nil {
+		return fmt.Errorf("update default image route name: %w", err)
+	}
+	if _, err := db.Exec(`UPDATE route_resources SET name = '视频' WHERE id = 'rr-web.module.content.create_video' AND name = '视频创作'`); err != nil {
+		return fmt.Errorf("update default video route name: %w", err)
 	}
 
 	categoryTranslations := []struct {
