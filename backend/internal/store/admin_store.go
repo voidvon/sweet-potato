@@ -234,7 +234,8 @@ func (s *Store) creditSummary(userID string) (creditTotals, error) {
 	err := s.db.QueryRow(`
 SELECT COALESCE(SUM(CASE WHEN credit_delta > 0 THEN credit_delta ELSE 0 END), 0),
        COALESCE(SUM(CASE WHEN credit_delta < 0 THEN -credit_delta ELSE 0 END), 0)
-FROM credit_ledger WHERE user_id = ?`, userID).Scan(&totals.recharge, &totals.usage)
+FROM credit_ledger
+WHERE user_id = ? AND type NOT IN ('reservation', 'reservation_release')`, userID).Scan(&totals.recharge, &totals.usage)
 	if err != nil {
 		return creditTotals{}, fmt.Errorf("load credit summary: %w", err)
 	}

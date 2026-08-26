@@ -14,7 +14,7 @@ import {
 } from '../../../api/chat';
 import { resolveAssetUrl } from '../../../api/request';
 import { appRealtimeEventNames, type AppGenerationJobUpdatedDetail } from '@/app/AppRealtimeEvents';
-import { getStoredUser } from '../../../utils/session';
+import { getStoredUser, storeUser } from '../../../utils/session';
 import type { AiAgent, ChatAttachment, ChatConversation, ChatMessage, SendChatPayload } from '../../../types';
 import { t } from '@shared/i18n';
 
@@ -689,6 +689,10 @@ export function useChatSession() {
           }
 
           if (event.type === 'done') {
+            const storedUser = getStoredUser();
+            if (storedUser && typeof event.creditBalance === 'number' && Number.isFinite(event.creditBalance)) {
+              storeUser({ ...storedUser, creditBalance: event.creditBalance });
+            }
             setInput('');
             setAttachments([]);
             setComposerDraftContext(undefined);

@@ -234,6 +234,8 @@ func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request)
 			status = http.StatusNotFound
 		} else if errors.Is(err, store.ErrChatResponseInProgress) {
 			status = http.StatusConflict
+		} else if errors.Is(err, store.ErrInsufficientCredits) {
+			status = http.StatusPaymentRequired
 		}
 		writeError(w, status, err.Error())
 		return
@@ -344,7 +346,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 	var assistantCapabilityContext map[string]any
 	var contextUsage map[string]any
 	if input.AutoImageGeneration {
-		imageDecision, err = s.decideImageGeneration(ctx, user.ID, model, agent, history, input.CapabilityContext)
+		imageDecision, err = s.decideImageGeneration(ctx, user.ID, assistantMessage.ID, model, agent, history, input.CapabilityContext)
 		if err != nil {
 			return nil, err
 		}
@@ -402,7 +404,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 			answer = "我可以帮你生成图片，请描述想要的画面。"
 		}
 	} else {
-		answer, reasoning, err = s.completeChat(ctx, model, agent, history)
+		answer, reasoning, err = s.completeChat(ctx, user.ID, assistantMessage.ID, model, agent, history)
 		if err != nil {
 			return nil, err
 		}
@@ -440,9 +442,13 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 	if err != nil {
 		return nil, err
 	}
+	creditBalance := user.CreditBalance
+	if updatedUser, found, findErr := s.store.FindUserByID(user.ID); findErr == nil && found {
+		creditBalance = updatedUser.CreditBalance
+	}
 	_ = userMessage
 	_ = assistantMessage
-	return map[string]any{"conversation": conversation, "messages": messages}, nil
+	return map[string]any{"conversation": conversation, "messages": messages, "creditBalance": creditBalance}, nil
 }
 
 func chatHistoryWithoutMessage(messages []store.ChatMessage, messageID string) []store.ChatMessage {
@@ -515,7 +521,7 @@ type imageGenerationDecision struct {
 
 // decideImageGeneration lets the configured chat model choose whether the
 // image tool is needed. The server still validates and executes the tool.
-func (s *Server) decideImageGeneration(ctx context.Context, userID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
+func (s *Server) decideImageGeneration(ctx context.Context, userID, sourceID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage, contextValue map[string]any) (imageGenerationDecision, error) {
 	messages, err := s.chatResponsesInput(userID, history)
 	if err != nil {
 		return imageGenerationDecision{}, err
@@ -524,14 +530,14 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 	if err != nil {
 		return imageGenerationDecision{}, err
 	}
-	decision, err := s.callImageGenerationDecision(ctx, model, agent, messages, candidates, contextValue, false)
+	decision, err := s.callImageGenerationDecision(ctx, userID, sourceID, model, agent, messages, candidates, contextValue, false)
 	if err != nil {
 		return imageGenerationDecision{}, err
 	}
 	if decision.HasReferenceSelection && len(decision.ReferenceAssets) > 0 {
 		selectedCandidates := imageReferenceCandidatesForAssets(candidates, decision.ReferenceAssets)
 		selectedCandidates = imageReferenceCandidatesWithThumbnails(selectedCandidates)
-		finalized, finalizeErr := s.callImageGenerationDecision(ctx, model, agent, messages, selectedCandidates, contextValue, true)
+		finalized, finalizeErr := s.callImageGenerationDecision(ctx, userID, sourceID, model, agent, messages, selectedCandidates, contextValue, true)
 		if finalizeErr != nil {
 			return imageGenerationDecision{}, finalizeErr
 		}
@@ -547,10 +553,10 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID string, model
 		return decision, nil
 	}
 	candidates = imageReferenceCandidatesWithThumbnails(candidates)
-	return s.callImageGenerationDecision(ctx, model, agent, messages, candidates, contextValue, true)
+	return s.callImageGenerationDecision(ctx, userID, sourceID, model, agent, messages, candidates, contextValue, true)
 }
 
-func (s *Server) callImageGenerationDecision(ctx context.Context, model store.ModelConfig, agent store.Agent, messages []map[string]any, candidates []imageReferenceCandidate, contextValue map[string]any, includePreviews bool) (imageGenerationDecision, error) {
+func (s *Server) callImageGenerationDecision(ctx context.Context, userID, sourceID string, model store.ModelConfig, agent store.Agent, messages []map[string]any, candidates []imageReferenceCandidate, contextValue map[string]any, includePreviews bool) (imageGenerationDecision, error) {
 	messages = appendImageReferenceCandidates(messages, candidates, includePreviews)
 	systemPrompt := strings.TrimSpace(agent.SystemPrompt)
 	if systemPrompt == "" {
@@ -563,7 +569,7 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, model store.Mo
 	}
 	systemPrompt += "当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
-	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent, imageGenerationTool(candidateAssetIDs(candidates)...)))
+	result, err := s.callBillableResponses(ctx, userID, "chat_image_decision", modelSourceID(sourceID), model, messages, agentResponsesTools(agent, imageGenerationTool(candidateAssetIDs(candidates)...)))
 	if err != nil {
 		return imageGenerationDecision{}, fmt.Errorf("调用图片决策模型失败: %w", err)
 	}
@@ -1174,7 +1180,7 @@ func responseReasoningText(result responsesResult) string {
 	return strings.TrimSpace(strings.Join(parts, ""))
 }
 
-func (s *Server) completeChat(ctx context.Context, model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
+func (s *Server) completeChat(ctx context.Context, userID, sourceID string, model store.ModelConfig, agent store.Agent, history []store.ChatMessage) (string, string, error) {
 	messages := make([]map[string]any, 0, len(history)+1)
 	if strings.TrimSpace(agent.SystemPrompt) != "" {
 		messages = append(messages, map[string]any{"role": "system", "content": agent.SystemPrompt})
@@ -1182,7 +1188,7 @@ func (s *Server) completeChat(ctx context.Context, model store.ModelConfig, agen
 	for _, item := range history {
 		messages = append(messages, map[string]any{"role": item.Role, "content": item.Content})
 	}
-	result, err := callResponsesContext(ctx, model, messages, agentResponsesTools(agent))
+	result, err := s.callBillableResponses(ctx, userID, "chat_response", modelSourceID(sourceID), model, messages, agentResponsesTools(agent))
 	if err != nil {
 		return "", "", fmt.Errorf("调用模型失败: %w", err)
 	}
@@ -1391,6 +1397,7 @@ func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string,
 	}
 	conversation, _ := result["conversation"].(store.ChatConversation)
 	messages, _ := result["messages"].([]store.ChatMessage)
+	creditBalance, _ := result["creditBalance"].(float64)
 	_ = session.writeJSON(map[string]any{"method": "thread/updated", "params": map[string]any{"conversation": conversation}})
 	if len(messages) >= 2 {
 		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "user_message", "message": messages[len(messages)-2]}})
@@ -1400,7 +1407,7 @@ func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string,
 		}
 		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "assistant_message", "message": assistant}})
 	}
-	_ = session.writeJSON(map[string]any{"method": "turn/completed", "params": map[string]any{"turn": map[string]any{"id": turnID, "status": "completed"}, "conversation": conversation, "messages": messages}})
+	_ = session.writeJSON(map[string]any{"method": "turn/completed", "params": map[string]any{"turn": map[string]any{"id": turnID, "status": "completed"}, "conversation": conversation, "messages": messages, "creditBalance": creditBalance}})
 	session.clearTurn(turnID)
 }
 

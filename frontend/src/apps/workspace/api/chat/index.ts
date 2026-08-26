@@ -201,7 +201,8 @@ export async function streamChatMessage(
           error?: { message?: string };
         };
         if (event.error) {
-          settle(() => reject(new Error(event.error.message || t("聊天请求失败"))));
+          const eventError = event.error;
+          settle(() => reject(new Error(eventError.message || t("聊天请求失败"))));
           return;
         }
         if (event.method === 'turn/started' || (event.id && !event.method)) return;
@@ -238,7 +239,13 @@ export async function streamChatMessage(
           }
           const conversation = params.conversation as ChatConversation;
           const messages = params.messages as ChatMessage[];
-          onEvent({ type: 'done', conversation, messages });
+          const creditBalance = Number(params.creditBalance);
+          onEvent({
+            type: 'done',
+            conversation,
+            messages,
+            creditBalance: Number.isFinite(creditBalance) ? creditBalance : undefined,
+          });
           settle(resolve);
           return;
         }

@@ -191,7 +191,10 @@ export function ModelFormModal({
             type: activeType,
             provider: pricing.provider,
             model: pricing.model,
-            baseUrl: pricing.defaultBaseUrl,
+            // Keep the URL entered in the form. The pricing catalog supplies
+            // the provider/model defaults, but must not overwrite a custom
+            // compatible endpoint when an existing LLM config is saved.
+            baseUrl: payload.baseUrl,
             settings: {
               ...llmSettings,
               billing: llmBillingFromPricing(pricing, currentBilling || {}),

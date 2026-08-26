@@ -35,6 +35,7 @@ import {
 } from '../../../components/ImageOutputSizePicker';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
+import { getStoredUser } from '@shared/utils/session';
 import {
   estimateImageGenerationCredits,
   imageGenerationCreditsPerRequest,
@@ -376,6 +377,15 @@ function imageModelValue(config: ModelConfig) {
 
 function imageModelIsConfigured(config: ModelConfig) {
   return config.isConfigured ?? Boolean(config.apiKey);
+}
+
+function llmRequestCreditThreshold(config: ModelConfig | undefined) {
+  const settings = config?.settings && typeof config.settings === 'object' ? config.settings : {};
+  const billing = settings.billing && typeof settings.billing === 'object' && !Array.isArray(settings.billing)
+    ? settings.billing as Record<string, unknown>
+    : {};
+  const value = Number(billing.maxOutputCreditsForReserve ?? billing.maxOutputTokensForReserve ?? 0);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 export function ClawDialogComposer({
@@ -725,6 +735,17 @@ export function ClawDialogComposer({
       return;
     }
     if (canStartGeneration) {
+      if (showLlmModelControl) {
+        const threshold = llmRequestCreditThreshold(selectedLlmModel);
+        const balance = Math.max(0, Number(getStoredUser()?.creditBalance) || 0);
+        if (balance < threshold) {
+          message.warning(t("积分余额不足：当前 {{0}} Credit，调用该 LLM 至少需要 {{1}} Credit", {
+            "0": formatCreditAmount(balance),
+            "1": formatCreditAmount(threshold),
+          }));
+          return;
+        }
+      }
       onSend({
         modelConfigId: showLlmModelControl ? selectedLlmModel?.id || null : null,
         imageModelConfigId: selectedImageModel?.config.id || null,

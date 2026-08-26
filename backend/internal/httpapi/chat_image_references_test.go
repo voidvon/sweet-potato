@@ -160,6 +160,7 @@ func TestDecideImageGenerationSelectsHistoricalReferenceByAssetID(t *testing.T) 
 	decision, err := server.decideImageGeneration(
 		context.Background(),
 		"user-1",
+		"message-1",
 		store.ModelConfig{Provider: "test", Model: "test", APIKey: "test", BaseURL: upstream.URL},
 		store.Agent{SystemPrompt: "You are an image assistant."},
 		history,
@@ -211,6 +212,7 @@ func TestDecideImageGenerationOnlySendsThumbnailsWhenVisionIsNeeded(t *testing.T
 	decision, err := server.decideImageGeneration(
 		context.Background(),
 		"user-1",
+		"message-1",
 		store.ModelConfig{Provider: "test", Model: "test", APIKey: "test", BaseURL: upstream.URL},
 		store.Agent{SystemPrompt: "You are an image assistant."},
 		[]store.ChatMessage{{

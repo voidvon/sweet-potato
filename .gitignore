@@ -10,6 +10,7 @@ __pycache__/
 venv/
 .idea/
 dist/
+release/
 .vscode/launch.json
 .env
 .plans

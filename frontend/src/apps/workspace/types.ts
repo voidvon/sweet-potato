@@ -135,6 +135,7 @@ export type ChatContextUsage = {
 export type ChatConversationDetail = {
   conversation: ChatConversation;
   messages: ChatMessage[];
+  creditBalance?: number;
 };
 
 export type SendChatPayload = {
@@ -184,7 +185,7 @@ export type ChatStreamEvent =
   | { type: 'assistant_message'; message: ChatMessage }
   | { type: 'reasoning_delta'; delta: string }
   | { type: 'answer_delta'; delta: string }
-  | { type: 'done'; conversation: ChatConversation; messages: ChatMessage[] }
+  | { type: 'done'; conversation: ChatConversation; messages: ChatMessage[]; creditBalance?: number }
   | { type: 'error'; message: string };
 
 export type ModuleItem = {
