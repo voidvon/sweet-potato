@@ -165,7 +165,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: MessageCircle,
     inputPlaceholder: t("描述你要的画面，可上传参考图，输入 @ 引用图片。"),
     outputConfig: defaultModeOutputConfig,
-    referenceGroups: [{ key: 'reference', label: t("参考图"), maxCount: 8 }],
+    referenceGroups: [{ key: 'reference', label: t("附件"), maxCount: 8 }],
     requiresPrompt: true,
   },
   {
