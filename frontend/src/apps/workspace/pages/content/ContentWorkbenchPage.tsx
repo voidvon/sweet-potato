@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Tag } from 'antd';
 import { ContactRound, Mic2, PlayCircle, RefreshCw, Sparkles, UserRound, Video } from 'lucide-react';
 import { listContentAssetGroups, listContentAssets, listVideoTasks } from '../../api/content';
-import { API_BASE_URL } from '../../api/request';
+import { appSocketManager } from '@/app/AppSocketManager';
 import { getContentNavigationRoutes } from '../../routes/routeConfig';
 import type { ContentAsset, ContentAssetGroup, ContentAssetResourceType, User, VideoGenerationTask } from '../../types';
 import './ContentWorkbenchPage.scss';
@@ -117,15 +117,11 @@ export function ContentWorkbenchPage({ currentUser }: ContentWorkbenchPageProps)
   useEffect(() => () => { loadRequestIdRef.current += 1; }, []);
 
   useEffect(() => {
-    const source = new EventSource(`${API_BASE_URL}/api/content/events`, { withCredentials: true });
-    const handleVideoGenerationComplete = () => {
-      void loadWorkbench({ showLoading: false });
-    };
-    source.addEventListener('video-generation-complete', handleVideoGenerationComplete);
-    return () => {
-      source.removeEventListener('video-generation-complete', handleVideoGenerationComplete);
-      source.close();
-    };
+    return appSocketManager.subscribe((event) => {
+      if (event.method === 'video-generation-complete' || event.method === 'app/video-generation-complete') {
+        void loadWorkbench({ showLoading: false });
+      }
+    });
   }, [currentUser.id, loadWorkbench]);
 
   const stats = useMemo(() => ({

@@ -38,10 +38,6 @@ func (s *Server) handleContent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "接口不存在")
 		return
 	}
-	if parts[0] == "events" {
-		s.handleContentEvents(w, r)
-		return
-	}
 	if parts[0] == "modules" {
 		if _, ok := s.requireUser(w, r); !ok {
 			return
@@ -236,33 +232,6 @@ func canAccessContentResource(user store.User, resourceType string) bool {
 		}
 	}
 	return false
-}
-
-func (s *Server) handleContentEvents(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.requireUser(w, r); !ok {
-		return
-	}
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "当前服务器不支持事件流")
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	_, _ = io.WriteString(w, ": connected\n\n")
-	flusher.Flush()
-	ticker := time.NewTicker(20 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
-			_, _ = io.WriteString(w, ": heartbeat\n\n")
-			flusher.Flush()
-		}
-	}
 }
 
 func (s *Server) handleContentGroups(w http.ResponseWriter, r *http.Request, parts []string) {

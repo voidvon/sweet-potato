@@ -1,4 +1,4 @@
-import { API_BASE_URL, request } from '../request';
+import { request } from '../request';
 
 export type PlanningUiStep = 'step1' | 'step2' | 'step3' | 'step4';
 export type PlanningStatus =
@@ -234,10 +234,6 @@ const basePath = '/api/content-planning/sessions';
 
 export function getContentPlanningConfig() {
   return request<ContentPlanningClientConfig>('/api/content-planning/config');
-}
-
-export function createPlanningEventSource() {
-  return new EventSource(`${API_BASE_URL}/api/content-planning/events`, { withCredentials: true });
 }
 
 export function createPlanningSession(payload: {

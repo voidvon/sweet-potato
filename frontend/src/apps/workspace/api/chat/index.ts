@@ -6,7 +6,8 @@ import type {
   ChatStreamEvent,
   SendChatPayload,
 } from '../../types';
-import { API_BASE_URL, request } from '../request';
+import { appSocketManager } from '@/app/AppSocketManager';
+import { request } from '../request';
 import { t } from '@shared/i18n';
 
 enum Api {
@@ -18,19 +19,6 @@ enum Api {
   conversationMessage = '/api/chat/conversations/:conversationId/messages/:messageId',
   conversationMessages = '/api/chat/conversations/:conversationId/messages',
   messages = '/api/chat/messages',
-  streamMessageWs = '/api/chat/messages/ws',
-}
-
-function resolveWebSocketUrl(path: string) {
-  const baseUrl = API_BASE_URL.trim();
-  if (baseUrl) {
-    const url = new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return url.toString();
-  }
-
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}${path}`;
 }
 
 export function listChatConversations(userId: string) {
@@ -153,20 +141,17 @@ export async function streamChatMessage(
       return;
     }
 
-    const socket = new WebSocket(resolveWebSocketUrl(Api.streamMessageWs));
     const turnId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `turn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     let settled = false;
 
     const handleAbort = () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
+      void appSocketManager.send({
           method: 'turn/interrupt',
           id: `interrupt-${turnId}`,
           params: { turnId },
-        }));
-      }
+        }).catch(() => undefined);
       settle(() => reject(createAbortError()));
     };
 
@@ -176,30 +161,25 @@ export async function streamChatMessage(
       }
       settled = true;
       options?.signal?.removeEventListener('abort', handleAbort);
-      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-        socket.close();
-      }
+      unsubscribe();
       callback();
     }
 
     options?.signal?.addEventListener('abort', handleAbort, { once: true });
 
-    socket.onopen = () => {
-      if (options?.signal?.aborted) {
-        settle(() => reject(createAbortError()));
-        return;
-      }
-      socket.send(JSON.stringify({ method: 'turn/start', id: turnId, params: payload }));
-    };
-
-    socket.onmessage = (message) => {
+    const unsubscribe = appSocketManager.subscribe((rawEvent) => {
       try {
-        const event = JSON.parse(message.data) as ChatStreamEvent & {
+        const event = rawEvent as ChatStreamEvent & {
           id?: string;
           method?: string;
           params?: Record<string, unknown>;
           error?: { message?: string };
         };
+        if (event.method === 'app/disconnected') {
+          settle(() => reject(new Error(t("聊天 WebSocket 连接已断开"))));
+          return;
+        }
+        if (event.id && event.id !== turnId && !event.method) return;
         if (event.error) {
           const eventError = event.error;
           settle(() => reject(new Error(eventError.message || t("聊天请求失败"))));
@@ -260,29 +240,9 @@ export async function streamChatMessage(
       } catch (error) {
         settle(() => reject(error instanceof Error ? error : new Error(t("解析聊天流失败"))));
       }
-    };
-
-    socket.onerror = () => {
-      if (options?.signal?.aborted) {
-        settle(() => reject(createAbortError()));
-        return;
-      }
-      settle(() => reject(new Error(t("聊天 WebSocket 连接失败"))));
-    };
-
-    socket.onclose = () => {
-      if (settled) {
-        return;
-      }
-      if (options?.signal?.aborted) {
-        settled = true;
-        options?.signal?.removeEventListener('abort', handleAbort);
-        reject(createAbortError());
-        return;
-      }
-      settled = true;
-      options?.signal?.removeEventListener('abort', handleAbort);
-      reject(new Error(t("聊天 WebSocket 连接已断开")));
-    };
+    });
+    void appSocketManager.send({ method: 'turn/start', id: turnId, params: payload }).catch((error) => {
+      settle(() => reject(error instanceof Error ? error : new Error(t("聊天 WebSocket 连接失败"))));
+    });
   });
 }

@@ -6,7 +6,7 @@ import {
   syncVirtualPortraitRemoteLibrary,
   uploadVirtualPortraitAsset,
 } from '../../../../api/content'
-import { API_BASE_URL } from '../../../../api/request'
+import { appSocketManager } from '@/app/AppSocketManager'
 import type { ContentAsset, User } from '../../../../types'
 import type { ImagePreview } from '../AssetImageUpload'
 import { useAssetLibrary } from '../useAssetLibrary'
@@ -118,13 +118,11 @@ export function useDigitalHumanAssetsController({
   }, [library.loadGroups, library.loadGroupAssets, library.groupPage])
 
   useEffect(() => {
-    const source = new EventSource(
-      `${API_BASE_URL}/api/content/events`, { withCredentials: true },
-    )
-    function handleStatus(event: MessageEvent<string>) {
+    function handleStatus(event: Record<string, unknown>) {
       let data: ThreeViewStatusEvent
       try {
-        data = JSON.parse(event.data) as ThreeViewStatusEvent
+        if (event.method !== 'digital-human-three-view-status' && event.method !== 'app/digital-human-three-view-status') return
+        data = (event.params || {}) as ThreeViewStatusEvent
       } catch {
         return
       }
@@ -161,14 +159,7 @@ export function useDigitalHumanAssetsController({
       void libraryRef.current.loadGroupAssets(data.groupId)
       void libraryRef.current.loadGroups(libraryRef.current.groupPage)
     }
-    source.addEventListener('digital-human-three-view-status', handleStatus)
-    return () => {
-      source.removeEventListener(
-        'digital-human-three-view-status',
-        handleStatus,
-      )
-      source.close()
-    }
+    return appSocketManager.subscribe(handleStatus)
   }, [currentUser.id])
 
   function resetCreateForm() {

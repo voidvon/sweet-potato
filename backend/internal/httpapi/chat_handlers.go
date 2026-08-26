@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -42,10 +41,6 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	parts := splitPath(strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/api/chat"), "/"))
 	if len(parts) == 0 {
 		writeError(w, http.StatusNotFound, "接口不存在")
-		return
-	}
-	if parts[0] == "messages" && len(parts) == 2 && parts[1] == "ws" {
-		s.handleChatWebSocket(w, r)
 		return
 	}
 	if parts[0] == "attachments" {
@@ -1230,73 +1225,6 @@ func stringPointerOrNil(value string) *string {
 	return stringPointer(value)
 }
 
-func (s *Server) handleChatWebSocket(w http.ResponseWriter, r *http.Request) {
-	user, ok := s.requireUser(w, r, "web.module.chat")
-	if !ok {
-		return
-	}
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "当前服务器不支持 WebSocket")
-		return
-	}
-	connection, buffered, err := hijacker.Hijack()
-	if err != nil {
-		return
-	}
-	defer connection.Close()
-	key := r.Header.Get("Sec-WebSocket-Key")
-	if key == "" {
-		return
-	}
-	acceptHash := sha1.Sum([]byte(strings.TrimSpace(key) + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
-	response := "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + base64.StdEncoding.EncodeToString(acceptHash[:]) + "\r\n\r\n"
-	if _, err := connection.Write([]byte(response)); err != nil {
-		return
-	}
-	session := &chatWebSocketSession{server: s, connection: connection, user: user}
-	defer session.cancelActive()
-	for {
-		payload, opcode, err := readWebSocketFrame(buffered)
-		if err != nil || opcode == 8 {
-			return
-		}
-		if opcode == 9 {
-			_ = session.writeFrame(10, payload)
-			continue
-		}
-		if opcode != 1 {
-			continue
-		}
-		var command chatTurnCommand
-		if err := json.Unmarshal(payload, &command); err != nil {
-			_ = session.writeJSON(chatTurnError(nil, http.StatusBadRequest, "聊天请求格式错误"))
-			continue
-		}
-		if command.Method == "" {
-			command.Method = "turn/start"
-			command.ID = randomIDForHTTP()
-			command.Params = json.RawMessage(payload)
-		}
-		switch command.Method {
-		case "turn/start":
-			if err := session.startTurn(command); err != nil {
-				status := http.StatusBadRequest
-				if errors.Is(err, store.ErrChatResponseInProgress) {
-					status = http.StatusConflict
-				}
-				_ = session.writeJSON(chatTurnError(command.ID, status, err.Error()))
-			}
-		case "turn/interrupt":
-			if err := session.interruptTurn(command); err != nil {
-				_ = session.writeJSON(chatTurnError(command.ID, http.StatusBadRequest, err.Error()))
-			}
-		default:
-			_ = session.writeJSON(chatTurnError(command.ID, http.StatusNotFound, "不支持的聊天命令"))
-		}
-	}
-}
-
 type chatTurnCommand struct {
 	Method string          `json:"method"`
 	ID     any             `json:"id"`
@@ -1398,6 +1326,7 @@ func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string,
 	conversation, _ := result["conversation"].(store.ChatConversation)
 	messages, _ := result["messages"].([]store.ChatMessage)
 	creditBalance, _ := result["creditBalance"].(float64)
+	session.server.publishAppEvent(session.user.ID, "app/credit-balance-updated", map[string]any{"userId": session.user.ID, "creditBalance": creditBalance, "creditDelta": 0, "at": time.Now().UTC().Format(time.RFC3339Nano)})
 	_ = session.writeJSON(map[string]any{"method": "thread/updated", "params": map[string]any{"conversation": conversation}})
 	if len(messages) >= 2 {
 		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "user_message", "message": messages[len(messages)-2]}})

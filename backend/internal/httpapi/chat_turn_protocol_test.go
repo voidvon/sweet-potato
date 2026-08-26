@@ -51,7 +51,7 @@ func TestChatTurnWebSocketInterruptsUpstreamRequest(t *testing.T) {
 	}
 	defer connection.Close()
 	token := server.tokens.Create(user.ID, user.Role, user.AuthVersion)
-	_, _ = fmt.Fprintf(connection, "GET /api/chat/messages/ws HTTP/1.1\r\nHost: test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGVzdC13ZWJzb2NrZXQta2V5\r\nSec-WebSocket-Version: 13\r\nAuthorization: Bearer %s\r\n\r\n", token)
+	_, _ = fmt.Fprintf(connection, "GET /api/app/ws HTTP/1.1\r\nHost: test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGVzdC13ZWJzb2NrZXQta2V5\r\nSec-WebSocket-Version: 13\r\nAuthorization: Bearer %s\r\n\r\n", token)
 	reader := bufio.NewReader(connection)
 	statusLine, err := reader.ReadString('\n')
 	if err != nil || !strings.Contains(statusLine, "101") {
@@ -65,6 +65,10 @@ func TestChatTurnWebSocketInterruptsUpstreamRequest(t *testing.T) {
 		if line == "\r\n" {
 			break
 		}
+	}
+	connected := readTurnFrame(t, reader)
+	if connected["method"] != "app/connected" {
+		t.Fatalf("connected event = %#v", connected)
 	}
 
 	start := map[string]any{"method": "turn/start", "id": "turn-1", "params": map[string]any{"agentId": "quick-answer", "modelConfigId": "turn-protocol-model", "content": "请回答"}}

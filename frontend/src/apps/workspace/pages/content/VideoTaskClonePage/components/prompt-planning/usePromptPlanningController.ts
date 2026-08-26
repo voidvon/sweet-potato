@@ -4,7 +4,6 @@ import {
 import {
   applyPlanningSession,
   analyzePlanningSession,
-  createPlanningEventSource,
   createPlanningSession,
   generatePlanningCandidates,
   getContentPlanningConfig,
@@ -20,6 +19,7 @@ import {
   type PlanningSettings,
   type PlanningUiStep,
 } from '../../../../../api/content-planning';
+import { appSocketManager } from '@/app/AppSocketManager';
 import { resolveAssetUrl } from '../../../../../api/request';
 import type { ContentAssetResourceType, User } from '../../../../../types';
 import {
@@ -453,11 +453,11 @@ export function usePromptPlanningController({
       return undefined;
     }
     const activeSessionId = session.id;
-    const source = createPlanningEventSource();
-    const handlePlanningEvent = (event: MessageEvent<string>) => {
+    const handlePlanningEvent = (event: Record<string, unknown>) => {
       let payload: PlanningRealtimeEvent;
       try {
-        payload = JSON.parse(event.data || '{}') as PlanningRealtimeEvent;
+        if (event.method !== 'planning' && event.method !== 'app/planning') return;
+        payload = (event.params || {}) as PlanningRealtimeEvent;
       } catch {
         return;
       }
@@ -483,11 +483,7 @@ export function usePromptPlanningController({
         };
       });
     };
-    source.addEventListener('planning', handlePlanningEvent as EventListener);
-    return () => {
-      source.removeEventListener('planning', handlePlanningEvent as EventListener);
-      source.close();
-    };
+    return appSocketManager.subscribe(handlePlanningEvent);
   }, [session?.id, session?.status]);
 
   const onAnalysisDraftChange = (next: AnalysisDraft) => {

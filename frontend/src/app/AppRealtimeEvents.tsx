@@ -1,9 +1,9 @@
 import { useEffect, type ReactNode } from 'react';
 import { getCurrentUser } from '@shared/api/user';
-import { API_BASE_URL } from '@shared/api/core/request';
 import type { User } from '@shared/types';
 import type { BatchRunDetail } from '../apps/workspace/api/batch-generation';
 import type { ChatMessage } from '../apps/workspace/types';
+import { appSocketManager } from './AppSocketManager';
 
 export type AppGenerationJobUpdatedDetail = {
   userId?: string;
@@ -77,8 +77,7 @@ export function AppRealtimeEventsProvider({
       return undefined;
     }
 
-    const source = new EventSource(`${API_BASE_URL}/api/app/events`, { withCredentials: true });
-    const handleOpen = () => {
+    void appSocketManager.connect().then(() => {
       void getCurrentUser()
         .then(({ user }) => {
           if (user.id === currentUserId) {
@@ -86,69 +85,38 @@ export function AppRealtimeEventsProvider({
           }
         })
         .catch(() => undefined);
-    };
-    const handleGenerationJobUpdated = (event: MessageEvent<string>) => {
+    }).catch(() => undefined);
+    const unsubscribe = appSocketManager.subscribe((payload) => {
       let detail: AppGenerationJobUpdatedDetail;
       try {
-        detail = JSON.parse(event.data || '{}') as AppGenerationJobUpdatedDetail;
+        const params = (payload.params as Record<string, unknown>) || {};
+        const method = String(payload.method || '');
+        if (method === 'app/connected') return;
+        if (method === 'generation-job-updated' || method === 'app/generation-job-updated') {
+          detail = params as AppGenerationJobUpdatedDetail;
+          if (detail.userId && detail.userId !== currentUserId) return;
+          dispatchAppEvent(appRealtimeEventNames.generationJobUpdated, detail);
+        } else if (method === 'credit-balance-updated' || method === 'app/credit-balance-updated') {
+          const credit = params as unknown as AppCreditBalanceUpdatedDetail;
+          if (credit.userId === currentUserId && Number.isFinite(credit.creditBalance)) {
+            onCreditBalanceUpdated(credit.userId, credit.creditBalance);
+            dispatchAppEvent(appRealtimeEventNames.creditBalanceUpdated, credit);
+          }
+        } else if (method === 'batch-generation-run-updated' || method === 'app/batch-generation-run-updated') {
+          const batch = params as unknown as AppBatchGenerationRunUpdatedDetail;
+          if (batch.userId === currentUserId && batch.run) dispatchAppEvent(appRealtimeEventNames.batchGenerationRunUpdated, batch);
+        } else if (method === 'permission-updated' || method === 'app/permission-updated') {
+          const permission = params as unknown as AppPermissionUpdatedDetail;
+          if (permission.userId === currentUserId) {
+            dispatchAppEvent(appRealtimeEventNames.permissionUpdated, permission);
+            onPermissionUpdated(permission);
+          }
+        }
       } catch {
         return;
       }
-      if (detail.userId && detail.userId !== currentUserId) {
-        return;
-      }
-      dispatchAppEvent(appRealtimeEventNames.generationJobUpdated, detail);
-    };
-    const handleCreditBalanceUpdated = (event: MessageEvent<string>) => {
-      let detail: AppCreditBalanceUpdatedDetail;
-      try {
-        detail = JSON.parse(event.data || '{}') as AppCreditBalanceUpdatedDetail;
-      } catch {
-        return;
-      }
-      if (detail.userId !== currentUserId || !Number.isFinite(detail.creditBalance)) {
-        return;
-      }
-      onCreditBalanceUpdated(detail.userId, detail.creditBalance);
-      dispatchAppEvent(appRealtimeEventNames.creditBalanceUpdated, detail);
-    };
-    const handleBatchGenerationRunUpdated = (event: MessageEvent<string>) => {
-      let detail: AppBatchGenerationRunUpdatedDetail;
-      try {
-        detail = JSON.parse(event.data || '{}') as AppBatchGenerationRunUpdatedDetail;
-      } catch {
-        return;
-      }
-      if (detail.userId !== currentUserId || !detail.run) return;
-      dispatchAppEvent(appRealtimeEventNames.batchGenerationRunUpdated, detail);
-    };
-    const handlePermissionUpdated = (event: MessageEvent<string>) => {
-      let detail: AppPermissionUpdatedDetail;
-      try {
-        detail = JSON.parse(event.data || '{}') as AppPermissionUpdatedDetail;
-      } catch {
-        return;
-      }
-      if (detail.userId !== currentUserId) {
-        return;
-      }
-      dispatchAppEvent(appRealtimeEventNames.permissionUpdated, detail);
-      onPermissionUpdated(detail);
-    };
-
-    source.addEventListener('open', handleOpen);
-    source.addEventListener('batch-generation-run-updated', handleBatchGenerationRunUpdated);
-    source.addEventListener('credit-balance-updated', handleCreditBalanceUpdated);
-    source.addEventListener('generation-job-updated', handleGenerationJobUpdated);
-    source.addEventListener('permission-updated', handlePermissionUpdated);
-    return () => {
-      source.removeEventListener('open', handleOpen);
-      source.removeEventListener('batch-generation-run-updated', handleBatchGenerationRunUpdated);
-      source.removeEventListener('credit-balance-updated', handleCreditBalanceUpdated);
-      source.removeEventListener('generation-job-updated', handleGenerationJobUpdated);
-      source.removeEventListener('permission-updated', handlePermissionUpdated);
-      source.close();
-    };
+    });
+    return unsubscribe;
   }, [currentUserId, onCreditBalanceUpdated, onPermissionUpdated, onUserUpdated]);
 
   return children;

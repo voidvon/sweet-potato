@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"sweet-potato-go/internal/store"
 )
@@ -183,6 +184,7 @@ func (s *Server) handleAdjustCredits(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.publishAppEvent(updated.ID, "app/credit-balance-updated", map[string]any{"userId": updated.ID, "creditBalance": updated.CreditBalance, "creditDelta": delta, "at": time.Now().UTC().Format(time.RFC3339Nano)})
 	writeJSON(w, http.StatusOK, map[string]any{"user": managedUserPayload(updated, s.store)})
 }
 
@@ -244,6 +246,7 @@ func (s *Server) handleRoleAssignment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, status, err.Error())
 		return
 	}
+	s.publishAppEvent(updated.ID, "app/permission-updated", map[string]any{"userId": updated.ID, "changedAt": time.Now().UTC().Format(time.RFC3339Nano), "reason": "role-assignment-updated", "requireRelogin": false})
 	writeJSON(w, http.StatusOK, map[string]any{"user": managedUserPayload(updated, s.store), "assignedRoles": updated.AssignedRoles})
 }
 

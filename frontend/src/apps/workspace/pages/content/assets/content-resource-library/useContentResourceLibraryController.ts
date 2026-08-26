@@ -9,7 +9,7 @@ import {
   updateContentAssetGroup,
   uploadContentAsset,
 } from '../../../../api/content';
-import { API_BASE_URL } from '../../../../api/request';
+import { appSocketManager } from '@/app/AppSocketManager';
 import type { ContentAsset, ContentAssetGroup } from '../../../../types';
 import type { ImagePreview } from '../AssetImageUpload';
 import { useCardGridPageSize } from '../useCardGridPageSize';
@@ -95,13 +95,9 @@ export function useContentResourceLibraryController({
 
   useEffect(() => {
     if (resourceType !== 'finished_video') return undefined;
-    const source = new EventSource(`${API_BASE_URL}/api/content/events`, { withCredentials: true });
-    const handleComplete = () => { void loadData(); };
-    source.addEventListener('video-generation-complete', handleComplete);
-    return () => {
-      source.removeEventListener('video-generation-complete', handleComplete);
-      source.close();
-    };
+    return appSocketManager.subscribe((event) => {
+      if (event.method === 'video-generation-complete' || event.method === 'app/video-generation-complete') void loadData();
+    });
   }, [currentUser.id, loadData, resourceType]);
 
   const activeGroupAssets = useMemo(

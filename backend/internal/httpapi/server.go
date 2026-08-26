@@ -45,6 +45,8 @@ type Server struct {
 	updateMu     sync.Mutex
 	updating     bool
 	updateReady  chan selfupdate.StagedUpdate
+	appWSMu      sync.RWMutex
+	appWSClients map[string]map[*chatWebSocketSession]struct{}
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -76,11 +78,12 @@ func New(cfg config.Config) (*Server, error) {
 			PollMaxAttempts:  cfg.VODPollMaxAttempts,
 			TaskTimeout:      cfg.VODTaskTimeout,
 		}),
-		rateWindows: make(map[string]rateLimitWindow),
-		taskCtx:     taskCtx,
-		taskCancel:  taskCancel,
-		updater:     selfupdate.NewManager(),
-		updateReady: make(chan selfupdate.StagedUpdate, 1),
+		rateWindows:  make(map[string]rateLimitWindow),
+		taskCtx:      taskCtx,
+		taskCancel:   taskCancel,
+		updater:      selfupdate.NewManager(),
+		updateReady:  make(chan selfupdate.StagedUpdate, 1),
+		appWSClients: make(map[string]map[*chatWebSocketSession]struct{}),
 	}
 	server.mux.HandleFunc("GET /api/health", server.handleHealth)
 	server.mux.HandleFunc("GET /health", server.handleHealth)

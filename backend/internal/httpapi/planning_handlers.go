@@ -3,7 +3,6 @@ package httpapi
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -23,10 +22,6 @@ func (s *Server) handleContentPlanning(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"analysisCredits": settings.ContentPlanningAnalysisCredits, "generationCredits": settings.ContentPlanningGenerationCredits})
-		return
-	}
-	if len(parts) == 1 && parts[0] == "events" {
-		s.handleContentPlanningEvents(w, r)
 		return
 	}
 	if len(parts) == 1 && parts[0] == "sessions" && r.Method == http.MethodPost {
@@ -68,30 +63,6 @@ func (s *Server) handleContentPlanning(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeError(w, http.StatusNotFound, "内容策划接口不存在")
-}
-
-func (s *Server) handleContentPlanningEvents(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "当前服务器不支持事件流")
-		return
-	}
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache, no-transform")
-	w.Header().Set("Connection", "keep-alive")
-	_, _ = io.WriteString(w, "event: connected\ndata: {\"ok\":true}\n\n")
-	flusher.Flush()
-	ticker := time.NewTicker(25 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ticker.C:
-			_, _ = io.WriteString(w, "event: heartbeat\ndata: {}\n\n")
-			flusher.Flush()
-		}
-	}
 }
 
 func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, parts []string) {
