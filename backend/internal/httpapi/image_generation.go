@@ -106,27 +106,25 @@ func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, use
 	client := imagegen.Client{BaseURL: model.BaseURL, APIKey: model.APIKey, Provider: model.Provider, Model: model.Model, PublicBase: strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
-	outputs, err := client.Generate(ctx, optionsWithReferences(options, references))
-	if err != nil {
-		return nil, err
-	}
-	if len(outputs) == 0 {
-		return nil, errors.New("图片模型没有返回可用图片")
-	}
 	groupID, err := s.ensureContentGroup(userID, "finished_video")
 	if err != nil {
 		return nil, fmt.Errorf("创建图片作品分组失败: %w", err)
 	}
-	assets := make([]store.ContentAsset, 0, len(outputs))
-	for index, output := range outputs {
+	assets := make([]store.ContentAsset, 0, count)
+	cleanupPartialAssets := func() {
+		if onAsset != nil {
+			return
+		}
+		for _, created := range assets {
+			_ = os.Remove(created.FilePath)
+			_, _ = s.store.DeleteContentAsset(created.ID, userID)
+		}
+	}
+	_, generateErr := client.GenerateWithProgress(ctx, optionsWithReferences(options, references), func(output imagegen.Output, index int) error {
 		if applyChromaKey {
 			processed, processErr := imagegen.ApplyGreenChromaKey(output.Bytes)
 			if processErr != nil {
-				for _, created := range assets {
-					_ = os.Remove(created.FilePath)
-					_, _ = s.store.DeleteContentAsset(created.ID, userID)
-				}
-				return nil, fmt.Errorf("处理抠图透明通道失败: %w", processErr)
+				return fmt.Errorf("处理抠图透明通道失败: %w", processErr)
 			}
 			output.Bytes = processed
 			output.MimeType = "image/png"
@@ -134,27 +132,27 @@ func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, use
 		if ratio := strings.TrimSpace(options.AspectRatio); ratio != "" && !strings.EqualFold(ratio, "auto") {
 			processed, processErr := cropImageToAspectRatio(output.Bytes, output.MimeType, ratio)
 			if processErr != nil {
-				for _, created := range assets {
-					_ = os.Remove(created.FilePath)
-					_, _ = s.store.DeleteContentAsset(created.ID, userID)
-				}
-				return nil, fmt.Errorf("校正生成图片比例失败: %w", processErr)
+				return fmt.Errorf("校正生成图片比例失败: %w", processErr)
 			}
 			output.Bytes = processed
 		}
 		output, encodingMetadata := optimizeGeneratedImageForStorage(output)
 		asset, persistErr := s.persistGeneratedImage(userID, groupID, output, mode, title, prompt, index, parentAssetID, model, references, encodingMetadata)
 		if persistErr != nil {
-			for _, created := range assets {
-				_ = os.Remove(created.FilePath)
-				_, _ = s.store.DeleteContentAsset(created.ID, userID)
-			}
-			return nil, persistErr
+			return persistErr
 		}
 		assets = append(assets, asset)
 		if onAsset != nil {
 			onAsset(asset, index)
 		}
+		return nil
+	})
+	if generateErr != nil {
+		cleanupPartialAssets()
+		return assets, generateErr
+	}
+	if len(assets) == 0 {
+		return nil, errors.New("图片模型没有返回可用图片")
 	}
 	return assets, nil
 }

@@ -3,13 +3,16 @@ package imagegen
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"sweet-potato-go/internal/store"
 )
@@ -102,6 +105,85 @@ func TestGenerateOpenAIImageFromSSE(t *testing.T) {
 	}
 	if len(results) != 1 || string(results[0].Bytes) != "completed" {
 		t.Fatalf("unexpected results: %+v", results)
+	}
+}
+
+func TestGenerateReturnsWhenSSETerminalEventArrivesWithoutWaitingForConnectionClose(t *testing.T) {
+	requestClosed := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/event-stream")
+		_, _ = writer.Write([]byte("event: image_generation.completed\n" +
+			"data: {\"type\":\"image_generation.completed\",\"b64_json\":\"" + base64.StdEncoding.EncodeToString([]byte("completed")) + "\"}\n\n"))
+		writer.(http.Flusher).Flush()
+		<-request.Context().Done()
+		close(requestClosed)
+	}))
+	defer server.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(t.Context(), GenerateInput{Prompt: "draw a tree"})
+		if err == nil && (len(results) != 1 || string(results[0].Bytes) != "completed") {
+			err = fmt.Errorf("unexpected results: %+v", results)
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("generate image: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("client waited for SSE connection close after terminal event")
+	}
+	select {
+	case <-requestClosed:
+	case <-time.After(time.Second):
+		t.Fatal("client did not close completed SSE request")
+	}
+}
+
+func TestGenerateWithProgressEmitsEachReferenceEditBeforeStartingNext(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "reference.png")
+	if err := os.WriteFile(path, []byte("reference"), 0o644); err != nil {
+		t.Fatalf("write reference: %v", err)
+	}
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestCount.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated"))},
+		}})
+	}))
+	defer server.Close()
+
+	callbackCount := 0
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).GenerateWithProgress(
+		t.Context(),
+		GenerateInput{
+			Prompt: "product details",
+			Count:  2,
+			References: []store.ContentAsset{{
+				OriginalFileName: "reference.png",
+				FilePath:         path,
+				MimeType:         "image/png",
+			}},
+		},
+		func(_ Output, slotIndex int) error {
+			callbackCount++
+			if got := int(requestCount.Load()); got != slotIndex+1 {
+				return fmt.Errorf("slot %d emitted after %d requests", slotIndex, got)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("generate images: %v", err)
+	}
+	if len(results) != 2 || callbackCount != 2 {
+		t.Fatalf("results = %d, callbacks = %d", len(results), callbackCount)
 	}
 }
 

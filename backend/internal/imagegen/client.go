@@ -1,6 +1,7 @@
 package imagegen
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -58,7 +59,13 @@ type responseItem struct {
 	Raw     map[string]any
 }
 
+type OutputCallback func(output Output, slotIndex int) error
+
 func (c Client) Generate(ctx context.Context, input GenerateInput) ([]Output, error) {
+	return c.GenerateWithProgress(ctx, input, nil)
+}
+
+func (c Client) GenerateWithProgress(ctx context.Context, input GenerateInput, onOutput OutputCallback) ([]Output, error) {
 	if strings.TrimSpace(c.APIKey) == "" {
 		return nil, errors.New("image model API key is not configured")
 	}
@@ -74,23 +81,33 @@ func (c Client) Generate(ctx context.Context, input GenerateInput) ([]Output, er
 	if input.Count > 12 {
 		input.Count = 12
 	}
-	items, err := c.generate(ctx, input)
-	if err != nil && strings.EqualFold(strings.TrimSpace(input.Background), "transparent") && transparentBackgroundUnsupported(err) {
+	nextSlotIndex := 0
+	emit := func(output Output) error {
+		if onOutput != nil {
+			if err := onOutput(output, nextSlotIndex); err != nil {
+				return err
+			}
+		}
+		nextSlotIndex++
+		return nil
+	}
+	items, err := c.generate(ctx, input, emit)
+	if err != nil && len(items) == 0 && strings.EqualFold(strings.TrimSpace(input.Background), "transparent") && transparentBackgroundUnsupported(err) {
 		input.Background = "opaque"
-		items, err = c.generate(ctx, input)
+		items, err = c.generate(ctx, input, emit)
 	}
 	return items, err
 }
 
-func (c Client) generate(ctx context.Context, input GenerateInput) ([]Output, error) {
+func (c Client) generate(ctx context.Context, input GenerateInput, emit func(Output) error) ([]Output, error) {
 	if c.isOpenAI() && len(input.References) > 0 {
 		results := make([]Output, 0, input.Count)
 		for index := 0; index < input.Count; index++ {
-			items, err := c.generateMultipartEdit(ctx, input)
-			if err != nil {
-				return nil, fmt.Errorf("image edit %d: %w", index+1, err)
-			}
+			items, err := c.generateMultipartEdit(ctx, input, emit)
 			results = append(results, items...)
+			if err != nil {
+				return results, fmt.Errorf("image edit %d: %w", index+1, err)
+			}
 		}
 		return results, nil
 	}
@@ -99,19 +116,19 @@ func (c Client) generate(ctx context.Context, input GenerateInput) ([]Output, er
 		for remaining := input.Count; remaining > 0; remaining -= min(4, remaining) {
 			chunk := input
 			chunk.Count = min(4, remaining)
-			items, err := c.generateJSON(ctx, chunk)
+			items, err := c.generateJSON(ctx, chunk, emit)
+			results = append(results, items...)
 			if err != nil {
-				return nil, err
+				return results, err
 			}
 			if len(items) == 0 {
 				return nil, errors.New("image model returned no images")
 			}
-			results = append(results, items...)
 		}
 		return results, nil
 	}
 
-	items, err := c.generateJSON(ctx, input)
+	items, err := c.generateJSON(ctx, input, emit)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +143,7 @@ func transparentBackgroundUnsupported(err error) bool {
 	return strings.Contains(message, "transparent background") && strings.Contains(message, "not supported")
 }
 
-func (c Client) generateJSON(ctx context.Context, input GenerateInput) ([]Output, error) {
+func (c Client) generateJSON(ctx context.Context, input GenerateInput, emit func(Output) error) ([]Output, error) {
 	body := map[string]any{
 		"model":  c.Model,
 		"prompt": input.Prompt,
@@ -167,10 +184,10 @@ func (c Client) generateJSON(ctx context.Context, input GenerateInput) ([]Output
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	return c.send(request)
+	return c.send(request, emit)
 }
 
-func (c Client) generateMultipartEdit(ctx context.Context, input GenerateInput) ([]Output, error) {
+func (c Client) generateMultipartEdit(ctx context.Context, input GenerateInput, emit func(Output) error) ([]Output, error) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	fields := map[string]string{
@@ -228,15 +245,19 @@ func (c Client) generateMultipartEdit(ctx context.Context, input GenerateInput) 
 		return nil, err
 	}
 	request.Header.Set("Content-Type", writer.FormDataContentType())
-	return c.send(request)
+	return c.send(request, emit)
 }
 
-func (c Client) send(request *http.Request) ([]Output, error) {
+func (c Client) send(request *http.Request, emit func(Output) error) ([]Output, error) {
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("call image model: %w", err)
 	}
 	defer response.Body.Close()
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(response.Header.Get("Content-Type"), ";")[0]))
+	if response.StatusCode >= 200 && response.StatusCode < 300 && contentType == "text/event-stream" {
+		return c.readImageSSE(request, response.Body, emit)
+	}
 	raw, err := transfer.ReadAll(response.Body, 20<<20)
 	if err != nil {
 		return nil, err
@@ -257,6 +278,21 @@ func (c Client) send(request *http.Request) ([]Output, error) {
 			return nil, fmt.Errorf("image model returned an error: %s", message)
 		}
 	}
+	results, err := c.outputsFromItems(request, items)
+	if err != nil {
+		return nil, err
+	}
+	for _, output := range results {
+		if emit != nil {
+			if err := emit(output); err != nil {
+				return results, err
+			}
+		}
+	}
+	return results, nil
+}
+
+func (c Client) outputsFromItems(request *http.Request, items []responseItem) ([]Output, error) {
 	results := make([]Output, 0, len(items))
 	for _, item := range items {
 		if item.B64JSON != "" {
@@ -277,6 +313,127 @@ func (c Client) send(request *http.Request) ([]Output, error) {
 		results = append(results, Output{Bytes: data, URL: item.URL, MimeType: valueOr(mimeType, outputMime(item.Raw, "image/png")), Raw: item.Raw})
 	}
 	return results, nil
+}
+
+func (c Client) readImageSSE(request *http.Request, body io.Reader, emit func(Output) error) ([]Output, error) {
+	const maxResponseBytes = int64(256 << 20)
+	reader := bufio.NewReader(io.LimitReader(body, maxResponseBytes+1))
+	results := []Output{}
+	seen := map[string]bool{}
+	eventName := ""
+	dataLines := []string{}
+	var bytesRead int64
+	flush := func() (bool, error) {
+		payload := strings.TrimSpace(strings.Join(dataLines, "\n"))
+		dataLines = dataLines[:0]
+		currentEvent := eventName
+		eventName = ""
+		if payload == "" {
+			return false, nil
+		}
+		if payload == "[DONE]" {
+			return true, nil
+		}
+		var event map[string]any
+		if err := json.Unmarshal([]byte(payload), &event); err != nil {
+			return false, fmt.Errorf("decode image SSE event %q: %w", currentEvent, err)
+		}
+		descriptor := strings.ToLower(currentEvent + " " + stringValue(event, "type"))
+		if strings.Contains(descriptor, "error") || event["error"] != nil {
+			return false, fmt.Errorf("image model returned an error: %s", responseMessage(event, payload))
+		}
+		if strings.Contains(descriptor, "partial_image") && !strings.Contains(descriptor, "completed") {
+			return false, nil
+		}
+		records := []map[string]any{event}
+		for _, key := range []string{"response", "result"} {
+			if nested, ok := event[key].(map[string]any); ok {
+				records = append(records, nested)
+			}
+		}
+		for _, record := range records {
+			items := responseItems(record)
+			if len(items) == 0 && (stringValue(record, "b64_json") != "" || stringValue(record, "url") != "") {
+				items = []responseItem{{B64JSON: stringValue(record, "b64_json"), URL: stringValue(record, "url"), Raw: record}}
+			}
+			for _, item := range items {
+				key := imageResponseItemKey(item)
+				if seen[key] {
+					continue
+				}
+				outputs, err := c.outputsFromItems(request, []responseItem{item})
+				if err != nil {
+					return false, err
+				}
+				for _, output := range outputs {
+					seen[key] = true
+					results = append(results, output)
+					if emit != nil {
+						if err := emit(output); err != nil {
+							return false, err
+						}
+					}
+				}
+			}
+		}
+		return strings.Contains(descriptor, "response.completed") || strings.Contains(descriptor, "image_generation.completed"), nil
+	}
+	for {
+		line, err := reader.ReadString('\n')
+		bytesRead += int64(len(line))
+		if bytesRead > maxResponseBytes {
+			return results, fmt.Errorf("response exceeds %d byte limit", maxResponseBytes)
+		}
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		if line == "" {
+			done, flushErr := flush()
+			if flushErr != nil {
+				return results, flushErr
+			}
+			if done {
+				if len(results) == 0 {
+					return nil, errors.New("image SSE response contained no image data")
+				}
+				return results, nil
+			}
+		} else {
+			switch {
+			case strings.HasPrefix(line, "event:"):
+				eventName = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			case strings.HasPrefix(line, "data:"):
+				dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+			case strings.HasPrefix(line, ":"):
+			default:
+				return results, fmt.Errorf("unexpected image response line %q", truncateImageDiagnostic(line))
+			}
+		}
+		if err == io.EOF {
+			if len(dataLines) > 0 {
+				_, flushErr := flush()
+				if flushErr != nil {
+					return results, flushErr
+				}
+			}
+			if len(results) == 0 {
+				return nil, errors.New("image SSE response contained no image data")
+			}
+			return results, nil
+		}
+		if err != nil {
+			return results, err
+		}
+	}
+}
+
+func imageResponseItemKey(item responseItem) string {
+	if item.URL != "" {
+		return "url:" + item.URL
+	}
+	value := item.B64JSON
+	if len(value) > 64 {
+		return fmt.Sprintf("b64:%d:%s:%s", len(value), value[:32], value[len(value)-32:])
+	}
+	return "b64:" + value
 }
 
 func decodeImageModelResponse(raw []byte, contentType string) (map[string]any, error) {

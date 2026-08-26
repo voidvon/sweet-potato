@@ -406,13 +406,25 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 				"attachment": attachment,
 			})
 		})
-		if generateErr != nil {
+		if generateErr != nil && len(assets) == 0 {
 			return nil, generateErr
 		}
 		for _, asset := range assets {
 			assistantAttachments = append(assistantAttachments, chatAttachmentPayload(asset))
 		}
-		answer = valueOr(imageDecision.Answer, fmt.Sprintf("已生成 %d 张图片。", len(assets)))
+		if generateErr != nil {
+			failureCount := max(1, count-len(assets))
+			assistantMessage.ImageGenerationFailures = make([]any, 0, failureCount)
+			for slotIndex := len(assets); slotIndex < len(assets)+failureCount; slotIndex++ {
+				assistantMessage.ImageGenerationFailures = append(assistantMessage.ImageGenerationFailures, map[string]any{
+					"slotIndex": slotIndex,
+					"message":   generateErr.Error(),
+				})
+			}
+			answer = fmt.Sprintf("已生成 %d 张图片，另有 %d 张生成失败：%s", len(assets), failureCount, generateErr.Error())
+		} else {
+			answer = valueOr(imageDecision.Answer, fmt.Sprintf("已生成 %d 张图片。", len(assets)))
+		}
 		imageModelID = stringPointer(imageModel.ID)
 		value := count
 		imageExpectedCount = &value

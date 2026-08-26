@@ -6,9 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/imagegen"
 	"sweet-potato-go/internal/store"
 )
 
@@ -91,5 +96,72 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 		if message.ModelConfigID != nil {
 			t.Fatalf("%s message LLM model = %q, want nil", message.Role, *message.ModelConfigID)
 		}
+	}
+}
+
+func TestGenerateImageAssetsWithProgressPreservesCompletedImagesOnLaterFailure(t *testing.T) {
+	var requestCount atomic.Int32
+	imageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if requestCount.Add(1) == 1 {
+			writer.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+				map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated-image"))},
+			}})
+			return
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusGatewayTimeout)
+		_ = json.NewEncoder(writer).Encode(map[string]any{"error": map[string]any{"message": "upstream timeout"}})
+	}))
+	defer imageServer.Close()
+
+	server, err := New(config.Config{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("partial-image-user", "password123", "Partial Image User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	referencePath := filepath.Join(t.TempDir(), "reference.png")
+	if err := os.WriteFile(referencePath, []byte("reference"), 0o644); err != nil {
+		t.Fatalf("write reference: %v", err)
+	}
+	model := store.ModelConfig{
+		ID:       "partial-image-model",
+		Type:     "image",
+		Provider: "openai-images",
+		Model:    "gpt-image-2",
+		APIKey:   "test-key",
+		BaseURL:  imageServer.URL + "/v1",
+	}
+	callbackCount := 0
+	assets, generateErr := server.generateImageAssetsContextWithProgress(
+		t.Context(),
+		user.ID,
+		model,
+		"product details",
+		2,
+		[]store.ContentAsset{{ID: "reference-1", OriginalFileName: "reference.png", FilePath: referencePath, MimeType: "image/png"}},
+		imagegen.GenerateInput{},
+		"detail",
+		"详情图生成",
+		nil,
+		func(_ store.ContentAsset, slotIndex int) {
+			callbackCount++
+			if slotIndex != 0 {
+				t.Errorf("slot index = %d, want 0", slotIndex)
+			}
+		},
+	)
+	if generateErr == nil || !strings.Contains(generateErr.Error(), "upstream timeout") {
+		t.Fatalf("generation error = %v", generateErr)
+	}
+	if len(assets) != 1 || callbackCount != 1 {
+		t.Fatalf("assets = %d, callbacks = %d", len(assets), callbackCount)
+	}
+	if _, found, findErr := server.store.FindContentAsset(assets[0].ID); findErr != nil || !found {
+		t.Fatalf("completed asset was not preserved: found=%v err=%v", found, findErr)
 	}
 }
