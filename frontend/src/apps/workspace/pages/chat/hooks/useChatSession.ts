@@ -62,6 +62,11 @@ const maxAttachmentCount = 6;
 const maxAttachmentSizeMb = 10;
 const maxAttachmentBytes = maxAttachmentSizeMb * 1024 * 1024;
 const bottomLockThreshold = 4;
+const imageAgentModeKeys = new Set(['dialog', 'detail']);
+
+function usesImageAgent(modeKey: string | undefined) {
+  return Boolean(modeKey && imageAgentModeKeys.has(modeKey));
+}
 
 export function useChatSession() {
   const activeAgent = defaultChatAgent;
@@ -564,8 +569,13 @@ export function useChatSession() {
     const requestedCapabilities = override?.requestedCapabilities;
     const autoImageGeneration = override?.autoImageGeneration === true;
     const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
-    const contentForSend = content || (isImageGenerationRequest ? '' : t("请分析附件内容"));
     const resolvedCapabilityContext = override?.capabilityContext || {};
+    const imageModeKey = resolvedCapabilityContext.imageGeneration?.modeKey;
+    const contentForSend = content || (isImageGenerationRequest
+      ? ''
+      : autoImageGeneration && imageModeKey === 'detail'
+        ? t("请根据产品资料生成商品详情图。")
+        : t("请分析附件内容"));
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
     const resolvedModelConfigId = override?.modelConfigId || null;
     const imageGenerationExpectedCount = isImageGenerationRequest
@@ -677,6 +687,43 @@ export function useChatSession() {
             return;
           }
 
+          if (event.type === 'image_generation_started') {
+            setMessages((items) => items.map((item) => (
+              item.id === pendingAssistantId || item.id === event.messageId
+                ? {
+                    ...item,
+                    capability: 'image_generation',
+                    capabilityContext: event.capabilityContext,
+                    imageGenerationExpectedCount: event.expectedCount,
+                    isCompleted: false,
+                  }
+                : item
+            )));
+            return;
+          }
+
+          if (event.type === 'image_generation_output') {
+            setMessages((items) => items.map((item) => {
+              if (item.id !== pendingAssistantId && item.id !== event.messageId) {
+                return item;
+              }
+              const attachment = {
+                ...event.attachment,
+                imageGenerationSlotIndex: event.slotIndex,
+              };
+              const currentAttachments = item.attachments || [];
+              return {
+                ...item,
+                capability: 'image_generation',
+                attachments: currentAttachments.some((current) => current.id === attachment.id)
+                  ? currentAttachments
+                  : [...currentAttachments, attachment],
+                isCompleted: false,
+              };
+            }));
+            return;
+          }
+
           if (event.type === 'answer_delta') {
             setMessages((items) =>
               items.map((item) =>
@@ -782,14 +829,14 @@ export function useChatSession() {
     modelConfigId?: string | null;
   }) => {
     const imageModeKey = options?.capabilityContext?.imageGeneration?.modeKey;
-    const usesImageAgent = imageModeKey === 'dialog';
+    const shouldUseImageAgent = usesImageAgent(imageModeKey);
     await sendMessage({
       capabilityContext: options?.capabilityContext,
       imageModelConfigId: options?.imageModelConfigId || null,
       modelConfigId: options?.modelConfigId || null,
       editMessageId: composerEditMessageId,
-      requestedCapabilities: imageModeKey && !usesImageAgent ? ['image_generation'] : undefined,
-      autoImageGeneration: location.pathname === '/app/image' && usesImageAgent,
+      requestedCapabilities: imageModeKey && !shouldUseImageAgent ? ['image_generation'] : undefined,
+      autoImageGeneration: location.pathname === '/app/image' && shouldUseImageAgent,
     });
   }, [composerEditMessageId, location.pathname, sendMessage]);
 
@@ -852,7 +899,7 @@ export function useChatSession() {
         }
       : undefined;
     const imageModeKey = nextCapabilityContext?.imageGeneration?.modeKey;
-    const usesImageAgent = imageModeKey === 'dialog';
+    const shouldUseImageAgent = usesImageAgent(imageModeKey);
     await sendMessage({
       content: messageItem.content,
       attachments: messageAttachments,
@@ -861,8 +908,8 @@ export function useChatSession() {
       editMessageId: messageItem.id,
       imageModelConfigId: messageItem.imageModelConfigId || null,
       modelConfigId: messageItem.modelConfigId || null,
-      requestedCapabilities: imageModeKey && !usesImageAgent ? ['image_generation'] : undefined,
-      autoImageGeneration: location.pathname === '/app/image' && usesImageAgent,
+      requestedCapabilities: imageModeKey && !shouldUseImageAgent ? ['image_generation'] : undefined,
+      autoImageGeneration: location.pathname === '/app/image' && shouldUseImageAgent,
     });
   }, [location.pathname, sendMessage]);
 

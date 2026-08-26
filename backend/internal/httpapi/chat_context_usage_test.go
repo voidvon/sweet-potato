@@ -45,6 +45,19 @@ func TestImageDialogContextUsageKeepsTokenCountWithoutWindow(t *testing.T) {
 	}
 }
 
+func TestIsImageAgentContextSupportsDialogAndDetail(t *testing.T) {
+	for _, modeKey := range []string{"dialog", "detail"} {
+		contextValue := map[string]any{"imageGeneration": map[string]any{"modeKey": modeKey}}
+		if !isImageAgentContext(contextValue) {
+			t.Fatalf("mode %q should use image agent context", modeKey)
+		}
+	}
+	contextValue := map[string]any{"imageGeneration": map[string]any{"modeKey": "upscale"}}
+	if isImageAgentContext(contextValue) {
+		t.Fatal("direct image mode should not use image agent context")
+	}
+}
+
 func TestResolveModelContextCapacityUsesCatalog(t *testing.T) {
 	pricing := &store.LlmModelPricing{ContextWindowTokens: 200000, EffectiveWindowPercent: 90}
 	catalogCapacity := resolveModelContextCapacity(pricing)

@@ -18,7 +18,7 @@ export function ChatPage() {
   const { setHeaderExtra } = useWorkspaceHeader();
   const showComposerHeading = chat.showWelcome
     && location.pathname === '/app/image'
-    && !location.search;
+    && !new URLSearchParams(location.search).has('conversationId');
 
   useEffect(() => {
     setHeaderExtra(

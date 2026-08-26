@@ -8,6 +8,7 @@ import { MediaAttachmentStack } from '../../../components/MediaAttachmentStack';
 import { t } from '@shared/i18n';
 
 export type ClawReferenceGroupConfig = {
+  acceptsPdf?: boolean;
   key: string;
   label: string;
   maxCount?: number;
@@ -60,10 +61,11 @@ export function ClawReferenceGroups({
     }
 
     const supportedFiles = files.filter((file) => (
-      file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+      file.type.startsWith('image/')
+      || (group.acceptsPdf && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')))
     ));
     if (supportedFiles.length < files.length) {
-      message.warning(t("仅支持图片或 PDF 文件"));
+      message.warning(group.acceptsPdf ? t("仅支持图片或 PDF 文件") : t("仅支持图片文件"));
     }
     const acceptedFiles = supportedFiles.slice(0, remainingCount);
     if (acceptedFiles.length < files.length && group.maxCount) {
@@ -75,7 +77,7 @@ export function ClawReferenceGroups({
 
   function createReferenceUploadProps(group: ClawReferenceGroupConfig): UploadProps {
     return {
-      accept: 'image/*,.pdf,application/pdf',
+      accept: group.acceptsPdf ? 'image/*,.pdf,application/pdf' : 'image/*',
       beforeUpload: (file, fileList) => {
         if (file.uid === fileList[0]?.uid) {
           void handleReferenceUpload(group, fileList);

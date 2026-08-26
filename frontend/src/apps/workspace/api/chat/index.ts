@@ -199,6 +199,27 @@ export async function streamChatMessage(
           onEvent({ type: 'reasoning_delta', delta: String(event.params?.delta || '') });
           return;
         }
+        if (event.method === 'item/imageGeneration/started') {
+          onEvent({
+            type: 'image_generation_started',
+            messageId: String(event.params?.messageId || ''),
+            expectedCount: Number(event.params?.expectedCount) || 1,
+            capabilityContext: event.params?.capabilityContext as SendChatPayload['capabilityContext'] | undefined,
+          });
+          return;
+        }
+        if (event.method === 'item/imageGeneration/output') {
+          const attachment = event.params?.attachment as ChatAttachment | undefined;
+          if (attachment) {
+            onEvent({
+              type: 'image_generation_output',
+              messageId: String(event.params?.messageId || ''),
+              slotIndex: Number(event.params?.slotIndex) || 0,
+              attachment,
+            });
+          }
+          return;
+        }
         if (event.method === 'item/completed') {
           const item = event.params || {};
           const completedMessage = item.message as ChatMessage | undefined;

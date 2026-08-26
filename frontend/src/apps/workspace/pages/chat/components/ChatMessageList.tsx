@@ -609,11 +609,11 @@ export function ChatMessageList({
     const previousContext = previousUserMessage?.capabilityContext?.imageGeneration;
     const resolvedPrompt = resultContext?.resolvedPrompt?.trim() || '';
     const referenceAttachments = resultContext?.referenceAttachments || [];
-    const isConfirmedReferenceDialogGeneration = (resultContext?.modeKey || previousContext?.modeKey) === 'dialog'
+    const isConfirmedImageAgentGeneration = ['dialog', 'detail'].includes(resultContext?.modeKey || previousContext?.modeKey || '')
       && Boolean(resolvedPrompt)
       && resultContext?.referenceAttachments !== undefined
       && referenceAttachments.length > 0;
-    if (!isConfirmedReferenceDialogGeneration) {
+    if (!isConfirmedImageAgentGeneration) {
       return null;
     }
 

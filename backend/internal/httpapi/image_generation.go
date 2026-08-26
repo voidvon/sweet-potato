@@ -93,6 +93,10 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 }
 
 func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string) ([]store.ContentAsset, error) {
+	return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompt, count, references, options, mode, title, parentAssetID, nil)
+}
+
+func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("图片提示词不能为空")
 	}
@@ -148,6 +152,9 @@ func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, 
 			return nil, persistErr
 		}
 		assets = append(assets, asset)
+		if onAsset != nil {
+			onAsset(asset, index)
+		}
 	}
 	return assets, nil
 }
@@ -307,8 +314,8 @@ func imageGenerationCount(contextValue map[string]any, params map[string]any) in
 	if count < 1 {
 		return 1
 	}
-	if count > 4 {
-		return 4
+	if count > 12 {
+		return 12
 	}
 	return count
 }

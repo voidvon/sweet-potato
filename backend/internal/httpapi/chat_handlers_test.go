@@ -168,6 +168,10 @@ func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
 	tool := imageGenerationTool()
 	parameters := tool["parameters"].(map[string]any)
 	properties := parameters["properties"].(map[string]any)
+	count := properties["count"].(map[string]any)
+	if got := int(numberValue(count["maximum"], 0)); got != 12 {
+		t.Fatalf("count maximum = %d, want 12", got)
+	}
 	background := properties["background"].(map[string]any)
 	enum := background["enum"].([]string)
 	want := []string{"transparent", "opaque", "auto"}
@@ -178,6 +182,22 @@ func TestImageGenerationToolUsesSupportedBackgroundValues(t *testing.T) {
 		if enum[index] != want[index] {
 			t.Fatalf("background enum = %#v, want %#v", enum, want)
 		}
+	}
+}
+
+func TestApplyImageToolArgumentsPreservesSelectedOutputCount(t *testing.T) {
+	contextValue := map[string]any{"imageGeneration": map[string]any{"outputCount": 8}}
+	result := applyImageToolArguments(contextValue, map[string]any{"count": 3})
+	if got := int(numberValue(objectValue(result["imageGeneration"])["outputCount"], 0)); got != 8 {
+		t.Fatalf("output count = %d, want selected count 8", got)
+	}
+
+	autoResult := applyImageToolArguments(
+		map[string]any{"imageGeneration": map[string]any{}},
+		map[string]any{"count": 6},
+	)
+	if got := int(numberValue(objectValue(autoResult["imageGeneration"])["outputCount"], 0)); got != 6 {
+		t.Fatalf("automatic output count = %d, want tool count 6", got)
 	}
 }
 
@@ -238,6 +258,32 @@ func TestImageGenerationPromptFallsBackToModeHint(t *testing.T) {
 	}
 	if got := server.imageGenerationPrompt("", contextValue, nil); got != "把 图1 的背景去掉，按所选底色输出。" {
 		t.Fatalf("prompt = %q", got)
+	}
+}
+
+func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) {
+	prompt := detailImageGenerationSystemPrompt(map[string]any{
+		"imageGeneration": map[string]any{
+			"modeKey":     "detail",
+			"aspectRatio": "16:9",
+			"resolution":  "4K",
+			"outputCount": 6,
+		},
+	})
+	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF 内嵌图片可以", "850px", "移动端", "不得猜测"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("detail prompt missing %q: %s", want, prompt)
+		}
+	}
+
+	automaticPrompt := detailImageGenerationSystemPrompt(map[string]any{
+		"imageGeneration": map[string]any{"modeKey": "detail", "aspectRatio": "auto"},
+	})
+	if !strings.Contains(automaticPrompt, "默认优先使用 3:4") || !strings.Contains(automaticPrompt, "在 1 到 12 个章节内选择数量") {
+		t.Fatalf("automatic detail prompt = %s", automaticPrompt)
+	}
+	if got := detailImageGenerationSystemPrompt(map[string]any{"imageGeneration": map[string]any{"modeKey": "dialog"}}); got != "" {
+		t.Fatalf("dialog mode unexpectedly received detail prompt: %s", got)
 	}
 }
 

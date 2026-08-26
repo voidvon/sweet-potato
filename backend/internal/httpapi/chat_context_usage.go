@@ -81,7 +81,8 @@ func resolveModelContextCapacity(pricing *store.LlmModelPricing) modelContextCap
 	}
 }
 
-func isDialogImageContext(contextValue map[string]any) bool {
+func isImageAgentContext(contextValue map[string]any) bool {
 	generation := objectValue(contextValue["imageGeneration"])
-	return strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "dialog")
+	modeKey := strings.ToLower(strings.TrimSpace(stringValue(generation, "modeKey")))
+	return modeKey == "dialog" || modeKey == "detail"
 }

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -16,6 +17,7 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
 			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated-image"))},
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated-image-2"))},
 		}})
 	}))
 	defer imageServer.Close()
@@ -42,20 +44,40 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 		t.Fatalf("save image model: %v", err)
 	}
 	missingLLM := "missing-llm-model"
-	result, err := server.createChatResponse(user, chatRequest{
+	type progressEvent struct {
+		method string
+		params map[string]any
+	}
+	progressEvents := []progressEvent{}
+	ctx := context.WithValue(context.Background(), chatTurnEventEmitterContextKey{}, chatTurnEventEmitter(func(method string, params map[string]any) {
+		progressEvents = append(progressEvents, progressEvent{method: method, params: params})
+	}))
+	result, err := server.createChatResponseContext(ctx, user, chatRequest{
 		AgentID:               "quick-answer",
 		Content:               "放大图片",
 		ModelConfigID:         &missingLLM,
 		ImageModelConfigID:    &imageModel.ID,
 		RequestedCapabilities: []string{"image_generation"},
 		CapabilityContext: map[string]any{"imageGeneration": map[string]any{
-			"modeKey":    "upscale",
-			"modeTitle":  "高清放大",
-			"promptText": "放大图片",
+			"modeKey":     "upscale",
+			"modeTitle":   "高清放大",
+			"outputCount": 2,
+			"promptText":  "放大图片",
 		}},
 	})
 	if err != nil {
 		t.Fatalf("direct image generation: %v", err)
+	}
+	if len(progressEvents) != 3 || progressEvents[0].method != "item/imageGeneration/started" {
+		t.Fatalf("progress events = %#v", progressEvents)
+	}
+	if got := int(numberValue(progressEvents[0].params["expectedCount"], 0)); got != 2 {
+		t.Fatalf("expected count = %d, want 2", got)
+	}
+	for index, event := range progressEvents[1:] {
+		if event.method != "item/imageGeneration/output" || int(numberValue(event.params["slotIndex"], -1)) != index {
+			t.Fatalf("output event %d = %#v", index, event)
+		}
 	}
 	conversation := result["conversation"].(store.ChatConversation)
 	if conversation.ModelConfigID != nil {

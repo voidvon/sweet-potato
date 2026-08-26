@@ -185,6 +185,8 @@ export type ChatStreamEvent =
   | { type: 'assistant_message'; message: ChatMessage }
   | { type: 'reasoning_delta'; delta: string }
   | { type: 'answer_delta'; delta: string }
+  | { type: 'image_generation_started'; messageId: string; expectedCount: number; capabilityContext?: SendChatPayload['capabilityContext'] }
+  | { type: 'image_generation_output'; messageId: string; slotIndex: number; attachment: ChatAttachment }
   | { type: 'done'; conversation: ChatConversation; messages: ChatMessage[]; creditBalance?: number }
   | { type: 'error'; message: string };
 

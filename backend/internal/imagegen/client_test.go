@@ -50,6 +50,39 @@ func TestGenerateOpenAIImageFromBase64(t *testing.T) {
 	}
 }
 
+func TestGenerateCompatibleImagesInChunksUpToTwelve(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestCount++
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		count := int(body["n"].(float64))
+		if count < 1 || count > 4 {
+			t.Fatalf("chunk count = %d, want 1..4", count)
+		}
+		items := make([]any, count)
+		for index := range items {
+			items[index] = map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated"))}
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": items})
+	}))
+	defer server.Close()
+
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "compatible", Model: "image-model"}).Generate(
+		t.Context(),
+		GenerateInput{Prompt: "draw products", Count: 12},
+	)
+	if err != nil {
+		t.Fatalf("generate images: %v", err)
+	}
+	if len(results) != 12 || requestCount != 3 {
+		t.Fatalf("results = %d, requests = %d, want 12 results in 3 requests", len(results), requestCount)
+	}
+}
+
 func TestGenerateOpenAIImageFromSSE(t *testing.T) {
 	preview := base64.StdEncoding.EncodeToString([]byte("preview"))
 	completed := base64.StdEncoding.EncodeToString([]byte("completed"))

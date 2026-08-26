@@ -18,7 +18,8 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { resolveAssetUrl } from '../../../api/request';
 import { listModelConfigs } from '../../../api/model-config';
 import { listUserImageModelConfigs, listUserModelConfigs } from '@shared/api/user-model-config';
@@ -120,9 +121,9 @@ const cutoutToolbarControls: ClawToolbarControl[] = ['model', 'background'];
 const defaultOptionalPlaceholder = t("补充要求（选填），例如：调整光线、风格、姿态…");
 const unlimitedReferenceCount = Number.POSITIVE_INFINITY;
 const defaultModeOutputConfig: ClawModeOutputConfig = {
-  allowedOutputCounts: [1, 2, 3, 4],
+  allowedOutputCounts: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
   allowedResolutions: ['2K', '4K'],
-  defaultOutputCount: 1,
+  defaultOutputCount: 0,
   defaultResolution: '2K',
 };
 
@@ -175,10 +176,9 @@ const clawModeConfigs: ClawModeConfig[] = [
     Icon: Images,
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
-    outputCountStrategy: 'fixedOne',
     promptHint: t("描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页"),
     referenceGroups: [
-      { key: 'product', label: t("产品图"), maxCount: 3, required: true },
+      { key: 'product', label: t("产品资料"), acceptsPdf: true, maxCount: 12, required: true },
       { key: 'reference', label: t("参考图"), maxCount: 10 },
     ],
   },
@@ -344,6 +344,10 @@ const clawModeConfigs: ClawModeConfig[] = [
   },
 ];
 
+function isClawModeKey(value: string | null): value is ClawModeKey {
+  return clawModeConfigs.some((mode) => mode.key === value);
+}
+
 const featuredModeKeys: ClawModeKey[] = ['outfit', 'dialog', 'upscale', 'background', 'redraw'];
 const visibleModeCards = featuredModeKeys
   .map((key) => clawModeConfigs.find((mode) => mode.key === key))
@@ -405,7 +409,9 @@ export function ClawDialogComposer({
   showHeading = true,
   sending,
 }: ClawDialogComposerProps) {
-  const [selectedModeKey, setSelectedModeKey] = useState<ClawModeKey>('dialog');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlModeKey = searchParams.get('mode');
+  const selectedModeKey = isClawModeKey(urlModeKey) ? urlModeKey : 'dialog';
   const [llmConfigs, setLlmConfigs] = useState<ModelConfig[]>([]);
   const [selectedModelConfigId, setSelectedModelConfigId] = useState('');
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
@@ -413,7 +419,7 @@ export function ClawDialogComposer({
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
   const [selectedBackground, setSelectedBackground] = useState<ClawBackgroundKey>('transparent');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
-  const [selectedOutputCount, setSelectedOutputCount] = useState(1);
+  const [selectedOutputCount, setSelectedOutputCount] = useState(0);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
   const [hoveredReferenceGroupIndex, setHoveredReferenceGroupIndex] = useState<number | null>(null);
   const textareaRef = useRef<MentionRichTextareaRef | null>(null);
@@ -430,7 +436,7 @@ export function ClawDialogComposer({
   const selectedToolbarControls = selectedMode.toolbarControls ?? defaultToolbarControls;
   const outputCountStrategy = selectedMode.outputCountStrategy ?? 'selectable';
   const showImageModelControl = selectedToolbarControls.includes('model');
-  const showLlmModelControl = selectedMode.key === 'dialog';
+  const showLlmModelControl = selectedMode.key === 'dialog' || selectedMode.key === 'detail';
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount') && outputCountStrategy === 'selectable';
   const showBackgroundControl = selectedToolbarControls.includes('background');
@@ -472,9 +478,14 @@ export function ClawDialogComposer({
       });
     });
   }, [groupedAttachments, selectedMode.referenceGroups]);
-  const missingReferenceGroups = selectedMode.referenceGroups.filter(
-    (group) => group.required && !groupedAttachments[group.key]?.some((attachment) => attachment.kind === 'image'),
-  );
+  const missingReferenceGroups = selectedMode.referenceGroups.filter((group) => (
+    group.required && !groupedAttachments[group.key]?.some((attachment) => (
+      attachment.kind === 'image'
+      || (group.acceptsPdf && (
+        attachment.type === 'application/pdf' || attachment.name.toLowerCase().endsWith('.pdf')
+      ))
+    ))
+  ));
   const hasUploadingAttachments = attachments.some((attachment) => attachment.uploadStatus === 'uploading');
   const generationBlockReason = hasUploadingAttachments
     ? t("图片上传中")
@@ -484,6 +495,20 @@ export function ClawDialogComposer({
         ? t("还需上传{{0}}", { "0": missingReferenceGroups[0].label })
         : '';
   const canStartGeneration = !generationBlockReason;
+
+  const selectMode = useCallback((modeKey: ClawModeKey, replace = false) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('mode', modeKey);
+      return next;
+    }, { replace });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    if (!isClawModeKey(searchParams.get('mode'))) {
+      selectMode('dialog', true);
+    }
+  }, [searchParams, selectMode]);
 
   useEffect(() => {
     if (!continueEditFocusToken) {
@@ -499,7 +524,7 @@ export function ClawDialogComposer({
     const draftAttachmentGroups = imageGeneration?.referenceGroups?.flatMap((group) => (
       group.attachmentIds.map((attachmentId) => [attachmentId, group.key] as const)
     ));
-    setSelectedModeKey(nextMode);
+    selectMode(nextMode, true);
     setAttachmentGroupById(
       draftAttachmentGroups?.length
         ? Object.fromEntries(draftAttachmentGroups)
@@ -526,7 +551,7 @@ export function ClawDialogComposer({
     window.setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
-  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, composerDraftModelConfigId, continueEditFocusToken]);
+  }, [attachments, composerDraftContext, composerDraftImageModelConfigId, composerDraftModelConfigId, continueEditFocusToken, selectMode]);
 
   useEffect(() => {
     const attachmentIds = new Set(attachments.map((attachment) => attachment.id));
@@ -615,7 +640,7 @@ export function ClawDialogComposer({
 
   const selectedLlmModel = selectableLlmModels.find((config) => config.id === selectedModelConfigId)
     || selectableLlmModels[0];
-  const visibleContextUsage = selectedMode.key === 'dialog'
+  const visibleContextUsage = showLlmModelControl
     && contextUsage
     && contextUsage.modelConfigId === selectedLlmModel?.id
     && Boolean(contextUsage.contextWindow)
@@ -756,7 +781,9 @@ export function ClawDialogComposer({
             promptText: input.trim(),
             promptHint: selectedMode.promptHint,
             outputSize: supportsCustomResolution ? outputSizeLabel : undefined,
-            outputCount: resolvedOutputCount,
+            outputCount: outputCountStrategy === 'selectable' && selectedOutputCount === 0
+              ? undefined
+              : resolvedOutputCount,
             outputBackground: showBackgroundControl ? selectedBackground : undefined,
             aspectRatio: selectedAspectRatio,
             resolution: supportsCustomResolution ? effectiveResolution : undefined,
@@ -863,7 +890,7 @@ export function ClawDialogComposer({
             <Dropdown
               menu={{
                 items: modeMenuItems,
-                onClick: ({ key }) => setSelectedModeKey(key as ClawModeKey),
+                onClick: ({ key }) => selectMode(key as ClawModeKey),
                 selectedKeys: [selectedModeKey],
               }}
               classNames={{ root: 'claw-mode-dropdown' }}
@@ -952,14 +979,17 @@ export function ClawDialogComposer({
             {showOutputCountControl ? (
               <Dropdown
                 menu={{
-                  items: selectableOutputCounts.map((count) => ({ key: String(count), label: t("{{0}} 张", { "0": count }) })),
-                  onClick: ({ key }) => setSelectedOutputCount(Number(key) || 1),
+                  items: selectableOutputCounts.map((count) => ({
+                    key: String(count),
+                    label: count === 0 ? t("自动") : t("{{0}} 张", { "0": count }),
+                  })),
+                  onClick: ({ key }) => setSelectedOutputCount(Number(key)),
                   selectedKeys: [String(selectedOutputCount)],
                 }}
                 trigger={['click']}
               >
                 <Button className="claw-option-button" icon={<List size={12} />}>
-                  {selectedOutputCount} {t("张")}
+                  {selectedOutputCount === 0 ? t("自动") : `${selectedOutputCount} ${t("张")}`}
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>
@@ -1009,7 +1039,7 @@ export function ClawDialogComposer({
               <button
                 className={`claw-feature-card${item.key === selectedModeKey ? ' selected' : ''}`}
                 key={item.key}
-                onClick={() => setSelectedModeKey(item.key)}
+                onClick={() => selectMode(item.key)}
                 type="button"
               >
                 <span className="claw-feature-icon">

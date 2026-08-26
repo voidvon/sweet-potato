@@ -34,6 +34,16 @@ type chatRequest struct {
 	AutoImageGeneration   bool           `json:"autoImageGeneration"`
 }
 
+type chatTurnEventEmitter func(method string, params map[string]any)
+type chatTurnEventEmitterContextKey struct{}
+
+func emitChatTurnEvent(ctx context.Context, method string, params map[string]any) {
+	emitter, _ := ctx.Value(chatTurnEventEmitterContextKey{}).(chatTurnEventEmitter)
+	if emitter != nil {
+		emitter(method, params)
+	}
+}
+
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.requireUser(w, r, "web.module.chat"); !ok {
 		return
@@ -345,7 +355,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		if err != nil {
 			return nil, err
 		}
-		if isDialogImageContext(input.CapabilityContext) {
+		if isImageAgentContext(input.CapabilityContext) {
 			contextUsage = s.imageDialogContextUsage(model, imageDecision.Usage)
 		}
 		imageRequest = imageDecision.Generate
@@ -382,7 +392,20 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
 		assistantCapabilityContext = imageGenerationResultContext(generation, content, prompt, references)
 		assistantMessage.CapabilityContext = assistantCapabilityContext
-		assets, generateErr := s.generateImageAssetsContext(ctx, user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil)
+		emitChatTurnEvent(ctx, "item/imageGeneration/started", map[string]any{
+			"messageId":         assistantMessage.ID,
+			"expectedCount":     count,
+			"capabilityContext": assistantCapabilityContext,
+		})
+		assets, generateErr := s.generateImageAssetsContextWithProgress(ctx, user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
+			attachment := chatAttachmentPayload(asset)
+			attachment["imageGenerationSlotIndex"] = slotIndex
+			emitChatTurnEvent(ctx, "item/imageGeneration/output", map[string]any{
+				"messageId":  assistantMessage.ID,
+				"slotIndex":  slotIndex,
+				"attachment": attachment,
+			})
+		})
 		if generateErr != nil {
 			return nil, generateErr
 		}
@@ -558,11 +581,12 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
+	systemPrompt += detailImageGenerationSystemPrompt(contextValue)
 	if includePreviews {
 		systemPrompt += "候选图片的低清预览已提供，请直接完成选择，inspect_reference_images 返回 false。最终 prompt 必须与 reference_asset_ids 严格一致：不得沿用历史对话中的附件编号。只选一张时，统一称为“提供的参考图片”，不使用图1、图2或第几张。选中多张时，可按 selected_reference_position 使用“参考图1”至“参考图N”，该位置就是实际发送顺序。对未选图片的排除要求，必须改写为具体可见的构图、造型、色彩或元素特征，不得引用其历史编号。"
 	}
-	systemPrompt += "当前工作台上下文：" + string(contextJSON)
+	systemPrompt += "\n当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
 	result, err := s.callBillableResponses(ctx, userID, "chat_image_decision", modelSourceID(sourceID), model, messages, agentResponsesTools(agent, imageGenerationTool(candidateAssetIDs(candidates)...)))
 	if err != nil {
@@ -587,6 +611,52 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		break
 	}
 	return decision, nil
+}
+
+func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
+	generation := objectValue(contextValue["imageGeneration"])
+	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+		return ""
+	}
+
+	aspectRatio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
+	var ratioInstruction string
+	if aspectRatio == "" || strings.EqualFold(aspectRatio, "auto") {
+		ratioInstruction = "界面宽高比为自动：默认优先使用 3:4；根据章节内容调整构图密度和视觉留白，不要擅自改成横图。"
+	} else {
+		ratioInstruction = fmt.Sprintf("界面已选择 %s 宽高比：必须严格保持该比例，并让章节内容适应该画布。", aspectRatio)
+	}
+
+	outputCount := int(numberValue(generation["outputCount"], 0))
+	var countInstruction string
+	if outputCount > 0 {
+		countInstruction = fmt.Sprintf("界面已指定生成 %d 张：规划为 %d 个章节，每个章节对应一张图片；内容不足时合并精炼，不得擅自改变数量。", outputCount, outputCount)
+	} else {
+		countInstruction = "界面数量为自动：根据用户描述、产品图片和 PDF 产品资料规划必要章节，在 1 到 12 个章节内选择数量，每个章节对应一张图片。"
+	}
+
+	resolution := valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution"))
+	resolutionInstruction := "使用当前图片模型的默认清晰度。"
+	if strings.TrimSpace(resolution) != "" {
+		resolutionInstruction = fmt.Sprintf("界面已选择输出规格 %s，必须保持该规格。", resolution)
+	}
+
+	background := strings.TrimSpace(stringValue(generation, "outputBackground"))
+	backgroundInstruction := "界面未指定背景：先判断原照片背景是否复杂或干扰商品表达；必要时移除或简化背景，保留自然边缘、真实接触阴影和材质细节。"
+	if background != "" && !strings.EqualFold(background, "auto") {
+		backgroundInstruction = fmt.Sprintf("界面已指定背景为 %s，必须遵循该设置，同时保留产品自然边缘、真实接触阴影和材质细节。", background)
+	}
+
+	return "\n你正在执行【淘宝宝贝详情图生成】，必须遵循以下专属规则：" +
+		"\n1. 任务目标：根据用户描述和附件，为同一个产品制作淘宝宝贝详情介绍图片。先提炼真实、必要的章节主题，再把完整的章节规划写入 image_generation 的 prompt；每张图只承担一个清晰章节，章节之间内容互补、视觉风格统一。" +
+		"\n2. 产品保真：产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与原图一致。只允许为展示效果轻微调整视角、光线和构图；原图或资料中不可见、不确定的结构与细节不得猜测、补造或改动。" +
+		"\n3. 产品资料：产品资料分组中的图片和 PDF 用于确认产品事实、规格、卖点和章节内容。PDF 中没有明确写出的参数、功效、认证、材质或宣传结论不得编造。PDF 内嵌图片可以作为版式、配色、构图、产品外观和细节的视觉参考；先分析并把需要借鉴的视觉特征准确写入最终 prompt，但 PDF 文件本身不能作为图片模型的 reference_asset_ids，只有候选图片 asset_id 可以加入该字段。" +
+		"\n4. 参考图：参考图分组只用于借鉴版式、氛围、配色、光影和信息层级，不得用参考图中的其他产品替换、混合或改变当前产品。reference_asset_ids 只选择实际需要发送给图片模型的候选图片。" +
+		"\n5. 背景：" + backgroundInstruction +
+		"\n6. 画布：" + ratioInstruction + " " + resolutionInstruction +
+		"\n7. 章节与数量：" + countInstruction +
+		"\n8. 文案、字号与合规：只使用用户描述和产品资料中可验证的信息。需要画面文字时保持简洁并建立清楚的标题、卖点和正文层级；以约 850px 宽的淘宝详情内容区为排版基准控制文字大小、行长、行距和留白，同时检查缩放到移动端后的可读性以及 PC 端展示的协调性。文字不能过大而挤压产品画面，也不能过小、过密或贴近边缘；不得使用虚构数据、绝对化承诺或无依据卖点。" +
+		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；prompt 必须明确列出各章节的主题、画面主体、构图、背景、光线、允许出现的文案以及所有章节共同遵守的产品保真约束。"
 }
 
 func (s *Server) chatResponsesInput(userID string, history []store.ChatMessage) ([]map[string]any, error) {
@@ -643,9 +713,14 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	for key, value := range generation {
 		copyGeneration[key] = value
 	}
-	for source, target := range map[string]string{"prompt": "promptText", "count": "outputCount", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
+	for source, target := range map[string]string{"prompt": "promptText", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
 		if value, ok := arguments[source]; ok {
 			copyGeneration[target] = value
+		}
+	}
+	if numberValue(copyGeneration["outputCount"], 0) <= 0 {
+		if value, ok := arguments["count"]; ok {
+			copyGeneration["outputCount"] = value
 		}
 	}
 	if currentRatio := stringValue(copyGeneration, "aspectRatio"); currentRatio == "" || strings.EqualFold(currentRatio, "auto") {
@@ -1109,7 +1184,7 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 			"type": "object",
 			"properties": map[string]any{
 				"prompt":       map[string]any{"type": "string", "description": "最终图片生成提示词"},
-				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 4},
+				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 12, "description": "生成图片数量；工作台未指定数量时根据用户需求自动选择"},
 				"size":         map[string]any{"type": "string"},
 				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
 				"resolution":   map[string]any{"type": "string"},
@@ -1125,7 +1200,7 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"description": "仅当必须查看候选图片的视觉内容才能决定参考图时返回 true；可根据结构化位置或文件名决定时返回 false",
 				},
 			},
-			"required": []string{"prompt", "reference_asset_ids", "inspect_reference_images"},
+			"required": []string{"prompt", "count", "reference_asset_ids", "inspect_reference_images"},
 		},
 	}
 }
@@ -1311,6 +1386,9 @@ func (session *chatWebSocketSession) interruptTurn(command chatTurnCommand) erro
 }
 
 func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string, input chatRequest) {
+	ctx = context.WithValue(ctx, chatTurnEventEmitterContextKey{}, chatTurnEventEmitter(func(method string, params map[string]any) {
+		_ = session.writeJSON(map[string]any{"method": method, "params": params})
+	}))
 	result, err := session.server.createChatResponseContext(ctx, session.user, input)
 	if err != nil {
 		status := "failed"

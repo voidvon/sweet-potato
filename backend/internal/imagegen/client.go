@@ -71,8 +71,8 @@ func (c Client) Generate(ctx context.Context, input GenerateInput) ([]Output, er
 	if input.Count < 1 {
 		input.Count = 1
 	}
-	if input.Count > 4 {
-		input.Count = 4
+	if input.Count > 12 {
+		input.Count = 12
 	}
 	items, err := c.generate(ctx, input)
 	if err != nil && strings.EqualFold(strings.TrimSpace(input.Background), "transparent") && transparentBackgroundUnsupported(err) {
@@ -89,6 +89,22 @@ func (c Client) generate(ctx context.Context, input GenerateInput) ([]Output, er
 			items, err := c.generateMultipartEdit(ctx, input)
 			if err != nil {
 				return nil, fmt.Errorf("image edit %d: %w", index+1, err)
+			}
+			results = append(results, items...)
+		}
+		return results, nil
+	}
+	if !c.isSeedream() && input.Count > 4 {
+		results := make([]Output, 0, input.Count)
+		for remaining := input.Count; remaining > 0; remaining -= min(4, remaining) {
+			chunk := input
+			chunk.Count = min(4, remaining)
+			items, err := c.generateJSON(ctx, chunk)
+			if err != nil {
+				return nil, err
+			}
+			if len(items) == 0 {
+				return nil, errors.New("image model returned no images")
 			}
 			results = append(results, items...)
 		}
