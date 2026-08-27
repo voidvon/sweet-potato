@@ -350,7 +350,7 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 			"outputCount": 6,
 		},
 	})
-	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF", "850px", "移动端", "不得猜测", "chapter_prompts", "chapter_reference_asset_ids", "插图方案", "实拍照片是唯一的实体产品事实来源", "允许某章完全不携带实拍产品图", "禁止幻想新的角度、铭牌"} {
+	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF", "850px", "移动端", "不得猜测", "chapter_prompts", "chapter_reference_asset_ids", "插图方案", "实拍照片是唯一的实体产品事实来源", "允许某章完全不携带实拍产品图", "禁止幻想新的角度、铭牌", "折线图保真", "修改图表颜色", "正文不小于 28px", "PDF 页眉页脚清理", "文件名", "装饰线"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("detail prompt missing %q: %s", want, prompt)
 		}
@@ -359,11 +359,11 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 	automaticPrompt := detailImageGenerationSystemPrompt(map[string]any{
 		"imageGeneration": map[string]any{"modeKey": "detail", "aspectRatio": "auto"},
 	})
-	if !strings.Contains(automaticPrompt, "3:4 只是建议尺寸") || !strings.Contains(automaticPrompt, "不得裁切") || !strings.Contains(automaticPrompt, "在 1 到 12 个章节内选择数量") {
+	if !strings.Contains(automaticPrompt, "优先使用 3:4") || !strings.Contains(automaticPrompt, "不得改成横向画布") || !strings.Contains(automaticPrompt, "不得裁切") || !strings.Contains(automaticPrompt, "在 1 到 12 个章节内选择数量") {
 		t.Fatalf("automatic detail prompt = %s", automaticPrompt)
 	}
 	commonAutomatic := detailImageModelCommonPrompt(map[string]any{"modeKey": "detail", "aspectRatio": "auto", "outputSize": "2048 x 2048"})
-	if !strings.Contains(commonAutomatic, "自适应") || !strings.Contains(commonAutomatic, "建议尺寸") || strings.Contains(commonAutomatic, "画布严格使用2048") || strings.Contains(commonAutomatic, "2048 x 2048") {
+	if !strings.Contains(commonAutomatic, "竖向画布") || !strings.Contains(commonAutomatic, "仅允许") || !strings.Contains(commonAutomatic, "换色") || !strings.Contains(commonAutomatic, "正文不小于 28px") || !strings.Contains(commonAutomatic, "页眉页脚必须完整排除") || !strings.Contains(commonAutomatic, "版本号") || strings.Contains(commonAutomatic, "画布严格使用2048") || strings.Contains(commonAutomatic, "2048 x 2048") {
 		t.Fatalf("automatic common prompt = %s", commonAutomatic)
 	}
 	if got := detailImageGenerationSystemPrompt(map[string]any{"imageGeneration": map[string]any{"modeKey": "dialog"}}); got != "" {
