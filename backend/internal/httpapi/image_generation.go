@@ -466,3 +466,32 @@ func (s *Server) imageReferences(userID string, attachments []any, contextValue 
 	}
 	return assets, nil
 }
+
+// chatImageReferences always keeps images attached to the current message.
+// The chat model may select additional images from conversation history, but
+// it must never be able to discard references the user just uploaded.
+func (s *Server) chatImageReferences(userID string, input chatRequest, decision imageGenerationDecision) ([]store.ContentAsset, error) {
+	current, err := s.imageReferences(userID, input.Attachments, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if input.AutoImageGeneration && decision.HasReferenceSelection {
+		return mergeImageReferenceAssets(current, decision.ReferenceAssets), nil
+	}
+	return s.imageReferences(userID, input.Attachments, input.CapabilityContext, nil)
+}
+
+func mergeImageReferenceAssets(primary, additional []store.ContentAsset) []store.ContentAsset {
+	result := make([]store.ContentAsset, 0, len(primary)+len(additional))
+	seen := make(map[string]bool, len(primary)+len(additional))
+	for _, assets := range [][]store.ContentAsset{primary, additional} {
+		for _, asset := range assets {
+			if asset.ID == "" || seen[asset.ID] {
+				continue
+			}
+			seen[asset.ID] = true
+			result = append(result, asset)
+		}
+	}
+	return result
+}

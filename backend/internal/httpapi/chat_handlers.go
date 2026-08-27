@@ -382,15 +382,9 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		if chapterPromptErr != nil {
 			return nil, chapterPromptErr
 		}
-		var references []store.ContentAsset
-		if input.AutoImageGeneration && imageDecision.HasReferenceSelection {
-			references = imageDecision.ReferenceAssets
-		} else {
-			var referenceErr error
-			references, referenceErr = s.imageReferences(user.ID, input.Attachments, input.CapabilityContext, nil)
-			if referenceErr != nil {
-				return nil, referenceErr
-			}
+		references, referenceErr := s.chatImageReferences(user.ID, input, imageDecision)
+		if referenceErr != nil {
+			return nil, referenceErr
 		}
 		chapterReferences, chapterReferenceErr := detailImageReferenceSets(generation, count, references)
 		if chapterReferenceErr != nil {
@@ -613,7 +607,7 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。画面比例为 auto 时，3:4 仅为建议尺寸，必须按内容选择能完整容纳文字和主体的画布；画面比例为非 auto 时必须严格保持该比例，并通过缩放、排版和留白容纳内容，禁止裁切、溢出或遮挡。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。画面比例为 auto 时，3:4 仅为建议尺寸，必须按内容选择能完整容纳文字和主体的画布；画面比例为非 auto 时必须严格保持该比例，并通过缩放、排版和留白容纳内容，禁止裁切、溢出或遮挡。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。当前用户消息携带的图片附件是本轮强制参考图，必须全部保留；AI 只能决定是否追加历史消息中的图片。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要历史参考图，不追加历史图片。"
 	systemPrompt += detailImageGenerationSystemPrompt(contextValue)
 	if includePreviews {
 		if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {

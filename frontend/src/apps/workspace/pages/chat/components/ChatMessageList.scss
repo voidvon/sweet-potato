@@ -364,10 +364,9 @@
 }
 
 .chat-image-generation-info-button.ant-btn {
-  backdrop-filter: blur(6px);
-  background: rgb(var(--color-black-rgb) / 0.58);
+  background: transparent;
   bottom: 8px;
-  color: var(--color-white);
+  color: rgb(var(--color-black-rgb) / 0.58);
   height: 28px;
   min-width: 28px;
   position: absolute;
@@ -378,8 +377,14 @@
 
 .chat-image-generation-info-button.ant-btn:hover,
 .chat-image-generation-info-button.ant-btn:focus-visible {
-  background: rgb(var(--color-black-rgb) / 0.74);
-  color: var(--color-white);
+  background: transparent;
+  color: rgb(var(--color-black-rgb) / 0.74);
+}
+
+.chat-image-generation-info-button.ant-btn svg {
+  filter:
+    drop-shadow(0 0 1px rgb(var(--color-white-rgb) / 0.95))
+    drop-shadow(0 1px 1px rgb(var(--color-black-rgb) / 0.32));
 }
 
 .chat-image-generation-info-popover {

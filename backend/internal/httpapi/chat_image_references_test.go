@@ -89,6 +89,46 @@ func TestSelectedImageReferenceAssetsOnlyAllowsConversationCandidates(t *testing
 	}
 }
 
+func TestChatImageReferencesAlwaysKeepsCurrentMessageAttachments(t *testing.T) {
+	dataDir := t.TempDir()
+	dataStore, err := store.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer dataStore.Close()
+
+	first := createTestImageReferenceAsset(t, dataStore, dataDir, "user-1", "current-1", "current-1.png", 100, 100)
+	second := createTestImageReferenceAsset(t, dataStore, dataDir, "user-1", "current-2", "current-2.png", 100, 100)
+	historical := createTestImageReferenceAsset(t, dataStore, dataDir, "user-1", "historical-1", "historical.png", 100, 100)
+	server := &Server{store: dataStore}
+	input := chatRequest{
+		AutoImageGeneration: true,
+		Attachments: []any{
+			map[string]any{"assetId": first.ID, "type": "image/png"},
+			map[string]any{"assetId": second.ID, "type": "image/png"},
+		},
+	}
+
+	references, err := server.chatImageReferences("user-1", input, imageGenerationDecision{
+		HasReferenceSelection: true,
+		ReferenceAssets:       []store.ContentAsset{historical, first},
+	})
+	if err != nil {
+		t.Fatalf("resolve references: %v", err)
+	}
+	if len(references) != 3 || references[0].ID != first.ID || references[1].ID != second.ID || references[2].ID != historical.ID {
+		t.Fatalf("references = %#v", references)
+	}
+
+	references, err = server.chatImageReferences("user-1", input, imageGenerationDecision{HasReferenceSelection: true})
+	if err != nil {
+		t.Fatalf("resolve empty AI selection: %v", err)
+	}
+	if len(references) != 2 || references[0].ID != first.ID || references[1].ID != second.ID {
+		t.Fatalf("current references after empty AI selection = %#v", references)
+	}
+}
+
 func TestImageReferenceCandidatesForAssetsUsesActualSendOrder(t *testing.T) {
 	candidates := []imageReferenceCandidate{
 		{Asset: store.ContentAsset{ID: "asset-1"}},
