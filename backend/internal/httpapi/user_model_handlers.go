@@ -170,11 +170,16 @@ func personalImageModelInput(model store.ModelConfig) (store.ModelConfig, error)
 		return store.ModelConfig{}, newInputError("个人模型服务地址必须是有效的 HTTPS URL")
 	}
 	supportsCustomResolution := false
+	maxConcurrency := 3
 	if imageGeneration := objectValue(model.Settings["imageGeneration"]); imageGeneration != nil {
 		supportsCustomResolution = boolValue(imageGeneration["supportsCustomResolution"])
+		maxConcurrency = int(numberValue(imageGeneration["maxConcurrency"], 3))
+	}
+	if maxConcurrency < 1 || maxConcurrency > 12 {
+		return store.ModelConfig{}, newInputError("图片生成并发数量必须在 1 到 12 之间")
 	}
 	model.Settings = map[string]any{
-		"imageGeneration": map[string]any{"supportsCustomResolution": supportsCustomResolution},
+		"imageGeneration": map[string]any{"supportsCustomResolution": supportsCustomResolution, "maxConcurrency": maxConcurrency},
 		"billing":         map[string]any{"creditsPerRequest": 0, "priceSource": "personal-api-key"},
 	}
 	return model, nil

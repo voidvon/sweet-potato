@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"sweet-potato-go/internal/imagegen"
@@ -94,6 +95,64 @@ func (s *Server) generateImageAssets(userID string, model store.ModelConfig, pro
 
 func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string) ([]store.ContentAsset, error) {
 	return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompt, count, references, options, mode, title, parentAssetID, nil)
+}
+
+func (s *Server) generateImageAssetsForPromptsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompts []string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
+	if len(prompts) == 1 {
+		return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[0], count, references, options, mode, title, parentAssetID, onAsset)
+	}
+	if _, err := s.ensureContentGroup(userID, "finished_video"); err != nil {
+		return nil, fmt.Errorf("创建图片作品分组失败: %w", err)
+	}
+
+	type chapterResult struct {
+		assets []store.ContentAsset
+		err    error
+	}
+	results := make([]chapterResult, len(prompts))
+	jobs := make(chan int)
+	workerCount := min(len(prompts), imageModelMaxConcurrency(model))
+	var workers sync.WaitGroup
+	var callbackMu sync.Mutex
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for slotIndex := range jobs {
+				generated, err := s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[slotIndex], 1, references, options, mode, title, parentAssetID, func(asset store.ContentAsset, _ int) {
+					if onAsset != nil {
+						callbackMu.Lock()
+						onAsset(asset, slotIndex)
+						callbackMu.Unlock()
+					}
+				})
+				results[slotIndex] = chapterResult{assets: generated, err: err}
+			}
+		}()
+	}
+	for slotIndex := range prompts {
+		jobs <- slotIndex
+	}
+	close(jobs)
+	workers.Wait()
+
+	assets := make([]store.ContentAsset, 0, len(prompts))
+	var firstErr error
+	for _, result := range results {
+		assets = append(assets, result.assets...)
+		if firstErr == nil && result.err != nil {
+			firstErr = result.err
+		}
+	}
+	return assets, firstErr
+}
+
+func imageModelMaxConcurrency(model store.ModelConfig) int {
+	value := int(numberValue(objectValue(model.Settings["imageGeneration"])["maxConcurrency"], 3))
+	if value < 1 || value > 12 {
+		return 3
+	}
+	return value
 }
 
 func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {

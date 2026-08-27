@@ -2384,5 +2384,9 @@
   "（可留空按模板生成）": "(Can be left blank to generate according to template)",
   "，支持智能时长": ", supports smart duration",
   "，该图片会直接作为视频出镜素材使用。": ", the picture will be used directly as video footage.",
-  "，请选择": ", please select"
+  "，请选择": ", please select",
+  "最大并发数量": "Maximum concurrency",
+  "最大并发数量：{{0}}": "Maximum concurrency: {{0}}",
+  "同时生成的图片任务数，范围 1 到 12。": "Number of image generation tasks to run at once, from 1 to 12.",
+  "请输入图片生成并发数量": "Please enter the image generation concurrency"
 }

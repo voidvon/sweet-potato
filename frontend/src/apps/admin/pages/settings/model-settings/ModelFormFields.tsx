@@ -332,6 +332,14 @@ export function StandardModelFields({
             <Checkbox>{t("支持自定义分辨率")}</Checkbox>
           </Form.Item>
           <Form.Item
+            extra={t("同时生成的图片任务数，范围 1 到 12。")}
+            label={t("最大并发数量")}
+            name={['settings', 'imageGeneration', 'maxConcurrency']}
+            rules={[{ required: true, message: t("请输入图片生成并发数量") }]}
+          >
+            <InputNumber controls={false} min={1} max={12} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
             label={t("图片生成单价 (Credit / 张)")}
             name={['settings', 'billing', 'creditsPerRequest']}
             rules={[{ required: true, message: t("请输入图片生成单价") }]}

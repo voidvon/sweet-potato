@@ -378,6 +378,10 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		prompt := strings.TrimSpace(s.imageGenerationPrompt(content, input.CapabilityContext, nil))
 		prompt = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(prompt, "@生图", ""), "＠生图", ""))
 		count := imageGenerationCount(input.CapabilityContext, nil)
+		chapterPrompts, chapterPromptErr := detailImagePrompts(generation, prompt, count)
+		if chapterPromptErr != nil {
+			return nil, chapterPromptErr
+		}
 		var references []store.ContentAsset
 		if input.AutoImageGeneration && imageDecision.HasReferenceSelection {
 			references = imageDecision.ReferenceAssets
@@ -397,7 +401,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 			"expectedCount":     count,
 			"capabilityContext": assistantCapabilityContext,
 		})
-		assets, generateErr := s.generateImageAssetsContextWithProgress(ctx, user.ID, imageModel, prompt, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
+		assets, generateErr := s.generateImageAssetsForPromptsContextWithProgress(ctx, user.ID, imageModel, chapterPrompts, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
 			attachment := chatAttachmentPayload(asset)
 			attachment["imageGenerationSlotIndex"] = slotIndex
 			emitChatTurnEvent(ctx, "item/imageGeneration/output", map[string]any{
@@ -660,7 +664,7 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 	}
 
 	return "\n你正在执行【淘宝宝贝详情图生成】，必须遵循以下专属规则：" +
-		"\n1. 任务目标：根据用户描述和附件，为同一个产品制作淘宝宝贝详情介绍图片。先提炼真实、必要的章节主题，再把完整的章节规划写入 image_generation 的 prompt；每张图只承担一个清晰章节，章节之间内容互补、视觉风格统一。" +
+		"\n1. 任务目标：根据用户描述和附件，为同一个产品制作淘宝宝贝详情介绍图片。先提炼真实、必要的章节主题；每张图只承担一个清晰章节，章节之间内容互补、视觉风格统一。" +
 		"\n2. 产品保真：产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与原图一致。只允许为展示效果轻微调整视角、光线和构图；原图或资料中不可见、不确定的结构与细节不得猜测、补造或改动。" +
 		"\n3. 产品资料：产品资料分组中的图片和 PDF 用于确认产品事实、规格、卖点和章节内容。PDF 中没有明确写出的参数、功效、认证、材质或宣传结论不得编造。PDF 内嵌图片可以作为版式、配色、构图、产品外观和细节的视觉参考；先分析并把需要借鉴的视觉特征准确写入最终 prompt，但 PDF 文件本身不能作为图片模型的 reference_asset_ids，只有候选图片 asset_id 可以加入该字段。" +
 		"\n4. 参考图：参考图分组只用于借鉴版式、氛围、配色、光影和信息层级，不得用参考图中的其他产品替换、混合或改变当前产品。reference_asset_ids 只选择实际需要发送给图片模型的候选图片。" +
@@ -668,7 +672,7 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 		"\n6. 画布：" + ratioInstruction + " " + resolutionInstruction +
 		"\n7. 章节与数量：" + countInstruction +
 		"\n8. 文案、字号与合规：只使用用户描述和产品资料中可验证的信息。需要画面文字时保持简洁并建立清楚的标题、卖点和正文层级；以约 850px 宽的淘宝详情内容区为排版基准控制文字大小、行长、行距和留白，同时检查缩放到移动端后的可读性以及 PC 端展示的协调性。文字不能过大而挤压产品画面，也不能过小、过密或贴近边缘；不得使用虚构数据、绝对化承诺或无依据卖点。" +
-		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；prompt 必须明确列出各章节的主题、画面主体、构图、背景、光线、允许出现的文案以及所有章节共同遵守的产品保真约束。"
+		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；chapter_prompts 必须包含与 count 数量完全一致的逐章提示词。每个 chapter_prompts 元素只描述对应的一个章节，并独立写全该章节的主题、画面主体、构图、背景、光线、允许出现的文案和产品保真约束；严禁在任一元素中列出、概括或要求生成其他章节。prompt 仅用于记录整套详情图的总体规划，不会直接用于逐章生图。"
 }
 
 func (s *Server) chatResponsesInput(userID string, history []store.ChatMessage) ([]map[string]any, error) {
@@ -725,7 +729,7 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	for key, value := range generation {
 		copyGeneration[key] = value
 	}
-	for source, target := range map[string]string{"prompt": "promptText", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
+	for source, target := range map[string]string{"prompt": "promptText", "chapter_prompts": "chapterPrompts", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
 		if value, ok := arguments[source]; ok {
 			copyGeneration[target] = value
 		}
@@ -742,6 +746,23 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	}
 	result["imageGeneration"] = copyGeneration
 	return result
+}
+
+func detailImagePrompts(generation map[string]any, fallback string, count int) ([]string, error) {
+	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+		return []string{fallback}, nil
+	}
+	prompts := stringSlice(generation["chapterPrompts"])
+	if len(prompts) != count {
+		return nil, fmt.Errorf("详情图章节提示词数量为 %d，与生成图片数量 %d 不一致，请重新生成章节规划", len(prompts), count)
+	}
+	for index, prompt := range prompts {
+		if strings.TrimSpace(prompt) == "" {
+			return nil, fmt.Errorf("详情图第 %d 个章节提示词为空，请重新生成章节规划", index+1)
+		}
+		prompts[index] = strings.TrimSpace(prompt)
+	}
+	return prompts, nil
 }
 
 func isImageGenerationRequest(input chatRequest) bool {
@@ -1195,7 +1216,13 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 		"parameters": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"prompt":       map[string]any{"type": "string", "description": "最终图片生成提示词"},
+				"prompt": map[string]any{"type": "string", "description": "整套图片的总体规划或普通模式的最终图片提示词"},
+				"chapter_prompts": map[string]any{
+					"type":        "array",
+					"description": "详情图模式专用：与 count 一一对应的逐章独立提示词，每项只能描述一张图的一个章节；其他模式返回空数组",
+					"items":       map[string]any{"type": "string"},
+					"maxItems":    12,
+				},
 				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 12, "description": "生成图片数量；工作台未指定数量时根据用户需求自动选择"},
 				"size":         map[string]any{"type": "string"},
 				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
@@ -1212,7 +1239,7 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"description": "仅当必须查看候选图片的视觉内容才能决定参考图时返回 true；可根据结构化位置或文件名决定时返回 false",
 				},
 			},
-			"required": []string{"prompt", "count", "reference_asset_ids", "inspect_reference_images"},
+			"required": []string{"prompt", "chapter_prompts", "count", "reference_asset_ids", "inspect_reference_images"},
 		},
 	}
 }

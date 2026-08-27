@@ -21,13 +21,14 @@ import './UserModelSettingsPage.scss';
 type PersonalModelType = 'llm' | 'image';
 type UserModelForm = ModelConfig & {
   supportsCustomResolution?: boolean;
+  maxConcurrency?: number;
 };
 
 function emptyModel(type: PersonalModelType, provider?: ImageModelProviderOption): UserModelForm {
   if (type === 'image') {
     return {
       type, name: '', provider: provider?.id || '', model: provider?.defaultModel || '', apiKey: '',
-      baseUrl: provider?.defaultBaseUrl || '', temperature: 0.7, isDefault: false, supportsCustomResolution: false,
+      baseUrl: provider?.defaultBaseUrl || '', temperature: 0.7, isDefault: false, supportsCustomResolution: false, maxConcurrency: 3,
     };
   }
   return {
@@ -73,7 +74,13 @@ export function UserModelSettingsPage() {
   function openEditModal(model: ModelConfig) {
     const generation = model.settings?.imageGeneration as Record<string, unknown> | undefined;
     setEditing(model);
-    form.setFieldsValue({ ...model, apiKey: '', supportsCustomResolution: generation?.supportsCustomResolution === true });
+    const maxConcurrency = Number(generation?.maxConcurrency);
+    form.setFieldsValue({
+      ...model,
+      apiKey: '',
+      supportsCustomResolution: generation?.supportsCustomResolution === true,
+      maxConcurrency: Number.isInteger(maxConcurrency) && maxConcurrency >= 1 && maxConcurrency <= 12 ? maxConcurrency : 3,
+    });
     setModalOpen(true);
   }
 
@@ -89,7 +96,7 @@ export function UserModelSettingsPage() {
       id: editing?.id,
       type: activeType,
       settings: activeType === 'image'
-        ? { imageGeneration: { supportsCustomResolution: Boolean(values.supportsCustomResolution) } }
+        ? { imageGeneration: { supportsCustomResolution: Boolean(values.supportsCustomResolution), maxConcurrency: values.maxConcurrency ?? 3 } }
         : {},
     };
     setSaving(true);
@@ -221,7 +228,17 @@ export function UserModelSettingsPage() {
                 <InputNumber max={2} min={0} precision={2} step={0.1} style={{ width: '100%' }} />
               </Form.Item>
             ) : (
-              <Form.Item name="supportsCustomResolution" valuePropName="checked"><Checkbox>{t("支持自定义分辨率")}</Checkbox></Form.Item>
+              <>
+                <Form.Item name="supportsCustomResolution" valuePropName="checked"><Checkbox>{t("支持自定义分辨率")}</Checkbox></Form.Item>
+                <Form.Item
+                  extra={t("同时生成的图片任务数，范围 1 到 12。")}
+                  label={t("最大并发数量")}
+                  name="maxConcurrency"
+                  rules={[{ required: true, message: t("请输入图片生成并发数量") }]}
+                >
+                  <InputNumber controls={false} min={1} max={12} precision={0} style={{ width: '100%' }} />
+                </Form.Item>
+              </>
             )}
             <Form.Item name="isDefault" valuePropName="checked"><Checkbox>{t("设为我的默认模型")}</Checkbox></Form.Item>
           </div>

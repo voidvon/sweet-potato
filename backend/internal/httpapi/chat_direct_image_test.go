@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"sweet-potato-go/internal/config"
 	"sweet-potato-go/internal/imagegen"
@@ -163,5 +164,68 @@ func TestGenerateImageAssetsWithProgressPreservesCompletedImagesOnLaterFailure(t
 	}
 	if _, found, findErr := server.store.FindContentAsset(assets[0].ID); findErr != nil || !found {
 		t.Fatalf("completed asset was not preserved: found=%v err=%v", found, findErr)
+	}
+}
+
+func TestGenerateImageAssetsForPromptsHonorsModelConcurrency(t *testing.T) {
+	var active atomic.Int32
+	var peak atomic.Int32
+	imageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		for current > peak.Load() && !peak.CompareAndSwap(peak.Load(), current) {
+		}
+		time.Sleep(40 * time.Millisecond)
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated-image"))},
+		}})
+	}))
+	defer imageServer.Close()
+
+	server, err := New(config.Config{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("concurrent-image-user", "password123", "Concurrent Image User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	model := store.ModelConfig{
+		ID:       "concurrent-image-model",
+		Type:     "image",
+		Provider: "openai-images",
+		Model:    "gpt-image-2",
+		APIKey:   "test-key",
+		BaseURL:  imageServer.URL + "/v1",
+		Settings: map[string]any{"imageGeneration": map[string]any{"maxConcurrency": 2}},
+	}
+	prompts := []string{"chapter-1", "chapter-2", "chapter-3", "chapter-4"}
+	assets, generateErr := server.generateImageAssetsForPromptsContextWithProgress(
+		t.Context(), user.ID, model, prompts, len(prompts), nil, imagegen.GenerateInput{}, "detail", "详情图生成", nil, nil,
+	)
+	if generateErr != nil {
+		t.Fatalf("generate images: %v", generateErr)
+	}
+	if len(assets) != len(prompts) {
+		t.Fatalf("asset count = %d, want %d", len(assets), len(prompts))
+	}
+	if got := peak.Load(); got != 2 {
+		t.Fatalf("peak concurrency = %d, want 2", got)
+	}
+	for index, asset := range assets {
+		if got := stringValue(asset.Metadata, "prompt"); got != prompts[index] {
+			t.Fatalf("asset %d prompt = %q, want %q", index, got, prompts[index])
+		}
+	}
+}
+
+func TestImageModelMaxConcurrencyDefaultsToThree(t *testing.T) {
+	if got := imageModelMaxConcurrency(store.ModelConfig{}); got != 3 {
+		t.Fatalf("default concurrency = %d, want 3", got)
+	}
+	if got := imageModelMaxConcurrency(store.ModelConfig{Settings: map[string]any{"imageGeneration": map[string]any{"maxConcurrency": 5}}}); got != 5 {
+		t.Fatalf("configured concurrency = %d, want 5", got)
 	}
 }

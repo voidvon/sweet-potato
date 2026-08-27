@@ -111,9 +111,15 @@ function imageGenerationSupportsCustomResolutionOf(record: ModelConfig | null) {
   return imageGenerationSettingsOf(record).supportsCustomResolution === true;
 }
 
+function imageGenerationMaxConcurrencyOf(record: ModelConfig | null) {
+  const value = toNumericValue(imageGenerationSettingsOf(record).maxConcurrency, 3);
+  return Number.isInteger(value) && value >= 1 && value <= 12 ? value : 3;
+}
+
 export function imageGenerationSummary(record: ModelConfig) {
   const items = [
     imageGenerationSupportsCustomResolutionOf(record) ? t("支持自定义分辨率") : t("固定分辨率"),
+    t("最大并发数量：{{0}}", { "0": imageGenerationMaxConcurrencyOf(record) }),
   ].filter(Boolean);
   return items.join('，') || t("默认参数");
 }
@@ -172,6 +178,7 @@ export function normalizedSettingsForForm(record: ModelConfig | null, activeType
         imageGeneration: {
           ...imageGenerationSettingsOf(record),
           supportsCustomResolution: imageGenerationSupportsCustomResolutionOf(record),
+          maxConcurrency: imageGenerationMaxConcurrencyOf(record),
         },
       }
       : {}),

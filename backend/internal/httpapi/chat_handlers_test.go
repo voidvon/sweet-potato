@@ -199,6 +199,37 @@ func TestApplyImageToolArgumentsPreservesSelectedOutputCount(t *testing.T) {
 	if got := int(numberValue(objectValue(autoResult["imageGeneration"])["outputCount"], 0)); got != 6 {
 		t.Fatalf("automatic output count = %d, want tool count 6", got)
 	}
+	chapterPrompts := []any{"章节一", "章节二"}
+	detailResult := applyImageToolArguments(
+		map[string]any{"imageGeneration": map[string]any{"modeKey": "detail"}},
+		map[string]any{"count": 2, "chapter_prompts": chapterPrompts},
+	)
+	storedPrompts := objectValue(detailResult["imageGeneration"])["chapterPrompts"].([]any)
+	if len(storedPrompts) != 2 || storedPrompts[1] != "章节二" {
+		t.Fatalf("chapter prompts = %#v", storedPrompts)
+	}
+}
+
+func TestDetailImagePromptsRequiresOnePromptPerImage(t *testing.T) {
+	generation := map[string]any{
+		"modeKey":        "detail",
+		"chapterPrompts": []any{" 产品全景 ", "材质细节"},
+	}
+	prompts, err := detailImagePrompts(generation, "总体规划", 2)
+	if err != nil {
+		t.Fatalf("detail prompts: %v", err)
+	}
+	if len(prompts) != 2 || prompts[0] != "产品全景" || prompts[1] != "材质细节" {
+		t.Fatalf("detail prompts = %#v", prompts)
+	}
+	if _, err := detailImagePrompts(generation, "总体规划", 3); err == nil || !strings.Contains(err.Error(), "数量") {
+		t.Fatalf("mismatched detail prompts error = %v", err)
+	}
+
+	normalPrompts, err := detailImagePrompts(map[string]any{"modeKey": "dialog"}, "普通提示词", 3)
+	if err != nil || len(normalPrompts) != 1 || normalPrompts[0] != "普通提示词" {
+		t.Fatalf("normal prompts = %#v, err = %v", normalPrompts, err)
+	}
 }
 
 func TestImageGenerationResultContextRecordsResolvedInputAndReferences(t *testing.T) {
@@ -270,7 +301,7 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 			"outputCount": 6,
 		},
 	})
-	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF 内嵌图片可以", "850px", "移动端", "不得猜测"} {
+	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF 内嵌图片可以", "850px", "移动端", "不得猜测", "chapter_prompts", "严禁在任一元素中列出"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("detail prompt missing %q: %s", want, prompt)
 		}
