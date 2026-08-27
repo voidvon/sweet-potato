@@ -995,7 +995,7 @@ export function ClawDialogComposer({
                 trigger={['click']}
               >
                 <Button className="claw-option-button" icon={<List size={12} />}>
-                  {selectedOutputCount === 0 ? t("自动") : `${selectedOutputCount} ${t("张")}`}
+                  {selectedOutputCount === 0 ? t("自动") : t("{{0}} 张", { "0": selectedOutputCount })}
                   <ChevronDown size={11} />
                 </Button>
               </Dropdown>

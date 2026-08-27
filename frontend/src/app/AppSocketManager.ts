@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@shared/api/core/request';
+import { t } from '@shared/i18n';
 
 type MessageHandler = (message: Record<string, unknown>) => void;
 
@@ -30,7 +31,7 @@ class AppSocketManager {
       socket.onmessage = (event) => {
         try { const value = JSON.parse(event.data) as Record<string, unknown>; this.handlers.forEach((handler) => handler(value)); } catch { /* ignore malformed events */ }
       };
-      socket.onerror = () => { this.connecting = undefined; reject(new Error('应用 WebSocket 连接失败')); };
+      socket.onerror = () => { this.connecting = undefined; reject(new Error(t('应用 WebSocket 连接失败'))); };
       socket.onclose = () => {
         if (this.socket === socket) this.socket = undefined;
         this.handlers.forEach((handler) => handler({ method: 'app/disconnected', params: {} }));
