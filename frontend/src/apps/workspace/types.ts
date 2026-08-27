@@ -165,6 +165,7 @@ export type SendChatPayload = {
       inputPrompt?: string;
       resolvedPrompt?: string;
       chapterPrompts?: string[];
+      chapterReferenceAssetIds?: string[][];
       referenceAttachments?: ChatAttachment[];
       referenceAssetIds?: string[];
       referenceCount?: number;

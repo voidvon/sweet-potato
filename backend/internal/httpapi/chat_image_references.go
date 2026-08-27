@@ -20,6 +20,8 @@ type imageReferenceCandidate struct {
 	AttachmentPosition int
 	SelectedPosition   int
 	ThumbnailDataURL   string
+	PDFPage            int
+	PDFSourceName      string
 }
 
 func (s *Server) imageReferenceCandidates(userID string, history []store.ChatMessage, limit int) ([]imageReferenceCandidate, error) {
@@ -139,6 +141,11 @@ func appendImageReferenceCandidates(messages []map[string]any, candidates []imag
 			candidate.AttachmentPosition,
 			candidate.Asset.OriginalFileName,
 		)
+		if candidate.PDFPage > 0 {
+			label += fmt.Sprintf("; source_type=pdf_page; source_pdf=%s; pdf_page=%d; dpi=%d", candidate.PDFSourceName, candidate.PDFPage, pdfPageDPI)
+		} else {
+			label += "; source_type=product_photo; 实拍照片是唯一实体产品事实来源"
+		}
 		if candidate.SelectedPosition > 0 {
 			label += fmt.Sprintf("; selected_reference_position=%d", candidate.SelectedPosition)
 		}

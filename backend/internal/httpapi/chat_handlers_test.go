@@ -200,13 +200,18 @@ func TestApplyImageToolArgumentsPreservesSelectedOutputCount(t *testing.T) {
 		t.Fatalf("automatic output count = %d, want tool count 6", got)
 	}
 	chapterPrompts := []any{"章节一", "章节二"}
+	chapterReferenceIDs := []any{[]any{"asset-1"}, []any{"asset-2", "asset-1"}}
 	detailResult := applyImageToolArguments(
 		map[string]any{"imageGeneration": map[string]any{"modeKey": "detail"}},
-		map[string]any{"count": 2, "chapter_prompts": chapterPrompts},
+		map[string]any{"count": 2, "chapter_prompts": chapterPrompts, "chapter_reference_asset_ids": chapterReferenceIDs},
 	)
 	storedPrompts := objectValue(detailResult["imageGeneration"])["chapterPrompts"].([]any)
 	if len(storedPrompts) != 2 || storedPrompts[1] != "章节二" {
 		t.Fatalf("chapter prompts = %#v", storedPrompts)
+	}
+	storedReferenceIDs := nestedStringSlices(objectValue(detailResult["imageGeneration"])["chapterReferenceAssetIds"])
+	if len(storedReferenceIDs) != 2 || len(storedReferenceIDs[1]) != 2 || storedReferenceIDs[1][0] != "asset-2" {
+		t.Fatalf("chapter reference IDs = %#v", storedReferenceIDs)
 	}
 }
 
@@ -229,6 +234,27 @@ func TestDetailImagePromptsRequiresOnePromptPerImage(t *testing.T) {
 	normalPrompts, err := detailImagePrompts(map[string]any{"modeKey": "dialog"}, "普通提示词", 3)
 	if err != nil || len(normalPrompts) != 1 || normalPrompts[0] != "普通提示词" {
 		t.Fatalf("normal prompts = %#v, err = %v", normalPrompts, err)
+	}
+}
+
+func TestDetailImageReferenceSetsPreservePerChapterPrimaryOrder(t *testing.T) {
+	assets := []store.ContentAsset{{ID: "asset-1"}, {ID: "asset-2"}, {ID: "asset-3"}}
+	generation := map[string]any{
+		"modeKey": "detail",
+		"chapterReferenceAssetIds": []any{
+			[]any{"asset-2", "asset-1"},
+			[]any{"asset-3"},
+		},
+	}
+	sets, err := detailImageReferenceSets(generation, 2, assets)
+	if err != nil {
+		t.Fatalf("detail reference sets: %v", err)
+	}
+	if len(sets) != 2 || len(sets[0]) != 2 || sets[0][0].ID != "asset-2" || sets[1][0].ID != "asset-3" {
+		t.Fatalf("detail reference sets = %#v", sets)
+	}
+	if _, err := detailImageReferenceSets(generation, 3, assets); err == nil || !strings.Contains(err.Error(), "数量") {
+		t.Fatalf("mismatched reference sets error = %v", err)
 	}
 }
 
@@ -317,7 +343,7 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 			"outputCount": 6,
 		},
 	})
-	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF 内嵌图片可以", "850px", "移动端", "不得猜测", "chapter_prompts", "严禁在任一元素中列出"} {
+	for _, want := range []string{"淘宝宝贝详情图生成", "严格保持该比例", "16:9", "4K", "生成 6 张", "PDF", "850px", "移动端", "不得猜测", "chapter_prompts", "chapter_reference_asset_ids", "插图方案", "实拍照片是唯一的实体产品事实来源", "允许某章完全不携带实拍产品图", "禁止幻想新的角度、铭牌"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("detail prompt missing %q: %s", want, prompt)
 		}

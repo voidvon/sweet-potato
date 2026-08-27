@@ -85,6 +85,8 @@ GO_SERVER_ADDR=127.0.0.1:7072 \
 
 ### 构建并运行
 
+详情图需要使用 PDF 产品资料时，请先安装 Poppler，并确保 `pdftocairo` 位于 `PATH` 中。macOS 可运行 `brew install poppler`；也可通过 `PDFTOCAIRO_PATH` 指定可执行文件的绝对路径。
+
 ```bash
 git clone https://github.com/voidvon/sweet-potato.git
 cd sweet-potato

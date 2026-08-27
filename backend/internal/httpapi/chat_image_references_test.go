@@ -111,7 +111,7 @@ func TestImageGenerationToolRestrictsReferenceIDsToCandidates(t *testing.T) {
 		t.Fatalf("reference enum = %#v", enum)
 	}
 	required := parameters["required"].([]string)
-	if len(required) != 5 || required[1] != "chapter_prompts" || required[2] != "count" || required[3] != "reference_asset_ids" || required[4] != "inspect_reference_images" {
+	if len(required) != 6 || required[1] != "chapter_prompts" || required[2] != "chapter_reference_asset_ids" || required[3] != "count" || required[4] != "reference_asset_ids" || required[5] != "inspect_reference_images" {
 		t.Fatalf("required = %#v", required)
 	}
 }

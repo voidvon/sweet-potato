@@ -98,8 +98,16 @@ func (s *Server) generateImageAssetsContext(ctx context.Context, userID string, 
 }
 
 func (s *Server) generateImageAssetsForPromptsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompts []string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
+	referenceSets := make([][]store.ContentAsset, len(prompts))
+	for index := range referenceSets {
+		referenceSets[index] = references
+	}
+	return s.generateImageAssetsForPromptPlansContextWithProgress(ctx, userID, model, prompts, referenceSets, count, options, mode, title, parentAssetID, onAsset)
+}
+
+func (s *Server) generateImageAssetsForPromptPlansContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompts []string, referenceSets [][]store.ContentAsset, count int, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
 	if len(prompts) == 1 {
-		return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[0], count, references, options, mode, title, parentAssetID, onAsset)
+		return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[0], count, imageReferencesForSlot(referenceSets, 0), options, mode, title, parentAssetID, onAsset)
 	}
 	if _, err := s.ensureContentGroup(userID, "finished_video"); err != nil {
 		return nil, fmt.Errorf("创建图片作品分组失败: %w", err)
@@ -119,7 +127,7 @@ func (s *Server) generateImageAssetsForPromptsContextWithProgress(ctx context.Co
 		go func() {
 			defer workers.Done()
 			for slotIndex := range jobs {
-				generated, err := s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[slotIndex], 1, references, options, mode, title, parentAssetID, func(asset store.ContentAsset, _ int) {
+				generated, err := s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[slotIndex], 1, imageReferencesForSlot(referenceSets, slotIndex), options, mode, title, parentAssetID, func(asset store.ContentAsset, _ int) {
 					if onAsset != nil {
 						callbackMu.Lock()
 						onAsset(asset, slotIndex)
@@ -145,6 +153,16 @@ func (s *Server) generateImageAssetsForPromptsContextWithProgress(ctx context.Co
 		}
 	}
 	return assets, firstErr
+}
+
+func imageReferencesForSlot(referenceSets [][]store.ContentAsset, slotIndex int) []store.ContentAsset {
+	if len(referenceSets) == 0 {
+		return nil
+	}
+	if len(referenceSets) == 1 || slotIndex < 0 || slotIndex >= len(referenceSets) {
+		return referenceSets[0]
+	}
+	return referenceSets[slotIndex]
 }
 
 func imageModelMaxConcurrency(model store.ModelConfig) int {

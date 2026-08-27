@@ -84,6 +84,9 @@ GO_SERVER_ADDR=127.0.0.1:7072 \
 - Go 1.25 or newer
 - Node.js 20 or newer and npm
 - A POSIX shell for the Makefile targets
+- Poppler (`pdftocairo`) for converting PDF product pages into 200 DPI image references
+
+Install Poppler with `brew install poppler` on macOS, or set `PDFTOCAIRO_PATH` to the absolute `pdftocairo` executable path.
 
 ### Build and run
 

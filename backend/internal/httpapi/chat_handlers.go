@@ -392,6 +392,10 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 				return nil, referenceErr
 			}
 		}
+		chapterReferences, chapterReferenceErr := detailImageReferenceSets(generation, count, references)
+		if chapterReferenceErr != nil {
+			return nil, chapterReferenceErr
+		}
 		mode := valueOr(stringValue(generation, "modeKey"), "image_generation")
 		title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
 		assistantCapabilityContext = imageGenerationResultContext(generation, content, prompt, references)
@@ -402,9 +406,9 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 			"expectedCount":     count,
 			"capabilityContext": assistantCapabilityContext,
 		})
-		assets, generateErr := s.generateImageAssetsForPromptsContextWithProgress(ctx, user.ID, imageModel, chapterPrompts, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
+		assets, generateErr := s.generateImageAssetsForPromptPlansContextWithProgress(ctx, user.ID, imageModel, chapterPrompts, chapterReferences, count, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
 			generatedSlotByAssetID[asset.ID] = slotIndex
-			attachment := chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), references)
+			attachment := chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), imageReferencesForSlot(chapterReferences, slotIndex))
 			emitChatTurnEvent(ctx, "item/imageGeneration/output", map[string]any{
 				"messageId":  assistantMessage.ID,
 				"slotIndex":  slotIndex,
@@ -419,7 +423,7 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 			if !ok {
 				slotIndex = index
 			}
-			assistantAttachments = append(assistantAttachments, chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), references))
+			assistantAttachments = append(assistantAttachments, chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), imageReferencesForSlot(chapterReferences, slotIndex)))
 		}
 		if generateErr != nil {
 			failureCount := max(1, count-len(assets))
@@ -569,6 +573,13 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID, sourceID str
 	if err != nil {
 		return imageGenerationDecision{}, err
 	}
+	if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {
+		pdfCandidates, pdfErr := s.pdfPageReferenceCandidates(ctx, userID, history)
+		if pdfErr != nil {
+			return imageGenerationDecision{}, pdfErr
+		}
+		candidates = append(candidates, pdfCandidates...)
+	}
 	decision, err := s.callImageGenerationDecision(ctx, userID, sourceID, model, agent, messages, candidates, contextValue, false)
 	if err != nil {
 		return imageGenerationDecision{}, err
@@ -605,7 +616,11 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
 	systemPrompt += detailImageGenerationSystemPrompt(contextValue)
 	if includePreviews {
-		systemPrompt += "候选图片的低清预览已提供，请直接完成选择，inspect_reference_images 返回 false。最终 prompt 必须与 reference_asset_ids 严格一致：不得沿用历史对话中的附件编号。只选一张时，统一称为“提供的参考图片”，不使用图1、图2或第几张。选中多张时，可按 selected_reference_position 使用“参考图1”至“参考图N”，该位置就是实际发送顺序。对未选图片的排除要求，必须改写为具体可见的构图、造型、色彩或元素特征，不得引用其历史编号。"
+		if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {
+			systemPrompt += "候选图片的低清预览已提供，请直接完成逐章插图规划，inspect_reference_images 返回 false。每个 chapter_prompts 只能按对应 chapter_reference_asset_ids 子数组的顺序称呼参考图：子数组第一项就是本章的“参考图1”和主参考图，第二项才是本章的“参考图2”；不得沿用候选列表、历史附件或全局 reference_asset_ids 的位置编号。对本章未选图片的排除要求必须改写成具体可见特征，不得引用其编号。"
+		} else {
+			systemPrompt += "候选图片的低清预览已提供，请直接完成选择，inspect_reference_images 返回 false。最终 prompt 必须与 reference_asset_ids 严格一致：不得沿用历史对话中的附件编号。只选一张时，统一称为“提供的参考图片”，不使用图1、图2或第几张。选中多张时，可按 selected_reference_position 使用“参考图1”至“参考图N”，该位置就是实际发送顺序。对未选图片的排除要求，必须改写为具体可见的构图、造型、色彩或元素特征，不得引用其历史编号。"
+		}
 	}
 	systemPrompt += "\n当前工作台上下文：" + string(contextJSON)
 	messages = append([]map[string]any{{"role": "system", "content": systemPrompt}}, messages...)
@@ -627,6 +642,10 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		if rawIDs, ok := arguments["reference_asset_ids"]; ok {
 			decision.HasReferenceSelection = true
 			decision.ReferenceAssets = selectedImageReferenceAssets(candidates, stringSlice(rawIDs))
+		}
+		if rawChapterIDs, ok := arguments["chapter_reference_asset_ids"]; ok {
+			decision.HasReferenceSelection = true
+			decision.ReferenceAssets = selectedImageReferenceAssets(candidates, flattenStringSlices(rawChapterIDs))
 		}
 		decision.NeedsReferenceVision = boolValue(arguments["inspect_reference_images"]) && !includePreviews
 		break
@@ -671,13 +690,13 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 	return "\n你正在执行【淘宝宝贝详情图生成】，必须遵循以下专属规则：" +
 		"\n1. 任务目标：根据用户描述和附件，为同一个产品制作淘宝宝贝详情介绍图片。先提炼真实、必要的章节主题；每张图只承担一个清晰章节，章节之间内容互补、视觉风格统一。" +
 		"\n2. 产品保真：产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与原图一致。只允许为展示效果轻微调整视角、光线和构图；原图或资料中不可见、不确定的结构与细节不得猜测、补造或改动。" +
-		"\n3. 产品资料：产品资料分组中的图片和 PDF 用于确认产品事实、规格、卖点和章节内容。PDF 中没有明确写出的参数、功效、认证、材质或宣传结论不得编造。PDF 内嵌图片可以作为版式、配色、构图、产品外观和细节的视觉参考；先分析并把需要借鉴的视觉特征准确写入最终 prompt，但 PDF 文件本身不能作为图片模型的 reference_asset_ids，只有候选图片 asset_id 可以加入该字段。" +
-		"\n4. 参考图：参考图分组只用于借鉴版式、氛围、配色、光影和信息层级，不得用参考图中的其他产品替换、混合或改变当前产品。reference_asset_ids 只选择实际需要发送给图片模型的候选图片。" +
+		"\n3. 产品资料与实体保真：产品实拍照片是唯一的实体产品事实来源。实拍照片决定产品是否有铭牌、Logo、铸字、孔位、接口、颜色、结构和每个视角可见的细节；若某张实拍照片看不到铭牌，不能从另一张照片把铭牌合并到该视角，也不能把一张照片中的局部贴到另一张照片上。不同实拍照片只可作为不同视角或补充局部，必须保持各自可见范围，不得跨照片拼接出不存在的视角。PDF 页面图片不是实体产品照片，只能用于结构线稿、尺寸图、曲线、表格、版式和已标注的技术图示。PDF 中没有明确写出的参数、功效、认证、材质或宣传结论不得编造。" +
+		"\n4. 插图与参考图规划：系统已把 PDF 各页转换为带 source_type=pdf_page、pdf_page 和 dpi 标记的 200 DPI 高清图片候选。先为每章规划主插图、辅助插图、产品角度、裁切范围和版式角色，再写 chapter_prompts。每个 chapter_prompts 必须以“插图方案”开头，明确本章需要的实拍主图（如果需要）、可选的实拍辅助图、PDF 页面图（如果需要）以及各自只承担的作用。chapter_reference_asset_ids 必须与 count 一一对应；每个子数组只放该章实际需要发送的图片 asset_id，主实拍图排第一，辅助实拍图和 PDF 图随后。允许某章完全不携带实拍产品图：纯文字、参数表、PDF 结构图、PDF 曲线图或 PDF 尺寸图章节可以只使用 PDF 页面图，甚至不使用任何图片。不存在可靠实体依据时，必须改做文字/表格/技术图示版式，禁止幻想新的角度、铭牌、接口或结构。" +
 		"\n5. 背景：" + backgroundInstruction +
 		"\n6. 画布：" + ratioInstruction + " " + resolutionInstruction +
 		"\n7. 章节与数量：" + countInstruction +
 		"\n8. 文案、字号与合规：只使用用户描述和产品资料中可验证的信息。需要画面文字时保持简洁并建立清楚的标题、卖点和正文层级；以约 850px 宽的淘宝详情内容区为排版基准控制文字大小、行长、行距和留白，同时检查缩放到移动端后的可读性以及 PC 端展示的协调性。文字不能过大而挤压产品画面，也不能过小、过密或贴近边缘；不得使用虚构数据、绝对化承诺或无依据卖点。" +
-		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；chapter_prompts 必须包含与 count 数量完全一致的逐章提示词。每个 chapter_prompts 元素只描述对应的一个章节，并独立写全该章节的主题、画面主体、构图、背景、光线、允许出现的文案和产品保真约束；严禁在任一元素中列出、概括或要求生成其他章节。prompt 仅用于记录整套详情图的总体规划，不会直接用于逐章生图。"
+		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；chapter_prompts 和 chapter_reference_asset_ids 必须都与 count 数量完全一致。每个 chapter_prompts 元素只描述对应的一个章节，并独立写全插图方案、参考图角色、主题、画面主体、构图、背景、光线、允许出现的文案和产品保真约束；严禁在任一元素中列出、概括或要求生成其他章节。prompt 仅用于记录整套详情图的总体规划，不会直接用于逐章生图。"
 }
 
 func (s *Server) chatResponsesInput(userID string, history []store.ChatMessage) ([]map[string]any, error) {
@@ -734,7 +753,7 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	for key, value := range generation {
 		copyGeneration[key] = value
 	}
-	for source, target := range map[string]string{"prompt": "promptText", "chapter_prompts": "chapterPrompts", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
+	for source, target := range map[string]string{"prompt": "promptText", "chapter_prompts": "chapterPrompts", "chapter_reference_asset_ids": "chapterReferenceAssetIds", "size": "outputSize", "resolution": "resolution", "background": "outputBackground"} {
 		if value, ok := arguments[source]; ok {
 			copyGeneration[target] = value
 		}
@@ -770,6 +789,59 @@ func detailImagePrompts(generation map[string]any, fallback string, count int) (
 	return prompts, nil
 }
 
+func detailImageReferenceSets(generation map[string]any, count int, selected []store.ContentAsset) ([][]store.ContentAsset, error) {
+	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+		return [][]store.ContentAsset{selected}, nil
+	}
+	chapterIDs := nestedStringSlices(generation["chapterReferenceAssetIds"])
+	if len(chapterIDs) != count {
+		return nil, fmt.Errorf("详情图章节参考图规划数量为 %d，与生成图片数量 %d 不一致，请重新生成插图规划", len(chapterIDs), count)
+	}
+	selectedByID := make(map[string]store.ContentAsset, len(selected))
+	for _, asset := range selected {
+		selectedByID[asset.ID] = asset
+	}
+	result := make([][]store.ContentAsset, len(chapterIDs))
+	for slotIndex, ids := range chapterIDs {
+		seen := map[string]bool{}
+		for _, rawID := range ids {
+			id := strings.TrimPrefix(strings.TrimSpace(rawID), "chat-attachment-")
+			asset, ok := selectedByID[id]
+			if !ok {
+				return nil, fmt.Errorf("详情图第 %d 章引用了不可用的参考图片 %q", slotIndex+1, rawID)
+			}
+			if !seen[id] {
+				result[slotIndex] = append(result[slotIndex], asset)
+				seen[id] = true
+			}
+		}
+	}
+	return result, nil
+}
+
+func nestedStringSlices(value any) [][]string {
+	values, ok := value.([]any)
+	if !ok {
+		if typed, typedOK := value.([][]string); typedOK {
+			return typed
+		}
+		return nil
+	}
+	result := make([][]string, 0, len(values))
+	for _, item := range values {
+		result = append(result, stringSlice(item))
+	}
+	return result
+}
+
+func flattenStringSlices(value any) []string {
+	result := []string{}
+	for _, values := range nestedStringSlices(value) {
+		result = append(result, values...)
+	}
+	return result
+}
+
 func detailImageModelCommonPrompt(generation map[string]any) string {
 	ratio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
 	if ratio == "" || strings.EqualFold(ratio, "auto") {
@@ -783,7 +855,7 @@ func detailImageModelCommonPrompt(generation map[string]any) string {
 	if resolution == "" {
 		resolution = "当前模型默认清晰度"
 	}
-	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；画布严格使用%s，输出规格为%s，背景要求：%s。产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与提供的产品参考图一致，只允许调整视角、光线和构图；不得替换成其他产品，不得混入法兰、大口径或小口径版本，不得猜测或补造参考图和资料中不可见的结构。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", ratio, resolution, background)
+	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；画布严格使用%s，输出规格为%s，背景要求：%s。只有标记为实拍照片的参考图才能作为实体产品事实来源；产品轮廓、结构、比例、颜色、材质、Logo、铭牌、铸字、接口和可见细节必须严格以本章提供的实拍照片为准。某个实拍视角看不到的细节不得从其他视角拼接、覆盖或补到当前视角上，尤其不得凭空添加铭牌、Logo、孔位或侧视结构。标记为 PDF 页面图片的参考图只能用于重现其中可见的结构线稿、尺寸图、曲线、表格、文字和版式，不得把 PDF 线稿当作实体照片，也不得让它改变实拍产品外观。本章如果没有实拍图，只能生成文字、表格或 PDF 技术图示版式，不得幻想产品视角。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", ratio, resolution, background)
 }
 
 func isImageGenerationRequest(input chatRequest) bool {
@@ -1244,6 +1316,16 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"items":       map[string]any{"type": "string"},
 					"maxItems":    12,
 				},
+				"chapter_reference_asset_ids": map[string]any{
+					"type":        "array",
+					"description": "详情图模式专用：与 count 一一对应的逐章参考图 ID 数组；每章主参考图排第一，只放该章实际需要的图片；其他模式返回空数组",
+					"items": map[string]any{
+						"type":     "array",
+						"items":    referenceItems,
+						"maxItems": 8,
+					},
+					"maxItems": 12,
+				},
 				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 12, "description": "生成图片数量；工作台未指定数量时根据用户需求自动选择"},
 				"size":         map[string]any{"type": "string"},
 				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
@@ -1260,7 +1342,7 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"description": "仅当必须查看候选图片的视觉内容才能决定参考图时返回 true；可根据结构化位置或文件名决定时返回 false",
 				},
 			},
-			"required": []string{"prompt", "chapter_prompts", "count", "reference_asset_ids", "inspect_reference_images"},
+			"required": []string{"prompt", "chapter_prompts", "chapter_reference_asset_ids", "count", "reference_asset_ids", "inspect_reference_images"},
 		},
 	}
 }
