@@ -251,6 +251,28 @@ func imageGenerationResultContext(generation map[string]any, inputPrompt, resolv
 	return map[string]any{"imageGeneration": result}
 }
 
+func chatGeneratedImageAttachmentPayload(asset store.ContentAsset, slotIndex int, prompt string, references []store.ContentAsset) map[string]any {
+	payload := chatAttachmentPayload(asset)
+	referenceAttachments := make([]any, 0, len(references))
+	for _, reference := range references {
+		referenceAttachments = append(referenceAttachments, chatAttachmentPayload(reference))
+	}
+	payload["imageGenerationSlotIndex"] = slotIndex
+	payload["imageGenerationPrompt"] = strings.TrimSpace(prompt)
+	payload["imageGenerationReferenceAttachments"] = referenceAttachments
+	return payload
+}
+
+func imagePromptForSlot(prompts []string, slotIndex int) string {
+	if len(prompts) == 0 {
+		return ""
+	}
+	if len(prompts) == 1 || slotIndex < 0 || slotIndex >= len(prompts) {
+		return prompts[0]
+	}
+	return prompts[slotIndex]
+}
+
 func contentAssetIDs(assets []store.ContentAsset) []string {
 	ids := make([]string, 0, len(assets))
 	for _, asset := range assets {

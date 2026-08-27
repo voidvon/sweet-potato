@@ -219,7 +219,7 @@ func TestDetailImagePromptsRequiresOnePromptPerImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detail prompts: %v", err)
 	}
-	if len(prompts) != 2 || prompts[0] != "产品全景" || prompts[1] != "材质细节" {
+	if len(prompts) != 2 || !strings.HasPrefix(prompts[0], "产品全景\n\n公共约束") || !strings.HasPrefix(prompts[1], "材质细节\n\n公共约束") {
 		t.Fatalf("detail prompts = %#v", prompts)
 	}
 	if _, err := detailImagePrompts(generation, "总体规划", 3); err == nil || !strings.Contains(err.Error(), "数量") {
@@ -259,6 +259,22 @@ func TestImageGenerationResultContextRecordsResolvedInputAndReferences(t *testin
 	attachments, ok := generation["referenceAttachments"].([]any)
 	if !ok || len(attachments) != 1 || stringValue(objectValue(attachments[0]), "assetId") != "reference-2" {
 		t.Fatalf("reference attachments = %#v", generation["referenceAttachments"])
+	}
+	output := chatGeneratedImageAttachmentPayload(store.ContentAsset{
+		ID:               "output-1",
+		OriginalFileName: "detail-1.png",
+		MimeType:         "image/png",
+		FileURL:          "/files/detail-1.png",
+	}, 1, "仅生成材质细节章节", references)
+	if got := int(numberValue(output["imageGenerationSlotIndex"], -1)); got != 1 {
+		t.Fatalf("output slot = %d", got)
+	}
+	if got := stringValue(output, "imageGenerationPrompt"); got != "仅生成材质细节章节" {
+		t.Fatalf("output prompt = %q", got)
+	}
+	outputReferences, ok := output["imageGenerationReferenceAttachments"].([]any)
+	if !ok || len(outputReferences) != 1 || stringValue(objectValue(outputReferences[0]), "assetId") != "reference-2" {
+		t.Fatalf("output references = %#v", output["imageGenerationReferenceAttachments"])
 	}
 }
 

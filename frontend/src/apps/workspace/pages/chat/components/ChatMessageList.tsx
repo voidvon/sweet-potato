@@ -1,6 +1,6 @@
-import { Button, Dropdown, Image, Modal, Tag, Tooltip, message } from 'antd';
+import { Button, Dropdown, Image, Modal, Popover, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, FilePdfOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, ImageOff, RefreshCw } from 'lucide-react';
+import { ChevronRight, ImageOff, Info, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
@@ -654,6 +654,63 @@ export function ChatMessageList({
     );
   }
 
+  function renderImageGenerationInfo(
+    attachment: ChatAttachment,
+    imageGeneration: ImageGenerationContext | undefined,
+    slotIndex: number,
+  ) {
+    const prompt = attachment.imageGenerationPrompt?.trim()
+      || imageGeneration?.chapterPrompts?.[slotIndex]?.trim()
+      || imageGeneration?.resolvedPrompt?.trim()
+      || t("未记录");
+    const references = attachment.imageGenerationReferenceAttachments
+      ?? imageGeneration?.referenceAttachments
+      ?? [];
+    const content = (
+      <div className="chat-image-generation-info-popover">
+        <section>
+          <span className="chat-image-generation-info-label">{t("发送给图片 AI 的完整提示词")}</span>
+          <p>{prompt}</p>
+        </section>
+        <section>
+          <span className="chat-image-generation-info-label">{t("参考图片")}</span>
+          {references.length ? (
+            <div className="chat-image-generation-info-references">
+              {references.map((reference) => (
+                unavailableImageUrls.has(reference.url) ? (
+                  <span className="chat-image-generation-info-reference unavailable" key={reference.id}>
+                    <ImageOff size={16} />
+                  </span>
+                ) : (
+                  <img
+                    alt={reference.name}
+                    className="chat-image-generation-info-reference"
+                    key={reference.id}
+                    onError={() => markImageUnavailable(reference.url)}
+                    src={resolveAssetUrl(reference.url)}
+                  />
+                )
+              ))}
+            </div>
+          ) : <small>{t("未携带参考图片")}</small>}
+        </section>
+      </div>
+    );
+    return (
+      <Popover content={content} placement="topRight" trigger="click">
+        <Button
+          aria-label={t("查看生成信息")}
+          className="chat-image-generation-info-button"
+          icon={<Info size={15} strokeWidth={2.2} />}
+          onClick={(event) => event.stopPropagation()}
+          shape="circle"
+          size="small"
+          type="text"
+        />
+      </Popover>
+    );
+  }
+
   function imageGenerationAspectRatio(
     attachment?: ChatAttachment,
     imageGeneration?: ImageGenerationContext,
@@ -795,7 +852,6 @@ export function ChatMessageList({
                   {imageGenerationSlotCount ? (
                     <>
                       {renderImageGenerationHeader(item, previousUserMessage)}
-                      {renderImageGenerationInputs(item, previousUserMessage)}
                       <AppImage.PreviewGroup
                         downloads={imageAttachments.map((attachment) => ({
                           fileName: attachment.name,
@@ -829,6 +885,7 @@ export function ChatMessageList({
                                     width="100%"
                                   />
                                 )}
+                                {renderImageGenerationInfo(attachment, imageGenerationContext, index)}
                               </div>
                             ) : failure || isLegacyImageGenerationFailed ? (
                               <div

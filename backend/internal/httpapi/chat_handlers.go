@@ -396,14 +396,15 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
 		assistantCapabilityContext = imageGenerationResultContext(generation, content, prompt, references)
 		assistantMessage.CapabilityContext = assistantCapabilityContext
+		generatedSlotByAssetID := map[string]int{}
 		emitChatTurnEvent(ctx, "item/imageGeneration/started", map[string]any{
 			"messageId":         assistantMessage.ID,
 			"expectedCount":     count,
 			"capabilityContext": assistantCapabilityContext,
 		})
 		assets, generateErr := s.generateImageAssetsForPromptsContextWithProgress(ctx, user.ID, imageModel, chapterPrompts, count, references, s.imageGenerationOptions(input.CapabilityContext, nil), mode, title, nil, func(asset store.ContentAsset, slotIndex int) {
-			attachment := chatAttachmentPayload(asset)
-			attachment["imageGenerationSlotIndex"] = slotIndex
+			generatedSlotByAssetID[asset.ID] = slotIndex
+			attachment := chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), references)
 			emitChatTurnEvent(ctx, "item/imageGeneration/output", map[string]any{
 				"messageId":  assistantMessage.ID,
 				"slotIndex":  slotIndex,
@@ -413,8 +414,12 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		if generateErr != nil && len(assets) == 0 {
 			return nil, generateErr
 		}
-		for _, asset := range assets {
-			assistantAttachments = append(assistantAttachments, chatAttachmentPayload(asset))
+		for index, asset := range assets {
+			slotIndex, ok := generatedSlotByAssetID[asset.ID]
+			if !ok {
+				slotIndex = index
+			}
+			assistantAttachments = append(assistantAttachments, chatGeneratedImageAttachmentPayload(asset, slotIndex, imagePromptForSlot(chapterPrompts, slotIndex), references))
 		}
 		if generateErr != nil {
 			failureCount := max(1, count-len(assets))
@@ -760,9 +765,25 @@ func detailImagePrompts(generation map[string]any, fallback string, count int) (
 		if strings.TrimSpace(prompt) == "" {
 			return nil, fmt.Errorf("详情图第 %d 个章节提示词为空，请重新生成章节规划", index+1)
 		}
-		prompts[index] = strings.TrimSpace(prompt)
+		prompts[index] = strings.TrimSpace(prompt) + "\n\n" + detailImageModelCommonPrompt(generation)
 	}
 	return prompts, nil
+}
+
+func detailImageModelCommonPrompt(generation map[string]any) string {
+	ratio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
+	if ratio == "" || strings.EqualFold(ratio, "auto") {
+		ratio = "3:4（竖版）"
+	}
+	background := strings.TrimSpace(stringValue(generation, "outputBackground"))
+	if background == "" || strings.EqualFold(background, "auto") {
+		background = "根据章节需要使用干净、不过度干扰产品的背景，保留自然边缘与接触阴影"
+	}
+	resolution := strings.TrimSpace(valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution")))
+	if resolution == "" {
+		resolution = "当前模型默认清晰度"
+	}
+	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；画布严格使用%s，输出规格为%s，背景要求：%s。产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与提供的产品参考图一致，只允许调整视角、光线和构图；不得替换成其他产品，不得混入法兰、大口径或小口径版本，不得猜测或补造参考图和资料中不可见的结构。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", ratio, resolution, background)
 }
 
 func isImageGenerationRequest(input chatRequest) bool {

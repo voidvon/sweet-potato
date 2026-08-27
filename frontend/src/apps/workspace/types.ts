@@ -41,6 +41,8 @@ export type ChatAttachment = {
   width?: number;
   height?: number;
   imageGenerationSlotIndex?: number;
+  imageGenerationPrompt?: string;
+  imageGenerationReferenceAttachments?: ChatAttachment[];
   clientGroupKey?: string;
   previewUrl?: string;
   uploadStatus?: 'uploading';
@@ -162,6 +164,7 @@ export type SendChatPayload = {
       resolution?: string;
       inputPrompt?: string;
       resolvedPrompt?: string;
+      chapterPrompts?: string[];
       referenceAttachments?: ChatAttachment[];
       referenceAssetIds?: string[];
       referenceCount?: number;
