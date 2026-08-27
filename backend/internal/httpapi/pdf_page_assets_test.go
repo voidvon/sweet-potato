@@ -19,8 +19,16 @@ func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) 
 	if err != nil {
 		t.Fatalf("create fixture PNG: %v", err)
 	}
-	fixture := image.NewRGBA(image.Rect(0, 0, 16, 24))
-	fixture.Set(4, 4, color.RGBA{B: 255, A: 255})
+	fixture := image.NewRGBA(image.Rect(0, 0, 512, 724))
+	for y := 0; y < 724; y++ {
+		for x := 0; x < 512; x++ {
+			value := uint8(255)
+			if x%67 < 2 || y%83 < 2 {
+				value = 24
+			}
+			fixture.SetRGBA(x, y, color.RGBA{R: value, G: value, B: value, A: 255})
+		}
+	}
 	if err := png.Encode(pngFile, fixture); err != nil {
 		t.Fatalf("encode fixture PNG: %v", err)
 	}
@@ -65,7 +73,7 @@ func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) 
 		t.Fatalf("page asset count = %d, want 2", len(assets))
 	}
 	for index, asset := range assets {
-		if asset.MimeType != "image/png" || asset.AssetKind != "pdf_page_reference" || asset.LifecycleStatus != "temporary" {
+		if asset.MimeType != "image/webp" || asset.AssetKind != "pdf_page_reference" || asset.LifecycleStatus != "temporary" {
 			t.Fatalf("page %d asset = %#v", index+1, asset)
 		}
 		if got := int(numberValue(asset.Metadata["dpi"], 0)); got != pdfPageDPI {
@@ -73,6 +81,12 @@ func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) 
 		}
 		if got := int(numberValue(asset.Metadata["page"], 0)); got != index+1 {
 			t.Fatalf("page metadata = %d, want %d", got, index+1)
+		}
+		if int(numberValue(asset.Metadata["originalSize"], 0)) < int(asset.FileSize) {
+			t.Fatalf("page %d original size = %#v, encoded size = %d", index+1, asset.Metadata["originalSize"], asset.FileSize)
+		}
+		if asset.Metadata["encodingApplied"] != true || asset.Metadata["encoding"] != "webp" {
+			t.Fatalf("page %d encoding metadata = %#v", index+1, asset.Metadata)
 		}
 	}
 

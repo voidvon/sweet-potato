@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"sweet-potato-go/internal/imagegen"
 	"sweet-potato-go/internal/store"
 )
 
@@ -70,12 +72,11 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 	}
 	cached := make([]store.ContentAsset, 0, pdfPageMaxPages)
 	for page := 1; page <= pdfPageMaxPages; page++ {
-		name := pdfPageStoredName(pdfAsset.ID, page)
-		asset, found, err := s.store.FindContentAssetByStoredFileName(name)
+		asset, found, err := s.findCachedPDFPageAsset(pdfAsset, page)
 		if err != nil {
 			return nil, err
 		}
-		if !found || asset.UserID != pdfAsset.UserID || stringValue(asset.Metadata, "sourcePDFAssetId") != pdfAsset.ID {
+		if !found {
 			break
 		}
 		if _, err := os.Stat(asset.FilePath); err != nil {
@@ -126,9 +127,15 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 		if page < 1 || page > pdfPageMaxPages {
 			continue
 		}
-		storedName := pdfPageStoredName(pdfAsset.ID, page)
+		raw, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("读取 PDF 第 %d 页图片失败: %w", page, err)
+		}
+		optimized, encodingMetadata := optimizeGeneratedImageForStorage(imagegen.Output{Bytes: raw, MimeType: "image/png"})
+		extension := imageExtension(optimized.MimeType)
+		storedName := pdfPageStoredName(pdfAsset.ID, page, extension)
 		targetPath := filepath.Join(s.config.DataDir, "files", storedName)
-		if err := os.Rename(sourcePath, targetPath); err != nil {
+		if err := os.WriteFile(targetPath, optimized.Bytes, 0o600); err != nil {
 			return nil, fmt.Errorf("保存 PDF 第 %d 页图片失败: %w", page, err)
 		}
 		info, err := os.Stat(targetPath)
@@ -136,6 +143,16 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 			return nil, err
 		}
 		parentID := pdfAsset.ID
+		metadata := map[string]any{
+			"sourceType":       "pdf_page",
+			"sourcePDFAssetId": pdfAsset.ID,
+			"sourcePDFName":    pdfAsset.OriginalFileName,
+			"page":             page,
+			"dpi":              pdfPageDPI,
+		}
+		for key, value := range encodingMetadata {
+			metadata[key] = value
+		}
 		asset, err := s.store.CreateContentAsset(store.ContentAsset{
 			UserID:           pdfAsset.UserID,
 			GroupID:          pdfAsset.GroupID,
@@ -143,9 +160,9 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 			Type:             "generated",
 			Name:             fmt.Sprintf("%s 第 %d 页", strings.TrimSuffix(pdfAsset.OriginalFileName, filepath.Ext(pdfAsset.OriginalFileName)), page),
 			Description:      fmt.Sprintf("PDF 第 %d 页的 %d DPI 高清参考图", page, pdfPageDPI),
-			OriginalFileName: fmt.Sprintf("%s-page-%d.png", strings.TrimSuffix(pdfAsset.OriginalFileName, filepath.Ext(pdfAsset.OriginalFileName)), page),
+			OriginalFileName: fmt.Sprintf("%s-page-%d.%s", strings.TrimSuffix(pdfAsset.OriginalFileName, filepath.Ext(pdfAsset.OriginalFileName)), page, extension),
 			StoredFileName:   storedName,
-			MimeType:         "image/png",
+			MimeType:         optimized.MimeType,
 			FileSize:         info.Size(),
 			Size:             info.Size(),
 			FilePath:         targetPath,
@@ -154,13 +171,7 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 			LifecycleStatus:  "temporary",
 			ParentAssetID:    &parentID,
 			ExpiresAt:        &expiresAt,
-			Metadata: map[string]any{
-				"sourceType":       "pdf_page",
-				"sourcePDFAssetId": pdfAsset.ID,
-				"sourcePDFName":    pdfAsset.OriginalFileName,
-				"page":             page,
-				"dpi":              pdfPageDPI,
-			},
+			Metadata:         metadata,
 		})
 		if err != nil {
 			_ = os.Remove(targetPath)
@@ -171,8 +182,28 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 	return assets, nil
 }
 
-func pdfPageStoredName(pdfAssetID string, page int) string {
-	return fmt.Sprintf("pdf-page-%s-%03d-%ddpi.png", sanitizeUploadName(pdfAssetID), page, pdfPageDPI)
+func (s *Server) findCachedPDFPageAsset(pdfAsset store.ContentAsset, page int) (store.ContentAsset, bool, error) {
+	for _, extension := range []string{"webp", "png"} {
+		asset, found, err := s.store.FindContentAssetByStoredFileName(pdfPageStoredName(pdfAsset.ID, page, extension))
+		if err != nil {
+			return store.ContentAsset{}, false, err
+		}
+		if !found || asset.UserID != pdfAsset.UserID || stringValue(asset.Metadata, "sourcePDFAssetId") != pdfAsset.ID {
+			continue
+		}
+		if _, err := os.Stat(asset.FilePath); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return store.ContentAsset{}, false, err
+		}
+		return asset, true, nil
+	}
+	return store.ContentAsset{}, false, nil
+}
+
+func pdfPageStoredName(pdfAssetID string, page int, extension string) string {
+	return fmt.Sprintf("pdf-page-v2-%s-%03d-%ddpi.%s", sanitizeUploadName(pdfAssetID), page, pdfPageDPI, extension)
 }
 
 func pdfRenderedPageNumber(path string) int {
