@@ -979,7 +979,8 @@ export function useChatSession() {
     showWelcome: !isResolvingConversation
       && !conversationOverlayLoading
       && !urlConversationId
-      && !activeConversationId,
+      && !activeConversationId
+      && messages.length === 0,
     startNewConversation,
     stopSending,
     updateUserMessage,
