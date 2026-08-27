@@ -736,6 +736,7 @@ export function ClawDialogComposer({
   });
   const imageCreditsPerRequest = imageGenerationCreditsPerRequest(selectedRawImageConfig);
   const totalImageCredits = estimateImageGenerationCredits(imageCreditsPerRequest, resolvedOutputCount);
+  const showImageCredits = selectedMode.key !== 'detail' || selectedOutputCount !== 0;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {
@@ -1020,10 +1021,12 @@ export function ClawDialogComposer({
             {!canStartGeneration ? (
               <span className="claw-prompt-status">{generationBlockReason}</span>
             ) : null}
-            <span className="claw-credit">
-              <CreditIcon />
-              {formatCreditAmount(totalImageCredits)}
-            </span>
+            {showImageCredits ? (
+              <span className="claw-credit">
+                <CreditIcon />
+                {formatCreditAmount(totalImageCredits)}
+              </span>
+            ) : null}
             <Button
               aria-label={sending ? t("停止生成") : t("发送消息")}
               className="claw-send-button"
