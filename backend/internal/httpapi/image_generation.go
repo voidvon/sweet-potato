@@ -207,7 +207,7 @@ func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, use
 			output.MimeType = "image/png"
 		}
 		if ratio := strings.TrimSpace(options.AspectRatio); ratio != "" && !strings.EqualFold(ratio, "auto") {
-			processed, processErr := cropImageToAspectRatio(output.Bytes, output.MimeType, ratio)
+			processed, processErr := fitImageToAspectRatio(output.Bytes, output.MimeType, ratio)
 			if processErr != nil {
 				return fmt.Errorf("校正生成图片比例失败: %w", processErr)
 			}
@@ -387,8 +387,14 @@ func (s *Server) imageGenerationOptions(contextValue map[string]any, params map[
 	if len(generation) == 0 {
 		generation = params
 	}
+	size := stringValue(generation, "outputSize")
+	if strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+		if ratio := strings.TrimSpace(stringValue(generation, "aspectRatio")); ratio == "" || strings.EqualFold(ratio, "auto") {
+			size = ""
+		}
+	}
 	return imagegen.GenerateInput{
-		Size:         stringValue(generation, "outputSize"),
+		Size:         size,
 		AspectRatio:  valueOr(stringValue(generation, "aspectRatio"), stringValue(params, "aspectRatio")),
 		Resolution:   valueOr(stringValue(generation, "resolution"), stringValue(params, "resolution")),
 		Background:   valueOr(stringValue(generation, "outputBackground"), stringValue(params, "background")),

@@ -213,6 +213,13 @@ func TestApplyImageToolArgumentsPreservesSelectedOutputCount(t *testing.T) {
 	if len(storedReferenceIDs) != 2 || len(storedReferenceIDs[1]) != 2 || storedReferenceIDs[1][0] != "asset-2" {
 		t.Fatalf("chapter reference IDs = %#v", storedReferenceIDs)
 	}
+	autoSizeResult := applyImageToolArguments(
+		map[string]any{"imageGeneration": map[string]any{"modeKey": "detail", "aspectRatio": "auto"}},
+		map[string]any{"size": "2048 x 2048"},
+	)
+	if got := stringValue(objectValue(autoSizeResult["imageGeneration"]), "outputSize"); got != "" {
+		t.Fatalf("automatic detail output size = %q, want omitted", got)
+	}
 }
 
 func TestDetailImagePromptsRequiresOnePromptPerImage(t *testing.T) {
@@ -352,8 +359,12 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 	automaticPrompt := detailImageGenerationSystemPrompt(map[string]any{
 		"imageGeneration": map[string]any{"modeKey": "detail", "aspectRatio": "auto"},
 	})
-	if !strings.Contains(automaticPrompt, "默认优先使用 3:4") || !strings.Contains(automaticPrompt, "在 1 到 12 个章节内选择数量") {
+	if !strings.Contains(automaticPrompt, "3:4 只是建议尺寸") || !strings.Contains(automaticPrompt, "不得裁切") || !strings.Contains(automaticPrompt, "在 1 到 12 个章节内选择数量") {
 		t.Fatalf("automatic detail prompt = %s", automaticPrompt)
+	}
+	commonAutomatic := detailImageModelCommonPrompt(map[string]any{"modeKey": "detail", "aspectRatio": "auto", "outputSize": "2048 x 2048"})
+	if !strings.Contains(commonAutomatic, "自适应") || !strings.Contains(commonAutomatic, "建议尺寸") || strings.Contains(commonAutomatic, "画布严格使用2048") || strings.Contains(commonAutomatic, "2048 x 2048") {
+		t.Fatalf("automatic common prompt = %s", commonAutomatic)
 	}
 	if got := detailImageGenerationSystemPrompt(map[string]any{"imageGeneration": map[string]any{"modeKey": "dialog"}}); got != "" {
 		t.Fatalf("dialog mode unexpectedly received detail prompt: %s", got)

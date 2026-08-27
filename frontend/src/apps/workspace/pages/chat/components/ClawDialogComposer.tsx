@@ -719,7 +719,13 @@ export function ClawDialogComposer({
   const effectiveResolution = selectableResolutions.includes(selectedResolution)
     ? selectedResolution
     : selectableResolutions[0] || selectedOutputConfig.defaultResolution;
-  const outputSizeLabel = getImageOutputSize(selectedRawImageConfig, effectiveResolution, selectedAspectRatio);
+  // In automatic mode the resolution tier is sent to the provider, while the
+  // provider chooses a canvas that can contain this chapter. Passing the
+  // preview's square pixel dimensions would turn that recommendation into a
+  // hard square canvas for providers such as Seedream.
+  const outputSizeLabel = selectedAspectRatio === 'auto'
+    ? undefined
+    : getImageOutputSize(selectedRawImageConfig, effectiveResolution, selectedAspectRatio);
   const selectedBackgroundOption = backgroundOptions.find((option) => option.key === selectedBackground) || backgroundOptions[0];
   const resolvedOutputCount = resolveImageGenerationOutputCount({
     strategy: outputCountStrategy,

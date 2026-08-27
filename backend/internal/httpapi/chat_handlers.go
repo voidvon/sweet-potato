@@ -613,7 +613,7 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。画面比例为 auto 时，3:4 仅为建议尺寸，必须按内容选择能完整容纳文字和主体的画布；画面比例为非 auto 时必须严格保持该比例，并通过缩放、排版和留白容纳内容，禁止裁切、溢出或遮挡。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要参考图，返回空数组。"
 	systemPrompt += detailImageGenerationSystemPrompt(contextValue)
 	if includePreviews {
 		if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {
@@ -662,9 +662,9 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 	aspectRatio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
 	var ratioInstruction string
 	if aspectRatio == "" || strings.EqualFold(aspectRatio, "auto") {
-		ratioInstruction = "界面宽高比为自动：默认优先使用 3:4；根据章节内容调整构图密度和视觉留白，不要擅自改成横图。"
+		ratioInstruction = "界面宽高比为自动：3:4 只是建议尺寸和推荐起点，不是硬性比例。必须根据每章的文字量、产品完整轮廓和版式需要选择能完整容纳内容的比例与尺寸，必要时可以改用更宽或更高的画布；四周保留安全留白，任何文字、主体、边缘和阴影都不得裁切、溢出、遮挡或贴边。"
 	} else {
-		ratioInstruction = fmt.Sprintf("界面已选择 %s 宽高比：必须严格保持该比例，并让章节内容适应该画布。", aspectRatio)
+		ratioInstruction = fmt.Sprintf("界面已选择 %s 宽高比：输出必须严格保持该比例；先通过等比缩放主体、缩小字号、拆分版式和增加留白来容纳全部内容，四周保留安全留白，禁止裁切、溢出、遮挡或贴边。", aspectRatio)
 	}
 
 	outputCount := int(numberValue(generation["outputCount"], 0))
@@ -675,7 +675,10 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 		countInstruction = "界面数量为自动：根据用户描述、产品图片和 PDF 产品资料规划必要章节，在 1 到 12 个章节内选择数量，每个章节对应一张图片。"
 	}
 
-	resolution := valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution"))
+	resolution := strings.TrimSpace(stringValue(generation, "resolution"))
+	if aspectRatio != "" && !strings.EqualFold(aspectRatio, "auto") {
+		resolution = valueOr(stringValue(generation, "outputSize"), resolution)
+	}
 	resolutionInstruction := "使用当前图片模型的默认清晰度。"
 	if strings.TrimSpace(resolution) != "" {
 		resolutionInstruction = fmt.Sprintf("界面已选择输出规格 %s，必须保持该规格。", resolution)
@@ -691,7 +694,7 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 		"\n1. 任务目标：根据用户描述和附件，为同一个产品制作淘宝宝贝详情介绍图片。先提炼真实、必要的章节主题；每张图只承担一个清晰章节，章节之间内容互补、视觉风格统一。" +
 		"\n2. 产品保真：产品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和可见细节必须与原图一致。只允许为展示效果轻微调整视角、光线和构图；原图或资料中不可见、不确定的结构与细节不得猜测、补造或改动。" +
 		"\n3. 产品资料与实体保真：产品实拍照片是唯一的实体产品事实来源。实拍照片决定产品是否有铭牌、Logo、铸字、孔位、接口、颜色、结构和每个视角可见的细节；若某张实拍照片看不到铭牌，不能从另一张照片把铭牌合并到该视角，也不能把一张照片中的局部贴到另一张照片上。不同实拍照片只可作为不同视角或补充局部，必须保持各自可见范围，不得跨照片拼接出不存在的视角。PDF 页面图片不是实体产品照片，只能用于结构线稿、尺寸图、曲线、表格、版式和已标注的技术图示。PDF 中没有明确写出的参数、功效、认证、材质或宣传结论不得编造。" +
-		"\n4. 插图与参考图规划：系统已把 PDF 各页转换为带 source_type=pdf_page、pdf_page 和 dpi 标记的 200 DPI 高清图片候选。先为每章规划主插图、辅助插图、产品角度、裁切范围和版式角色，再写 chapter_prompts。每个 chapter_prompts 必须以“插图方案”开头，明确本章需要的实拍主图（如果需要）、可选的实拍辅助图、PDF 页面图（如果需要）以及各自只承担的作用。chapter_reference_asset_ids 必须与 count 一一对应；每个子数组只放该章实际需要发送的图片 asset_id，主实拍图排第一，辅助实拍图和 PDF 图随后。允许某章完全不携带实拍产品图：纯文字、参数表、PDF 结构图、PDF 曲线图或 PDF 尺寸图章节可以只使用 PDF 页面图，甚至不使用任何图片。不存在可靠实体依据时，必须改做文字/表格/技术图示版式，禁止幻想新的角度、铭牌、接口或结构。" +
+		"\n4. 插图与参考图规划：系统已把 PDF 各页转换为带 source_type=pdf_page、pdf_page 和 dpi 标记的 200 DPI 高清图片候选。先为每章规划主插图、辅助插图、产品角度、取景范围、安全留白和版式角色，再写 chapter_prompts。每个 chapter_prompts 必须以“插图方案”开头，明确本章需要的实拍主图（如果需要）、可选的实拍辅助图、PDF 页面图（如果需要）以及各自只承担的作用。chapter_reference_asset_ids 必须与 count 一一对应；每个子数组只放该章实际需要发送的图片 asset_id，主实拍图排第一，辅助实拍图和 PDF 图随后。允许某章完全不携带实拍产品图：纯文字、参数表、PDF 结构图、PDF 曲线图或 PDF 尺寸图章节可以只使用 PDF 页面图，甚至不使用任何图片。不存在可靠实体依据时，必须改做文字/表格/技术图示版式，禁止幻想新的角度、铭牌、接口或结构。" +
 		"\n5. 背景：" + backgroundInstruction +
 		"\n6. 画布：" + ratioInstruction + " " + resolutionInstruction +
 		"\n7. 章节与数量：" + countInstruction +
@@ -766,6 +769,14 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	if currentRatio := stringValue(copyGeneration, "aspectRatio"); currentRatio == "" || strings.EqualFold(currentRatio, "auto") {
 		if value, ok := arguments["aspect_ratio"]; ok {
 			copyGeneration["aspectRatio"] = value
+		}
+	}
+	// A detail request in automatic mode must use the provider's adaptive
+	// sizing path. Ignore a model-invented square pixel size instead of turning
+	// the 3:4 recommendation into a hard canvas constraint.
+	if strings.EqualFold(strings.TrimSpace(stringValue(copyGeneration, "modeKey")), "detail") {
+		if ratio := strings.TrimSpace(stringValue(copyGeneration, "aspectRatio")); ratio == "" || strings.EqualFold(ratio, "auto") {
+			delete(copyGeneration, "outputSize")
 		}
 	}
 	result["imageGeneration"] = copyGeneration
@@ -844,18 +855,26 @@ func flattenStringSlices(value any) []string {
 
 func detailImageModelCommonPrompt(generation map[string]any) string {
 	ratio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
-	if ratio == "" || strings.EqualFold(ratio, "auto") {
-		ratio = "3:4（竖版）"
+	autoRatio := ratio == "" || strings.EqualFold(ratio, "auto")
+	if autoRatio {
+		ratio = "自适应画布（3:4 仅为建议尺寸，可按本章节内容调整）"
 	}
 	background := strings.TrimSpace(stringValue(generation, "outputBackground"))
 	if background == "" || strings.EqualFold(background, "auto") {
 		background = "根据章节需要使用干净、不过度干扰产品的背景，保留自然边缘与接触阴影"
 	}
-	resolution := strings.TrimSpace(valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution")))
+	resolution := strings.TrimSpace(stringValue(generation, "resolution"))
+	if !autoRatio {
+		resolution = strings.TrimSpace(valueOr(stringValue(generation, "outputSize"), resolution))
+	}
 	if resolution == "" {
 		resolution = "当前模型默认清晰度"
 	}
-	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；画布严格使用%s，输出规格为%s，背景要求：%s。只有标记为实拍照片的参考图才能作为实体产品事实来源；产品轮廓、结构、比例、颜色、材质、Logo、铭牌、铸字、接口和可见细节必须严格以本章提供的实拍照片为准。某个实拍视角看不到的细节不得从其他视角拼接、覆盖或补到当前视角上，尤其不得凭空添加铭牌、Logo、孔位或侧视结构。标记为 PDF 页面图片的参考图只能用于重现其中可见的结构线稿、尺寸图、曲线、表格、文字和版式，不得把 PDF 线稿当作实体照片，也不得让它改变实拍产品外观。本章如果没有实拍图，只能生成文字、表格或 PDF 技术图示版式，不得幻想产品视角。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", ratio, resolution, background)
+	canvasInstruction := fmt.Sprintf("画布严格使用%s", ratio)
+	if autoRatio {
+		canvasInstruction = "画布比例根据本章节内容自适应，3:4 仅为建议尺寸；必须完整容纳所有文字、主体、边缘和阴影，四周保留安全留白，不得裁切、溢出、遮挡或贴边"
+	}
+	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；%s，输出规格为%s，背景要求：%s。只有标记为实拍照片的参考图才能作为实体产品事实来源；产品轮廓、结构、比例、颜色、材质、Logo、铭牌、铸字、接口和可见细节必须严格以本章提供的实拍照片为准。某个实拍视角看不到的细节不得从其他视角拼接、覆盖或补到当前视角上，尤其不得凭空添加铭牌、Logo、孔位或侧视结构。标记为 PDF 页面图片的参考图只能用于重现其中可见的结构线稿、尺寸图、曲线、表格、文字和版式，不得把 PDF 线稿当作实体照片，也不得让它改变实拍产品外观。本章如果没有实拍图，只能生成文字、表格或 PDF 技术图示版式，不得幻想产品视角。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", canvasInstruction, resolution, background)
 }
 
 func isImageGenerationRequest(input chatRequest) bool {
@@ -1327,8 +1346,8 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"maxItems": 12,
 				},
 				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 12, "description": "生成图片数量；工作台未指定数量时根据用户需求自动选择"},
-				"size":         map[string]any{"type": "string"},
-				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。必须保留当前工作台已确定的比例，除非用户本轮明确要求更改"},
+				"size":         map[string]any{"type": "string", "description": "仅在用户手动指定或工作台明确指定固定画布时填写宽x高；详情图自动比例不要填写，交由模型按内容自适应"},
+				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。手动选择时必须保留当前工作台已确定的比例；自动模式仅把 3:4 作为建议，不要强制固定"},
 				"resolution":   map[string]any{"type": "string"},
 				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "opaque", "auto"}},
 				"reference_asset_ids": map[string]any{

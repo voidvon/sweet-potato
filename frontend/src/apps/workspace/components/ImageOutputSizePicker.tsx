@@ -118,7 +118,11 @@ export function ImageOutputSizePicker({
           </section>
           <div className="image-output-size-picker__canvas-size">
             <span>{t("画布尺寸")}</span>
-            <strong>{getImageOutputSize(model, effectiveResolution, aspectRatio)}</strong>
+            <strong>
+              {aspectRatio === 'auto'
+                ? t("自适应（建议 3:4）")
+                : getImageOutputSize(model, effectiveResolution, aspectRatio)}
+            </strong>
           </div>
         </>
       ) : null}
