@@ -5,6 +5,8 @@ import { formatCreditAmount } from '@shared/utils/credits';
 import { getSiteConfig } from '../../../api/billing';
 import { createContentAssetGroup, createMarketingVideoStoryboard, getVideoTask, createSubtitleRemoval, createVideoEnhancement, createVideoProduction, createVideoTranslation, deleteMarketingVideoStoryboard, deleteVideoTask, generateVideoFromMarketingStoryboard, getContentAsset, listContentAssetGroups, listContentAssetGroupsPage, listContentAssets, listMarketingVideoStoryboards, listVideoProductionsPage, retryMarketingVideoStoryboard, uploadContentAsset, uploadContentAssetDirect } from '../../../api/content';
 import type { PlanningApplyPayload } from '../../../api/content-planning';
+import { listContentWorkflows, saveContentWorkflow } from '../../../api/content-workflows';
+import type { ContentWorkflowModuleKey } from '../../../api/content-workflows';
 import { resolveAssetUrl } from '../../../api/request';
 import {
   importTalkingVideoPromptHistory,
@@ -120,6 +122,19 @@ const marketingVideoDuration = '15s';
 const videoProductionsPageSize = 20;
 const talkingVideoDeltaFlushMs = 80;
 
+type PersistedVideoModuleDraft = Record<string, unknown> & {
+  deepThink: boolean;
+  duration: string;
+  kind: 'draft';
+  marketingVideoConfig: MarketingVideoConfig;
+  model: string;
+  prompt: string;
+  quality: string;
+  ratio: string;
+  selectedMaterials: Record<string, string | Array<Record<string, unknown>>>;
+  voiceEnabled: boolean;
+};
+
 function createdAtRangeFromTimeFilter(filter: string) {
   const value = String(filter || '').trim();
   if (!value || value === '全部时间') {
@@ -165,6 +180,9 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const talkingVideoPromptAbortRef = useRef<AbortController | null>(null);
   const talkingVideoDeltaBuffersRef = useRef<Record<string, TalkingVideoDeltaBuffer & { timerId: number | null }>>({});
   const talkingVideoCompactLayoutRef = useRef<boolean | null>(null);
+  const moduleDraftsRef = useRef<Partial<Record<ContentWorkflowModuleKey, PersistedVideoModuleDraft>>>({});
+  const moduleDraftSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [moduleDraftsLoaded, setModuleDraftsLoaded] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [talkingVideoDeepThink, setTalkingVideoDeepThink] = useState(true);
   const [talkingVideoPromptTasks, setTalkingVideoPromptTasks] = useState<TalkingVideoPromptTask[]>(
@@ -229,6 +247,24 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   const isLoadingMoreProductionsRef = useRef(false);
   const productionRequestVersionRef = useRef(0);
 
+  const applyModuleDraft = useCallback((moduleKey: ContentWorkflowModuleKey) => {
+    const draft = moduleDraftsRef.current[moduleKey];
+    if (!draft) return;
+    setPrompt(draft.prompt || '');
+    setSelectedMaterials(deserializeSelectedMaterials(draft.selectedMaterials));
+    setModel(draft.model || 'Seedance 2.0');
+    setRatio(draft.ratio || '9:16');
+    setQuality(draft.quality || '720P');
+    setDuration(draft.duration || '5s');
+    setVoiceEnabled(draft.voiceEnabled !== false);
+    if (moduleKey === 'marketing-video') {
+      setMarketingVideoConfig(normalizeMarketingVideoConfig(draft.marketingVideoConfig));
+    }
+    if (moduleKey === 'talking-video') {
+      setTalkingVideoDeepThink(draft.deepThink !== false);
+    }
+  }, []);
+
   useEffect(() => () => {
     talkingVideoPromptAbortRef.current?.abort();
     Object.values(talkingVideoDeltaBuffersRef.current).forEach((buffer) => {
@@ -236,6 +272,100 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     });
     talkingVideoDeltaBuffersRef.current = {};
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setModuleDraftsLoaded(false);
+    void Promise.all([
+      listContentWorkflows<PersistedVideoModuleDraft>('talking-video', 10),
+      listContentWorkflows<PersistedVideoModuleDraft>('marketing-video', 10),
+    ]).then(([talkingWorkflows, marketingWorkflows]) => {
+      if (cancelled) return;
+      const talkingDraft = talkingWorkflows.find((item) => item.recordKey === 'default' && item.state.kind === 'draft')?.state;
+      const marketingDraft = marketingWorkflows.find((item) => item.recordKey === 'default' && item.state.kind === 'draft')?.state;
+      moduleDraftsRef.current = {
+        ...(talkingDraft ? { 'talking-video': talkingDraft } : {}),
+        ...(marketingDraft ? { 'marketing-video': marketingDraft } : {}),
+      };
+      if (tool.key === 'talking-video' || tool.key === 'marketing-video') {
+        applyModuleDraft(tool.key);
+      }
+      setModuleDraftsLoaded(true);
+    }).catch(() => {
+      if (!cancelled) setModuleDraftsLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyModuleDraft, currentUser.id]);
+
+  useEffect(() => {
+    if (!moduleDraftsLoaded || (tool.key !== 'talking-video' && tool.key !== 'marketing-video')) {
+      return undefined;
+    }
+    const moduleKey = tool.key;
+    const timer = window.setTimeout(() => {
+      const capturedMaterials = cloneSelectedMaterials(selectedMaterials);
+      const hadPendingUploads = Object.values(capturedMaterials).some((value) => (
+        getLocalFiles(value).some((file) => !file.assetId && Boolean(file.file))
+      ));
+      const captured = {
+        deepThink: talkingVideoDeepThink,
+        duration,
+        marketingVideoConfig,
+        model,
+        prompt,
+        quality,
+        ratio,
+        voiceEnabled,
+      };
+      moduleDraftSaveQueueRef.current = moduleDraftSaveQueueRef.current.then(async () => {
+        for (const key of ['image', 'video', 'audio'] as const) {
+          const files = getLocalFiles(capturedMaterials[key]).filter((file) => !file.assetId && Boolean(file.file));
+          if (!files.length) continue;
+          await ensureMaterialAssetIds({
+            currentUser,
+            files,
+            resourceType: 'other',
+            uploadGroupIdsRef,
+          });
+        }
+        const state: PersistedVideoModuleDraft = {
+          ...captured,
+          kind: 'draft',
+          marketingVideoConfig: normalizeMarketingVideoConfig(captured.marketingVideoConfig),
+          selectedMaterials: serializeSelectedMaterials(capturedMaterials),
+        };
+        moduleDraftsRef.current[moduleKey] = state;
+        await saveContentWorkflow({
+          currentStep: 'materials',
+          moduleKey,
+          recordKey: 'default',
+          schemaVersion: 1,
+          state,
+          status: 'draft',
+          title: moduleKey === 'talking-video' ? t('口播视频草稿') : t('营销视频草稿'),
+        });
+        if (hadPendingUploads) {
+          setSelectedMaterials((current) => ({ ...current }));
+        }
+      }).catch(() => undefined);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [
+    currentUser,
+    duration,
+    marketingVideoConfig,
+    model,
+    moduleDraftsLoaded,
+    prompt,
+    quality,
+    ratio,
+    selectedMaterials,
+    talkingVideoDeepThink,
+    tool.key,
+    voiceEnabled,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,6 +407,30 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     if (talkingVideoHistoryOwnerId !== currentUser.id) return;
     saveTalkingVideoPromptTasks(currentUser.id, talkingVideoPromptTasks);
   }, [currentUser.id, talkingVideoHistoryOwnerId, talkingVideoPromptTasks]);
+
+  useEffect(() => {
+    if (!moduleDraftsLoaded || talkingVideoHistoryOwnerId !== currentUser.id) return;
+    const snapshots = talkingVideoPromptTasks.map((task) => ({
+      currentStep: task.status === 'completed' ? 'video_generation' : 'prompt_generation',
+      moduleKey: 'talking-video' as const,
+      recordKey: task.id,
+      schemaVersion: 1,
+      state: {
+        kind: 'run',
+        promptTaskId: task.id,
+        videoTaskId: '',
+      },
+      status: task.status === 'failed' || task.status === 'stopped'
+        ? 'failed' as const
+        : task.status === 'completed'
+          ? 'paused' as const
+          : 'processing' as const,
+      title: task.sourceVideo.name || t('口播视频任务'),
+    }));
+    moduleDraftSaveQueueRef.current = moduleDraftSaveQueueRef.current
+      .then(() => Promise.all(snapshots.map((snapshot) => saveContentWorkflow(snapshot))))
+      .catch(() => undefined);
+  }, [currentUser.id, moduleDraftsLoaded, talkingVideoHistoryOwnerId, talkingVideoPromptTasks]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -337,6 +491,36 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
   useEffect(() => {
     void loadMarketingStoryboards();
   }, [currentUser.id, loadMarketingStoryboards]);
+
+  useEffect(() => {
+    if (!moduleDraftsLoaded) return;
+    const snapshots = marketingStoryboards.map((storyboard) => ({
+      currentStep: storyboard.videoStatus === 'success'
+        ? 'completed'
+        : storyboard.videoTaskId
+          ? 'video_generation'
+          : 'storyboard',
+      moduleKey: 'marketing-video' as const,
+      recordKey: storyboard.id,
+      schemaVersion: 1,
+      state: {
+        kind: 'run',
+        storyboardId: storyboard.id,
+        videoTaskId: storyboard.videoTaskId || '',
+      },
+      status: storyboard.videoStatus === 'success'
+        ? 'completed' as const
+        : storyboard.status === 'failed' || storyboard.videoStatus === 'failed'
+          ? 'failed' as const
+          : storyboard.status === 'generating' || Boolean(storyboard.videoTaskId)
+            ? 'processing' as const
+            : 'paused' as const,
+      title: storyboard.title,
+    }));
+    moduleDraftSaveQueueRef.current = moduleDraftSaveQueueRef.current
+      .then(() => Promise.all(snapshots.map((snapshot) => saveContentWorkflow(snapshot))))
+      .catch(() => undefined);
+  }, [marketingStoryboards, moduleDraftsLoaded]);
 
   const hasGeneratingMarketingStoryboard = useMemo(
     () => marketingStoryboards.some((task) => (
@@ -651,7 +835,10 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     setSubjectReplaceType('model');
     setModel(option.key === 'dance-remake' ? 'Seedance 2.0 Mini' : 'Seedance 2.0');
     setQuality(option.key === 'dance-remake' ? '480P' : '720P');
-  }, []);
+    if (option.key === 'talking-video' || option.key === 'marketing-video') {
+      applyModuleDraft(option.key);
+    }
+  }, [applyModuleDraft]);
 
   const chooseMaterialTab = (mode: MaterialMode) => {
     setMaterialMode(mode);
@@ -2602,6 +2789,96 @@ function getLimit(kind: MaterialKind) {
   if (kind.key === 'image') return 9;
   if (kind.key === 'audio') return 3;
   return 1;
+}
+
+function normalizeMarketingVideoConfig(value: Partial<MarketingVideoConfig> | undefined): MarketingVideoConfig {
+  return {
+    productCategory: String(value?.productCategory || ''),
+    productName: String(value?.productName || ''),
+    sellingPoints: String(value?.sellingPoints || ''),
+  };
+}
+
+function cloneSelectedMaterials(materials: SelectedMaterials): SelectedMaterials {
+  return Object.fromEntries(Object.entries(materials).map(([key, value]) => [
+    key,
+    Array.isArray(value) ? value.map((file) => ({ ...file })) : value,
+  ])) as SelectedMaterials;
+}
+
+function serializeSelectedMaterials(materials: SelectedMaterials) {
+  const result: Record<string, string | Array<Record<string, unknown>>> = {};
+  Object.entries(materials).forEach(([key, value]) => {
+    if (typeof value === 'string') {
+      result[key] = value;
+      return;
+    }
+    if (!Array.isArray(value)) return;
+    const files = value.flatMap((file) => {
+      const serverUrl = String(file.serverFileUrl || (!file.url.startsWith('blob:') ? file.url : '')).trim();
+      if (!file.assetId && !serverUrl) return [];
+      return [{
+        ...(file.assetId ? { assetId: file.assetId } : {}),
+        ...(file.audioDuration !== undefined ? { audioDuration: file.audioDuration } : {}),
+        id: file.id,
+        ...(file.mediaDuration !== undefined ? { mediaDuration: file.mediaDuration } : {}),
+        name: file.name,
+        ...(file.remoteMetadata ? { remoteMetadata: file.remoteMetadata } : {}),
+        ...(file.remoteSourceUrl ? { remoteSourceUrl: file.remoteSourceUrl } : {}),
+        ...(serverUrl ? { serverFileUrl: serverUrl } : {}),
+        ...(file.storedFileName ? { storedFileName: file.storedFileName } : {}),
+        ...(file.talkingVideoRole ? { talkingVideoRole: file.talkingVideoRole } : {}),
+        ...(file.trimDuration !== undefined ? { trimDuration: file.trimDuration } : {}),
+        ...(file.trimEnd !== undefined ? { trimEnd: file.trimEnd } : {}),
+        ...(file.trimStart !== undefined ? { trimStart: file.trimStart } : {}),
+        type: file.type,
+        url: serverUrl,
+      }];
+    });
+    if (files.length) result[key] = files;
+  });
+  return result;
+}
+
+function deserializeSelectedMaterials(value: Record<string, string | Array<Record<string, unknown>>> | undefined): SelectedMaterials {
+  if (!value || !isRecord(value)) return {};
+  const result: SelectedMaterials = {};
+  for (const key of ['image', 'video', 'audio'] as const) {
+    const stored = value[key];
+    if (typeof stored === 'string') {
+      result[key] = stored;
+      continue;
+    }
+    if (!Array.isArray(stored)) continue;
+    const files = stored.flatMap((item): LocalMaterialFile[] => {
+      if (!isRecord(item)) return [];
+      const type = String(item.type);
+      const serverUrl = String(item.serverFileUrl || item.url || '').trim();
+      if (type !== key || !serverUrl) return [];
+      const role = String(item.talkingVideoRole || '');
+      return [{
+        ...(typeof item.assetId === 'string' ? { assetId: item.assetId } : {}),
+        ...(Number.isFinite(Number(item.audioDuration)) ? { audioDuration: Number(item.audioDuration) } : {}),
+        id: String(item.id || `${key}-${crypto.randomUUID()}`),
+        ...(Number.isFinite(Number(item.mediaDuration)) ? { mediaDuration: Number(item.mediaDuration) } : {}),
+        name: String(item.name || t('参考素材')),
+        ...(isRecord(item.remoteMetadata) ? { remoteMetadata: item.remoteMetadata } : {}),
+        ...(typeof item.remoteSourceUrl === 'string' ? { remoteSourceUrl: item.remoteSourceUrl } : {}),
+        serverFileUrl: serverUrl,
+        ...(typeof item.storedFileName === 'string' ? { storedFileName: item.storedFileName } : {}),
+        ...(role === 'model' || role === 'product' || role === 'background' || role === 'detail'
+          ? { talkingVideoRole: role as TalkingVideoImageRole }
+          : {}),
+        ...(Number.isFinite(Number(item.trimDuration)) ? { trimDuration: Number(item.trimDuration) } : {}),
+        ...(Number.isFinite(Number(item.trimEnd)) ? { trimEnd: Number(item.trimEnd) } : {}),
+        ...(Number.isFinite(Number(item.trimStart)) ? { trimStart: Number(item.trimStart) } : {}),
+        type: key,
+        url: resolveAssetUrl(serverUrl),
+      }];
+    });
+    if (files.length) result[key] = files;
+  }
+  return result;
 }
 
 function getLocalFiles(value: SelectedMaterialValue): LocalMaterialFile[] {

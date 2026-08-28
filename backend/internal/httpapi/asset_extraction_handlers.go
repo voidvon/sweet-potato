@@ -130,16 +130,22 @@ func (s *Server) executeAssetExtraction(extractionID, userID string) {
 		return
 	}
 	persistedArtifacts := make([]assetextract.Artifact, 0, len(derivedAssets))
+	filteredArtifacts := make([]assetextract.Artifact, 0)
 	for _, artifact := range result.Artifacts {
 		localID := artifact.ID
 		if assetID := artifactIDs[localID]; assetID != "" {
 			artifact.Metadata = mergeAnyMaps(artifact.Metadata, map[string]any{"sourceArtifactId": localID})
 			artifact.ID = assetID
 			artifact.Data = nil
-			persistedArtifacts = append(persistedArtifacts, artifact)
+			if extractionArtifactIncluded(artifact) {
+				persistedArtifacts = append(persistedArtifacts, artifact)
+			} else {
+				filteredArtifacts = append(filteredArtifacts, artifact)
+			}
 		}
 	}
 	result.Artifacts = persistedArtifacts
+	result.FilteredArtifacts = filteredArtifacts
 	for unitIndex := range result.Units {
 		persistedIDs := make([]string, 0, len(result.Units[unitIndex].ArtifactIDs))
 		for _, localID := range result.Units[unitIndex].ArtifactIDs {
@@ -155,9 +161,9 @@ func (s *Server) executeAssetExtraction(extractionID, userID string) {
 		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, "result_encode_failed", err.Error())
 		return
 	}
-	derivedIDs := make([]string, 0, len(derivedAssets))
-	for _, derived := range derivedAssets {
-		derivedIDs = append(derivedIDs, derived.ID)
+	derivedIDs := make([]string, 0, len(persistedArtifacts))
+	for _, artifact := range persistedArtifacts {
+		derivedIDs = append(derivedIDs, artifact.ID)
 	}
 	if _, err := s.store.CompleteAssetExtraction(extraction.ID, userID, resultMap, derivedIDs); err == nil {
 		_, _ = s.store.PruneAssetExtractionHistory(asset.ID, userID, 3)
@@ -185,7 +191,7 @@ func (s *Server) persistExtractionArtifacts(parent store.ContentAsset, extractio
 	assets := make([]store.ContentAsset, 0, len(result.Artifacts))
 	artifactIDs := make(map[string]string, len(result.Artifacts))
 	for _, artifact := range result.Artifacts {
-		if len(artifact.Data) == 0 || artifact.ID == "" || !extractionArtifactIncluded(artifact) {
+		if len(artifact.Data) == 0 || artifact.ID == "" {
 			continue
 		}
 		output := imagegen.Output{Bytes: artifact.Data, MimeType: artifact.MimeType}
@@ -228,6 +234,8 @@ func (s *Server) persistExtractionArtifacts(parent store.ContentAsset, extractio
 		assetKind := "extracted_embedded_image"
 		if artifact.Kind == "page-image" {
 			assetKind = "pdf_page_reference"
+		} else if !extractionArtifactIncluded(artifact) {
+			assetKind = "extracted_filtered_image"
 		}
 		name := strings.TrimSuffix(parent.OriginalFileName, filepath.Ext(parent.OriginalFileName)) + " · " + artifact.FileName
 		parentID := parent.ID

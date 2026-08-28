@@ -1,0 +1,320 @@
+.attachment-extraction-modal .ant-modal-container,
+.attachment-extraction-modal .ant-modal-content {
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.attachment-extraction-panel {
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  max-height: min(780px, 84vh);
+  min-height: 560px;
+}
+
+.attachment-extraction-head {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  padding: 17px 20px 15px;
+}
+
+.attachment-extraction-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.attachment-extraction-head strong {
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.attachment-extraction-head span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.attachment-extraction-head button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  display: flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.attachment-extraction-head button:hover {
+  background: var(--color-surface-subtle);
+  color: var(--color-text);
+}
+
+.attachment-extraction-tabs {
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 9px 20px;
+}
+
+.attachment-extraction-tabs button {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  gap: 6px;
+  max-width: 220px;
+  padding: 6px 9px;
+}
+
+.attachment-extraction-tabs button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-extraction-tabs button.is-active {
+  background: var(--color-brand-soft);
+  border-color: var(--color-brand-border);
+  color: var(--color-brand);
+}
+
+.attachment-extraction-summary {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  gap: 7px;
+  padding: 9px 20px;
+}
+
+.attachment-extraction-summary > div {
+  align-items: center;
+  color: var(--color-brand);
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.attachment-extraction-summary strong {
+  color: var(--color-text);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-extraction-summary > span {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 3px 7px;
+}
+
+.attachment-extraction-body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.attachment-extraction-copy,
+.attachment-extraction-images {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 15px 17px 17px 20px;
+}
+
+.attachment-extraction-images {
+  border-left: 1px solid var(--color-border);
+  padding-left: 17px;
+  padding-right: 20px;
+}
+
+.attachment-extraction-column-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.attachment-extraction-column-head strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.attachment-extraction-column-head span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.attachment-extraction-copy-list,
+.attachment-extraction-image-lists {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.attachment-extraction-copy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.attachment-extraction-copy-list article {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 9px 10px;
+}
+
+.attachment-extraction-copy-list article > span {
+  color: var(--color-brand);
+  display: block;
+  font-size: 10px;
+  font-weight: 650;
+  margin-bottom: 3px;
+}
+
+.attachment-extraction-copy-list article p {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.attachment-extraction-image-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.attachment-extraction-image-group-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.attachment-extraction-image-group-head strong {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.attachment-extraction-image-group-head span {
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+
+.attachment-extraction-image-grid {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attachment-extraction-image-grid figure {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.attachment-extraction-image-grid figure.is-filtered {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.attachment-extraction-image-grid .ant-image,
+.attachment-extraction-image-grid .ant-image-img,
+.attachment-extraction-image-placeholder {
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  width: 100%;
+}
+
+.attachment-extraction-image-placeholder {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  justify-content: center;
+}
+
+.attachment-extraction-image-grid figcaption {
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 7px;
+}
+
+.attachment-extraction-image-grid figcaption strong {
+  color: var(--color-text);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-extraction-image-grid figcaption span {
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+
+.attachment-extraction-empty {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 1px dashed var(--color-border);
+  border-radius: 9px;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 6px;
+  justify-content: center;
+  min-height: 110px;
+}
+
+.attachment-extraction-empty.is-images {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 800px) {
+  .attachment-extraction-panel {
+    min-height: 70vh;
+  }
+
+  .attachment-extraction-body {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .attachment-extraction-copy,
+  .attachment-extraction-images {
+    min-height: 340px;
+  }
+
+  .attachment-extraction-images {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
+}

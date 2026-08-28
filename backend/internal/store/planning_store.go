@@ -32,6 +32,10 @@ func defaultPlanningAnalysis() map[string]any {
 	return map[string]any{
 		"referenceBreakdown": nil,
 		"materialCaptions":   []any{},
+		"campaignPlan":       nil,
+		"campaignImageGeneration": map[string]any{
+			"status": "idle", "images": []any{}, "errorMessage": "",
+		},
 		"productInsights": map[string]any{
 			"productName": "", "productCategory": "", "productFeatures": []any{}, "coreSellingPoints": []any{}, "targetAudience": []any{}, "useScenarios": []any{},
 		},

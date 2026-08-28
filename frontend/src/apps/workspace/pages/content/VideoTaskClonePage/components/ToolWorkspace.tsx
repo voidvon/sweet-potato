@@ -10,6 +10,7 @@ import { MaterialPanel } from './MaterialPanel';
 import { DanceRemakePanel } from './DanceRemakePanel';
 import { MarketingVideoPanel } from './MarketingVideoPanel';
 import { LightweightMarketingVideoPanel } from './LightweightMarketingVideoPanel';
+import type { LightweightMarketingVideoController } from './LightweightMarketingVideoPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
@@ -21,10 +22,11 @@ import { VideoTranslationPanel } from './VideoTranslationPanel';
 import { t } from '@shared/i18n';
 
 type ToolWorkspaceProps = {
+  lightweightMarketing: LightweightMarketingVideoController;
   state: VideoTaskCloneState;
 };
 
-export function ToolWorkspace({ state }: ToolWorkspaceProps) {
+export function ToolWorkspace({ lightweightMarketing, state }: ToolWorkspaceProps) {
   const { workspace } = state.tool;
   const hasWorkspaceContent = workspace.blocks.length > 0;
   const hasLocalWorkflow = state.tool.key === 'lightweight-marketing-video';
@@ -33,14 +35,29 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
       {hasWorkspaceContent ? (
         <div className="video-task-left-scroll">
           {workspace.blocks.map((block) => (
-            <Fragment key={block.id}>{workspaceBlockRenderers[block.type](block, state)}</Fragment>
+            <Fragment key={block.id}>{workspaceBlockRenderers[block.type](block, state, lightweightMarketing)}</Fragment>
           ))}
         </div>
       ) : (
         <PendingToolWorkspace state={state} />
       )}
 
-      {!hasLocalWorkflow ? <div className="video-task-generate-bar">
+      {hasLocalWorkflow ? (
+        <div className="video-task-generate-bar lightweight-video-generate-bar">
+          {lightweightMarketing.createError ? (
+            <p className="lightweight-video-generate-error">{lightweightMarketing.createError}</p>
+          ) : null}
+          <Button
+            className="video-task-generate"
+            disabled={!lightweightMarketing.canCreateRecord}
+            loading={Boolean(lightweightMarketing.creatingRecordId)}
+            onClick={() => void lightweightMarketing.createRecord()}
+            type="primary"
+          >
+            {lightweightMarketing.creatingRecordId ? t('解析中…') : t('开始解析')}
+          </Button>
+        </div>
+      ) : <div className="video-task-generate-bar">
         <Button
           className="video-task-generate"
           disabled={!state.canGenerate || state.isGenerating}
@@ -56,16 +73,20 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
             </span>
           ) : null}
         </Button>
-      </div> : null}
+      </div>}
     </>
   );
 }
 
-type WorkspaceBlockRenderer = (block: WorkspaceBlock, state: VideoTaskCloneState) => ReactNode;
+type WorkspaceBlockRenderer = (
+  block: WorkspaceBlock,
+  state: VideoTaskCloneState,
+  lightweightMarketing: LightweightMarketingVideoController,
+) => ReactNode;
 
 const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer> = {
-  'lightweight-marketing-video-form': (block, state) => block.type === 'lightweight-marketing-video-form' ? (
-    <LightweightMarketingVideoPanel currentUser={state.currentUser} />
+  'lightweight-marketing-video-form': (block, _state, lightweightMarketing) => block.type === 'lightweight-marketing-video-form' ? (
+    <LightweightMarketingVideoPanel controller={lightweightMarketing} />
   ) : null,
   material: (block, state) => block.type === 'material' ? (
     <ToolMaterialPanel showVoiceToggle={block.showVoiceToggle === true} state={state} />
@@ -192,7 +213,7 @@ export function ToolResultWorkspace({
   );
 }
 
-function ToolMaterialPanel({ showVoiceToggle, state }: ToolWorkspaceProps & { showVoiceToggle: boolean }) {
+function ToolMaterialPanel({ showVoiceToggle, state }: Pick<ToolWorkspaceProps, 'state'> & { showVoiceToggle: boolean }) {
   return (
     <MaterialPanel
       activeUpload={state.activeUpload}

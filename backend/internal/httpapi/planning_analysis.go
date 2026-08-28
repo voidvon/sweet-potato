@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	planningAnalysisMaxImages = 16
-	planningAnalysisMaxText   = 60000
+	planningAnalysisMaxImages     = 16
+	planningAnalysisMaxText       = 60000
+	planningCampaignMaxReferences = 6
 )
 
 type planningAnalysisContext struct {
@@ -378,6 +379,7 @@ func planningExtractionText(asset store.ContentAsset, result map[string]any) str
 func planningAnalysisModelInput(session store.ContentPlanningSession, analysisContext planningAnalysisContext) []map[string]any {
 	parts := []map[string]any{{"type": "input_text", "text": strings.Join([]string{
 		"请结合营销需求和所有附件，完成营销视频前置内容分析。不得编造附件中不存在的产品参数；不确定内容请写入 notes。",
+		"同时规划 2 至 6 个宣传视频场景。先确定贯穿全片的视觉风格，再为每个场景生成主标题、副标题、旁白、CTA、用途、时长和中文图片提示词。每个场景最多引用 6 个附件索引中的真实图片 asset_id。图片提示词不得要求生成文字、字幕、Logo、水印、UI 标签或边框，并为后续叠加文案预留清晰区域。",
 		"产品名称：" + stringValue(session.MaterialBundle, "productName"),
 		"营销需求：" + stringValue(session.MaterialBundle, "prompt"),
 		"附件索引：\n" + strings.Join(analysisContext.sourceInfo, "\n"),
@@ -397,6 +399,25 @@ func planningAnalysisModelInput(session store.ContentPlanningSession, analysisCo
 
 func planningAnalysisResultTool() map[string]any {
 	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	campaignScene := map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"id", "title", "subtitle", "voiceover", "cta", "purpose", "durationInSeconds", "assetIds", "imagePrompt"},
+		"properties": map[string]any{
+			"id": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "subtitle": map[string]any{"type": "string"},
+			"voiceover": map[string]any{"type": "string"}, "cta": map[string]any{"type": "string"}, "purpose": map[string]any{"type": "string"},
+			"durationInSeconds": map[string]any{"type": "number", "minimum": 2, "maximum": 10},
+			"assetIds":          map[string]any{"type": "array", "maxItems": planningCampaignMaxReferences, "items": map[string]any{"type": "string"}},
+			"imagePrompt":       map[string]any{"type": "string"},
+		},
+	}
+	campaignPlan := map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"visualStyle", "scenes"},
+		"properties": map[string]any{
+			"visualStyle": map[string]any{"type": "string"},
+			"scenes":      map[string]any{"type": "array", "minItems": 2, "maxItems": 6, "items": campaignScene},
+		},
+	}
 	breakdown := map[string]any{
 		"type": "object", "additionalProperties": false,
 		"required": []string{"tags", "structureFramework", "emotionCurve", "summary", "segments", "replaceableElements", "keepElements", "applicableCategories"},
@@ -410,10 +431,11 @@ func planningAnalysisResultTool() map[string]any {
 		"type": "function", "name": "submit_content_analysis", "description": "提交结构化营销内容分析", "strict": true,
 		"parameters": map[string]any{
 			"type": "object", "additionalProperties": false,
-			"required": []string{"materialCaptions", "productInsights", "referenceBreakdown", "notes"},
+			"required": []string{"materialCaptions", "productInsights", "campaignPlan", "referenceBreakdown", "notes"},
 			"properties": map[string]any{
 				"materialCaptions":   map[string]any{"type": "array", "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"assetId", "label", "description"}, "properties": map[string]any{"assetId": map[string]any{"type": "string"}, "label": map[string]any{"type": "string"}, "description": map[string]any{"type": "string"}}}},
 				"productInsights":    map[string]any{"type": "object", "additionalProperties": false, "required": []string{"productName", "productCategory", "productFeatures", "coreSellingPoints", "targetAudience", "useScenarios"}, "properties": map[string]any{"productName": map[string]any{"type": "string"}, "productCategory": map[string]any{"type": "string"}, "productFeatures": stringArray, "coreSellingPoints": stringArray, "targetAudience": stringArray, "useScenarios": stringArray}},
+				"campaignPlan":       campaignPlan,
 				"referenceBreakdown": map[string]any{"anyOf": []any{breakdown, map[string]any{"type": "null"}}},
 				"notes":              stringArray,
 			},
@@ -472,6 +494,8 @@ func normalizePlanningAnalysis(raw map[string]any, analysisContext planningAnaly
 		captions = append(captions, map[string]any{"id": "caption-" + assetID, "assetId": assetID, "label": label, "previewUrl": stringValue(ref, "fileUrl"), "description": stringValue(item, "description")})
 	}
 	result["materialCaptions"] = captions
+	result["campaignPlan"] = normalizePlanningCampaignPlan(objectValue(raw["campaignPlan"]), analysisContext)
+	result["campaignImageGeneration"] = map[string]any{"status": "idle", "images": []any{}, "errorMessage": ""}
 	if breakdown := objectValue(raw["referenceBreakdown"]); len(breakdown) > 0 {
 		result["referenceBreakdown"] = map[string]any{
 			"tags": stringSlice(breakdown["tags"]), "structureFramework": stringValue(breakdown, "structureFramework"), "emotionCurve": stringValue(breakdown, "emotionCurve"), "summary": stringValue(breakdown, "summary"),
@@ -483,6 +507,69 @@ func normalizePlanningAnalysis(raw map[string]any, analysisContext planningAnaly
 	result["notes"] = notes
 	result["confirmed"] = false
 	return result
+}
+
+func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningAnalysisContext) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	availableIDs := make([]string, 0, len(analysisContext.images))
+	allowed := map[string]bool{}
+	for _, asset := range analysisContext.images {
+		if !allowed[asset.ID] {
+			allowed[asset.ID] = true
+			availableIDs = append(availableIDs, asset.ID)
+		}
+	}
+	scenes := []any{}
+	seenIDs := map[string]bool{}
+	for index, value := range anySlice(raw["scenes"]) {
+		if len(scenes) >= 6 {
+			break
+		}
+		item := objectValue(value)
+		id := strings.TrimSpace(stringValue(item, "id"))
+		if id == "" || seenIDs[id] {
+			id = fmt.Sprintf("scene-%d", index+1)
+		}
+		seenIDs[id] = true
+		assetIDs := []string{}
+		for _, assetID := range stringSlice(item["assetIds"]) {
+			if allowed[assetID] && !planningContainsString(assetIDs, assetID) && len(assetIDs) < planningCampaignMaxReferences {
+				assetIDs = append(assetIDs, assetID)
+			}
+		}
+		if len(assetIDs) == 0 && len(availableIDs) > 0 {
+			assetIDs = append(assetIDs, availableIDs[index%len(availableIDs)])
+		}
+		duration := numberValue(item["durationInSeconds"], 4)
+		if duration < 2 || duration > 10 {
+			duration = 4
+		}
+		title := strings.TrimSpace(stringValue(item, "title"))
+		prompt := strings.TrimSpace(stringValue(item, "imagePrompt"))
+		if prompt == "" {
+			prompt = fmt.Sprintf("生成与“%s”匹配的专业营销视频画面", valueOr(title, fmt.Sprintf("场景 %d", index+1)))
+		}
+		scenes = append(scenes, map[string]any{
+			"id": id, "title": title, "subtitle": stringValue(item, "subtitle"), "voiceover": stringValue(item, "voiceover"),
+			"cta": stringValue(item, "cta"), "purpose": stringValue(item, "purpose"), "durationInSeconds": duration,
+			"assetIds": assetIDs, "imagePrompt": prompt,
+		})
+	}
+	if len(scenes) == 0 {
+		return nil
+	}
+	return map[string]any{"visualStyle": strings.TrimSpace(stringValue(raw, "visualStyle")), "scenes": scenes}
+}
+
+func planningContainsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func anySlice(value any) []any {

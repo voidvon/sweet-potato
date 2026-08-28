@@ -3,13 +3,14 @@ import { useRef } from 'react';
 import { AudioMaterialStack } from './AudioMaterialStack';
 import { AnimatedUploadPlus } from './AnimatedUploadPlus';
 import { ImageMaterialStack } from './ImageMaterialStack';
-import { type MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
+import { MediaAttachmentStack, type MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { VideoMaterialSlot } from './VideoMaterialSlot';
 import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue, UploadAnchor } from '../types';
 import { t } from '@shared/i18n';
 
 type MaterialSlotProps = {
   accept?: string;
+  attachmentItems?: MediaAttachmentItem[];
   disabled?: boolean;
   item: MaterialKind;
   multiple?: boolean;
@@ -37,6 +38,7 @@ const imageThumbs = [
 
 export function MaterialSlot({
   accept,
+  attachmentItems,
   disabled = false,
   item,
   multiple,
@@ -50,9 +52,10 @@ export function MaterialSlot({
   selected,
 }: MaterialSlotProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const selectedCount = getSelectedCount(item, selected);
-  const slotClassName = `video-task-material-slot${selected ? ' is-selected' : ''} is-${item.key}`;
-  const dynamicStyle = getSlotStyle(item, selectedCount, selected);
+  const selectedCount = attachmentItems?.length ?? getSelectedCount(item, selected);
+  const hasSelected = selectedCount > 0;
+  const slotClassName = `video-task-material-slot${hasSelected ? ' is-selected' : ''} is-${item.key}`;
+  const dynamicStyle = getSlotStyle(item, selectedCount, hasSelected ? selected ?? 'selected' : undefined);
   const handleOpen = (target: HTMLElement) => {
     if (disabled) return;
     if (openMode === 'local') {
@@ -85,9 +88,15 @@ export function MaterialSlot({
         />
       )}
       <div className="video-task-material-slot-card">
-        {selected ? (
+        {hasSelected ? (
           <>
-            {item.key === 'image' && (
+            {attachmentItems && item.key === 'image' ? (
+              <MediaAttachmentStack
+                items={attachmentItems}
+                layout="offset"
+                onRemove={disabled ? undefined : (material) => onRemoveOne(item, material.id)}
+              />
+            ) : item.key === 'image' && (
               <ImageMaterialStack
                 items={getImageItems(selectedCount, selected)}
                 onRemove={(material) => onRemoveOne(item, material.id)}
@@ -111,6 +120,7 @@ export function MaterialSlot({
               <button
                 aria-label={t("添加{{0}}", { "0": item.label })}
                 className="video-task-upload-tile is-compact-add"
+                disabled={disabled}
                 onClick={(event) => handleOpen(event.currentTarget)}
                 title={t("添加{{0}}", { "0": item.label })}
                 type="button"
@@ -134,8 +144,8 @@ export function MaterialSlot({
           </button>
         )}
       </div>
-      <span className={selected ? 'video-task-upload-hint is-selected' : 'video-task-upload-hint'}>
-        {selected ? getSelectedHint(item, selectedCount, selected) : item.hint}
+      <span className={hasSelected ? 'video-task-upload-hint is-selected' : 'video-task-upload-hint'}>
+        {hasSelected ? getSelectedHint(item, selectedCount, selected, Boolean(attachmentItems)) : item.hint}
       </span>
     </div>
   );
@@ -239,8 +249,9 @@ function getLimit(item: MaterialKind) {
   return 1;
 }
 
-function getSelectedHint(item: MaterialKind, count: number, selected: SelectedMaterialValue) {
-  if (item.key === 'image') return t("{{0}}/9 张", { "0": count });
+function getSelectedHint(item: MaterialKind, count: number, selected: SelectedMaterialValue, usesAttachmentItems = false) {
+  if (item.key === 'image' && usesAttachmentItems) return t("{{0}}/{{1}} 个", { "0": count, "1": getLimit(item) });
+  if (item.key === 'image') return t("{{0}}/{{1}} 张", { "0": count, "1": getLimit(item) });
   if (item.key === 'audio') return t("{{0}}/3 个 · {{1}}", { "0": count, "1": formatDuration(getSelectedAudioDuration(selected, count)) });
   return t("{{0}}/1 个", { "0": count });
 }

@@ -115,6 +115,11 @@
   justify-content: center;
 }
 
+.media-attachment-stack__item.is-file.is-presentation {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-strong);
+}
+
 .media-attachment-stack__file {
   align-items: center;
   display: flex;

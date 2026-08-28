@@ -1,5 +1,4 @@
-import { FilePdfOutlined } from '@ant-design/icons';
-import { ImageOff, LoaderCircle, Pause, Play, Plus, X } from 'lucide-react';
+import { FileText, ImageOff, LoaderCircle, Pause, Play, Plus, Presentation, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import './MediaAttachmentStack.scss';
@@ -9,6 +8,7 @@ export type MediaAttachmentItem = {
   background?: string;
   caption?: string;
   detail?: string;
+  fileKind?: 'pdf' | 'presentation';
   id: string;
   name: string;
   previewSrc?: string;
@@ -257,7 +257,7 @@ export function MediaAttachmentStack({
     return (
       <div
         aria-label={canPreview ? t("预览{{0}}", { "0": item.name }) : undefined}
-        className={`media-attachment-stack__item is-${item.type}${expanded ? ' is-expanded' : ''}${collapsedHidden && !expanded && !keepVisibleWhileCollapsing ? ' is-collapsed-hidden' : ''}${canPreview ? ' is-clickable' : ''}`}
+        className={`media-attachment-stack__item is-${item.type}${item.fileKind ? ` is-${item.fileKind}` : ''}${expanded ? ' is-expanded' : ''}${collapsedHidden && !expanded && !keepVisibleWhileCollapsing ? ' is-collapsed-hidden' : ''}${canPreview ? ' is-clickable' : ''}`}
         key={item.id}
         onClick={canPreview ? () => preview(item, originalIndex) : undefined}
         onKeyDown={canPreview
@@ -293,7 +293,9 @@ export function MediaAttachmentStack({
           </>
         ) : item.type === 'file' ? (
           <span className="media-attachment-stack__file">
-            <FilePdfOutlined aria-hidden="true" />
+            {item.fileKind === 'presentation'
+              ? <Presentation aria-hidden="true" size={30} strokeWidth={1.7} />
+              : <FileText aria-hidden="true" size={30} strokeWidth={1.7} />}
             {showCaption && item.caption ? <span className="media-attachment-stack__caption">{item.caption}</span> : null}
           </span>
         ) : (

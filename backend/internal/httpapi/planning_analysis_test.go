@@ -12,7 +12,7 @@ import (
 )
 
 func TestPlanningAnalysisUsesVisionModelAndPersistsStructuredResult(t *testing.T) {
-	arguments := `{"materialCaptions":[{"assetId":"asset-product","label":"产品正面","description":"白色便携设备，正面有圆形控制区。"}],"productInsights":{"productName":"便携设备","productCategory":"消费电子","productFeatures":["便携"],"coreSellingPoints":["简洁易用"],"targetAudience":["通勤用户"],"useScenarios":["差旅"]},"referenceBreakdown":null,"notes":["具体续航参数未提供"]}`
+	arguments := `{"materialCaptions":[{"assetId":"asset-product","label":"产品正面","description":"白色便携设备，正面有圆形控制区。"}],"productInsights":{"productName":"便携设备","productCategory":"消费电子","productFeatures":["便携"],"coreSellingPoints":["简洁易用"],"targetAudience":["通勤用户"],"useScenarios":["差旅"]},"campaignPlan":{"visualStyle":"明亮、简洁的产品摄影","scenes":[{"id":"opening","title":"轻装出发","subtitle":"通勤更轻松","voiceover":"便携设备让出行更从容","cta":"","purpose":"开场展示","durationInSeconds":4,"assetIds":["asset-product","invented"],"imagePrompt":"便携设备置于明亮通勤场景中，产品特写"},{"id":"closing","title":"即刻体验","subtitle":"简洁易用","voiceover":"现在开始体验","cta":"了解更多","purpose":"行动引导","durationInSeconds":4,"assetIds":["asset-product"],"imagePrompt":"便携设备英雄镜头，背景干净并预留文案区域"}]},"referenceBreakdown":null,"notes":["具体续航参数未提供"]}`
 	inputImageCount := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]any
@@ -66,6 +66,11 @@ func TestPlanningAnalysisUsesVisionModelAndPersistsStructuredResult(t *testing.T
 	insights := objectValue(completed.Analysis["productInsights"])
 	if stringValue(insights, "productCategory") != "消费电子" {
 		t.Fatalf("product insights = %#v", insights)
+	}
+	plan := objectValue(completed.Analysis["campaignPlan"])
+	scenes := anySlice(plan["scenes"])
+	if len(scenes) != 2 || len(stringSlice(objectValue(scenes[0])["assetIds"])) != 1 {
+		t.Fatalf("campaign plan = %#v", plan)
 	}
 	if inputImageCount != 1 {
 		t.Fatalf("input image count = %d, want 1", inputImageCount)

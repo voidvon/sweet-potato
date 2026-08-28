@@ -382,6 +382,71 @@ export function getContentAsset(id: string) {
   return request<ContentAsset>(`${Api.assets}/${id}`);
 }
 
+export type AssetExtractionLocator = {
+  kind: 'slide' | 'page' | string;
+  index: number;
+};
+
+export type AssetExtractionResult = {
+  fileName: string;
+  kind: string;
+  parser: string;
+  version: string;
+  text?: string;
+  units?: Array<{
+    locator: AssetExtractionLocator;
+    text?: string;
+    artifactIds?: string[];
+    metadata?: Record<string, unknown>;
+  }>;
+  artifacts?: Array<{
+    id: string;
+    kind: string;
+    fileName: string;
+    mimeType: string;
+    locator?: AssetExtractionLocator;
+    metadata?: Record<string, unknown>;
+  }>;
+  filteredArtifacts?: Array<{
+    id: string;
+    kind: string;
+    fileName: string;
+    mimeType: string;
+    locator?: AssetExtractionLocator;
+    metadata?: Record<string, unknown>;
+  }>;
+  metadata?: Record<string, unknown>;
+  warnings?: string[];
+};
+
+export type AssetExtraction = {
+  id: string;
+  assetId: string;
+  userId: string;
+  parser: string;
+  parserVersion: string;
+  optionsHash: string;
+  contentHash?: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  result: AssetExtractionResult;
+  derivedAssetIds: string[];
+  errorCode?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function startAssetExtraction(assetId: string, force = false) {
+  const suffix = force ? '?force=true' : '';
+  return request<AssetExtraction>(`${Api.assets}/${assetId}/extraction${suffix}`, { method: 'POST' });
+}
+
+export function getAssetExtraction(assetId: string) {
+  return request<AssetExtraction>(`${Api.assets}/${assetId}/extraction`);
+}
+
 export function listVideoTasks(userId: string) {
   void userId;
   return request<VideoGenerationTask[]>(Api.videoTasks);

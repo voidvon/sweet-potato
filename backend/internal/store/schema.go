@@ -461,6 +461,29 @@ const foundationSchema = `
     CREATE INDEX IF NOT EXISTS idx_content_planning_sessions_user_updated
       ON content_planning_sessions(user_id, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS content_workflows (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      module_key TEXT NOT NULL,
+      record_key TEXT NOT NULL DEFAULT 'default',
+      title TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      current_step TEXT NOT NULL DEFAULT '',
+      state TEXT NOT NULL DEFAULT '{}',
+      schema_version INTEGER NOT NULL DEFAULT 1,
+      revision INTEGER NOT NULL DEFAULT 1,
+      completed_at TEXT,
+      deleted_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_content_workflows_user_module_record
+      ON content_workflows(user_id, module_key, record_key);
+
+    CREATE INDEX IF NOT EXISTS idx_content_workflows_user_module_updated
+      ON content_workflows(user_id, module_key, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS content_asset_groups (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

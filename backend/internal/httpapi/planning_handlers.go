@@ -97,6 +97,21 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 		writeJSON(w, http.StatusAccepted, updated)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "campaign-images" && r.Method == http.MethodPost {
+		input, ok := decodeMap(w, r)
+		if !ok {
+			return
+		}
+		updated, runID, err := s.queuePlanningCampaignImages(session)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		modelConfigID := stringValue(input, "modelConfigId")
+		s.startBackgroundTask(func() { s.executePlanningCampaignImages(updated.ID, runID, modelConfigID) })
+		writeJSON(w, http.StatusAccepted, updated)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "confirmation" && (r.Method == http.MethodPatch || r.Method == http.MethodPut) {
 		input, ok := decodeMap(w, r)
 		if !ok {
@@ -292,7 +307,15 @@ func (s *Server) applyPlanningSession(session store.ContentPlanningSession, cand
 }
 
 func defaultAnalysisHTTP() map[string]any {
-	return map[string]any{"referenceBreakdown": nil, "materialCaptions": []any{}, "productInsights": map[string]any{}, "confirmed": false, "notes": []any{}}
+	return map[string]any{
+		"referenceBreakdown":      nil,
+		"materialCaptions":        []any{},
+		"campaignPlan":            nil,
+		"campaignImageGeneration": map[string]any{"status": "idle", "images": []any{}, "errorMessage": ""},
+		"productInsights":         map[string]any{},
+		"confirmed":               false,
+		"notes":                   []any{},
+	}
 }
 func defaultPlanningGenerationHTTP() map[string]any {
 	return map[string]any{"reasoningLogs": []any{}, "reasoningStream": nil, "stages": []any{}, "candidates": []any{}, "selectedCandidateId": "", "validatorSummary": "", "stageOutputs": map[string]any{}}

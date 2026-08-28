@@ -65,6 +65,10 @@ func (s *Server) handleContent(w http.ResponseWriter, r *http.Request) {
 		s.handleContentAssets(w, r, parts[1:])
 		return
 	}
+	if parts[0] == "workflows" {
+		s.handleContentWorkflows(w, r, parts[1:])
+		return
+	}
 	if parts[0] == "video-tasks" || parts[0] == "video-productions" || parts[0] == "video-enhancements" || parts[0] == "subtitle-removals" || parts[0] == "video-translations" {
 		s.handleVideoContent(w, r, parts)
 		return

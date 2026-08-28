@@ -5,6 +5,8 @@ import { ModelPicker } from './components/ModelPicker';
 import { PromptModal } from './components/PromptModal';
 import { ToolSwitcher } from './components/ToolSwitcher';
 import { StoryboardHistoryPanel } from './components/StoryboardHistoryPanel';
+import { LightweightCreationHistoryPanel } from './components/LightweightCreationHistoryPanel';
+import { useLightweightMarketingVideoController } from './components/LightweightMarketingVideoPanel';
 import { TalkingVideoGenerationModal } from './components/TalkingVideoGenerationModal';
 import { TalkingVideoInputRail, TalkingVideoPromptWorkspace } from './components/TalkingVideoPromptWorkspace';
 import { ToolResultWorkspace, ToolWorkspace } from './components/ToolWorkspace';
@@ -23,6 +25,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTool = toolOptions.find((option) => option.key === searchParams.get('tool')) ?? toolOptions[0];
   const state = useVideoTaskCloneState(currentUser, urlTool);
+  const lightweightMarketing = useLightweightMarketingVideoController(currentUser);
 
   useEffect(() => {
     if (state.tool.key !== urlTool.key) {
@@ -67,7 +70,9 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
     'video-task-clone-page',
     state.tool.key === 'lightweight-marketing-video' ? 'is-lightweight-marketing-video' : '',
     state.tool.key === 'talking-video' ? 'is-talking-video' : '',
-    state.tool.key === 'marketing-video' ? 'has-storyboard-history' : '',
+    state.tool.key === 'marketing-video' || state.tool.key === 'lightweight-marketing-video'
+      ? 'has-storyboard-history'
+      : '',
     state.tool.key === 'talking-video' && state.talkingVideoPromptTask ? 'has-talking-video-prompt' : '',
     state.tool.key === 'talking-video' && state.talkingVideoPromptTask && state.talkingVideoInputExpanded
       ? 'has-talking-video-input-expanded'
@@ -85,10 +90,17 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
           onSelect={handleToolSelect}
         />
 
-        {showTalkingVideoHistory ? <TalkingVideoInputRail state={state} /> : <ToolWorkspace state={state} />}
+        {showTalkingVideoHistory ? (
+          <TalkingVideoInputRail state={state} />
+        ) : (
+          <ToolWorkspace lightweightMarketing={lightweightMarketing} state={state} />
+        )}
       </section>
 
       {state.tool.key === 'marketing-video' ? <StoryboardHistoryPanel state={state} /> : null}
+      {state.tool.key === 'lightweight-marketing-video' ? (
+        <LightweightCreationHistoryPanel controller={lightweightMarketing} />
+      ) : null}
       {showTalkingVideoHistory ? <TalkingVideoPromptWorkspace state={state} /> : null}
 
       <ToolResultWorkspace onEdit={handleEditProduction} state={state} />

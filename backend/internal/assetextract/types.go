@@ -46,15 +46,16 @@ type Artifact struct {
 }
 
 type Result struct {
-	FileName  string         `json:"fileName"`
-	Kind      string         `json:"kind"`
-	Parser    string         `json:"parser"`
-	Version   string         `json:"version"`
-	Text      string         `json:"text,omitempty"`
-	Units     []ContentUnit  `json:"units,omitempty"`
-	Artifacts []Artifact     `json:"artifacts,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	Warnings  []string       `json:"warnings,omitempty"`
+	FileName          string         `json:"fileName"`
+	Kind              string         `json:"kind"`
+	Parser            string         `json:"parser"`
+	Version           string         `json:"version"`
+	Text              string         `json:"text,omitempty"`
+	Units             []ContentUnit  `json:"units,omitempty"`
+	Artifacts         []Artifact     `json:"artifacts,omitempty"`
+	FilteredArtifacts []Artifact     `json:"filteredArtifacts,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
+	Warnings          []string       `json:"warnings,omitempty"`
 }
 
 type Parser interface {

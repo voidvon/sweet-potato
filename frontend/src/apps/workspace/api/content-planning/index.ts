@@ -54,6 +54,36 @@ export type PlanningProductInsights = {
   useScenarios: string[];
 };
 
+export type PlanningCampaignScene = {
+  id: string;
+  title: string;
+  subtitle: string;
+  voiceover: string;
+  cta: string;
+  purpose: string;
+  durationInSeconds: number;
+  assetIds: string[];
+  imagePrompt: string;
+};
+
+export type PlanningCampaignImage = {
+  sceneId: string;
+  title: string;
+  assetId: string;
+  fileUrl: string;
+  prompt: string;
+  referenceAssetIds: string[];
+};
+
+export type PlanningCampaignImageGeneration = {
+  runId?: string;
+  status: 'idle' | 'generating' | 'completed' | 'failed';
+  images: PlanningCampaignImage[];
+  errorMessage: string;
+  startedAt?: string;
+  completedAt?: string;
+};
+
 export type PlanningReferenceBreakdown = {
   tags: string[];
   structureFramework: string;
@@ -71,6 +101,8 @@ export type PlanningAnalysis = {
   referenceBreakdown?: PlanningReferenceBreakdown | null;
   materialCaptions: PlanningMaterialCaption[];
   productInsights: PlanningProductInsights;
+  campaignPlan?: { visualStyle: string; scenes: PlanningCampaignScene[] } | null;
+  campaignImageGeneration?: PlanningCampaignImageGeneration;
   confirmed: boolean;
   notes: string[];
 };
@@ -278,6 +310,17 @@ export function analyzePlanningSession(payload: {
   media?: PlanningMediaInput[];
 }) {
   return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/analyze`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }).then(extractPlanningSession);
+}
+
+export function generatePlanningCampaignImages(payload: {
+  userId: string;
+  sessionId: string;
+  modelConfigId?: string;
+}) {
+  return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/campaign-images`, {
     method: 'POST',
     body: JSON.stringify(payload),
   }).then(extractPlanningSession);

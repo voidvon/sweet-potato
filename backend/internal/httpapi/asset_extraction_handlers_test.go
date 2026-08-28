@@ -80,6 +80,16 @@ func TestContentAssetExtractionCreatesReusableDerivedAssets(t *testing.T) {
 	if filterSummary["total"] != float64(2) || filterSummary["included"] != float64(1) || filterSummary["excluded"] != float64(1) {
 		t.Fatalf("filter summary = %#v", filterSummary)
 	}
+	filteredArtifacts, _ := completed.Result["filteredArtifacts"].([]any)
+	if len(filteredArtifacts) != 1 {
+		t.Fatalf("filtered artifacts = %#v", filteredArtifacts)
+	}
+	filteredArtifact, _ := filteredArtifacts[0].(map[string]any)
+	filteredAssetID, _ := filteredArtifact["id"].(string)
+	filteredAsset, found, err := server.store.FindContentAsset(filteredAssetID)
+	if err != nil || !found || filteredAsset.AssetKind != "extracted_filtered_image" {
+		t.Fatalf("find filtered asset: asset=%#v, found=%v, err=%v", filteredAsset, found, err)
+	}
 	derived, found, err := server.store.FindContentAsset(completed.DerivedAssetIDs[0])
 	if err != nil || !found {
 		t.Fatalf("find derived asset: found=%v, err=%v", found, err)
