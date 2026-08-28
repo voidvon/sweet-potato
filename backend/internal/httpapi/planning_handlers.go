@@ -87,11 +87,13 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 		if !ok {
 			return
 		}
-		updated, err := s.analyzePlanningSession(session, input)
+		updated, err := s.queuePlanningAnalysis(session, input)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		modelConfigID := stringValue(input, "modelConfigId")
+		s.startBackgroundTask(func() { s.executePlanningAnalysis(updated.ID, modelConfigID) })
 		writeJSON(w, http.StatusAccepted, updated)
 		return
 	}
@@ -189,73 +191,6 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	writeError(w, http.StatusMethodNotAllowed, "请求方法不支持")
-}
-
-func (s *Server) analyzePlanningSession(session store.ContentPlanningSession, input map[string]any) (store.ContentPlanningSession, error) {
-	media := []any{}
-	if value, ok := input["media"].([]any); ok {
-		media = append(media, value...)
-	}
-	if values, ok := input["imageAssetIds"].([]any); ok {
-		for _, value := range values {
-			media = append(media, map[string]any{"assetId": fmt.Sprint(value), "kind": "image"})
-		}
-	}
-	if value := strings.TrimSpace(stringValue(input, "referenceVideoAssetId")); value != "" {
-		media = append(media, map[string]any{"assetId": value, "kind": "video"})
-	}
-	if value := strings.TrimSpace(stringValue(input, "referenceAudioAssetId")); value != "" {
-		media = append(media, map[string]any{"assetId": value, "kind": "audio"})
-	}
-	var imageMaterials []any
-	var referenceVideo, referenceAudio any
-	for _, value := range media {
-		item, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-		assetID := strings.TrimSpace(fmt.Sprint(item["assetId"]))
-		asset, found, err := s.store.FindContentAsset(assetID)
-		if err != nil || !found || asset.UserID != session.UserID {
-			return session, fmt.Errorf("asset %s not found", assetID)
-		}
-		kind := strings.TrimSpace(fmt.Sprint(item["kind"]))
-		ref := map[string]any{"assetId": asset.ID, "kind": kind, "name": asset.Name, "fileUrl": asset.FileURL, "mimeType": asset.MimeType, "originalFileName": asset.OriginalFileName, "storedFileName": asset.StoredFileName}
-		switch kind {
-		case "image":
-			imageMaterials = append(imageMaterials, ref)
-		case "video":
-			referenceVideo = ref
-		case "audio":
-			referenceAudio = ref
-		}
-	}
-	if len(imageMaterials) == 0 {
-		return session, errors.New("at least one product image is required")
-	}
-	if len(imageMaterials) > 9 {
-		imageMaterials = imageMaterials[:9]
-	}
-	material := session.MaterialBundle
-	material["prompt"] = stringValue(input, "prompt")
-	if material["prompt"] == "" {
-		material["prompt"] = stringValue(session.MaterialBundle, "prompt")
-	}
-	material["productName"] = strings.TrimSpace(stringValue(input, "productName"))
-	material["imageMaterials"] = imageMaterials
-	material["referenceVideo"] = referenceVideo
-	material["referenceAudio"] = referenceAudio
-	analysis := defaultAnalysisHTTP()
-	analysis["materialCaptions"] = makeMaterialCaptions(imageMaterials)
-	analysis["productInsights"] = map[string]any{"productName": material["productName"], "productCategory": "", "productFeatures": []any{}, "coreSellingPoints": []any{material["productName"]}, "targetAudience": []any{}, "useScenarios": []any{}}
-	if referenceVideo != nil {
-		analysis["referenceBreakdown"] = map[string]any{"tags": []any{"短视频", "产品展示"}, "structureFramework": "开场吸引-卖点展示-行动引导", "emotionCurve": "平稳上升", "summary": "参考视频将被转化为产品展示节奏。", "segments": []any{}, "replaceableElements": []any{"人物", "产品画面", "口播"}, "keepElements": []any{"节奏", "镜头切换"}, "applicableCategories": []any{}}
-	}
-	analysis["confirmed"] = false
-	session.MaterialBundle, session.Analysis = material, analysis
-	session.Status, session.UIStep, session.JobStage = "confirming", "step2", "completed"
-	session.Generation = defaultPlanningGenerationHTTP()
-	return s.store.UpdatePlanningSession(session)
 }
 
 func makeMaterialCaptions(items []any) []any {

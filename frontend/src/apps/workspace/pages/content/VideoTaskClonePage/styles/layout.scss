@@ -35,6 +35,10 @@
   grid-template-columns: minmax(480px, 520px) minmax(0, 1fr);
 }
 
+.video-task-clone-page.is-lightweight-marketing-video {
+  grid-template-columns: minmax(500px, 560px) minmax(0, 1fr);
+}
+
 .video-task-clone-page.has-talking-video-prompt.has-talking-video-input-expanded {
   grid-template-columns: clamp(360px, 34vw, 520px) minmax(0, 520px) minmax(360px, 1fr);
 }

@@ -193,8 +193,7 @@ func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, use
 			return
 		}
 		for _, created := range assets {
-			_ = os.Remove(created.FilePath)
-			_, _ = s.store.DeleteContentAsset(created.ID, userID)
+			_, _ = s.deleteContentAssetAndDerivedFiles(created.ID, userID)
 		}
 	}
 	_, generateErr := client.GenerateWithProgress(ctx, optionsWithReferences(options, references), func(output imagegen.Output, index int) error {

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"sweet-potato-go/internal/assetextract"
 	"sweet-potato-go/internal/auth"
 	"sweet-potato-go/internal/buildinfo"
 	"sweet-potato-go/internal/config"
@@ -28,6 +29,7 @@ type Server struct {
 	config       config.Config
 	mux          *http.ServeMux
 	store        *store.Store
+	assetExtract *assetextract.Service
 	tokens       *auth.TokenManager
 	vod          *vod.Client
 	rateMu       sync.Mutex
@@ -60,13 +62,18 @@ func New(cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := dataStore.FailInterruptedAssetExtractions(); err != nil {
+		_ = dataStore.Close()
+		return nil, fmt.Errorf("recover asset extraction tasks: %w", err)
+	}
 
 	taskCtx, taskCancel := context.WithCancel(context.Background())
 	server := &Server{
-		config: cfg,
-		mux:    http.NewServeMux(),
-		store:  dataStore,
-		tokens: auth.NewTokenManager(cfg.AuthTokenSecret, cfg.AuthTokenExpiresIn),
+		config:       cfg,
+		mux:          http.NewServeMux(),
+		store:        dataStore,
+		assetExtract: assetextract.NewDefaultService(),
+		tokens:       auth.NewTokenManager(cfg.AuthTokenSecret, cfg.AuthTokenExpiresIn),
 		vod: vod.New(vod.Config{
 			AccessKey:        cfg.VODAccessKey,
 			SecretKey:        cfg.VODSecretKey,
@@ -156,6 +163,7 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.Handle("/files/", server.fileHandler())
 	server.mux.Handle("/", server.staticHandler())
 	server.resumeVODTasks()
+	server.startBackgroundTask(server.runAssetExtractionCleanupLoop)
 	return server, nil
 }
 

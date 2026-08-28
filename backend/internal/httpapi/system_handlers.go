@@ -262,14 +262,9 @@ func (s *Server) deleteManagedAsset(id string) error {
 	if !found {
 		return os.ErrNotExist
 	}
-	removed, err := s.store.DeleteContentAsset(asset.ID, asset.UserID)
+	_, err = s.deleteContentAssetAndDerivedFiles(asset.ID, asset.UserID)
 	if err != nil {
 		return err
-	}
-	if removed.FilePath != "" {
-		if err := s.removeManagedFilePath(removed.FilePath); err != nil {
-			return err
-		}
 	}
 	return nil
 }

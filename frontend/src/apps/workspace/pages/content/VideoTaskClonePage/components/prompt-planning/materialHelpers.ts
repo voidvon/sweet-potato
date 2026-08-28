@@ -94,6 +94,7 @@ export function replaceSeedMaterials(current: SelectedMaterials, next: SelectedM
 
 export function hasSessionMaterialBundle(session: PlanningSession) {
   return session.materialBundle.imageMaterials.length > 0
+    || Boolean(session.materialBundle.documentMaterials?.length)
     || Boolean(session.materialBundle.referenceVideo)
     || Boolean(session.materialBundle.referenceAudio);
 }

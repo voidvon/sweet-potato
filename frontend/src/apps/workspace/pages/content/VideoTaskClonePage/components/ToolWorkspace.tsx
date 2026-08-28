@@ -9,6 +9,7 @@ import type { VideoGenerationTask } from '../../../../types';
 import { MaterialPanel } from './MaterialPanel';
 import { DanceRemakePanel } from './DanceRemakePanel';
 import { MarketingVideoPanel } from './MarketingVideoPanel';
+import { LightweightMarketingVideoPanel } from './LightweightMarketingVideoPanel';
 import { ParameterPanel } from './ParameterPanel';
 import { PromptPanel } from './PromptPanel';
 import { ResultPanel } from './ResultPanel';
@@ -26,6 +27,7 @@ type ToolWorkspaceProps = {
 export function ToolWorkspace({ state }: ToolWorkspaceProps) {
   const { workspace } = state.tool;
   const hasWorkspaceContent = workspace.blocks.length > 0;
+  const hasLocalWorkflow = state.tool.key === 'lightweight-marketing-video';
   return (
     <>
       {hasWorkspaceContent ? (
@@ -38,7 +40,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
         <PendingToolWorkspace state={state} />
       )}
 
-      <div className="video-task-generate-bar">
+      {!hasLocalWorkflow ? <div className="video-task-generate-bar">
         <Button
           className="video-task-generate"
           disabled={!state.canGenerate || state.isGenerating}
@@ -54,7 +56,7 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
             </span>
           ) : null}
         </Button>
-      </div>
+      </div> : null}
     </>
   );
 }
@@ -62,6 +64,9 @@ export function ToolWorkspace({ state }: ToolWorkspaceProps) {
 type WorkspaceBlockRenderer = (block: WorkspaceBlock, state: VideoTaskCloneState) => ReactNode;
 
 const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer> = {
+  'lightweight-marketing-video-form': (block, state) => block.type === 'lightweight-marketing-video-form' ? (
+    <LightweightMarketingVideoPanel currentUser={state.currentUser} />
+  ) : null,
   material: (block, state) => block.type === 'material' ? (
     <ToolMaterialPanel showVoiceToggle={block.showVoiceToggle === true} state={state} />
   ) : null,

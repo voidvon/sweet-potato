@@ -101,6 +101,14 @@ func (s *Store) ListTemporaryAssetCleanupLogs() ([]TemporaryAssetCleanupLog, err
 }
 
 func (s *Store) DeleteTemporaryAsset(id string, requireExpired bool) (ContentAsset, bool, error) {
+	assets, found, err := s.DeleteTemporaryAssetTree(id, requireExpired)
+	if err != nil || !found {
+		return ContentAsset{}, found, err
+	}
+	return assets[0], true, nil
+}
+
+func (s *Store) DeleteTemporaryAssetTree(id string, requireExpired bool) ([]ContentAsset, bool, error) {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	query := `SELECT a.id, a.user_id, a.group_id, a.resource_type, a.type, a.name, a.description, a.source_url, a.original_file_name, a.stored_file_name, a.mime_type, a.file_size, a.size, a.file_path, a.file_url, a.asset_kind, a.lifecycle_status, a.parent_asset_id, a.expires_at, a.retained_at, a.metadata, a.created_at, a.updated_at FROM content_assets a WHERE a.id = ? AND a.lifecycle_status = 'temporary' AND a.expires_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM content_asset_references r WHERE r.asset_id = a.id)`
 	args := []any{id}
@@ -110,26 +118,16 @@ func (s *Store) DeleteTemporaryAsset(id string, requireExpired bool) (ContentAss
 	}
 	asset, err := scanContentAsset(s.db.QueryRow(query, args...))
 	if errors.Is(err, sql.ErrNoRows) {
-		return ContentAsset{}, false, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return ContentAsset{}, false, err
+		return nil, false, err
 	}
-	tx, err := s.db.Begin()
+	assets, err := s.DeleteContentAssetTree(asset.ID, asset.UserID)
 	if err != nil {
-		return ContentAsset{}, false, err
+		return nil, false, err
 	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(`DELETE FROM content_asset_references WHERE asset_id = ?`, id); err != nil {
-		return ContentAsset{}, false, err
-	}
-	if _, err := tx.Exec(`DELETE FROM content_assets WHERE id = ?`, id); err != nil {
-		return ContentAsset{}, false, err
-	}
-	if err := tx.Commit(); err != nil {
-		return ContentAsset{}, false, err
-	}
-	return asset, true, nil
+	return assets, true, nil
 }
 
 func (s *Store) RecordTemporaryAssetCleanup(asset ContentAsset, triggerType string) error {

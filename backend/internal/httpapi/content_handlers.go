@@ -718,6 +718,10 @@ func (s *Server) handleContentAssets(w http.ResponseWriter, r *http.Request, par
 	}
 
 	id := parts[0]
+	if len(parts) == 2 && parts[1] == "extraction" {
+		s.handleAssetExtraction(w, r, id)
+		return
+	}
 	if len(parts) == 1 {
 		user, ok := s.requireUser(w, r)
 		if !ok {
@@ -747,13 +751,10 @@ func (s *Server) handleContentAssets(w http.ResponseWriter, r *http.Request, par
 			}
 			writeJSON(w, http.StatusOK, updated)
 		case http.MethodDelete:
-			removed, err := s.store.DeleteContentAsset(id, asset.UserID)
+			_, err := s.deleteContentAssetAndDerivedFiles(id, asset.UserID)
 			if err != nil {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
-			}
-			if removed.FilePath != "" {
-				_ = os.Remove(removed.FilePath)
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": true})
 		default:
@@ -1183,12 +1184,9 @@ func (s *Server) handleReferenceVideo(w http.ResponseWriter, r *http.Request, pa
 			writeError(w, http.StatusNotFound, "参考视频素材不存在")
 			return
 		}
-		if _, err := s.store.DeleteContentAsset(asset.ID, user.ID); err != nil {
+		if _, err := s.deleteContentAssetAndDerivedFiles(asset.ID, user.ID); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
-		}
-		if asset.FilePath != "" {
-			_ = os.Remove(asset.FilePath)
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 		return
@@ -1630,12 +1628,14 @@ func (s *Server) cleanupSelectedTemporaryAssets(w http.ResponseWriter, r *http.R
 		if id == "" {
 			continue
 		}
-		asset, found, err := s.store.DeleteTemporaryAsset(id, false)
+		assets, found, err := s.store.DeleteTemporaryAssetTree(id, false)
 		if err != nil || !found {
 			continue
 		}
-		removeStoredFile(asset.FilePath)
-		_ = s.store.RecordTemporaryAssetCleanup(asset, "manual")
+		for _, asset := range assets {
+			removeStoredFile(asset.FilePath)
+		}
+		_ = s.store.RecordTemporaryAssetCleanup(assets[0], "manual")
 		deleted++
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
@@ -1656,12 +1656,14 @@ func (s *Server) cleanupExpiredTemporaryAssets(w http.ResponseWriter) {
 		progress := 0
 		for _, item := range items {
 			id, _ := item["id"].(string)
-			asset, found, err := s.store.DeleteTemporaryAsset(id, true)
+			assets, found, err := s.store.DeleteTemporaryAssetTree(id, true)
 			if err != nil || !found {
 				continue
 			}
-			removeStoredFile(asset.FilePath)
-			_ = s.store.RecordTemporaryAssetCleanup(asset, "manual")
+			for _, asset := range assets {
+				removeStoredFile(asset.FilePath)
+			}
+			_ = s.store.RecordTemporaryAssetCleanup(assets[0], "manual")
 			deleted++
 			progress++
 		}

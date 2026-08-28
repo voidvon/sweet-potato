@@ -35,6 +35,8 @@ export type PlanningAssetRef = {
   durationSeconds?: number;
 };
 
+export type PlanningDocumentAssetRef = Omit<PlanningAssetRef, 'kind'> & { kind: 'document' };
+
 export type PlanningMaterialCaption = {
   id: string;
   assetId: string;
@@ -193,6 +195,7 @@ export type PlanningSession = {
     prompt: string;
     productName: string;
     imageMaterials: PlanningAssetRef[];
+    documentMaterials?: PlanningDocumentAssetRef[];
     referenceVideo?: PlanningAssetRef | null;
     referenceAudio?: PlanningAssetRef | null;
   };
@@ -228,7 +231,7 @@ export type ContentPlanningClientConfig = {
   generationCredits: number;
 };
 
-type MediaInput = { assetId: string; kind: PlanningAssetRef['kind'] };
+export type PlanningMediaInput = { assetId: string; kind: PlanningAssetRef['kind'] | 'document' };
 
 const basePath = '/api/content-planning/sessions';
 
@@ -242,7 +245,7 @@ export function createPlanningSession(payload: {
   restoreLatest?: boolean;
   prompt?: string;
   productName?: string;
-  media?: MediaInput[];
+  media?: PlanningMediaInput[];
 }) {
   return request<PlanningSession | { session: PlanningSession }>(basePath, {
     method: 'POST',
@@ -272,7 +275,7 @@ export function analyzePlanningSession(payload: {
   imageAssetIds: string[];
   referenceVideoAssetId?: string;
   referenceAudioAssetId?: string;
-  media?: MediaInput[];
+  media?: PlanningMediaInput[];
 }) {
   return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/analyze`, {
     method: 'POST',

@@ -25,7 +25,7 @@ type ContentPlanningSession struct {
 }
 
 func defaultPlanningMaterialBundle() map[string]any {
-	return map[string]any{"prompt": "", "productName": "", "imageMaterials": []any{}, "referenceVideo": nil, "referenceAudio": nil}
+	return map[string]any{"prompt": "", "productName": "", "imageMaterials": []any{}, "documentMaterials": []any{}, "referenceVideo": nil, "referenceAudio": nil}
 }
 
 func defaultPlanningAnalysis() map[string]any {
@@ -116,7 +116,7 @@ func (s *Store) UpdatePlanningSession(item ContentPlanningSession) (ContentPlann
 	item.Settings = normalizePlanningMap(item.Settings, defaultPlanningSettings())
 	item.Generation = normalizePlanningMap(item.Generation, defaultPlanningGeneration())
 	item.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
-	var snapshot any
+	var snapshot any = "null"
 	if item.ApplySnapshot != nil {
 		snapshot = encodeJSON(item.ApplySnapshot)
 	}

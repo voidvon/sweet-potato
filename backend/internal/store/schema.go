@@ -508,6 +508,31 @@ const foundationSchema = `
       PRIMARY KEY (asset_id, reference_type, reference_id, role)
     );
 
+    CREATE TABLE IF NOT EXISTS asset_extractions (
+      id TEXT PRIMARY KEY,
+      asset_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      parser TEXT NOT NULL,
+      parser_version TEXT NOT NULL,
+      options_hash TEXT NOT NULL DEFAULT 'default',
+      content_hash TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'queued',
+      result TEXT NOT NULL DEFAULT '{}',
+      derived_asset_ids TEXT NOT NULL DEFAULT '[]',
+      error_code TEXT,
+      error_message TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_asset_extractions_asset_created
+      ON asset_extractions(asset_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_asset_extractions_user_status
+      ON asset_extractions(user_id, status, updated_at DESC);
+
     CREATE TABLE IF NOT EXISTS discover_categories (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,

@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
-	"time"
 
+	"sweet-potato-go/internal/assetextract"
 	"sweet-potato-go/internal/imagegen"
 	"sweet-potato-go/internal/store"
 )
@@ -88,50 +85,28 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 		return cached, nil
 	}
 
-	renderer := strings.TrimSpace(os.Getenv("PDFTOCAIRO_PATH"))
-	if renderer == "" {
-		var err error
-		renderer, err = exec.LookPath("pdftocairo")
-		if err != nil {
-			return nil, errors.New("PDF 高清转换组件未安装：请安装 Poppler（pdftocairo）后重试")
-		}
-	}
-	tempDir, err := os.MkdirTemp("", "sweet-potato-pdf-pages-")
-	if err != nil {
-		return nil, fmt.Errorf("创建 PDF 转换临时目录失败: %w", err)
-	}
-	defer os.RemoveAll(tempDir)
-	prefix := filepath.Join(tempDir, "page")
-	command := exec.CommandContext(ctx, renderer, "-png", "-r", strconv.Itoa(pdfPageDPI), "-f", "1", "-l", strconv.Itoa(pdfPageMaxPages), pdfAsset.FilePath, prefix)
-	if output, err := command.CombinedOutput(); err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			return nil, ctx.Err()
-		}
-		return nil, fmt.Errorf("PDF 转换为 %d DPI 图片失败: %s", pdfPageDPI, truncateRunes(strings.TrimSpace(string(output)), 300))
-	}
-	paths, err := filepath.Glob(prefix + "-*.png")
+	result, err := s.assetExtract.Parse(ctx, assetextract.Input{
+		FileName: pdfAsset.OriginalFileName,
+		MimeType: pdfAsset.MimeType,
+		FilePath: pdfAsset.FilePath,
+	})
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(paths, func(left, right int) bool {
-		return pdfRenderedPageNumber(paths[left]) < pdfRenderedPageNumber(paths[right])
-	})
-	if len(paths) == 0 {
+	if len(result.Artifacts) == 0 {
 		return nil, errors.New("PDF 转换完成但没有生成页面图片")
 	}
 
-	expiresAt := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339Nano)
-	assets := make([]store.ContentAsset, 0, len(paths))
-	for _, sourcePath := range paths {
-		page := pdfRenderedPageNumber(sourcePath)
+	assets := make([]store.ContentAsset, 0, len(result.Artifacts))
+	for _, artifact := range result.Artifacts {
+		page := 0
+		if artifact.Locator != nil && artifact.Locator.Kind == "page" {
+			page = artifact.Locator.Index
+		}
 		if page < 1 || page > pdfPageMaxPages {
 			continue
 		}
-		raw, err := os.ReadFile(sourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("读取 PDF 第 %d 页图片失败: %w", page, err)
-		}
-		optimized, encodingMetadata := optimizeGeneratedImageForStorage(imagegen.Output{Bytes: raw, MimeType: "image/png"})
+		optimized, encodingMetadata := optimizeGeneratedImageForStorage(imagegen.Output{Bytes: artifact.Data, MimeType: artifact.MimeType})
 		extension := imageExtension(optimized.MimeType)
 		storedName := pdfPageStoredName(pdfAsset.ID, page, extension)
 		targetPath := filepath.Join(s.config.DataDir, "files", storedName)
@@ -143,12 +118,19 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 			return nil, err
 		}
 		parentID := pdfAsset.ID
+		lifecycleStatus := valueOr(pdfAsset.LifecycleStatus, "permanent")
 		metadata := map[string]any{
-			"sourceType":       "pdf_page",
-			"sourcePDFAssetId": pdfAsset.ID,
-			"sourcePDFName":    pdfAsset.OriginalFileName,
-			"page":             page,
-			"dpi":              pdfPageDPI,
+			"sourceType":          "pdf_page",
+			"sourcePDFAssetId":    pdfAsset.ID,
+			"sourcePDFName":       pdfAsset.OriginalFileName,
+			"page":                page,
+			"dpi":                 pdfPageDPI,
+			"extractionParser":    result.Parser,
+			"extractionVersion":   result.Version,
+			"extractionPageCount": len(result.Artifacts),
+		}
+		for key, value := range artifact.Metadata {
+			metadata[key] = value
 		}
 		for key, value := range encodingMetadata {
 			metadata[key] = value
@@ -168,9 +150,9 @@ func (s *Server) renderPDFPageAssets(ctx context.Context, pdfAsset store.Content
 			FilePath:         targetPath,
 			FileURL:          "/files/" + storedName,
 			AssetKind:        "pdf_page_reference",
-			LifecycleStatus:  "temporary",
+			LifecycleStatus:  lifecycleStatus,
 			ParentAssetID:    &parentID,
-			ExpiresAt:        &expiresAt,
+			ExpiresAt:        pdfAsset.ExpiresAt,
 			Metadata:         metadata,
 		})
 		if err != nil {
@@ -207,11 +189,5 @@ func pdfPageStoredName(pdfAssetID string, page int, extension string) string {
 }
 
 func pdfRenderedPageNumber(path string) int {
-	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	separator := strings.LastIndex(name, "-")
-	if separator < 0 {
-		return 0
-	}
-	page, _ := strconv.Atoi(name[separator+1:])
-	return page
+	return assetextract.PDFRenderedPageNumber(path)
 }

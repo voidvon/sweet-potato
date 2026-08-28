@@ -8,11 +8,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"sweet-potato-go/internal/assetextract"
 	"sweet-potato-go/internal/config"
 	"sweet-potato-go/internal/store"
 )
 
-func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) {
+func TestRenderPDFPageAssetsCreatesAndReusesDerived200DPIAssets(t *testing.T) {
 	tempDir := t.TempDir()
 	pngPath := filepath.Join(tempDir, "page.png")
 	pngFile, err := os.Create(pngPath)
@@ -73,7 +74,7 @@ func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) 
 		t.Fatalf("page asset count = %d, want 2", len(assets))
 	}
 	for index, asset := range assets {
-		if asset.MimeType != "image/webp" || asset.AssetKind != "pdf_page_reference" || asset.LifecycleStatus != "temporary" {
+		if asset.MimeType != "image/webp" || asset.AssetKind != "pdf_page_reference" || asset.LifecycleStatus != "permanent" {
 			t.Fatalf("page %d asset = %#v", index+1, asset)
 		}
 		if got := int(numberValue(asset.Metadata["dpi"], 0)); got != pdfPageDPI {
@@ -87,6 +88,9 @@ func TestRenderPDFPageAssetsCreatesAndReusesTemporary200DPIAssets(t *testing.T) 
 		}
 		if asset.Metadata["encodingApplied"] != true || asset.Metadata["encoding"] != "webp" {
 			t.Fatalf("page %d encoding metadata = %#v", index+1, asset.Metadata)
+		}
+		if asset.Metadata["category"] != "document-page" || asset.Metadata["included"] != true || asset.Metadata["imageFilterVersion"] != assetextract.ImageFilterVersion {
+			t.Fatalf("page %d filter metadata = %#v", index+1, asset.Metadata)
 		}
 	}
 

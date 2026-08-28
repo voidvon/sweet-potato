@@ -1,6 +1,7 @@
 export type MaterialKey = 'image' | 'video' | 'audio';
 
 export type ToolKey =
+  | 'lightweight-marketing-video'
   | 'video'
   | 'video-upscale'
   | 'talking-video'
@@ -123,6 +124,7 @@ export type MaterialKind = {
 };
 
 export type WorkspaceBlock =
+  | { id: string; type: 'lightweight-marketing-video-form' }
   | { id: string; type: 'material'; showVoiceToggle?: boolean }
   | { id: string; type: 'talking-video-form' }
   | { id: string; type: 'dance-remake-form' }

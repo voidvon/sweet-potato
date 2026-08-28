@@ -11,6 +11,7 @@ import {
   PersonStanding,
   Replace,
   ScanLine,
+  Sparkles,
   Video,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -27,6 +28,7 @@ type ToolSwitcherProps = {
 };
 
 export const toolIcons: Record<ToolKey, LucideIcon> = {
+  'lightweight-marketing-video': Sparkles,
   video: Video,
   'video-upscale': ScanLine,
   'talking-video': Mic2,

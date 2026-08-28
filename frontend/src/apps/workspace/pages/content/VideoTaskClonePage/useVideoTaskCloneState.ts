@@ -1291,7 +1291,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
           ...(audioMaterials.length ? { audio: audioMaterials.slice(0, 3) } : {}),
         };
       });
-      setTool(toolOptions[0]);
+      setTool(toolOptions.find((option) => option.key === 'video') ?? toolOptions[0]);
       setPrompt(stringFromRecord(context, 'userPrompt', detailTask.prompt || ''));
       setModel(modelLabelFromId(stringFromRecord(context, 'videoModelId')));
       setRatio(stringFromRecord(context, 'ratio', '9:16'));

@@ -105,10 +105,7 @@ func (s *Server) handleChatAttachments(w http.ResponseWriter, r *http.Request, p
 			writeError(w, http.StatusBadRequest, "附件素材不存在")
 			return
 		}
-		if asset.FilePath != "" {
-			_ = os.Remove(asset.FilePath)
-		}
-		_, _ = s.store.DeleteContentAsset(asset.ID, user.ID)
+		_, _ = s.deleteContentAssetAndDerivedFiles(asset.ID, user.ID)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": true})
 		return
 	}

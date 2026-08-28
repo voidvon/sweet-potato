@@ -438,27 +438,68 @@ func (s *Store) ReleaseContentAssetReferences(referenceType, referenceID string)
 }
 
 func (s *Store) DeleteContentAsset(id, userID string) (ContentAsset, error) {
-	asset, found, err := s.FindContentAsset(id)
+	assets, err := s.DeleteContentAssetTree(id, userID)
 	if err != nil {
 		return ContentAsset{}, err
 	}
-	if !found || asset.UserID != userID {
+	if len(assets) == 0 {
 		return ContentAsset{}, errors.New("素材不存在")
 	}
+	return assets[0], nil
+}
+
+func (s *Store) DeleteContentAssetTree(id, userID string) ([]ContentAsset, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query(`WITH RECURSIVE descendants(id) AS (SELECT id FROM content_assets WHERE id = ? AND user_id = ? UNION SELECT child.id FROM content_assets child JOIN descendants parent ON child.parent_asset_id = parent.id WHERE child.user_id = ?) SELECT a.id, a.user_id, a.group_id, a.resource_type, a.type, a.name, a.description, a.source_url, a.original_file_name, a.stored_file_name, a.mime_type, a.file_size, a.size, a.file_path, a.file_url, a.asset_kind, a.lifecycle_status, a.parent_asset_id, a.expires_at, a.retained_at, a.metadata, a.created_at, a.updated_at FROM content_assets a JOIN descendants d ON d.id = a.id ORDER BY CASE WHEN a.id = ? THEN 0 ELSE 1 END, a.created_at ASC`, id, userID, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	assets := []ContentAsset{}
+	for rows.Next() {
+		asset, scanErr := scanContentAsset(rows)
+		if scanErr != nil {
+			rows.Close()
+			return nil, scanErr
+		}
+		assets = append(assets, asset)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if len(assets) == 0 {
+		return nil, errors.New("素材不存在")
+	}
+	placeholders := make([]string, len(assets))
+	args := make([]any, len(assets))
+	for index, asset := range assets {
+		placeholders[index] = "?"
+		args[index] = asset.ID
+	}
+	whereIDs := joinStrings(placeholders, ",")
 	var referenceCount int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM content_asset_references WHERE asset_id = ?`, id).Scan(&referenceCount); err != nil {
-		return ContentAsset{}, err
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM content_asset_references WHERE asset_id IN (`+whereIDs+`)`, args...).Scan(&referenceCount); err != nil {
+		return nil, err
 	}
 	if referenceCount > 0 {
-		return ContentAsset{}, errors.New("素材正在被视频任务使用，暂时不能删除")
+		return nil, errors.New("素材或其派生素材正在被任务使用，暂时不能删除")
 	}
-	if _, err := s.db.Exec(`DELETE FROM content_asset_references WHERE asset_id = ?`, id); err != nil {
-		return ContentAsset{}, err
+	if _, err := tx.Exec(`DELETE FROM content_asset_references WHERE asset_id IN (`+whereIDs+`)`, args...); err != nil {
+		return nil, err
 	}
-	if _, err := s.db.Exec(`DELETE FROM content_assets WHERE id = ?`, id); err != nil {
-		return ContentAsset{}, err
+	if _, err := tx.Exec(`DELETE FROM asset_extractions WHERE asset_id IN (`+whereIDs+`)`, args...); err != nil {
+		return nil, err
 	}
-	return asset, nil
+	if _, err := tx.Exec(`DELETE FROM content_assets WHERE id IN (`+whereIDs+`)`, args...); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return assets, nil
 }
 
 func (s *Store) UpdateContentAsset(id, userID string, input map[string]any) (ContentAsset, error) {

@@ -19,6 +19,18 @@ export const defaultMaterials: MaterialKind[] = [
 
 export const toolOptions: ToolOption[] = [
   {
+    key: 'lightweight-marketing-video',
+    label: t("轻量营销视频生成"),
+    description: t("使用结构化素材快速生成轻量营销视频。"),
+    materialHint: t("上传营销素材"),
+    materials: [],
+    submitText: t("开始生成"),
+    workspace: {
+      blocks: [{ id: 'lightweight-marketing-video-form', type: 'lightweight-marketing-video-form' }],
+      generate: { handler: 'pending' },
+    },
+  },
+  {
     key: 'video',
     label: t("视频"),
     description: t("文字、图片、视频和音频参考生成短视频。"),

@@ -9,8 +9,10 @@ import type { LocalMaterialFile, MaterialKind, SelectedMaterialValue, UploadAnch
 import { t } from '@shared/i18n';
 
 type MaterialSlotProps = {
+  accept?: string;
   disabled?: boolean;
   item: MaterialKind;
+  multiple?: boolean;
   onClear: (kind: MaterialKind) => void;
   onLocalFiles?: (kind: MaterialKind, files: FileList | File[]) => void;
   onLocalUpload?: (kind: MaterialKind) => void;
@@ -34,8 +36,10 @@ const imageThumbs = [
 ];
 
 export function MaterialSlot({
+  accept,
   disabled = false,
   item,
+  multiple,
   onClear,
   onLocalFiles,
   onLocalUpload,
@@ -72,9 +76,9 @@ export function MaterialSlot({
     <div className={slotClassName} style={dynamicStyle}>
       {openMode === 'local' && onLocalFiles && (
         <input
-          accept={getFileAccept(item)}
+          accept={accept ?? getFileAccept(item)}
           className="video-task-native-file-input"
-          multiple={getLimit(item) > 1}
+          multiple={multiple ?? getLimit(item) > 1}
           onChange={handleFileChange}
           ref={fileInputRef}
           type="file"
