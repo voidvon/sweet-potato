@@ -89,7 +89,7 @@ export function ModelSettingsPage() {
         <section className="settings-section">
           <div className="model-config-toolbar">
             <Space>
-              {activeType !== 'audio' && activeType !== 'video' && (
+              {activeType !== 'video' && (
                 <Button icon={<PlusOutlined />} onClick={() => modelSettings.openCreateModal(activeType)} type="primary">
                   {getCreateLabel(activeType)}
                 </Button>

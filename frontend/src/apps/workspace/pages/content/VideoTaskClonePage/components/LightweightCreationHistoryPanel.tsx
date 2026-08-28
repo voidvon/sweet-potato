@@ -1,4 +1,4 @@
-import { Button, Modal, Spin } from 'antd';
+import { Button, InputNumber, Modal, Select, Spin } from 'antd';
 import {
   ArrowLeft,
   BrainCircuit,
@@ -142,6 +142,7 @@ function CreationRecordDetail({
   const isParsing = record.status === 'uploading' || record.status === 'parsing';
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showCampaignImagesModal, setShowCampaignImagesModal] = useState(false);
+  const [showNarrationModal, setShowNarrationModal] = useState(false);
   return (
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header lightweight-creation-detail-header">
@@ -193,6 +194,7 @@ function CreationRecordDetail({
                   key={stage.title}
                   onShowAnalysis={() => setShowAnalysisModal(true)}
                   onShowCampaignImages={() => setShowCampaignImagesModal(true)}
+                  onShowNarration={() => setShowNarrationModal(true)}
                   record={record}
                   stage={stage}
                 />
@@ -223,6 +225,17 @@ function CreationRecordDetail({
             >
               <CampaignImageResults record={record} />
             </Modal>
+            <Modal
+              centered
+              className="lightweight-narration-modal"
+              footer={null}
+              onCancel={() => setShowNarrationModal(false)}
+              open={showNarrationModal}
+              title={t('旁白与字幕')}
+              width={980}
+            >
+              <NarrationResults record={record} />
+            </Modal>
           </>
         )}
       </div>
@@ -235,6 +248,7 @@ function CreationWorkflowStage({
   index,
   onShowAnalysis,
   onShowCampaignImages,
+  onShowNarration,
   record,
   stage,
 }: {
@@ -242,12 +256,14 @@ function CreationWorkflowStage({
   index: number;
   onShowAnalysis: () => void;
   onShowCampaignImages: () => void;
+  onShowNarration: () => void;
   record: LightweightCreationRecord;
   stage: WorkflowStage;
 }) {
   const StageIcon = stage.icon;
   const isAnalysis = index === 3;
   const isCampaignImages = index === 4;
+  const isNarration = index === 5;
   const analyzing = record.analysisSession?.status === 'analyzing';
   const analysisCompleted = record.analysisSession?.status === 'confirming';
   const analysisFailed = record.analysisSession?.status === 'failed';
@@ -255,6 +271,10 @@ function CreationWorkflowStage({
   const campaignImagesGenerating = campaignImageGeneration?.status === 'generating';
   const campaignImagesCompleted = campaignImageGeneration?.status === 'completed';
   const campaignImagesFailed = campaignImageGeneration?.status === 'failed';
+  const narrationGeneration = record.analysisSession?.analysis.narrationGeneration;
+  const narrationGenerating = narrationGeneration?.status === 'generating';
+  const narrationCompleted = narrationGeneration?.status === 'completed';
+  const narrationFailed = narrationGeneration?.status === 'failed';
   const status = isAnalysis
     ? analysisCompleted
       ? t('已完成')
@@ -273,8 +293,26 @@ function CreationWorkflowStage({
             : analysisCompleted
               ? t('等待开始')
               : t('等待分析')
+    : isNarration
+      ? narrationCompleted
+        ? t('已完成')
+        : narrationGenerating
+          ? t('生成中')
+          : narrationFailed
+            ? t('失败')
+            : analysisCompleted
+              ? t('等待开始')
+              : t('等待分析')
       : t('待接入');
-  const actionable = isAnalysis || isCampaignImages;
+  const actionable = isAnalysis || isCampaignImages || isNarration;
+  const disabled = isAnalysis
+    ? analyzing
+    : isCampaignImages
+      ? !analysisCompleted || campaignImagesGenerating
+      : isNarration
+        ? !analysisCompleted || narrationGenerating
+        : true;
+  const loading = (isAnalysis && analyzing) || (isCampaignImages && campaignImagesGenerating) || (isNarration && narrationGenerating);
   return (
     <article className="lightweight-video-stage">
       <span className="lightweight-video-stage-index">{index}</span>
@@ -287,33 +325,69 @@ function CreationWorkflowStage({
         <p>{stage.description}</p>
       </div>
       <div className="lightweight-video-stage-actions">
-        <Button
-          disabled={!actionable || (isAnalysis ? analyzing : !analysisCompleted || campaignImagesGenerating)}
-          loading={(isAnalysis && analyzing) || (isCampaignImages && campaignImagesGenerating)}
-          onClick={isAnalysis
-            ? () => void controller.analyzeRecord(record.id)
-            : isCampaignImages
-              ? () => void controller.generateCampaignImages(record.id)
-              : undefined}
-          size="small"
-          type={actionable ? 'primary' : 'default'}
-        >
-          {isAnalysis && analysisCompleted
-            ? t('重新分析')
-            : isCampaignImages && (campaignImagesCompleted || campaignImagesFailed)
-              ? t('重新生成')
-              : stage.action}
-        </Button>
-        {isAnalysis && analysisCompleted ? (
-          <Button onClick={onShowAnalysis} size="small">
-            {t('查看分析结果')}
-          </Button>
+        {isNarration && analysisCompleted ? (
+          <div className="lightweight-video-stage-narration-settings">
+            <Select
+              aria-label={t('旁白音色')}
+              onChange={controller.setNarrationVoice}
+              options={controller.narrationVoices.map((voice) => ({
+                label: `${voice.name} · ${voice.language}`,
+                value: voice.id,
+              }))}
+              placeholder={t('选择音色')}
+              size="small"
+              value={controller.narrationVoice}
+            />
+            <InputNumber
+              aria-label={t('语速')}
+              max={2}
+              min={0.5}
+              onChange={(value) => controller.setNarrationSpeed(Number(value || 1))}
+              size="small"
+              step={0.1}
+              value={controller.narrationSpeed}
+            />
+            <span>{t('倍速')}</span>
+          </div>
         ) : null}
-        {isCampaignImages && (campaignImageGeneration?.images?.length || 0) > 0 ? (
-          <Button onClick={onShowCampaignImages} size="small">
-            {t('查看图片')}
+        <div className="lightweight-video-stage-action-buttons">
+          <Button
+            disabled={!actionable || disabled}
+            loading={loading}
+            onClick={isAnalysis
+              ? () => void controller.analyzeRecord(record.id)
+              : isCampaignImages
+                ? () => void controller.generateCampaignImages(record.id)
+                : isNarration
+                  ? () => void controller.generateNarration(record.id)
+                  : undefined}
+            size="small"
+            type={actionable ? 'primary' : 'default'}
+          >
+            {isAnalysis && analysisCompleted
+              ? t('重新分析')
+              : isCampaignImages && (campaignImagesCompleted || campaignImagesFailed)
+                ? t('重新生成')
+                : isNarration && (narrationCompleted || narrationFailed)
+                  ? t('重新生成')
+                  : stage.action}
           </Button>
-        ) : null}
+          {isAnalysis && analysisCompleted ? (
+            <Button onClick={onShowAnalysis} size="small">
+              {t('查看分析结果')}
+            </Button>
+          ) : null}
+          {isCampaignImages && (campaignImageGeneration?.images?.length || 0) > 0 ? (
+            <Button onClick={onShowCampaignImages} size="small">
+              {t('查看图片')}
+            </Button>
+          ) : null}
+          {isNarration && narrationCompleted ? (
+            <Button onClick={onShowNarration} size="small">
+              {t('查看旁白字幕')}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </article>
   );
@@ -337,6 +411,48 @@ function CampaignImageResults({ record }: { record: LightweightCreationRecord })
       ))}
     </div>
   );
+}
+
+function NarrationResults({ record }: { record: LightweightCreationRecord }) {
+  const generation = record.analysisSession?.analysis.narrationGeneration;
+  const scenes = generation?.scenes || [];
+  if (!generation || scenes.length === 0) {
+    return <p className="lightweight-video-analysis-empty">{t('暂无旁白与字幕')}</p>;
+  }
+  return (
+    <div className="lightweight-narration-results">
+      <div className="lightweight-narration-summary">
+        <strong>{t('已生成 {{0}} 段旁白', { '0': scenes.length })}</strong>
+        <span>{formatMilliseconds(generation.durationMs)} · {t('{{0}} 条字幕', { '0': generation.captions.length })}</span>
+      </div>
+      <div className="lightweight-narration-scene-list">
+        {scenes.map((scene, index) => (
+          <article className="lightweight-narration-scene" key={`${scene.sceneId}-${scene.assetId}`}>
+            <div className="lightweight-narration-scene-heading">
+              <strong>{scene.sceneId || t('场景 {{0}}', { '0': index + 1 })}</strong>
+              <span>{formatMilliseconds(scene.durationMs)}</span>
+            </div>
+            <p>{scene.text}</p>
+            <audio controls preload="metadata" src={resolveAssetUrl(scene.fileUrl)} />
+            <div className="lightweight-narration-caption-list">
+              {scene.captions.map((caption, captionIndex) => (
+                <div className="lightweight-narration-caption" key={`${scene.sceneId}-${caption.startMs}-${captionIndex}`}>
+                  <span>{formatMilliseconds(caption.startMs)} - {formatMilliseconds(caption.endMs)}</span>
+                  <p>{caption.text}</p>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatMilliseconds(value: number) {
+  const milliseconds = Math.max(0, Math.round(value || 0));
+  const seconds = Math.floor(milliseconds / 1000);
+  return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}.${String(milliseconds % 1000).padStart(3, '0')}`;
 }
 
 function AnalysisResult({ record }: { record: LightweightCreationRecord }) {

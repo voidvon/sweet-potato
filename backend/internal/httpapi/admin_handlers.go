@@ -1086,7 +1086,18 @@ func boolValueDefault(input map[string]any, key string, fallback bool) bool {
 }
 
 func audioProviders() []map[string]any {
-	return []map[string]any{{"id": "mimo-tts", "name": "Mimo TTS", "description": "兼容语音合成和音色克隆。", "keyLabel": "API Key", "keyPlaceholder": "输入 API Key", "defaultBaseUrl": "https://api.openai.com/v1", "defaultModel": "mimo-v2-tts"}}
+	return []map[string]any{{
+		"id":                 "mimo-tts",
+		"name":               "MiMo TTS",
+		"description":        "远程 MiMo 语音合成，兼容 OpenAI 风格接口。",
+		"keyLabel":           "API Key",
+		"keyPlaceholder":     "输入 API Key",
+		"defaultBaseUrl":     "https://api.xiaomimimo.com/v1",
+		"baseUrlLabel":       "Base URL",
+		"baseUrlPlaceholder": "https://api.xiaomimimo.com/v1",
+		"baseUrlHelp":        "仅接入远程 TTS 服务，请填写服务的 API 根地址。",
+		"defaultModel":       "mimo-v2.5-tts",
+	}}
 }
 
 func imageProviders() []map[string]any {

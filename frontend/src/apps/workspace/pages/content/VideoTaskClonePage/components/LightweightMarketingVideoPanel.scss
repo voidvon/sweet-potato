@@ -166,6 +166,107 @@
   scrollbar-width: thin;
 }
 
+.lightweight-narration-modal .ant-modal-body {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-neutral-300) transparent;
+  scrollbar-width: thin;
+}
+
+.lightweight-narration-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lightweight-narration-summary {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.lightweight-narration-summary strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.lightweight-narration-summary span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.lightweight-narration-scene-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lightweight-narration-scene {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.lightweight-narration-scene-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lightweight-narration-scene-heading strong {
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.lightweight-narration-scene-heading span,
+.lightweight-narration-caption > span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.lightweight-narration-scene > p {
+  color: var(--color-text);
+  font-size: 11px;
+  line-height: 18px;
+  margin: 6px 0 8px;
+}
+
+.lightweight-narration-scene audio {
+  height: 32px;
+  max-width: 100%;
+  width: 100%;
+}
+
+.lightweight-narration-caption-list {
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.lightweight-narration-caption {
+  align-items: baseline;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 108px minmax(0, 1fr);
+}
+
+.lightweight-narration-caption p {
+  color: var(--color-text);
+  font-size: 10px;
+  line-height: 16px;
+  margin: 0;
+}
+
 .lightweight-campaign-image-grid {
   display: grid;
   gap: 12px;
@@ -572,6 +673,36 @@
 .lightweight-creation-history .lightweight-video-stage .ant-btn {
   grid-column: 3;
   justify-self: start;
+}
+
+.lightweight-video-stage-action-buttons {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.lightweight-video-stage-narration-settings {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.lightweight-video-stage-narration-settings .ant-select {
+  min-width: 170px;
+}
+
+.lightweight-video-stage-narration-settings .ant-input-number {
+  width: 76px;
+}
+
+.lightweight-video-stage-narration-settings > span {
+  color: var(--color-text-muted);
+  font-size: 10px;
 }
 
 @media (max-width: 1180px) {

@@ -5,7 +5,7 @@ export const visibleModelTypes: Array<{ key: ModelType; label: string }> = [
   { key: 'llm', label: t("LLM 模型") },
   { key: 'image', label: t("图片模型") },
   { key: 'video', label: t("视频模型") },
-  // { key: 'audio', label: '音频模型' },
+  { key: 'audio', label: t("音频 / TTS 模型") },
 ];
 
 export const defaultFormValues: ModelConfig = {

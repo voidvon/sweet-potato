@@ -24,6 +24,20 @@ func (s *Server) handleContentPlanning(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"analysisCredits": settings.ContentPlanningAnalysisCredits, "generationCredits": settings.ContentPlanningGenerationCredits})
 		return
 	}
+	if len(parts) == 1 && parts[0] == "voices" && r.Method == http.MethodGet {
+		user, _ := s.authenticatedUser(r)
+		model, err := s.resolveAudioModelConfig(user.ID, "")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"voices":   contentPlanningAudioVoices(model),
+			"provider": model.Provider,
+			"model":    model.Model,
+		})
+		return
+	}
 	if len(parts) == 1 && parts[0] == "sessions" && r.Method == http.MethodPost {
 		user, _ := s.authenticatedUser(r)
 		input, ok := decodeMap(w, r)
@@ -109,6 +123,20 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 		}
 		modelConfigID := stringValue(input, "modelConfigId")
 		s.startBackgroundTask(func() { s.executePlanningCampaignImages(updated.ID, runID, modelConfigID) })
+		writeJSON(w, http.StatusAccepted, updated)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "narration" && r.Method == http.MethodPost {
+		input, ok := decodeMap(w, r)
+		if !ok {
+			return
+		}
+		updated, runID, err := s.queuePlanningNarration(session, input)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		s.startBackgroundTask(func() { s.executePlanningNarration(updated.ID, runID) })
 		writeJSON(w, http.StatusAccepted, updated)
 		return
 	}
@@ -312,6 +340,7 @@ func defaultAnalysisHTTP() map[string]any {
 		"materialCaptions":        []any{},
 		"campaignPlan":            nil,
 		"campaignImageGeneration": map[string]any{"status": "idle", "images": []any{}, "errorMessage": ""},
+		"narrationGeneration":     map[string]any{"status": "idle", "provider": "", "voice": "", "speed": 1, "instruction": "", "modelConfigId": "", "durationMs": 0, "scenes": []any{}, "captions": []any{}, "errorMessage": ""},
 		"productInsights":         map[string]any{},
 		"confirmed":               false,
 		"notes":                   []any{},

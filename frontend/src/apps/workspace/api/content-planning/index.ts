@@ -84,6 +84,47 @@ export type PlanningCampaignImageGeneration = {
   completedAt?: string;
 };
 
+export type PlanningNarrationCaption = {
+  text: string;
+  startMs: number;
+  endMs: number;
+  timestampMs: number | null;
+  confidence: number | null;
+};
+
+export type PlanningNarrationScene = {
+  sceneId: string;
+  text: string;
+  assetId: string;
+  fileUrl: string;
+  durationMs: number;
+  startMs: number;
+  captions: PlanningNarrationCaption[];
+};
+
+export type PlanningNarrationGeneration = {
+  runId?: string;
+  status: 'idle' | 'generating' | 'completed' | 'failed';
+  provider: string;
+  voice: string;
+  speed: number;
+  instruction: string;
+  modelConfigId: string;
+  durationMs: number;
+  scenes: PlanningNarrationScene[];
+  captions: PlanningNarrationCaption[];
+  errorMessage: string;
+  startedAt?: string;
+  completedAt?: string;
+};
+
+export type PlanningVoice = {
+  id: string;
+  name: string;
+  language: string;
+  provider: string;
+};
+
 export type PlanningReferenceBreakdown = {
   tags: string[];
   structureFramework: string;
@@ -103,6 +144,7 @@ export type PlanningAnalysis = {
   productInsights: PlanningProductInsights;
   campaignPlan?: { visualStyle: string; scenes: PlanningCampaignScene[] } | null;
   campaignImageGeneration?: PlanningCampaignImageGeneration;
+  narrationGeneration?: PlanningNarrationGeneration;
   confirmed: boolean;
   notes: string[];
 };
@@ -321,6 +363,25 @@ export function generatePlanningCampaignImages(payload: {
   modelConfigId?: string;
 }) {
   return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/campaign-images`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }).then(extractPlanningSession);
+}
+
+export function getPlanningVoices() {
+  return request<{ voices: PlanningVoice[]; provider: string; model: string }>('/api/content-planning/voices');
+}
+
+export function generatePlanningNarration(payload: {
+  userId: string;
+  sessionId: string;
+  voice: string;
+  provider?: string;
+  speed?: number;
+  instruction?: string;
+  modelConfigId?: string;
+}) {
+  return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/narration`, {
     method: 'POST',
     body: JSON.stringify(payload),
   }).then(extractPlanningSession);

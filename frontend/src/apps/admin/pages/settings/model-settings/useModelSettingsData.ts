@@ -97,10 +97,20 @@ export function useModelSettingsData() {
   }
 
   function openCreateModal(activeType: ModelType) {
-    if (activeType === 'audio' || activeType === 'video') {
-      message.info(activeType === 'audio'
-        ? t("音频模型由服务端适配器提供，只能编辑 Key 和 Base URL")
-        : t("视频模型由服务端适配器提供，只需配置 API Key"));
+    if (activeType === 'video') {
+      message.info(t("视频模型由服务端适配器提供，只需配置 API Key"));
+      return;
+    }
+    if (activeType === 'audio') {
+      const provider = audioProviders.find((candidate) => !configsByType.audio.some(
+        (config) => config.provider === candidate.id,
+      ));
+      if (!provider) {
+        message.info(t("所有 TTS 服务商都已配置，请直接编辑已有配置"));
+        return;
+      }
+      setEditingRecord(audioProviderConfigRow(provider));
+      setModalOpen(true);
       return;
     }
     setEditingRecord(null);

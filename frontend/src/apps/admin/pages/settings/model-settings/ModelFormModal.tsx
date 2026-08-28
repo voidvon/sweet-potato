@@ -231,7 +231,7 @@ export function ModelFormModal({
       onCancel={onCancel}
       onOk={() => form.submit()}
       open={open}
-      title={editingRecord ? t("编辑模型配置") : t("新增{{0}}", { "0": modelTypeLabelMap[activeType] })}
+      title={editingRecord?.id ? t("编辑模型配置") : t("新增{{0}}", { "0": modelTypeLabelMap[activeType] })}
       width={activeType === 'audio' || activeType === 'video' ? 760 : 720}
     >
       <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark={false}>

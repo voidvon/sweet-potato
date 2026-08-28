@@ -13,9 +13,11 @@ import {
   analyzePlanningSession,
   createPlanningSession,
   generatePlanningCampaignImages,
+  generatePlanningNarration,
+  getPlanningVoices,
   getPlanningSession,
 } from '../../../../api/content-planning';
-import type { PlanningSession } from '../../../../api/content-planning';
+import type { PlanningSession, PlanningVoice } from '../../../../api/content-planning';
 import {
   listContentWorkflows,
   saveContentWorkflow,
@@ -101,11 +103,45 @@ export function useLightweightMarketingVideoController(currentUser: User) {
   const [creatingRecordId, setCreatingRecordId] = useState('');
   const [createError, setCreateError] = useState('');
   const [uploadNotice, setUploadNotice] = useState('');
+  const [narrationVoices, setNarrationVoices] = useState<PlanningVoice[]>([]);
+  const [narrationVoice, setNarrationVoiceValue] = useState('');
+  const [narrationSpeed, setNarrationSpeedValue] = useState(1);
   const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
   const previewUrlsRef = useRef(new Set<string>());
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const workflowSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const selectedRecord = records.find((record) => record.id === selectedRecordId);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPlanningVoices().then((result) => {
+      if (cancelled) return;
+      setNarrationVoices(result.voices || []);
+      if (result.voices?.[0]?.id) {
+        setNarrationVoiceValue((current) => (
+          current && result.voices.some((voice) => voice.id === current)
+            ? current
+            : result.voices[0].id
+        ));
+      }
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    const generation = selectedRecord?.analysisSession?.analysis.narrationGeneration;
+    if (!generation || !selectedRecordId) return;
+    if (generation.voice) {
+      setNarrationVoiceValue((current) => {
+        if (narrationVoices.length === 0) return generation.voice;
+        if (narrationVoices.some((voice) => voice.id === generation.voice)) return generation.voice;
+        return narrationVoices[0]?.id || '';
+      });
+    }
+    if (generation.speed > 0) setNarrationSpeedValue(generation.speed);
+  }, [narrationVoices, selectedRecord?.analysisSession?.analysis.narrationGeneration?.voice, selectedRecordId]);
 
   const updateRecord = (
     id: string,
@@ -185,7 +221,8 @@ export function useLightweightMarketingVideoController(currentUser: User) {
   useEffect(() => {
     const session = selectedRecord?.analysisSession;
     const campaignImageStatus = session?.analysis.campaignImageGeneration?.status;
-    if (!selectedRecord || !session || (session.status !== 'analyzing' && campaignImageStatus !== 'generating')) return undefined;
+    const narrationStatus = session?.analysis.narrationGeneration?.status;
+    if (!selectedRecord || !session || (session.status !== 'analyzing' && campaignImageStatus !== 'generating' && narrationStatus !== 'generating')) return undefined;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
@@ -198,10 +235,12 @@ export function useLightweightMarketingVideoController(currentUser: User) {
             ? latest.errorMessage || t('AI 内容分析失败')
             : latest.analysis.campaignImageGeneration?.status === 'failed'
               ? latest.analysis.campaignImageGeneration.errorMessage || t('宣传图片生成失败')
+              : latest.analysis.narrationGeneration?.status === 'failed'
+                ? latest.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
               : '',
           analysisSession: latest,
         }));
-        if (latest.status === 'analyzing' || latest.analysis.campaignImageGeneration?.status === 'generating') {
+        if (latest.status === 'analyzing' || latest.analysis.campaignImageGeneration?.status === 'generating' || latest.analysis.narrationGeneration?.status === 'generating') {
           timer = setTimeout(() => void poll(), 1000);
         }
       } catch (error) {
@@ -222,6 +261,7 @@ export function useLightweightMarketingVideoController(currentUser: User) {
   }, [
     currentUser.id,
     selectedRecord?.analysisSession?.analysis.campaignImageGeneration?.status,
+    selectedRecord?.analysisSession?.analysis.narrationGeneration?.status,
     selectedRecord?.analysisSession?.id,
     selectedRecord?.analysisSession?.status,
     selectedRecord?.id,
@@ -427,6 +467,30 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     }
   };
 
+  const generateNarration = async (id: string) => {
+    const record = records.find((item) => item.id === id);
+    const session = record?.analysisSession;
+    const scenes = session?.analysis.campaignPlan?.scenes || [];
+    if (!record || !session || session.status !== 'confirming' || scenes.length === 0
+      || session.analysis.narrationGeneration?.status === 'generating') return;
+    try {
+      const queued = await generatePlanningNarration({
+        sessionId: session.id,
+        userId: currentUser.id,
+        voice: narrationVoice || narrationVoices[0]?.id || '',
+        speed: narrationSpeed,
+      });
+      const updatedRecord = { ...record, analysisSession: queued };
+      updateRecord(id, () => updatedRecord);
+      await persistRecord(updatedRecord);
+    } catch (error) {
+      updateRecord(id, (current) => ({
+        ...current,
+        analysisError: error instanceof Error ? error.message : t('旁白与字幕生成失败'),
+      }));
+    }
+  };
+
   const attachmentItems: MediaAttachmentItem[] = attachments.map((attachment, index) => ({
     caption: attachment.kind === 'presentation'
       ? 'PPTX'
@@ -452,6 +516,10 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     createRecord,
     creatingRecordId,
     generateCampaignImages,
+    generateNarration,
+    narrationSpeed,
+    narrationVoice,
+    narrationVoices,
     records,
     removeAttachment,
     selectedRecord,
@@ -460,6 +528,10 @@ export function useLightweightMarketingVideoController(currentUser: User) {
       setBriefValue(value);
       setCreateError('');
     },
+    setNarrationSpeed: (value: number) => {
+      if (Number.isFinite(value)) setNarrationSpeedValue(Math.min(2, Math.max(0.5, value)));
+    },
+    setNarrationVoice: (value: string) => setNarrationVoiceValue(value),
     setSelectedRecordId,
     uploadNotice,
   };
@@ -593,7 +665,11 @@ async function hydrateWorkflowRecord(
       : null;
     return {
       ...initial,
-      analysisError: analysisSession?.status === 'failed' ? analysisSession.errorMessage || t('AI 内容分析失败') : '',
+      analysisError: analysisSession?.status === 'failed'
+        ? analysisSession.errorMessage || t('AI 内容分析失败')
+        : analysisSession?.analysis.narrationGeneration?.status === 'failed'
+          ? analysisSession.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
+          : '',
       analysisSession,
       attachments,
       documentExtractions: views,
@@ -632,14 +708,17 @@ async function extractionView(
 function recordToWorkflowInput(record: LightweightCreationRecord) {
   const analysisStatus = record.analysisSession?.status;
   const campaignImageStatus = record.analysisSession?.analysis.campaignImageGeneration?.status;
+  const narrationStatus = record.analysisSession?.analysis.narrationGeneration?.status;
   const currentStep = record.status === 'uploading'
     ? 'attachment_upload'
     : record.status === 'parsing'
       ? 'attachment_parsing'
       : analysisStatus === 'analyzing'
         ? 'ai_analysis'
-        : campaignImageStatus === 'generating' || campaignImageStatus === 'completed' || campaignImageStatus === 'failed'
-          ? 'promotion_image'
+        : narrationStatus === 'generating' || narrationStatus === 'completed' || narrationStatus === 'failed'
+          ? 'narration_caption'
+          : campaignImageStatus === 'generating' || campaignImageStatus === 'completed' || campaignImageStatus === 'failed'
+            ? 'promotion_image'
         : analysisStatus === 'confirming'
           ? 'promotion_image'
           : 'ai_analysis';
@@ -647,7 +726,7 @@ function recordToWorkflowInput(record: LightweightCreationRecord) {
     ? 'failed' as const
     : record.status === 'uploading'
       ? 'uploading' as const
-      : record.status === 'parsing' || analysisStatus === 'analyzing' || campaignImageStatus === 'generating'
+      : record.status === 'parsing' || analysisStatus === 'analyzing' || campaignImageStatus === 'generating' || narrationStatus === 'generating'
         ? 'processing' as const
         : 'paused' as const;
   const state: LightweightWorkflowState = {

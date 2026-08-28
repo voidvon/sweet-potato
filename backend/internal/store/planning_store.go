@@ -36,6 +36,9 @@ func defaultPlanningAnalysis() map[string]any {
 		"campaignImageGeneration": map[string]any{
 			"status": "idle", "images": []any{}, "errorMessage": "",
 		},
+		"narrationGeneration": map[string]any{
+			"status": "idle", "provider": "", "voice": "", "speed": 1, "instruction": "", "modelConfigId": "", "durationMs": 0, "scenes": []any{}, "captions": []any{}, "errorMessage": "",
+		},
 		"productInsights": map[string]any{
 			"productName": "", "productCategory": "", "productFeatures": []any{}, "coreSellingPoints": []any{}, "targetAudience": []any{}, "useScenarios": []any{},
 		},
