@@ -208,6 +208,24 @@ func (s *Server) handleChatConversations(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	}
+	if len(parts) == 6 && parts[1] == "messages" && parts[3] == "images" && parts[5] == "regenerate" && r.Method == http.MethodPost {
+		input, ok := decodeMap(w, r)
+		if !ok {
+			return
+		}
+		slotIndex := int(numberValue(parts[4], -1))
+		message, err := s.regenerateChatImage(r.Context(), user.ID, parts[0], parts[2], slotIndex, stringValue(input, "additionalPrompt"))
+		if err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, store.ErrInsufficientCredits) {
+				status = http.StatusPaymentRequired
+			}
+			writeError(w, status, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"message": message})
+		return
+	}
 	if len(parts) == 3 && parts[1] == "messages" && r.Method == http.MethodDelete {
 		conversation, messages, err := s.store.DeleteChatMessage(parts[0], parts[2], user.ID)
 		if err != nil {
@@ -218,6 +236,93 @@ func (s *Server) handleChatConversations(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	writeError(w, http.StatusNotFound, "对话接口不存在")
+}
+
+func (s *Server) regenerateChatImage(ctx context.Context, userID, conversationID, messageID string, slotIndex int, additionalPrompt string) (store.ChatMessage, error) {
+	if slotIndex < 0 {
+		return store.ChatMessage{}, errors.New("图片位置无效")
+	}
+	conversation, found, err := s.store.FindChatConversation(conversationID)
+	if err != nil {
+		return store.ChatMessage{}, err
+	}
+	if !found || conversation.UserID != userID {
+		return store.ChatMessage{}, errors.New("对话不存在")
+	}
+	message, found, err := s.store.FindChatMessage(messageID)
+	if err != nil {
+		return store.ChatMessage{}, err
+	}
+	if !found || message.ConversationID != conversationID || message.Role != "assistant" {
+		return store.ChatMessage{}, errors.New("生图结果不存在")
+	}
+	if !message.IsCompleted {
+		return store.ChatMessage{}, errors.New("图片正在生成中，请稍后再试")
+	}
+
+	attachmentIndex := -1
+	var sourceAttachment map[string]any
+	for index, rawAttachment := range message.Attachments {
+		attachment := objectValue(rawAttachment)
+		if int(numberValue(attachment["imageGenerationSlotIndex"], float64(index))) == slotIndex {
+			attachmentIndex = index
+			sourceAttachment = attachment
+			break
+		}
+	}
+	if attachmentIndex < 0 {
+		return store.ChatMessage{}, errors.New("要重新生成的图片不存在")
+	}
+
+	generation := objectValue(message.CapabilityContext["imageGeneration"])
+	prompt := strings.TrimSpace(stringValue(sourceAttachment, "imageGenerationPrompt"))
+	if prompt == "" {
+		prompt = strings.TrimSpace(imagePromptForSlot(stringSlice(generation["chapterPrompts"]), slotIndex))
+		prompt = valueOr(prompt, strings.TrimSpace(stringValue(generation, "resolvedPrompt")))
+	}
+	if prompt == "" {
+		return store.ChatMessage{}, errors.New("该图片缺少原始提示词，无法重新生成")
+	}
+	if additionalPrompt = strings.TrimSpace(additionalPrompt); additionalPrompt != "" {
+		prompt += "\n\n补充要求：" + additionalPrompt
+	}
+
+	referenceIDs := make([]string, 0)
+	rawReferences := anySlice(sourceAttachment["imageGenerationReferenceAttachments"])
+	if len(rawReferences) == 0 {
+		rawReferences = anySlice(generation["referenceAttachments"])
+	}
+	for _, rawReference := range rawReferences {
+		reference := objectValue(rawReference)
+		referenceIDs = append(referenceIDs, stringValue(reference, "assetId"), stringValue(reference, "id"))
+	}
+	references, err := s.imageReferences(userID, nil, nil, referenceIDs)
+	if err != nil {
+		return store.ChatMessage{}, err
+	}
+	imageModel, err := s.resolveImageModelConfig(userID, pointerValue(message.ImageModelConfigID))
+	if err != nil {
+		return store.ChatMessage{}, err
+	}
+	mode := valueOr(stringValue(generation, "modeKey"), "image_generation")
+	title := valueOr(stringValue(generation, "modeTitle"), "生成图片")
+	assets, err := s.generateImageAssetsContext(ctx, userID, imageModel, prompt, 1, references, s.imageGenerationOptions(message.CapabilityContext, nil), mode, title, nil)
+	if err != nil {
+		return store.ChatMessage{}, err
+	}
+	if len(assets) == 0 {
+		return store.ChatMessage{}, errors.New("图片模型没有返回可用图片")
+	}
+
+	message.Attachments[attachmentIndex] = chatGeneratedImageAttachmentPayload(assets[0], slotIndex, prompt, references)
+	filteredFailures := make([]any, 0, len(message.ImageGenerationFailures))
+	for _, rawFailure := range message.ImageGenerationFailures {
+		if int(numberValue(objectValue(rawFailure)["slotIndex"], -1)) != slotIndex {
+			filteredFailures = append(filteredFailures, rawFailure)
+		}
+	}
+	message.ImageGenerationFailures = filteredFailures
+	return s.store.UpdateChatMessage(message)
 }
 
 func (s *Server) handleCreateChatMessage(w http.ResponseWriter, r *http.Request) {

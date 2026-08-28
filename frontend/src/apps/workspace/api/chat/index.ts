@@ -63,6 +63,21 @@ export function deleteChatMessage(conversationId: string, messageId: string) {
   );
 }
 
+export function regenerateChatMessageImage(
+  conversationId: string,
+  messageId: string,
+  slotIndex: number,
+  additionalPrompt: string,
+) {
+  const path = `${Api.conversationMessage
+    .replace(':conversationId', conversationId)
+    .replace(':messageId', messageId)}/images/${slotIndex}/regenerate`;
+  return request<{ message: ChatMessage }>(path, {
+    method: 'POST',
+    body: JSON.stringify({ additionalPrompt }),
+  });
+}
+
 type PrepareDirectUploadResult = {
   directUpload: false;
 } | {

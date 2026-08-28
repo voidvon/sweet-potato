@@ -97,6 +97,7 @@ export function ChatPage() {
               onDeleteMessage={(messageItem) => void chat.removeMessage(messageItem)}
               onContinueEditImage={(messageItem) => chat.continueEditImageMessage(messageItem)}
               onRegenerateImage={(userMessage, assistantMessage, currentCreditCost) => void chat.regenerateImageMessage(userMessage, assistantMessage, currentCreditCost)}
+              onRegenerateSingleImage={(messageItem, slotIndex, additionalPrompt) => chat.regenerateSingleImageMessage(messageItem, slotIndex, additionalPrompt)}
               onRefillComposerFromMessage={(messageItem) => chat.refillComposerFromMessage(messageItem)}
               onScroll={chat.handleChatScroll}
               scrollContainerRef={chat.scrollContainerRef}
