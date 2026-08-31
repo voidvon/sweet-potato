@@ -193,7 +193,7 @@ async function main() {
     FRONTEND_PORT: String(port),
     GO_SERVER_ADDR: process.env.GO_SERVER_ADDR || `127.0.0.1:${preferredBackendPort}`,
     BACKEND_PROXY_TARGET: backendBaseUrl,
-    REMOTION_PLUGIN_DIR: process.env.REMOTION_PLUGIN_DIR || path.resolve(projectRootDir, "..", "remotion-video"),
+    REMOTION_PLUGIN_DIR: process.env.REMOTION_PLUGIN_DIR || path.join(projectRootDir, "plugins", "remotion-video"),
   };
 
   if (await isHttpReady(backendHealthUrl)) {

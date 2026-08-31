@@ -27,30 +27,32 @@ import (
 )
 
 type Server struct {
-	config       config.Config
-	mux          *http.ServeMux
-	store        *store.Store
-	assetExtract *assetextract.Service
-	plugins      *pluginruntime.Manager
-	tokens       *auth.TokenManager
-	vod          *vod.Client
-	rateMu       sync.Mutex
-	rateRules    []store.RateLimitRule
-	rateLoadedAt time.Time
-	rateWindows  map[string]rateLimitWindow
-	ipMu         sync.Mutex
-	ipRules      []string
-	ipLoadedAt   time.Time
-	accessCount  atomic.Uint64
-	taskCtx      context.Context
-	taskCancel   context.CancelFunc
-	taskWG       sync.WaitGroup
-	updater      *selfupdate.Manager
-	updateMu     sync.Mutex
-	updating     bool
-	updateReady  chan selfupdate.StagedUpdate
-	appWSMu      sync.RWMutex
-	appWSClients map[string]map[*chatWebSocketSession]struct{}
+	config          config.Config
+	mux             *http.ServeMux
+	store           *store.Store
+	assetExtract    *assetextract.Service
+	plugins         *pluginruntime.Manager
+	tokens          *auth.TokenManager
+	vod             *vod.Client
+	rateMu          sync.Mutex
+	rateRules       []store.RateLimitRule
+	rateLoadedAt    time.Time
+	rateWindows     map[string]rateLimitWindow
+	ipMu            sync.Mutex
+	ipRules         []string
+	ipLoadedAt      time.Time
+	accessCount     atomic.Uint64
+	taskCtx         context.Context
+	taskCancel      context.CancelFunc
+	taskWG          sync.WaitGroup
+	updater         *selfupdate.Manager
+	updateMu        sync.Mutex
+	updating        bool
+	updateReady     chan selfupdate.StagedUpdate
+	appWSMu         sync.RWMutex
+	appWSClients    map[string]map[*chatWebSocketSession]struct{}
+	remotionMu      sync.Mutex
+	remotionRunning map[string]bool
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -89,12 +91,13 @@ func New(cfg config.Config) (*Server, error) {
 			PollMaxAttempts:  cfg.VODPollMaxAttempts,
 			TaskTimeout:      cfg.VODTaskTimeout,
 		}),
-		rateWindows:  make(map[string]rateLimitWindow),
-		taskCtx:      taskCtx,
-		taskCancel:   taskCancel,
-		updater:      selfupdate.NewManager(),
-		updateReady:  make(chan selfupdate.StagedUpdate, 1),
-		appWSClients: make(map[string]map[*chatWebSocketSession]struct{}),
+		rateWindows:     make(map[string]rateLimitWindow),
+		taskCtx:         taskCtx,
+		taskCancel:      taskCancel,
+		updater:         selfupdate.NewManager(),
+		updateReady:     make(chan selfupdate.StagedUpdate, 1),
+		appWSClients:    make(map[string]map[*chatWebSocketSession]struct{}),
+		remotionRunning: make(map[string]bool),
 	}
 	server.mux.HandleFunc("GET /api/health", server.handleHealth)
 	server.mux.HandleFunc("GET /health", server.handleHealth)
@@ -177,6 +180,7 @@ func New(cfg config.Config) (*Server, error) {
 	} else if found {
 		pluginManager.StartEnabled(plugin.Enabled, plugin.MaxConcurrency)
 	}
+	server.startBackgroundTask(server.resumeRemotionRenderTasks)
 	return server, nil
 }
 

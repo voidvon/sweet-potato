@@ -134,6 +134,10 @@
   justify-content: flex-end;
 }
 
+.lightweight-video-stage-remotion-settings .ant-select {
+  min-width: 132px;
+}
+
 .lightweight-video-analysis-error {
   color: var(--color-error);
   font-size: 11px;
@@ -172,6 +176,60 @@
   overscroll-behavior: contain;
   scrollbar-color: var(--color-neutral-300) transparent;
   scrollbar-width: thin;
+}
+
+.lightweight-remotion-json-modal .ant-modal-body {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--color-neutral-300) transparent;
+  scrollbar-width: thin;
+}
+
+.lightweight-remotion-json-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lightweight-remotion-json-summary {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.lightweight-remotion-json-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lightweight-remotion-json-summary strong {
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.lightweight-remotion-json-summary span {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.lightweight-remotion-json-result pre {
+  background: var(--color-neutral-950, #111827);
+  border-radius: 8px;
+  color: var(--color-neutral-100, #f3f4f6);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 18px;
+  margin: 0;
+  max-height: calc(100vh - 300px);
+  overflow: auto;
+  padding: 14px;
+  white-space: pre;
 }
 
 .lightweight-narration-results {

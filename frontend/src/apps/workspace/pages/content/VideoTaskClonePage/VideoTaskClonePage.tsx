@@ -25,7 +25,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTool = toolOptions.find((option) => option.key === searchParams.get('tool')) ?? toolOptions[0];
   const state = useVideoTaskCloneState(currentUser, urlTool);
-  const lightweightMarketing = useLightweightMarketingVideoController(currentUser);
+  const lightweightMarketing = useLightweightMarketingVideoController(currentUser, state.refreshVideoProductions);
 
   useEffect(() => {
     if (state.tool.key !== urlTool.key) {

@@ -14,16 +14,21 @@ import {
 import type { AssetExtraction, AssetExtractionUpdatedEvent } from '../../../../api/content';
 import {
   analyzePlanningSession,
+  cancelPlanningRemotionRender,
   createPlanningSession,
   generatePlanningCampaignImages,
   generatePlanningNarration,
+  generatePlanningRemotionJSON,
   getPlanningVoices,
+  getRemotionVideoPresets,
   getPlanningSession,
+  startPlanningRemotionRender,
 } from '../../../../api/content-planning';
 import type {
   PlanningSession,
   PlanningSessionUpdatedEvent,
   PlanningVoice,
+  RemotionVideoPreset,
 } from '../../../../api/content-planning';
 import {
   listContentWorkflows,
@@ -102,7 +107,10 @@ function isDocument(attachment: LightweightReferenceAttachment) {
   return attachment.kind === 'presentation' || attachment.kind === 'pdf';
 }
 
-export function useLightweightMarketingVideoController(currentUser: User) {
+export function useLightweightMarketingVideoController(
+  currentUser: User,
+  onVideoProductionsChange?: () => void | Promise<unknown>,
+) {
   const [attachments, setAttachments] = useState<LightweightReferenceAttachment[]>([]);
   const [brief, setBriefValue] = useState('');
   const [records, setRecords] = useState<LightweightCreationRecord[]>([]);
@@ -113,10 +121,15 @@ export function useLightweightMarketingVideoController(currentUser: User) {
   const [narrationVoices, setNarrationVoices] = useState<PlanningVoice[]>([]);
   const [narrationVoice, setNarrationVoiceValue] = useState('');
   const [narrationSpeed, setNarrationSpeedValue] = useState(1);
+  const [remotionPresets, setRemotionPresets] = useState<RemotionVideoPreset[]>([]);
+  const [remotionPresetId, setRemotionPresetIdValue] = useState('clean-marketing');
+  const [generatingRemotionRecordId, setGeneratingRemotionRecordId] = useState('');
+  const [submittingRenderRecordId, setSubmittingRenderRecordId] = useState('');
   const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
   const previewUrlsRef = useRef(new Set<string>());
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const workflowSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const notifiedRenderAssetIdsRef = useRef(new Set<string>());
   const selectedRecord = records.find((record) => record.id === selectedRecordId);
 
   useEffect(() => {
@@ -138,6 +151,22 @@ export function useLightweightMarketingVideoController(currentUser: User) {
   }, [currentUser.id]);
 
   useEffect(() => {
+    let cancelled = false;
+    void getRemotionVideoPresets().then((result) => {
+      if (cancelled) return;
+      setRemotionPresets(result.presets || []);
+      setRemotionPresetIdValue((current) => (
+        result.presets?.some((preset) => preset.id === current)
+          ? current
+          : result.presets?.[0]?.id || 'clean-marketing'
+      ));
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id]);
+
+  useEffect(() => {
     const generation = selectedRecord?.analysisSession?.analysis.narrationGeneration;
     if (!generation || !selectedRecordId) return;
     if (generation.voice) {
@@ -149,6 +178,13 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     }
     if (generation.speed > 0) setNarrationSpeedValue(generation.speed);
   }, [narrationVoices, selectedRecord?.analysisSession?.analysis.narrationGeneration?.voice, selectedRecordId]);
+
+  useEffect(() => {
+    const presetId = selectedRecord?.analysisSession?.analysis.remotionGeneration?.presetId;
+    if (presetId && remotionPresets.some((preset) => preset.id === presetId)) {
+      setRemotionPresetIdValue(presetId);
+    }
+  }, [remotionPresets, selectedRecord?.analysisSession?.analysis.remotionGeneration?.presetId, selectedRecordId]);
 
   const updateRecord = (
     id: string,
@@ -229,7 +265,12 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     const session = selectedRecord?.analysisSession;
     const campaignImageStatus = session?.analysis.campaignImageGeneration?.status;
     const narrationStatus = session?.analysis.narrationGeneration?.status;
-    if (!selectedRecord || !session || (session.status !== 'analyzing' && campaignImageStatus !== 'generating' && narrationStatus !== 'generating')) return undefined;
+    const renderStatus = session?.analysis.renderGeneration?.status;
+    if (!selectedRecord || !session || (session.status !== 'analyzing'
+      && campaignImageStatus !== 'generating'
+      && narrationStatus !== 'generating'
+      && renderStatus !== 'queued'
+      && renderStatus !== 'rendering')) return undefined;
     let cancelled = false;
     // Analysis and promotion-image tasks may need one state reconciliation
     // request. Narration is fully event-driven after its POST response so its
@@ -245,6 +286,8 @@ export function useLightweightMarketingVideoController(currentUser: User) {
           ? latest.analysis.campaignImageGeneration.errorMessage || t('宣传图片生成失败')
           : latest.analysis.narrationGeneration?.status === 'failed'
             ? latest.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
+            : latest.analysis.renderGeneration?.status === 'failed'
+              ? latest.analysis.renderGeneration.errorMessage || t('视频渲染失败')
             : '';
       updateRecord(selectedRecord.id, (record) => {
         if (record.analysisSession?.updatedAt && latest.updatedAt < record.analysisSession.updatedAt) {
@@ -258,6 +301,13 @@ export function useLightweightMarketingVideoController(currentUser: User) {
       });
       if (notifyFailure && errorMessage) {
         showApiError(new Error(errorMessage));
+      }
+      const completedRender = latest.analysis.renderGeneration;
+      if (completedRender?.status === 'completed'
+        && completedRender.assetId
+        && !notifiedRenderAssetIdsRef.current.has(completedRender.assetId)) {
+        notifiedRenderAssetIdsRef.current.add(completedRender.assetId);
+        void onVideoProductionsChange?.();
       }
     };
 
@@ -304,9 +354,11 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     currentUser.id,
     selectedRecord?.analysisSession?.analysis.campaignImageGeneration?.status,
     selectedRecord?.analysisSession?.analysis.narrationGeneration?.status,
+    selectedRecord?.analysisSession?.analysis.renderGeneration?.status,
     selectedRecord?.analysisSession?.id,
     selectedRecord?.analysisSession?.status,
     selectedRecord?.id,
+    onVideoProductionsChange,
   ]);
 
   const addFiles = (files: FileList | File[]) => {
@@ -538,6 +590,66 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     }
   };
 
+  const generateRemotionJSON = async (id: string) => {
+    const record = records.find((item) => item.id === id);
+    const session = record?.analysisSession;
+    if (!record || !session || generatingRemotionRecordId === id) return;
+    setGeneratingRemotionRecordId(id);
+    updateRecord(id, (current) => ({ ...current, analysisError: '' }));
+    try {
+      const updated = await generatePlanningRemotionJSON({
+        sessionId: session.id,
+        userId: currentUser.id,
+        presetId: remotionPresetId,
+      });
+      const updatedRecord = { ...record, analysisError: '', analysisSession: updated };
+      updateRecord(id, () => updatedRecord);
+      await persistRecord(updatedRecord);
+    } catch (error) {
+      const errorMessage = showApiError(error, t('Remotion JSON 生成失败'));
+      updateRecord(id, (current) => ({ ...current, analysisError: errorMessage }));
+    } finally {
+      setGeneratingRemotionRecordId('');
+    }
+  };
+
+  const renderVideo = async (id: string) => {
+    const record = records.find((item) => item.id === id);
+    const session = record?.analysisSession;
+    if (!record || !session || submittingRenderRecordId === id) return;
+    setSubmittingRenderRecordId(id);
+    updateRecord(id, (current) => ({ ...current, analysisError: '' }));
+    try {
+      const updated = await startPlanningRemotionRender({ sessionId: session.id, userId: currentUser.id });
+      const updatedRecord = { ...record, analysisError: '', analysisSession: updated };
+      updateRecord(id, () => updatedRecord);
+      await persistRecord(updatedRecord);
+    } catch (error) {
+      const errorMessage = showApiError(error, t('视频渲染启动失败'));
+      updateRecord(id, (current) => ({ ...current, analysisError: errorMessage }));
+    } finally {
+      setSubmittingRenderRecordId('');
+    }
+  };
+
+  const cancelRender = async (id: string) => {
+    const record = records.find((item) => item.id === id);
+    const session = record?.analysisSession;
+    if (!record || !session || submittingRenderRecordId === id) return;
+    setSubmittingRenderRecordId(id);
+    try {
+      const updated = await cancelPlanningRemotionRender({ sessionId: session.id, userId: currentUser.id });
+      const updatedRecord = { ...record, analysisError: '', analysisSession: updated };
+      updateRecord(id, () => updatedRecord);
+      await persistRecord(updatedRecord);
+    } catch (error) {
+      const errorMessage = showApiError(error, t('取消视频渲染失败'));
+      updateRecord(id, (current) => ({ ...current, analysisError: errorMessage }));
+    } finally {
+      setSubmittingRenderRecordId('');
+    }
+  };
+
   const attachmentItems: MediaAttachmentItem[] = attachments.map((attachment, index) => ({
     caption: attachment.kind === 'presentation'
       ? 'PPTX'
@@ -559,14 +671,20 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     attachments,
     brief,
     canCreateRecord: attachments.some(isDocument) && !creatingRecordId,
+    cancelRender,
     createError,
     createRecord,
     creatingRecordId,
     generateCampaignImages,
     generateNarration,
+    generateRemotionJSON,
+    generatingRemotionRecordId,
     narrationSpeed,
     narrationVoice,
     narrationVoices,
+    remotionPresetId,
+    remotionPresets,
+    renderVideo,
     records,
     removeAttachment,
     selectedRecord,
@@ -579,7 +697,9 @@ export function useLightweightMarketingVideoController(currentUser: User) {
       if (Number.isFinite(value)) setNarrationSpeedValue(Math.min(2, Math.max(0.5, value)));
     },
     setNarrationVoice: (value: string) => setNarrationVoiceValue(value),
+    setRemotionPresetId: (value: string) => setRemotionPresetIdValue(value),
     setSelectedRecordId,
+    submittingRenderRecordId,
     uploadNotice,
   };
 }
@@ -712,11 +832,7 @@ async function hydrateWorkflowRecord(
       : null;
     return {
       ...initial,
-      analysisError: analysisSession?.status === 'failed'
-        ? analysisSession.errorMessage || t('AI 内容分析失败')
-        : analysisSession?.analysis.narrationGeneration?.status === 'failed'
-          ? analysisSession.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
-          : '',
+      analysisError: planningSessionError(analysisSession),
       analysisSession,
       attachments,
       documentExtractions: views,
@@ -731,6 +847,24 @@ async function hydrateWorkflowRecord(
       status: 'failed',
     };
   }
+}
+
+function planningSessionError(session: PlanningSession | null) {
+  if (!session) return '';
+  if (session.status === 'failed') return session.errorMessage || t('AI 内容分析失败');
+  if (session.analysis.campaignImageGeneration?.status === 'failed') {
+    return session.analysis.campaignImageGeneration.errorMessage || t('宣传图片生成失败');
+  }
+  if (session.analysis.narrationGeneration?.status === 'failed') {
+    return session.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败');
+  }
+  if (session.analysis.remotionGeneration?.status === 'failed') {
+    return session.analysis.remotionGeneration.errorMessage || t('Remotion JSON 生成失败');
+  }
+  if (session.analysis.renderGeneration?.status === 'failed') {
+    return session.analysis.renderGeneration.errorMessage || t('视频渲染失败');
+  }
+  return '';
 }
 
 async function extractionView(
@@ -756,6 +890,8 @@ function recordToWorkflowInput(record: LightweightCreationRecord) {
   const analysisStatus = record.analysisSession?.status;
   const campaignImageStatus = record.analysisSession?.analysis.campaignImageGeneration?.status;
   const narrationStatus = record.analysisSession?.analysis.narrationGeneration?.status;
+  const remotionStatus = record.analysisSession?.analysis.remotionGeneration?.status;
+  const renderStatus = record.analysisSession?.analysis.renderGeneration?.status;
   const currentStep = record.status === 'uploading'
     ? 'attachment_upload'
     : record.status === 'parsing'
@@ -763,7 +899,11 @@ function recordToWorkflowInput(record: LightweightCreationRecord) {
       : analysisStatus === 'analyzing'
         ? 'ai_analysis'
         : narrationStatus === 'generating' || narrationStatus === 'completed' || narrationStatus === 'failed'
-          ? 'narration_caption'
+          ? remotionStatus === 'completed' || remotionStatus === 'failed'
+            ? renderStatus === 'queued' || renderStatus === 'rendering' || renderStatus === 'completed' || renderStatus === 'failed' || renderStatus === 'cancelled'
+              ? 'video_render'
+              : 'remotion_json'
+            : 'narration_caption'
           : campaignImageStatus === 'generating' || campaignImageStatus === 'completed' || campaignImageStatus === 'failed'
             ? 'promotion_image'
         : analysisStatus === 'confirming'
@@ -773,8 +913,10 @@ function recordToWorkflowInput(record: LightweightCreationRecord) {
     ? 'failed' as const
     : record.status === 'uploading'
       ? 'uploading' as const
-      : record.status === 'parsing' || analysisStatus === 'analyzing' || campaignImageStatus === 'generating' || narrationStatus === 'generating'
+      : record.status === 'parsing' || analysisStatus === 'analyzing' || campaignImageStatus === 'generating' || narrationStatus === 'generating' || renderStatus === 'queued' || renderStatus === 'rendering'
         ? 'processing' as const
+        : renderStatus === 'completed'
+          ? 'completed' as const
         : 'paused' as const;
   const state: LightweightWorkflowState = {
     ...(record.analysisSession?.id ? { analysisSessionId: record.analysisSession.id } : {}),

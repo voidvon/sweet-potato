@@ -144,6 +144,7 @@ function CreationRecordDetail({
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showCampaignImagesModal, setShowCampaignImagesModal] = useState(false);
   const [showNarrationModal, setShowNarrationModal] = useState(false);
+  const [showRemotionJSONModal, setShowRemotionJSONModal] = useState(false);
   return (
     <>
       <header className="video-task-result-header video-task-storyboard-detail-header lightweight-creation-detail-header">
@@ -196,6 +197,7 @@ function CreationRecordDetail({
                   onShowAnalysis={() => setShowAnalysisModal(true)}
                   onShowCampaignImages={() => setShowCampaignImagesModal(true)}
                   onShowNarration={() => setShowNarrationModal(true)}
+                  onShowRemotionJSON={() => setShowRemotionJSONModal(true)}
                   record={record}
                   stage={stage}
                 />
@@ -237,6 +239,17 @@ function CreationRecordDetail({
             >
               <NarrationResults record={record} />
             </Modal>
+            <Modal
+              centered
+              className="lightweight-remotion-json-modal"
+              footer={null}
+              onCancel={() => setShowRemotionJSONModal(false)}
+              open={showRemotionJSONModal}
+              title={t('Remotion JSON')}
+              width={1040}
+            >
+              <RemotionJSONResult record={record} />
+            </Modal>
           </>
         )}
       </div>
@@ -250,6 +263,7 @@ function CreationWorkflowStage({
   onShowAnalysis,
   onShowCampaignImages,
   onShowNarration,
+  onShowRemotionJSON,
   record,
   stage,
 }: {
@@ -258,6 +272,7 @@ function CreationWorkflowStage({
   onShowAnalysis: () => void;
   onShowCampaignImages: () => void;
   onShowNarration: () => void;
+  onShowRemotionJSON: () => void;
   record: LightweightCreationRecord;
   stage: WorkflowStage;
 }) {
@@ -265,6 +280,8 @@ function CreationWorkflowStage({
   const isAnalysis = index === 3;
   const isCampaignImages = index === 4;
   const isNarration = index === 5;
+  const isRemotionJSON = index === 6;
+  const isRender = index === 7;
   const analyzing = record.analysisSession?.status === 'analyzing';
   const analysisCompleted = record.analysisSession?.status === 'confirming';
   const analysisFailed = record.analysisSession?.status === 'failed';
@@ -276,6 +293,16 @@ function CreationWorkflowStage({
   const narrationGenerating = narrationGeneration?.status === 'generating';
   const narrationCompleted = narrationGeneration?.status === 'completed';
   const narrationFailed = narrationGeneration?.status === 'failed';
+  const remotionGeneration = record.analysisSession?.analysis.remotionGeneration;
+  const remotionCompleted = remotionGeneration?.status === 'completed';
+  const remotionFailed = remotionGeneration?.status === 'failed';
+  const remotionGenerating = controller.generatingRemotionRecordId === record.id;
+  const renderGeneration = record.analysisSession?.analysis.renderGeneration;
+  const renderActive = renderGeneration?.status === 'queued' || renderGeneration?.status === 'rendering';
+  const renderCompleted = renderGeneration?.status === 'completed';
+  const renderFailed = renderGeneration?.status === 'failed';
+  const renderCancelled = renderGeneration?.status === 'cancelled';
+  const renderSubmitting = controller.submittingRenderRecordId === record.id;
   const status = isAnalysis
     ? analysisCompleted
       ? t('已完成')
@@ -304,16 +331,48 @@ function CreationWorkflowStage({
             : analysisCompleted
               ? t('等待开始')
               : t('等待分析')
-      : t('待接入');
-  const actionable = isAnalysis || isCampaignImages || isNarration;
+      : isRemotionJSON
+        ? remotionCompleted
+          ? t('已完成')
+          : remotionGenerating
+            ? t('生成中')
+            : remotionFailed
+              ? t('失败')
+              : narrationCompleted && campaignImagesCompleted
+                ? t('等待开始')
+                : t('等待素材')
+        : isRender
+          ? renderCompleted
+            ? t('已完成')
+            : renderGeneration?.status === 'rendering'
+              ? t('渲染中 {{0}}%', { '0': Math.round((renderGeneration.progress || 0) * 100) })
+              : renderGeneration?.status === 'queued'
+                ? t('排队中')
+                : renderFailed
+                  ? t('失败')
+                  : renderCancelled
+                    ? t('已取消')
+                    : remotionCompleted
+                      ? t('等待开始')
+                      : t('等待 JSON')
+          : t('待接入');
+  const actionable = isAnalysis || isCampaignImages || isNarration || isRemotionJSON || isRender;
   const disabled = isAnalysis
-    ? analyzing
+    ? analyzing || renderActive
     : isCampaignImages
-      ? !analysisCompleted || campaignImagesGenerating
+      ? !analysisCompleted || campaignImagesGenerating || renderActive
       : isNarration
-        ? !analysisCompleted || narrationGenerating
-        : true;
-  const loading = (isAnalysis && analyzing) || (isCampaignImages && campaignImagesGenerating) || (isNarration && narrationGenerating);
+        ? !analysisCompleted || narrationGenerating || renderActive
+        : isRemotionJSON
+          ? !campaignImagesCompleted || !narrationCompleted || remotionGenerating || renderActive
+          : isRender
+            ? !remotionCompleted || renderSubmitting
+            : true;
+  const loading = (isAnalysis && analyzing)
+    || (isCampaignImages && campaignImagesGenerating)
+    || (isNarration && narrationGenerating)
+    || (isRemotionJSON && remotionGenerating)
+    || (isRender && renderSubmitting);
   return (
     <article className="lightweight-video-stage">
       <span className="lightweight-video-stage-index">{index}</span>
@@ -351,6 +410,22 @@ function CreationWorkflowStage({
             <span>{t('倍速')}</span>
           </div>
         ) : null}
+        {isRemotionJSON && campaignImagesCompleted && narrationCompleted ? (
+          <div className="lightweight-video-stage-remotion-settings">
+            <Select
+              aria-label={t('视频风格')}
+              onChange={controller.setRemotionPresetId}
+              options={controller.remotionPresets.map((preset) => ({
+                label: preset.name,
+                title: preset.description,
+                value: preset.id,
+              }))}
+              placeholder={t('选择视频风格')}
+              size="small"
+              value={controller.remotionPresetId}
+            />
+          </div>
+        ) : null}
         <div className="lightweight-video-stage-action-buttons">
           <Button
             disabled={!actionable || disabled}
@@ -361,6 +436,12 @@ function CreationWorkflowStage({
                 ? () => void controller.generateCampaignImages(record.id)
                 : isNarration
                   ? () => void controller.generateNarration(record.id)
+                  : isRemotionJSON
+                    ? () => void controller.generateRemotionJSON(record.id)
+                    : isRender
+                      ? () => void (renderActive
+                        ? controller.cancelRender(record.id)
+                        : controller.renderVideo(record.id))
                   : undefined}
             size="small"
             type={actionable ? 'primary' : 'default'}
@@ -371,6 +452,12 @@ function CreationWorkflowStage({
                 ? t('重新生成')
                 : isNarration && (narrationCompleted || narrationFailed)
                   ? t('重新生成')
+                  : isRemotionJSON && (remotionCompleted || remotionFailed)
+                    ? t('重新生成')
+                    : isRender && renderActive
+                      ? t('取消渲染')
+                      : isRender && (renderCompleted || renderFailed || renderCancelled)
+                        ? t('重新渲染')
                   : stage.action}
           </Button>
           {isAnalysis && analysisCompleted ? (
@@ -388,9 +475,33 @@ function CreationWorkflowStage({
               {t('查看旁白字幕')}
             </Button>
           ) : null}
+          {isRemotionJSON && remotionCompleted ? (
+            <Button onClick={onShowRemotionJSON} size="small">
+              {t('查看 JSON')}
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>
+  );
+}
+
+function RemotionJSONResult({ record }: { record: LightweightCreationRecord }) {
+  const generation = record.analysisSession?.analysis.remotionGeneration;
+  if (!generation?.renderRequest) {
+    return <p className="lightweight-video-analysis-empty">{t('暂无 Remotion JSON')}</p>;
+  }
+  return (
+    <div className="lightweight-remotion-json-result">
+      <div className="lightweight-remotion-json-summary">
+        <div>
+          <strong>{generation.preset?.name || generation.presetId}</strong>
+          <span>JsonVideo {generation.validation?.schemaVersion || generation.preset?.schemaVersion || '1.1'}</span>
+        </div>
+        <span>{generation.validation?.valid ? t('Schema 校验通过') : t('等待 Schema 校验')}</span>
+      </div>
+      <pre>{JSON.stringify(generation.renderRequest, null, 2)}</pre>
+    </div>
   );
 }
 

@@ -200,7 +200,8 @@ export function ResultPanel({
                     const state = viewState(task);
                     const isRetrying = retryingTaskId === task.id;
                     const isDeleting = deletingTaskId === task.id;
-                    const canRetry = task.expertContext?.currentStep !== 'dance_remake_preparation_failed';
+                    const canRetry = task.expertContext?.currentStep !== 'dance_remake_preparation_failed'
+                      && task.expertContext?.mode !== 'lightweight_marketing_video';
                     return (
                       <article className={`video-task-result-card is-${state.kind}`} key={task.id}>
                         <div className="video-task-result-preview">
@@ -436,6 +437,10 @@ function resolveTaskMediaUrl(value?: string | null) {
 }
 
 function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask) {
+  if (task?.expertContext?.mode === 'lightweight_marketing_video') {
+    const metric = [result?.ratio, result?.duration].filter(Boolean).join(' · ');
+    return metric ? t("轻量营销视频 · {{0}}", { "0": metric }) : t("轻量营销视频");
+  }
   if (task?.expertContext?.mode === 'dance_remake') {
     return t("跳舞复刻");
   }

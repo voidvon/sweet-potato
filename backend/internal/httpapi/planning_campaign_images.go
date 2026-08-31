@@ -12,6 +12,9 @@ import (
 )
 
 func (s *Server) queuePlanningCampaignImages(session store.ContentPlanningSession) (store.ContentPlanningSession, string, error) {
+	if isActiveRemotionRender(objectValue(session.Analysis["renderGeneration"])) {
+		return session, "", errors.New("视频正在渲染，请先取消渲染任务")
+	}
 	// Normalize again at generation time so sessions created by older versions,
 	// or incomplete model output, also receive a usable plan and full source
 	// image coverage without forcing the user to rerun paid AI analysis.
@@ -44,6 +47,8 @@ func (s *Server) queuePlanningCampaignImages(session store.ContentPlanningSessio
 		"runId": runID, "status": "generating", "images": anySlice(generation["images"]), "errorMessage": "",
 		"startedAt": time.Now().UTC().Format(time.RFC3339Nano),
 	}
+	session.Analysis["remotionGeneration"] = map[string]any{"status": "idle", "presetId": "", "errorMessage": ""}
+	session.Analysis["renderGeneration"] = map[string]any{"status": "idle", "progress": 0, "pluginJobId": "", "assetId": "", "fileUrl": "", "errorMessage": ""}
 	updated, err := s.store.UpdatePlanningSession(session)
 	return updated, runID, err
 }

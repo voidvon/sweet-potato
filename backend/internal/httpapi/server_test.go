@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,53 @@ func TestOwnedFilesRequireMatchingSession(t *testing.T) {
 	}
 	if got := response.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("private file cache policy = %q", got)
+	}
+}
+
+func TestOwnedFilesAcceptShortLivedRenderToken(t *testing.T) {
+	dataDir := t.TempDir()
+	server, err := New(config.Config{DataDir: dataDir, AuthTokenSecret: "render-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("render-file-user", "password123", "Render File User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	group, err := server.store.CreateContentGroup(user.ID, "other", "Render Files", "", nil)
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	filePath := filepath.Join(dataDir, "files", "render-private.txt")
+	if err := os.WriteFile(filePath, []byte("render-private"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if _, err := server.store.CreateContentAsset(store.ContentAsset{UserID: user.ID, GroupID: group.ID, ResourceType: "other", Name: "Render private", OriginalFileName: "render-private.txt", StoredFileName: "render-private.txt", MimeType: "text/plain", FilePath: filePath, FileURL: "/files/render-private.txt"}); err != nil {
+		t.Fatalf("create asset: %v", err)
+	}
+
+	token := server.renderFileToken("render-private.txt", time.Now().Add(time.Minute))
+	request := httptest.NewRequest(http.MethodGet, "/files/render-private.txt?render_token="+url.QueryEscape(token), nil)
+	request.Header.Set("Origin", "http://127.0.0.1:39876")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Body.String() != "render-private" {
+		t.Fatalf("signed file response = %d %q", response.Code, response.Body.String())
+	}
+	if origin := response.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
+		t.Fatalf("signed file CORS origin = %q, want *", origin)
+	}
+	if policy := response.Header().Get("Cross-Origin-Resource-Policy"); policy != "cross-origin" {
+		t.Fatalf("signed file resource policy = %q, want cross-origin", policy)
+	}
+
+	expired := server.renderFileToken("render-private.txt", time.Now().Add(-time.Minute))
+	request = httptest.NewRequest(http.MethodGet, "/files/render-private.txt?render_token="+url.QueryEscape(expired), nil)
+	response = httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expired file response = %d, want %d", response.Code, http.StatusForbidden)
 	}
 }
 

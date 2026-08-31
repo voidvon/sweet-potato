@@ -28,6 +28,9 @@ type planningAnalysisContext struct {
 }
 
 func (s *Server) queuePlanningAnalysis(session store.ContentPlanningSession, input map[string]any) (store.ContentPlanningSession, error) {
+	if isActiveRemotionRender(objectValue(session.Analysis["renderGeneration"])) {
+		return session, errors.New("视频正在渲染，请先取消渲染任务")
+	}
 	if session.Status == "analyzing" {
 		return session, errors.New("当前策划会话正在分析")
 	}

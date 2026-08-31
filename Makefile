@@ -8,7 +8,7 @@ FRONTEND_DIST_DIR := $(FRONTEND_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
-.PHONY: build build-with-plugins package-plugins embed-static clean-embedded-static run dev dev-web test vet fmt check
+.PHONY: build build-with-plugins prepare-plugins package-plugins embed-static clean-embedded-static run dev dev-web test test-plugins vet fmt check
 
 build:
 	set -e; \
@@ -17,7 +17,12 @@ build:
 	mkdir -p "$(GO_DIR)/bin"; \
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w $(GO_VERSION_LDFLAG)' -o bin/sweet-potato ./cmd/sweetpotato
 
-build-with-plugins: build package-plugins
+build-with-plugins:
+	$(MAKE) build
+	$(MAKE) package-plugins
+
+prepare-plugins:
+	cd "$(ROOT_DIR)/plugins/remotion-video" && bun install --frozen-lockfile && bun run browser:ensure
 
 package-plugins:
 	bash "$(ROOT_DIR)/scripts/package-remotion-plugin.sh"
@@ -47,6 +52,9 @@ dev-web:
 test:
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go test ./...
 
+test-plugins:
+	cd "$(ROOT_DIR)/plugins/remotion-video" && bun run test && bun run lint
+
 vet:
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go vet ./...
 
@@ -56,4 +64,5 @@ fmt:
 check:
 	@unformatted=$$(cd "$(GO_DIR)" && gofmt -l cmd internal); test -z "$$unformatted" || { echo "unformatted Go files:"; echo "$$unformatted"; exit 1; }
 	$(MAKE) test
+	$(MAKE) test-plugins
 	$(MAKE) vet

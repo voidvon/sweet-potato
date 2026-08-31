@@ -39,6 +39,12 @@ func defaultPlanningAnalysis() map[string]any {
 		"narrationGeneration": map[string]any{
 			"status": "idle", "provider": "", "voice": "", "speed": 1, "instruction": "", "modelConfigId": "", "durationMs": 0, "scenes": []any{}, "captions": []any{}, "errorMessage": "",
 		},
+		"remotionGeneration": map[string]any{
+			"status": "idle", "presetId": "", "errorMessage": "",
+		},
+		"renderGeneration": map[string]any{
+			"status": "idle", "progress": 0, "pluginJobId": "", "assetId": "", "fileUrl": "", "errorMessage": "",
+		},
 		"productInsights": map[string]any{
 			"productName": "", "productCategory": "", "productFeatures": []any{}, "coreSellingPoints": []any{}, "targetAudience": []any{}, "useScenarios": []any{},
 		},
@@ -98,6 +104,23 @@ func (s *Store) FindLatestPlanningSession(userID, sourceSurface string) (Content
 		return ContentPlanningSession{}, false, nil
 	}
 	return item, err == nil, err
+}
+
+func (s *Store) ListActiveRemotionRenderSessions() ([]ContentPlanningSession, error) {
+	rows, err := s.db.Query(planningSelect + ` WHERE json_extract(analysis, '$.renderGeneration.status') IN ('queued', 'rendering') ORDER BY updated_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]ContentPlanningSession, 0)
+	for rows.Next() {
+		item, err := scanPlanningSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
 }
 
 func (s *Store) CreatePlanningSession(userID, sourceSurface, prompt, productName string) (ContentPlanningSession, error) {

@@ -3,6 +3,8 @@ const path = require("node:path");
 const { spawn, execFileSync } = require("node:child_process");
 
 const backendDir = path.resolve(__dirname, "..", "backend");
+const projectRootDir = path.resolve(__dirname, "..");
+const pluginDir = process.env.REMOTION_PLUGIN_DIR || path.join(projectRootDir, "plugins", "remotion-video");
 const restartDelayMs = 250;
 
 let goProcess = null;
@@ -23,6 +25,20 @@ function isGoSource(filename) {
   return normalized.endsWith(".go")
     || normalized === "go.mod"
     || normalized === "go.sum";
+}
+
+function isRemotionSource(filename) {
+  if (!filename) {
+    return false;
+  }
+  const normalized = String(filename).replaceAll("\\", "/");
+  if (normalized.startsWith("node_modules/") || normalized.startsWith("renders/")) {
+    return false;
+  }
+  return normalized.endsWith(".ts")
+    || normalized.endsWith(".tsx")
+    || normalized === "package.json"
+    || normalized === "remotion.config.ts";
 }
 
 function waitForExit(child, timeoutMs) {
@@ -118,14 +134,17 @@ async function restartGoProcess() {
   startGoProcess();
 }
 
-function scheduleRestart(filename) {
-  if (!isGoSource(filename) || stopping) {
+function scheduleRestart(filename, sourceType) {
+  const watched = sourceType === "Remotion"
+    ? isRemotionSource(filename)
+    : isGoSource(filename);
+  if (!watched || stopping) {
     return;
   }
   clearTimeout(restartTimer);
   restartTimer = setTimeout(() => {
     restartTimer = null;
-    log(`Change detected: ${filename}`);
+    log(`${sourceType} change detected: ${filename}`);
     void restartGoProcess();
   }, restartDelayMs);
 }
@@ -136,19 +155,35 @@ async function shutdown(code) {
   }
   stopping = true;
   clearTimeout(restartTimer);
-  watcher.close();
+  for (const watcher of watchers) {
+    watcher.close();
+  }
   await stopGoProcess();
   process.exit(code);
 }
 
-const watcher = fs.watch(backendDir, { recursive: true }, (_eventType, filename) => {
-  scheduleRestart(filename);
-});
+const watchers = [];
 
-watcher.on("error", (error) => {
-  console.error(`[go-dev] File watcher failed: ${error.message}`);
-  void shutdown(1);
-});
+function watchSource(directory, sourceType) {
+  if (!fs.existsSync(directory)) {
+    return;
+  }
+  const watchOptions = fs.statSync(directory).isDirectory() ? { recursive: true } : {};
+  const watcher = fs.watch(directory, watchOptions, (_eventType, filename) => {
+    scheduleRestart(filename, sourceType);
+  });
+  watcher.on("error", (error) => {
+    console.error(`[go-dev] ${sourceType} file watcher failed: ${error.message}`);
+    void shutdown(1);
+  });
+  watchers.push(watcher);
+}
+
+watchSource(backendDir, "Go");
+watchSource(path.join(pluginDir, "server"), "Remotion");
+watchSource(path.join(pluginDir, "src"), "Remotion");
+watchSource(path.join(pluginDir, "package.json"), "Remotion");
+watchSource(path.join(pluginDir, "remotion.config.ts"), "Remotion");
 
 process.once("SIGINT", () => { void shutdown(130); });
 process.once("SIGTERM", () => { void shutdown(143); });

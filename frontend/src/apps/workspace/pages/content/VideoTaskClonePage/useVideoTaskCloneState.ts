@@ -617,6 +617,11 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     }
   }, [currentUser.id, filters]);
 
+  const refreshVideoProductions = useCallback(
+    () => loadVideoProductions(true),
+    [loadVideoProductions],
+  );
+
   const loadMoreVideoProductions = useCallback(async () => {
     if (isLoadingMoreProductionsRef.current || !hasMoreVideoProductions) {
       return;
@@ -2515,6 +2520,7 @@ export function useVideoTaskCloneState(currentUser: User, initialTool: ToolOptio
     resolveVideoSource,
     retryVideoProduction,
     retryingTaskId,
+    refreshVideoProductions,
     editVideoProduction,
     showModelPicker,
     showToolMenu,

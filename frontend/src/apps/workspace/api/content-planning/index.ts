@@ -26,6 +26,7 @@ export type PlanningJobStage =
 
 export type PlanningAssetRef = {
   assetId: string;
+  videoTaskId?: string;
   kind: 'image' | 'video' | 'audio';
   name: string;
   fileUrl: string;
@@ -118,6 +119,42 @@ export type PlanningNarrationGeneration = {
   completedAt?: string;
 };
 
+export type RemotionVideoPreset = {
+  id: string;
+  name: string;
+  description: string;
+  schemaVersion: string;
+  imageAnimation: string;
+  titleAnimation: string;
+  transition: string;
+  backgroundColor: string;
+  accentColor: string;
+};
+
+export type PlanningRemotionGeneration = {
+  status: 'idle' | 'completed' | 'failed';
+  presetId: string;
+  preset?: RemotionVideoPreset;
+  plan?: Record<string, unknown>;
+  renderRequest?: Record<string, unknown>;
+  validation?: { valid: boolean; compositionId: string; schemaVersion: string };
+  generatedAt?: string;
+  errorMessage: string;
+};
+
+export type PlanningRenderGeneration = {
+  runId?: string;
+  status: 'idle' | 'queued' | 'rendering' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  pluginJobId: string;
+  assetId: string;
+  fileUrl: string;
+  errorMessage: string;
+  startedAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+};
+
 export type PlanningVoice = {
   id: string;
   name: string;
@@ -145,6 +182,8 @@ export type PlanningAnalysis = {
   campaignPlan?: { visualStyle: string; scenes: PlanningCampaignScene[] } | null;
   campaignImageGeneration?: PlanningCampaignImageGeneration;
   narrationGeneration?: PlanningNarrationGeneration;
+  remotionGeneration?: PlanningRemotionGeneration;
+  renderGeneration?: PlanningRenderGeneration;
   confirmed: boolean;
   notes: string[];
 };
@@ -259,7 +298,7 @@ export type PlanningRealtimeEvent = {
 };
 
 export type PlanningSessionUpdatedEvent = {
-  operation: 'analysis' | 'campaign-images' | 'narration';
+  operation: 'analysis' | 'campaign-images' | 'narration' | 'remotion-json' | 'render';
   session: PlanningSession;
   sessionId: string;
   status: string;
@@ -379,6 +418,38 @@ export function generatePlanningCampaignImages(payload: {
 
 export function getPlanningVoices() {
   return request<{ voices: PlanningVoice[]; provider: string; model: string }>('/api/content-planning/voices');
+}
+
+export function getRemotionVideoPresets() {
+  return request<{
+    presets: RemotionVideoPreset[];
+    capabilities?: Record<string, unknown>;
+    runtime: { state: string; installed: boolean };
+  }>('/api/content-planning/remotion-presets');
+}
+
+export function generatePlanningRemotionJSON(payload: {
+  userId: string;
+  sessionId: string;
+  presetId: string;
+}) {
+  return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/remotion-json`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }).then(extractPlanningSession);
+}
+
+export function startPlanningRemotionRender(payload: { userId: string; sessionId: string }) {
+  return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/render`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).then(extractPlanningSession);
+}
+
+export function cancelPlanningRemotionRender(payload: { userId: string; sessionId: string }) {
+  return request<PlanningSession | { session: PlanningSession }>(`${basePath}/${payload.sessionId}/render`, {
+    method: 'DELETE',
+  }).then(extractPlanningSession);
 }
 
 export function generatePlanningNarration(payload: {

@@ -23,6 +23,9 @@ type planningNarrationScene struct {
 }
 
 func (s *Server) queuePlanningNarration(session store.ContentPlanningSession, input map[string]any) (store.ContentPlanningSession, string, error) {
+	if isActiveRemotionRender(objectValue(session.Analysis["renderGeneration"])) {
+		return session, "", errors.New("视频正在渲染，请先取消渲染任务")
+	}
 	scenes := planningNarrationInputs(session)
 	if len(scenes) == 0 {
 		return session, "", errors.New("当前分析结果没有可用的场景旁白，请先完成 AI 内容分析")
@@ -53,6 +56,8 @@ func (s *Server) queuePlanningNarration(session store.ContentPlanningSession, in
 		"errorMessage":  "",
 		"startedAt":     time.Now().UTC().Format(time.RFC3339Nano),
 	}
+	session.Analysis["remotionGeneration"] = map[string]any{"status": "idle", "presetId": "", "errorMessage": ""}
+	session.Analysis["renderGeneration"] = map[string]any{"status": "idle", "progress": 0, "pluginJobId": "", "assetId": "", "fileUrl": "", "errorMessage": ""}
 	updated, err := s.store.UpdatePlanningSession(session)
 	return updated, runID, err
 }

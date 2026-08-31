@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"sweet-potato-go/internal/pluginruntime"
+	"sweet-potato-go/internal/remotionjson"
 	"sweet-potato-go/internal/store"
 )
 
@@ -36,6 +38,17 @@ func (s *Server) handleContentPlanning(w http.ResponseWriter, r *http.Request) {
 			"provider": model.Provider,
 			"model":    model.Model,
 		})
+		return
+	}
+	if len(parts) == 1 && parts[0] == "remotion-presets" && r.Method == http.MethodGet {
+		payload := map[string]any{
+			"presets": remotionjson.Presets(),
+			"runtime": s.plugins.Status(pluginruntime.RemotionPluginKey),
+		}
+		if capabilities, err := s.plugins.Capabilities(r.Context(), pluginruntime.RemotionPluginKey); err == nil {
+			payload["capabilities"] = capabilities
+		}
+		writeJSON(w, http.StatusOK, payload)
 		return
 	}
 	if len(parts) == 1 && parts[0] == "sessions" && r.Method == http.MethodPost {
@@ -141,6 +154,18 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 		s.publishPlanningSessionUpdated(updated, "narration")
 		s.startBackgroundTask(func() { s.executePlanningNarration(updated.ID, runID) })
 		writeJSON(w, http.StatusAccepted, updated)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "remotion-json" && r.Method == http.MethodPost {
+		s.handleGenerateRemotionJSON(w, r, session)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "render" && r.Method == http.MethodPost {
+		s.handleStartRemotionRender(w, r, session)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "render" && r.Method == http.MethodDelete {
+		s.handleCancelRemotionRender(w, r, session)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "confirmation" && (r.Method == http.MethodPatch || r.Method == http.MethodPut) {
@@ -344,6 +369,8 @@ func defaultAnalysisHTTP() map[string]any {
 		"campaignPlan":            nil,
 		"campaignImageGeneration": map[string]any{"status": "idle", "images": []any{}, "errorMessage": ""},
 		"narrationGeneration":     map[string]any{"status": "idle", "provider": "", "voice": "", "speed": 1, "instruction": "", "modelConfigId": "", "durationMs": 0, "scenes": []any{}, "captions": []any{}, "errorMessage": ""},
+		"remotionGeneration":      map[string]any{"status": "idle", "presetId": "", "errorMessage": ""},
+		"renderGeneration":        map[string]any{"status": "idle", "progress": 0, "pluginJobId": "", "assetId": "", "fileUrl": "", "errorMessage": ""},
 		"productInsights":         map[string]any{},
 		"confirmed":               false,
 		"notes":                   []any{},

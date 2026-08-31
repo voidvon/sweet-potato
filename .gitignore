@@ -22,3 +22,5 @@ release/
 .version-release.lock/
 backend/bin/
 backend/internal/httpapi/static/web/
+plugins/remotion-video/renders/
+plugins/remotion-video/out/

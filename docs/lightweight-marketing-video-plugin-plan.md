@@ -2,7 +2,7 @@
 
 > 状态：规划中  
 > 更新日期：2026-08-28  
-> 涉及项目：`agent-tool`、`remotion-video`
+> 当前实现：Remotion 可编辑源码已经内置到 `agent-tool/plugins/remotion-video`；原独立 `remotion-video` 项目不再作为运行依赖。
 
 ## 1. 背景与结论
 
@@ -98,7 +98,7 @@ agent-tool Go API
 - 数据库保存是否启用、显示顺序、超时、并发和模板版本等可变配置。
 - 后端通过固定的插件接口调用工作流，不使用动态脚本执行。
 
-Remotion 采用主程序托管的内部子进程模式。开发环境通过 `REMOTION_PLUGIN_DIR` 指向同级 `remotion-video`，正式发布包将 Bun、Node 依赖、Chromium 和服务代码放在主程序相邻的 `plugins/remotion-video`。Go 自动分配回环端口、启动和停止子进程、等待健康检查，并在异常退出后退避重启；浏览器不直接访问渲染服务。
+Remotion 采用主程序托管的内部子进程模式。可编辑源码位于 `agent-tool/plugins/remotion-video`；正式发布包将 Bun、Node 依赖、Chromium 和服务代码放在主程序相邻的 `plugins/remotion-video`。Go 自动分配回环端口、启动和停止子进程、等待健康检查，并在异常退出后退避重启；浏览器不直接访问渲染服务。
 
 “安装”和“启用”是两个独立状态：安装在构建或发布阶段完成，后台只读展示是否已安装；启用仅控制已经安装的子进程，不在运行时联网下载依赖。插件未安装时不能启用。
 
@@ -212,7 +212,7 @@ draft
 - `ImageFilter`：PPTX 与 PDF 共用的版本化图片过滤规则，统一输出分类、是否纳入分析、置信度和过滤原因。文档整页参考图使用独立角色，避免被模板背景规则误删；未来 PDF 内嵌图片提取直接复用普通嵌入图片规则。
 - `Result`：统一使用 `slide` 或 `page` 内容单元、派生文件、解析器名称、版本、警告和格式元数据表达结果。
 
-现有 PDF 聊天参考图流程已经通过该统一入口调用，并继续将页面图片保存为 `content_assets`。在前端上传流程和 AI 分析调用切换到新的资产解析契约前，`remotion-video` 中旧的 PPTX 接口暂时保留兼容；完成调用迁移后再删除，最终渲染服务仍只接收 Remotion JSON。
+现有 PDF 聊天参考图流程已经通过该统一入口调用，并继续将页面图片保存为 `content_assets`。仓库内的 `plugins/remotion-video` 不再包含 PPTX/PDF 解析接口，渲染服务只接收 Remotion JSON。
 
 资产解析后端契约已经提供：
 
@@ -369,6 +369,10 @@ Remotion JSON 中不要出现服务器本地绝对路径。推荐使用以下方
 - 依据真实音频时长生成字幕及场景时间轴。
 - 在 Go 侧生成版本化 JsonVideo 输入并完成预校验。
 - 支持查看 JSON 和必要的高级编辑，但默认不要求用户手写 JSON。
+
+当前实现采用“语义编排 + 确定性 Builder”方案：AI 内容分析产出的 `campaignPlan` 作为语义场景计划，Go 根据已启用的视频风格预设，将宣传图片、旁白和场景内相对字幕映射为 `JsonVideo 1.1`。Remotion 插件通过 `GET /capabilities` 声明元素、动效、转场和限制，通过 `POST /validate` 对最终渲染请求执行严格 Schema 校验。只有校验通过的 JSON 才写入 `content_planning_sessions.analysis.remotionGeneration`。
+
+第一批内置风格为“简约营销”“动感促销”和“科技聚焦”。风格预设只组合插件已经注册的原子能力，不允许 AI 自由发明动效名称。重新生成宣传图片或旁白时，已有 `remotionGeneration` 会自动失效，防止继续使用旧素材 JSON。
 
 ### 阶段 5：Remotion 渲染接入
 
