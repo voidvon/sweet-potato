@@ -138,6 +138,8 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("GET /api/admin/plugins", server.handleListPlugins)
 	server.mux.HandleFunc("PUT /api/admin/plugins/{key}", server.handleUpdatePlugin)
 	server.mux.HandleFunc("POST /api/admin/plugins/{key}/test", server.handleTestPlugin)
+	server.mux.HandleFunc("POST /api/admin/plugins/{key}/install", server.handleInstallPlugin)
+	server.mux.HandleFunc("DELETE /api/admin/plugins/{key}/install", server.handleUninstallPlugin)
 
 	server.mux.HandleFunc("/api/billing/", server.handleBilling)
 	server.mux.HandleFunc("GET /api/site-config", server.handleSiteConfig)

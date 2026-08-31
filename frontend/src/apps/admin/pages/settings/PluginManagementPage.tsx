@@ -13,11 +13,13 @@ import {
   message,
   type TableColumnsType,
 } from 'antd';
-import { ApiOutlined, SettingOutlined } from '@ant-design/icons';
+import { ApiOutlined, DeleteOutlined, DownloadOutlined, SettingOutlined } from '@ant-design/icons';
 import { ContentStudioLayout } from '../../layouts/ContentStudioLayout';
 import {
   listPlugins,
+  installPlugin,
   testPluginConnection,
+  uninstallPlugin,
   updatePlugin,
   type ManagedPlugin,
   type PluginSettingsPayload,
@@ -27,6 +29,14 @@ import './PluginManagementPage.scss';
 
 type PluginFormValues = PluginSettingsPayload;
 
+const installStageLabels: Record<NonNullable<ManagedPlugin['runtime']['installStage']>, string> = {
+  preparing_source: '正在准备插件源码',
+  preparing_bun: '正在准备 Bun',
+  installing_dependencies: '正在安装 Remotion 依赖',
+  installing_browser: '正在安装 Chromium',
+  finalizing: '正在完成安装',
+};
+
 export function PluginManagementPage() {
   const [form] = Form.useForm<PluginFormValues>();
   const [plugins, setPlugins] = useState<ManagedPlugin[]>([]);
@@ -34,6 +44,8 @@ export function PluginManagementPage() {
   const [saving, setSaving] = useState(false);
   const [testingKey, setTestingKey] = useState('');
   const [togglingKey, setTogglingKey] = useState('');
+  const [installingKey, setInstallingKey] = useState('');
+  const [uninstallingKey, setUninstallingKey] = useState('');
   const [editing, setEditing] = useState<ManagedPlugin | null>(null);
 
   async function loadPlugins() {
@@ -47,19 +59,21 @@ export function PluginManagementPage() {
     }
   }
 
-  const hasEnabledPlugin = plugins.some((plugin) => plugin.enabled);
+  const hasActivePluginRuntime = plugins.some((plugin) => (
+    plugin.enabled || plugin.runtime.state === 'installing' || plugin.runtime.state === 'starting' || plugin.runtime.state === 'stopping'
+  ));
 
   useEffect(() => {
     void loadPlugins();
   }, []);
 
   useEffect(() => {
-    if (!hasEnabledPlugin) return;
+    if (!hasActivePluginRuntime) return;
     const timer = window.setInterval(() => {
       void listPlugins().then(setPlugins).catch(() => undefined);
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [hasEnabledPlugin]);
+  }, [hasActivePluginRuntime]);
 
   function openSettings(plugin: ManagedPlugin) {
     setEditing(plugin);
@@ -132,6 +146,46 @@ export function PluginManagementPage() {
     }
   }
 
+  async function installRuntime(plugin: ManagedPlugin) {
+    setInstallingKey(plugin.key);
+    setPlugins((current) => current.map((item) => item.key === plugin.key
+      ? { ...item, runtime: { ...item.runtime, state: 'installing', installStage: 'preparing_source', lastError: undefined } }
+      : item));
+    try {
+      const updated = await installPlugin(plugin.key);
+      setPlugins((current) => current.map((item) => item.key === updated.key ? updated : item));
+      message.success(t('Remotion 运行环境安装完成'));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('插件安装失败'));
+      void loadPlugins();
+    } finally {
+      setInstallingKey('');
+    }
+  }
+
+  function uninstallRuntime(plugin: ManagedPlugin) {
+    Modal.confirm({
+      cancelText: t('取消'),
+      content: t('将删除本机下载的 Bun、Remotion 依赖和 Chromium，不会删除已经生成的视频。'),
+      okButtonProps: { danger: true, loading: uninstallingKey === plugin.key },
+      okText: t('卸载'),
+      title: t('卸载 Remotion 运行环境？'),
+      onOk: async () => {
+        setUninstallingKey(plugin.key);
+        try {
+          const updated = await uninstallPlugin(plugin.key);
+          setPlugins((current) => current.map((item) => item.key === updated.key ? updated : item));
+          message.success(t('Remotion 运行环境已卸载'));
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : t('插件卸载失败'));
+          throw error;
+        } finally {
+          setUninstallingKey('');
+        }
+      },
+    });
+  }
+
   const columns: TableColumnsType<ManagedPlugin> = [
     {
       title: t('插件'),
@@ -171,6 +225,7 @@ export function PluginManagementPage() {
             <Tag color={plugin.runtime.state === 'running' ? 'processing' : plugin.runtime.state === 'error' ? 'error' : 'default'}>
               {{
                 not_installed: t('不可用'),
+                installing: t('安装中'),
                 stopped: t('未运行'),
                 starting: t('启动中'),
                 running: t('运行中'),
@@ -181,6 +236,15 @@ export function PluginManagementPage() {
             </Tag>
           </Space>
           {plugin.runtime.pid ? <Typography.Text type="secondary">PID {plugin.runtime.pid}</Typography.Text> : null}
+          {plugin.runtime.state === 'installing' ? (
+            <Typography.Text type="secondary">
+              {plugin.runtime.installStage === 'preparing_bun' && Number(plugin.runtime.totalBytes) > 0
+                ? t('正在下载 Bun {{0}}%', {
+                  '0': Math.min(100, Math.round((Number(plugin.runtime.downloadedBytes) || 0) * 100 / Number(plugin.runtime.totalBytes))),
+                })
+                : t(installStageLabels[plugin.runtime.installStage ?? 'preparing_source'])}
+            </Typography.Text>
+          ) : null}
           {plugin.runtime.lastError ? <Typography.Text type="danger">{plugin.runtime.lastError}</Typography.Text> : null}
         </Space>
       ),
@@ -194,9 +258,28 @@ export function PluginManagementPage() {
     {
       title: t('操作'),
       key: 'actions',
-      width: 300,
+      width: 440,
       render: (_, plugin) => (
         <Space>
+          <Button
+            icon={<DownloadOutlined />}
+            disabled={plugin.enabled || uninstallingKey === plugin.key}
+            loading={installingKey === plugin.key}
+            onClick={() => void installRuntime(plugin)}
+          >
+            {plugin.runtime.installed ? t('重新安装') : t('安装')}
+          </Button>
+          {plugin.runtime.installed && plugin.runtime.canUninstall ? (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              disabled={plugin.enabled || installingKey === plugin.key}
+              loading={uninstallingKey === plugin.key}
+              onClick={() => uninstallRuntime(plugin)}
+            >
+              {t('卸载')}
+            </Button>
+          ) : null}
           <Switch
             checked={plugin.enabled}
             checkedChildren={t('启用')}

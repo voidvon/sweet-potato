@@ -42,14 +42,18 @@ type RenderJob struct {
 }
 
 type Status struct {
-	Installed  bool   `json:"installed"`
-	State      string `json:"state"`
-	Endpoint   string `json:"endpoint,omitempty"`
-	PID        int    `json:"pid,omitempty"`
-	StartedAt  string `json:"startedAt,omitempty"`
-	LastError  string `json:"lastError,omitempty"`
-	PluginDir  string `json:"pluginDir,omitempty"`
-	BunVersion string `json:"bunVersion,omitempty"`
+	Installed       bool   `json:"installed"`
+	State           string `json:"state"`
+	Endpoint        string `json:"endpoint,omitempty"`
+	PID             int    `json:"pid,omitempty"`
+	StartedAt       string `json:"startedAt,omitempty"`
+	LastError       string `json:"lastError,omitempty"`
+	PluginDir       string `json:"pluginDir,omitempty"`
+	BunVersion      string `json:"bunVersion,omitempty"`
+	InstallStage    string `json:"installStage,omitempty"`
+	DownloadedBytes int64  `json:"downloadedBytes,omitempty"`
+	TotalBytes      int64  `json:"totalBytes,omitempty"`
+	CanUninstall    bool   `json:"canUninstall,omitempty"`
 }
 
 type Manager struct {
@@ -65,10 +69,11 @@ type Manager struct {
 	desired     bool
 	concurrency int
 	restarts    int
+	installing  bool
 }
 
 func New(dataDir string) *Manager {
-	pluginDir := resolvePluginDir()
+	pluginDir := resolvePluginDir(dataDir)
 	bunPath := resolveBunPath(pluginDir)
 	manager := &Manager{pluginDir: pluginDir, bunPath: bunPath, dataDir: dataDir}
 	manager.status = manager.inspectInstallation()
@@ -121,7 +126,7 @@ func (m *Manager) Start(key string, maxConcurrency int) error {
 		return err
 	}
 	endpoint := "http://127.0.0.1:" + strconv.Itoa(port)
-	rendersDir := filepath.Join(m.dataDir, "plugins", "remotion-video", "renders")
+	rendersDir := m.rendersDir()
 	if err := os.MkdirAll(rendersDir, 0o700); err != nil {
 		m.status.State = "error"
 		m.status.LastError = err.Error()
@@ -163,6 +168,10 @@ func (m *Manager) Start(key string, maxConcurrency int) error {
 	go m.waitForReady(waitContext, generation, endpoint)
 	go m.waitForExit(generation, command, processDone)
 	return nil
+}
+
+func (m *Manager) rendersDir() string {
+	return filepath.Join(m.dataDir, "plugin-data", "remotion-video", "renders")
 }
 
 func (m *Manager) Stop(key string) error {
@@ -432,7 +441,11 @@ func (m *Manager) waitForExit(generation uint64, command *exec.Cmd, processDone 
 }
 
 func (m *Manager) inspectInstallation() Status {
-	status := Status{State: "not_installed", PluginDir: m.pluginDir}
+	managed := filepath.Join(m.dataDir, "plugins", "remotion-video")
+	status := Status{
+		State: "not_installed", PluginDir: m.pluginDir,
+		CanUninstall: filepath.Clean(m.pluginDir) == filepath.Clean(managed),
+	}
 	if m.pluginDir == "" || m.bunPath == "" {
 		return status
 	}
@@ -455,18 +468,26 @@ func (m *Manager) inspectInstallation() Status {
 	return status
 }
 
-func resolvePluginDir() string {
+func resolvePluginDir(dataDir string) string {
 	if configured := strings.TrimSpace(os.Getenv("REMOTION_PLUGIN_DIR")); configured != "" {
 		if absolute, err := filepath.Abs(configured); err == nil {
 			return absolute
 		}
 		return filepath.Clean(configured)
 	}
+	managed := filepath.Join(dataDir, "plugins", "remotion-video")
+	if info, statErr := os.Stat(filepath.Join(managed, "package.json")); statErr == nil && !info.IsDir() {
+		return managed
+	}
 	executable, err := os.Executable()
 	if err != nil {
-		return ""
+		return managed
 	}
-	return filepath.Join(filepath.Dir(executable), "plugins", "remotion-video")
+	bundled := filepath.Join(filepath.Dir(executable), "plugins", "remotion-video")
+	if info, statErr := os.Stat(filepath.Join(bundled, "package.json")); statErr == nil && !info.IsDir() {
+		return bundled
+	}
+	return managed
 }
 
 func resolveBunPath(pluginDir string) string {

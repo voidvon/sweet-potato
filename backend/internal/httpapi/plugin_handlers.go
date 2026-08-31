@@ -131,6 +131,54 @@ func (s *Server) handleTestPlugin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleInstallPlugin(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireUser(w, r, permissionPlugins); !ok {
+		return
+	}
+	plugin, found, err := s.store.FindPlugin(r.PathValue("key"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "插件配置读取失败")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "插件不存在")
+		return
+	}
+	if plugin.Enabled {
+		writeError(w, http.StatusConflict, "请先停用插件再安装或更新")
+		return
+	}
+	if err := s.plugins.Install(plugin.Key, plugin.Version); err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writePluginPayload(w, http.StatusOK, plugin, s.plugins.Status(plugin.Key))
+}
+
+func (s *Server) handleUninstallPlugin(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireUser(w, r, permissionPlugins); !ok {
+		return
+	}
+	plugin, found, err := s.store.FindPlugin(r.PathValue("key"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "插件配置读取失败")
+		return
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "插件不存在")
+		return
+	}
+	if plugin.Enabled {
+		writeError(w, http.StatusConflict, "请先停用插件再卸载")
+		return
+	}
+	if err := s.plugins.Uninstall(plugin.Key); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writePluginPayload(w, http.StatusOK, plugin, s.plugins.Status(plugin.Key))
+}
+
 func writePluginPayload(w http.ResponseWriter, status int, plugin store.Plugin, runtime pluginruntime.Status) {
 	writeJSON(w, status, map[string]any{
 		"key": plugin.Key, "name": plugin.Name, "category": plugin.Category,

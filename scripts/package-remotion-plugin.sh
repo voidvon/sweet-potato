@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_DIR="${REMOTION_PLUGIN_SOURCE:-${PROJECT_ROOT}/plugins/remotion-video}"
-TARGET_DIR="${PROJECT_ROOT}/backend/bin/plugins/remotion-video"
+TARGET_DIR="${REMOTION_PLUGIN_TARGET_DIR:-${PROJECT_ROOT}/backend/bin/plugins/remotion-video}"
 BUN_SOURCE="${REMOTION_BUN_PATH:-$(command -v bun || true)}"
 
 if [[ ! -f "${SOURCE_DIR}/package.json" || ! -d "${SOURCE_DIR}/server" || ! -d "${SOURCE_DIR}/src" ]]; then

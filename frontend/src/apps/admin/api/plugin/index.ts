@@ -17,13 +17,17 @@ export type ManagedPlugin = {
   updatedAt: string;
   runtime: {
     installed: boolean;
-    state: 'not_installed' | 'stopped' | 'starting' | 'running' | 'stopping' | 'error' | 'unsupported';
+    state: 'not_installed' | 'installing' | 'stopped' | 'starting' | 'running' | 'stopping' | 'error' | 'unsupported';
     endpoint?: string;
     pid?: number;
     startedAt?: string;
     lastError?: string;
     pluginDir?: string;
     bunVersion?: string;
+    installStage?: 'preparing_source' | 'preparing_bun' | 'installing_dependencies' | 'installing_browser' | 'finalizing';
+    downloadedBytes?: number;
+    totalBytes?: number;
+    canUninstall?: boolean;
   };
 };
 
@@ -52,5 +56,17 @@ export function updatePlugin(key: string, payload: PluginSettingsPayload) {
 export function testPluginConnection(key: string) {
   return request<PluginConnectionResult>(`/api/admin/plugins/${encodeURIComponent(key)}/test`, {
     method: 'POST',
+  });
+}
+
+export function installPlugin(key: string) {
+  return request<ManagedPlugin>(`/api/admin/plugins/${encodeURIComponent(key)}/install`, {
+    method: 'POST',
+  });
+}
+
+export function uninstallPlugin(key: string) {
+  return request<ManagedPlugin>(`/api/admin/plugins/${encodeURIComponent(key)}/install`, {
+    method: 'DELETE',
   });
 }

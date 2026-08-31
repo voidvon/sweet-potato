@@ -8,14 +8,15 @@ FRONTEND_DIST_DIR := $(FRONTEND_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
-.PHONY: build build-with-plugins prepare-plugins package-plugins embed-static clean-embedded-static run dev dev-web test test-plugins vet fmt check
+.PHONY: build build-with-plugins prepare-plugins package-plugins embed-plugin-source embed-static clean-embedded-static run dev dev-web test test-plugins vet fmt check
 
 build:
 	set -e; \
-	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)"' EXIT; \
+	trap 'rm -rf "$(STATIC_WEB_DIR)" "$(FRONTEND_DIST_DIR)" "$(GO_DIR)/internal/pluginruntime/remotion-plugin-source.tar.gz"' EXIT; \
 	$(MAKE) embed-static; \
+	$(MAKE) embed-plugin-source; \
 	mkdir -p "$(GO_DIR)/bin"; \
-	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w $(GO_VERSION_LDFLAG)' -o bin/sweet-potato ./cmd/sweetpotato
+	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -tags embedded_plugin_source -trimpath -ldflags='-s -w $(GO_VERSION_LDFLAG)' -o bin/sweet-potato ./cmd/sweetpotato
 
 build-with-plugins:
 	$(MAKE) build
@@ -26,6 +27,9 @@ prepare-plugins:
 
 package-plugins:
 	bash "$(ROOT_DIR)/scripts/package-remotion-plugin.sh"
+
+embed-plugin-source:
+	bash "$(ROOT_DIR)/scripts/embed-remotion-plugin-source.sh"
 
 embed-static:
 	cd "$(FRONTEND_DIR)" && npm run build

@@ -1,7 +1,7 @@
 # 轻量营销视频插件接入规划
 
-> 状态：规划中  
-> 更新日期：2026-08-28  
+> 状态：规划中
+> 更新日期：2026-08-31
 > 当前实现：Remotion 可编辑源码已经内置到 `agent-tool/plugins/remotion-video`；原独立 `remotion-video` 项目不再作为运行依赖。
 
 ## 1. 背景与结论
@@ -25,13 +25,13 @@
 - 支持上传图片、视频、PPT、PPTX 和 PDF 作为参考附件。
 - 复用统一的文档解析、素材存储、个人模型和系统模型配置。
 - 分阶段生成内容分析、宣传图片、旁白、字幕和 Remotion JSON。
-- 将最终 JSON 交给独立的 Node.js Remotion 服务渲染。
+- 将最终 JSON 交给主程序托管的 Bun + Remotion 内部服务渲染。
 - 在 `agent-tool` 中统一持久化任务状态、生成产物、失败原因和操作记录。
 - 为后续新增其他视频插件保留一致的插件注册和执行方式。
 
 ### 2.2 非目标
 
-- 不允许通过管理页面动态上传并执行任意 Node.js 或 Go 代码。
+- 不允许通过管理页面动态上传并执行任意 Bun、Node.js 或 Go 代码。
 - 不在 `remotion-video` 内增加用户、权限、积分、模型或 API Key 管理。
 - 不让渲染服务直接调用 LLM、图片生成、TTS 或文档解析服务。
 - 第一阶段不建设复杂的可视化时间线编辑器。
@@ -78,13 +78,13 @@ agent-tool Go API
   └── 渲染适配器
           │ 服务鉴权 + JSON
           ▼
-     remotion-video Node.js
+     remotion-video Bun 子进程
           ├── JsonVideo Schema 校验
           ├── Remotion 渲染队列
           └── MP4 输出
 ```
 
-`agent-tool` 是业务事实来源。即使 Node.js 渲染进程重启，用户看到的任务、配置和历史记录也应由 `agent-tool` 持久化数据恢复。
+`agent-tool` 是业务事实来源。即使 Bun 渲染进程重启，用户看到的任务、配置和历史记录也应由 `agent-tool` 持久化数据恢复。
 
 ## 5. 插件管理设计
 
@@ -98,9 +98,15 @@ agent-tool Go API
 - 数据库保存是否启用、显示顺序、超时、并发和模板版本等可变配置。
 - 后端通过固定的插件接口调用工作流，不使用动态脚本执行。
 
-Remotion 采用主程序托管的内部子进程模式。可编辑源码位于 `agent-tool/plugins/remotion-video`；正式发布包将 Bun、Node 依赖、Chromium 和服务代码放在主程序相邻的 `plugins/remotion-video`。Go 自动分配回环端口、启动和停止子进程、等待健康检查，并在异常退出后退避重启；浏览器不直接访问渲染服务。
+Remotion 采用主程序托管的内部子进程模式。可编辑源码位于 `agent-tool/plugins/remotion-video`；Go 单文件只嵌入该插件的源码、`package.json` 和 `bun.lock`，不嵌入 Bun、`node_modules` 或 Chromium。Go 自动分配回环端口、启动和停止 Bun 子进程、等待健康检查，并在异常退出后退避重启；浏览器不直接访问渲染服务。
 
-“安装”和“启用”是两个独立状态：安装在构建或发布阶段完成，后台只读展示是否已安装；启用仅控制已经安装的子进程，不在运行时联网下载依赖。插件未安装时不能启用。
+“安装”和“启用”是两个独立状态：管理员在后台点击安装时，主程序将内置源码解压到临时目录，优先复用部署机已有的 Bun；找不到 Bun 时再下载对应系统和架构的官方 Bun ZIP，并校验 SHA-256。随后执行 `bun install --production --frozen-lockfile` 和 `bun run browser:ensure`，全部成功后原子替换到 `DATA_DIR/plugins/remotion-video`。启用仅启动已经安装好的子进程，不重复安装依赖；插件未安装时不能启用。
+
+安装和运行均由 Bun 直接完成，不要求部署机额外安装 Node.js。默认 Bun 版本由主程序固定，可通过 `REMOTION_BUN_VERSION` 调整；`REMOTION_BUN_PATH` 可指定已有 Bun，`REMOTION_BUN_RELEASE_BASE_URL` 可替换 Bun 发布目录，`REMOTION_BUN_DOWNLOAD_URL` 和 `REMOTION_BUN_CHECKSUM_URL` 可分别指定下载地址与校验文件地址。完整地址支持 `{version}` 和 `{asset}` 占位符。
+
+依赖安装需要访问 npm registry 和 Chrome for Testing 下载源；`REMOTION_NPM_REGISTRY` 可配置 npm 镜像，标准 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY` 环境变量可用于 Bun 与 Chromium 下载。安装、重新安装和卸载要求插件处于停用状态。运行环境位于 `DATA_DIR/plugins/remotion-video`，渲染数据独立存放在 `DATA_DIR/plugin-data/remotion-video/renders`；卸载只删除前者中的 Bun、Remotion 依赖和 Chromium，不删除渲染数据或已经入库的视频资产。
+
+完全离线的部署环境无法现场下载依赖，可在目标系统预先执行 `make prepare-plugins` 和 `make package-plugins` 生成外部插件目录，或通过 `REMOTION_PLUGIN_DIR` 指向已准备好的目录。该离线方式是可选部署手段，不会增加默认 Go 单文件的体积。
 
 ### 5.2 轻量营销视频插件定义
 
@@ -253,7 +259,7 @@ AI 内容分析同时输出宣传图场景规划，包括全片统一视觉风�
 - `marketing_video_tasks`：用户任务、营销需求、当前阶段、版本和错误。
 - `marketing_video_task_assets`：任务输入、生成图片、音频、字幕和视频等资产关联。
 - `asset_extractions`：通用附件解析状态、版本和结构化结果。
-- `render_jobs`：`agent-tool` 主任务与 Node.js 渲染任务 ID 的映射。
+- `render_jobs`：`agent-tool` 主任务与 Bun 渲染任务 ID 的映射。
 
 大文本分析结果和 Remotion JSON 可以使用 JSON 字段持久化，但关键查询字段，如状态、用户 ID、阶段、版本和时间，应保留独立列。
 
@@ -284,7 +290,7 @@ AI 内容分析同时输出宣传图场景规划，包括全片统一视觉风�
 - 渲染超时、并发限制和磁盘空间保护。
 - 结果下载有效期或由 `agent-tool` 主动拉取并落入素材库。
 
-`remotion-video` 当前任务队列保存在内存中，进程重启后任务会丢失。第一版可以由 `agent-tool` 持久化主任务并识别渲染任务失联；正式运行时应进一步选择持久化 Node.js 队列，或让 `agent-tool` 在明确的幂等规则下重新提交。
+`remotion-video` 当前任务队列保存在内存中，进程重启后任务会丢失。第一版可以由 `agent-tool` 持久化主任务并识别渲染任务失联；正式运行时应进一步选择持久化渲染队列，或让 `agent-tool` 在明确的幂等规则下重新提交。
 
 ### 9.3 素材访问
 
@@ -395,14 +401,14 @@ Remotion JSON 中不要出现服务器本地绝对路径。推荐使用以下方
 - AI 分析、图片、旁白、字幕和 JSON 都有可追踪的阶段产物。
 - 修改上游输入会准确使相关下游结果过期。
 - `remotion-video` 在没有任何用户 API Key 的情况下，仅凭合法 JsonVideo 输入完成渲染。
-- Node.js 渲染失败或重启不会导致 `agent-tool` 主任务和历史记录丢失。
+- Bun 渲染失败或重启不会导致 `agent-tool` 主任务和历史记录丢失。
 - 最终 MP4 保存为当前用户的作品，不能被其他用户越权访问。
 - 日志、错误响应、任务上下文和 Remotion JSON 中不包含明文 API Key。
 
 ## 14. 实施前需确认的问题
 
 - 旧版 `.ppt` 采用 LibreOffice 转换、独立转换服务，还是第一版只上传并提示暂不解析。
-- Node.js 渲染服务采用持久化队列，还是由 `agent-tool` 统一持久化并通过幂等请求恢复。
+- Bun 渲染服务采用持久化队列，还是由 `agent-tool` 统一持久化并通过幂等请求恢复。
 - 渲染素材采用短期签名 URL，还是复制到隔离的渲染任务目录。
 - JsonVideo Schema 由独立包共享，还是在发布流程中从 `remotion-video` 导出版本化 JSON Schema。
 - TTS 首批支持的提供方、音色范围和计费方式。
