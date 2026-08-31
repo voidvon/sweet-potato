@@ -107,6 +107,7 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 			return
 		}
 		modelConfigID := stringValue(input, "modelConfigId")
+		s.publishPlanningSessionUpdated(updated, "analysis")
 		s.startBackgroundTask(func() { s.executePlanningAnalysis(updated.ID, modelConfigID) })
 		writeJSON(w, http.StatusAccepted, updated)
 		return
@@ -122,6 +123,7 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 			return
 		}
 		modelConfigID := stringValue(input, "modelConfigId")
+		s.publishPlanningSessionUpdated(updated, "campaign-images")
 		s.startBackgroundTask(func() { s.executePlanningCampaignImages(updated.ID, runID, modelConfigID) })
 		writeJSON(w, http.StatusAccepted, updated)
 		return
@@ -136,6 +138,7 @@ func (s *Server) handlePlanningSession(w http.ResponseWriter, r *http.Request, p
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		s.publishPlanningSessionUpdated(updated, "narration")
 		s.startBackgroundTask(func() { s.executePlanningNarration(updated.ID, runID) })
 		writeJSON(w, http.StatusAccepted, updated)
 		return

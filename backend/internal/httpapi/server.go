@@ -20,6 +20,7 @@ import (
 	"sweet-potato-go/internal/auth"
 	"sweet-potato-go/internal/buildinfo"
 	"sweet-potato-go/internal/config"
+	"sweet-potato-go/internal/pluginruntime"
 	"sweet-potato-go/internal/selfupdate"
 	"sweet-potato-go/internal/store"
 	"sweet-potato-go/internal/vod"
@@ -30,6 +31,7 @@ type Server struct {
 	mux          *http.ServeMux
 	store        *store.Store
 	assetExtract *assetextract.Service
+	plugins      *pluginruntime.Manager
 	tokens       *auth.TokenManager
 	vod          *vod.Client
 	rateMu       sync.Mutex
@@ -68,11 +70,13 @@ func New(cfg config.Config) (*Server, error) {
 	}
 
 	taskCtx, taskCancel := context.WithCancel(context.Background())
+	pluginManager := pluginruntime.New(cfg.DataDir)
 	server := &Server{
 		config:       cfg,
 		mux:          http.NewServeMux(),
 		store:        dataStore,
 		assetExtract: assetextract.NewDefaultService(),
+		plugins:      pluginManager,
 		tokens:       auth.NewTokenManager(cfg.AuthTokenSecret, cfg.AuthTokenExpiresIn),
 		vod: vod.New(vod.Config{
 			AccessKey:        cfg.VODAccessKey,
@@ -128,6 +132,9 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.HandleFunc("GET /api/user-model-configs", server.handleListUserModelConfigs)
 	server.mux.HandleFunc("POST /api/user-model-configs", server.handleCreateUserModelConfig)
 	server.mux.HandleFunc("/api/user-model-configs/", server.handleUserModelConfigSubtree)
+	server.mux.HandleFunc("GET /api/admin/plugins", server.handleListPlugins)
+	server.mux.HandleFunc("PUT /api/admin/plugins/{key}", server.handleUpdatePlugin)
+	server.mux.HandleFunc("POST /api/admin/plugins/{key}/test", server.handleTestPlugin)
 
 	server.mux.HandleFunc("/api/billing/", server.handleBilling)
 	server.mux.HandleFunc("GET /api/site-config", server.handleSiteConfig)
@@ -164,6 +171,12 @@ func New(cfg config.Config) (*Server, error) {
 	server.mux.Handle("/", server.staticHandler())
 	server.resumeVODTasks()
 	server.startBackgroundTask(server.runAssetExtractionCleanupLoop)
+	if plugin, found, findErr := dataStore.FindPlugin(pluginruntime.RemotionPluginKey); findErr != nil {
+		_ = server.Close()
+		return nil, fmt.Errorf("load managed plugin state: %w", findErr)
+	} else if found {
+		pluginManager.StartEnabled(plugin.Enabled, plugin.MaxConcurrency)
+	}
 	return server, nil
 }
 
@@ -172,6 +185,11 @@ func (s *Server) Close() error {
 		s.taskCancel()
 	}
 	s.taskWG.Wait()
+	if s.plugins != nil {
+		if err := s.plugins.Close(); err != nil {
+			return err
+		}
+	}
 	return s.store.Close()
 }
 

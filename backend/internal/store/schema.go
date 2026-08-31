@@ -484,6 +484,34 @@ const foundationSchema = `
     CREATE INDEX IF NOT EXISTS idx_content_workflows_user_module_updated
       ON content_workflows(user_id, module_key, updated_at DESC);
 
+    CREATE TABLE IF NOT EXISTS plugin_definitions (
+      plugin_key TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      version TEXT NOT NULL,
+      required_permission TEXT NOT NULL DEFAULT '',
+      workflow_version TEXT NOT NULL DEFAULT '1',
+      render_adapter TEXT NOT NULL,
+      accepted_attachments TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS plugin_settings (
+      plugin_key TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      timeout_seconds INTEGER NOT NULL DEFAULT 120,
+      max_concurrency INTEGER NOT NULL DEFAULT 1,
+      template_version TEXT NOT NULL DEFAULT '1.1',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (plugin_key) REFERENCES plugin_definitions(plugin_key) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plugin_settings_enabled_order
+      ON plugin_settings(enabled, sort_order, plugin_key);
+
     CREATE TABLE IF NOT EXISTS content_asset_groups (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

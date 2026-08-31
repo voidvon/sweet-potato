@@ -438,6 +438,15 @@ export type AssetExtraction = {
   updatedAt: string;
 };
 
+export type AssetExtractionUpdatedEvent = {
+  assetId: string;
+  extraction: AssetExtraction;
+  extractionId: string;
+  status: AssetExtraction['status'];
+  updatedAt: string;
+  userId: string;
+};
+
 export function startAssetExtraction(assetId: string, force = false) {
   const suffix = force ? '?force=true' : '';
   return request<AssetExtraction>(`${Api.assets}/${assetId}/extraction${suffix}`, { method: 'POST' });

@@ -10,6 +10,7 @@ const routePermissionCodes: Record<string, string> = {
   'admin.discover': 'admin.route.discover.view',
   'admin.system.billing': 'admin.route.system.billing.view',
   'admin.system.models': 'admin.route.system.models.view',
+  'admin.system.plugins': 'admin.route.system.plugins.view',
   'admin.system.file_management': 'admin.route.system.file_management.view',
   'admin.system.temporary_assets': 'admin.route.system.temporary_assets.view',
   'admin.system.settings': 'admin.route.system.settings.view',

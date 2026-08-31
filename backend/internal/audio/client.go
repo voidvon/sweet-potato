@@ -196,12 +196,23 @@ func responseError(data []byte) string {
 	var payload map[string]any
 	if json.Unmarshal(data, &payload) == nil {
 		if value, ok := payload["error"].(map[string]any); ok {
-			if message, ok := value["message"].(string); ok && strings.TrimSpace(message) != "" {
+			message, _ := value["message"].(string)
+			param, _ := value["param"].(string)
+			message = strings.TrimSpace(message)
+			param = strings.TrimSpace(param)
+			if message != "" && param != "" && !strings.Contains(message, param) {
+				return fmt.Sprintf("%s: %s", message, param)
+			}
+			if message != "" {
 				return message
 			}
+			if param != "" {
+				return param
+			}
 		}
-		if message, ok := payload["message"].(string); ok && strings.TrimSpace(message) != "" {
-			return message
+		message, _ := payload["message"].(string)
+		if strings.TrimSpace(message) != "" {
+			return strings.TrimSpace(message)
 		}
 	}
 	message := strings.TrimSpace(string(data))

@@ -6,6 +6,7 @@ export const routePaths = {
   allWorks: '/admin/works',
   discover: '/admin/discover',
   modelSettings: '/admin/models',
+  pluginManagement: '/admin/plugins',
   billingSettings: '/admin/billing',
   routeResourceManagement: '/admin/system/routes',
   fileManagement: '/admin/system/files',

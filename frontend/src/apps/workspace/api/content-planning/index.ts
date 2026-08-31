@@ -258,6 +258,15 @@ export type PlanningRealtimeEvent = {
   reasoningLog?: PlanningReasoningLog;
 };
 
+export type PlanningSessionUpdatedEvent = {
+  operation: 'analysis' | 'campaign-images' | 'narration';
+  session: PlanningSession;
+  sessionId: string;
+  status: string;
+  updatedAt: string;
+  userId: string;
+};
+
 export type PlanningSession = {
   id: string;
   userId: string;

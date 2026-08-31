@@ -1,6 +1,7 @@
 import {
   ApartmentOutlined,
   AppstoreOutlined,
+  AppstoreAddOutlined,
   ClearOutlined,
   CreditCardOutlined,
   FileOutlined,
@@ -19,6 +20,7 @@ import { routePaths } from './paths';
 import { t } from '@shared/i18n';
 
 const ModelSettingsPage = lazy(() => import('../pages/settings/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })));
+const PluginManagementPage = lazy(() => import('../pages/settings/PluginManagementPage').then((m) => ({ default: m.PluginManagementPage })));
 const BillingSettingsPage = lazy(() => import('../pages/settings/BillingSettingsPage').then((m) => ({ default: m.BillingSettingsPage })));
 const RouteResourceManagementPage = lazy(() => import('../pages/settings/RouteResourceManagementPage').then((m) => ({ default: m.RouteResourceManagementPage })));
 const RoleManagementPage = lazy(() => import('../pages/settings/RoleManagementPage').then((m) => ({ default: m.RoleManagementPage })));
@@ -146,6 +148,15 @@ export const workspacePageDefinitions: WorkspacePageDefinition[] = [
     element: () => withStudioSuspense(<ModelSettingsPage />),
     routeResourceKey: 'admin.system.models',
     handle: { title: t("模型配置"), surface: 'studio', sidebar: { icon: <RobotOutlined />, level: 'top' } },
+    visible: (currentUser) => currentUser.role === 'admin',
+  },
+  {
+    key: 'settings-plugins',
+    path: 'plugins',
+    fullPath: routePaths.pluginManagement,
+    element: () => withStudioSuspense(<PluginManagementPage />),
+    routeResourceKey: 'admin.system.plugins',
+    handle: { title: t("插件管理"), surface: 'studio', sidebar: { icon: <AppstoreAddOutlined />, level: 'top' } },
     visible: (currentUser) => currentUser.role === 'admin',
   },
   {

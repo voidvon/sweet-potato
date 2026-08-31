@@ -8,7 +8,7 @@ FRONTEND_DIST_DIR := $(FRONTEND_DIR)/dist
 STATIC_DIR := $(GO_DIR)/internal/httpapi/static
 STATIC_WEB_DIR := $(STATIC_DIR)/web
 
-.PHONY: build embed-static clean-embedded-static run dev dev-web test vet fmt check
+.PHONY: build build-with-plugins package-plugins embed-static clean-embedded-static run dev dev-web test vet fmt check
 
 build:
 	set -e; \
@@ -16,6 +16,11 @@ build:
 	$(MAKE) embed-static; \
 	mkdir -p "$(GO_DIR)/bin"; \
 	cd "$(GO_DIR)" && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w $(GO_VERSION_LDFLAG)' -o bin/sweet-potato ./cmd/sweetpotato
+
+build-with-plugins: build package-plugins
+
+package-plugins:
+	bash "$(ROOT_DIR)/scripts/package-remotion-plugin.sh"
 
 embed-static:
 	cd "$(FRONTEND_DIR)" && npm run build

@@ -1,0 +1,26 @@
+.app-number-input.ant-input-number {
+  border-color: var(--color-neutral-300);
+  border-radius: 9999px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.app-number-input.ant-input-number:hover {
+  border-color: var(--color-neutral-400);
+}
+
+.app-number-input.ant-input-number-focused,
+.app-number-input.ant-input-number:focus-within {
+  border-color: var(--color-neutral-500);
+  box-shadow: 0 0 0 2px rgb(var(--color-neutral-400-rgb, 152 162 179) / 0.16);
+}
+
+.app-number-input.ant-input-number .ant-input-number-input {
+  border-radius: inherit;
+  text-align: center;
+}
+
+.app-number-input.ant-input-number .ant-input-number-handler-wrap {
+  border-radius: 0 9999px 9999px 0;
+  overflow: hidden;
+}

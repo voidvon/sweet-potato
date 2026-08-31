@@ -12,9 +12,28 @@ import (
 )
 
 func (s *Server) queuePlanningCampaignImages(session store.ContentPlanningSession) (store.ContentPlanningSession, string, error) {
+	// Normalize again at generation time so sessions created by older versions,
+	// or incomplete model output, also receive a usable plan and full source
+	// image coverage without forcing the user to rerun paid AI analysis.
+	ctx, cancel := context.WithTimeout(s.taskContext(), 30*time.Second)
+	defer cancel()
+	if session.Analysis == nil {
+		session.Analysis = defaultAnalysisHTTP()
+	}
+	analysisContext, contextErr := s.buildPlanningAnalysisContext(ctx, session)
+	if contextErr != nil {
+		// Asset recovery should not make image generation impossible. Keep a
+		// text-only fallback plan; the actual generation error, if any, will be
+		// reported by the asynchronous run.
+		analysisContext = planningAnalysisContext{}
+	}
+	session.Analysis["campaignPlan"] = normalizePlanningCampaignPlan(
+		objectValue(session.Analysis["campaignPlan"]),
+		analysisContext,
+	)
 	plan := objectValue(session.Analysis["campaignPlan"])
 	if len(anySlice(plan["scenes"])) == 0 {
-		return session, "", errors.New("当前分析结果没有宣传图片规划，请先重新进行 AI 内容分析")
+		return session, "", errors.New("无法创建宣传图片规划，请重新进行 AI 内容分析")
 	}
 	generation := objectValue(session.Analysis["campaignImageGeneration"])
 	if stringValue(generation, "status") == "generating" {
@@ -73,7 +92,9 @@ func (s *Server) executePlanningCampaignImages(sessionID, runID, requestedModelI
 		"runId": runID, "status": "completed", "images": images, "errorMessage": "",
 		"completedAt": time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	_, _ = s.store.UpdatePlanningSession(current)
+	if updated, updateErr := s.store.UpdatePlanningSession(current); updateErr == nil {
+		s.publishPlanningSessionUpdated(updated, "campaign-images")
+	}
 }
 
 func (s *Server) planningCampaignImageInputs(session store.ContentPlanningSession) ([]string, [][]store.ContentAsset, []map[string]any, error) {
@@ -153,5 +174,7 @@ func (s *Server) failPlanningCampaignImages(session store.ContentPlanningSession
 		"runId": runID, "status": "failed", "images": images, "errorMessage": cause.Error(),
 		"completedAt": time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	_, _ = s.store.UpdatePlanningSession(current)
+	if updated, updateErr := s.store.UpdatePlanningSession(current); updateErr == nil {
+		s.publishPlanningSessionUpdated(updated, "campaign-images")
+	}
 }

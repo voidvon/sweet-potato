@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -93,6 +94,38 @@ func TestNormalizePlanningAnalysisDropsUnknownAssetIDs(t *testing.T) {
 	captions := anySlice(result["materialCaptions"])
 	if len(captions) != 1 || stringValue(objectValue(captions[0]), "assetId") != "known" {
 		t.Fatalf("captions = %#v", captions)
+	}
+	plan := objectValue(result["campaignPlan"])
+	if len(anySlice(plan["scenes"])) < 2 {
+		t.Fatalf("fallback campaign plan = %#v", plan)
+	}
+}
+
+func TestNormalizePlanningCampaignPlanUsesEveryAvailableImage(t *testing.T) {
+	images := make([]store.ContentAsset, 0, 20)
+	for index := 0; index < 20; index++ {
+		images = append(images, store.ContentAsset{ID: fmt.Sprintf("asset-%02d", index+1)})
+	}
+	plan := objectValue(normalizePlanningCampaignPlan(map[string]any{
+		"visualStyle": "统一产品摄影",
+		"scenes": []any{
+			map[string]any{"id": "opening", "title": "开场", "assetIds": []any{"asset-01"}, "imagePrompt": "产品开场"},
+			map[string]any{"id": "closing", "title": "收束", "assetIds": []any{"asset-01"}, "imagePrompt": "产品收束"},
+		},
+	}, planningAnalysisContext{images: images}))
+	scenes := anySlice(plan["scenes"])
+	used := map[string]bool{}
+	for _, value := range scenes {
+		assetIDs := stringSlice(objectValue(value)["assetIds"])
+		if len(assetIDs) > planningCampaignMaxReferences {
+			t.Fatalf("scene has too many references: %#v", value)
+		}
+		for _, assetID := range assetIDs {
+			used[assetID] = true
+		}
+	}
+	if len(used) != len(images) {
+		t.Fatalf("used assets = %d, want %d; plan=%#v", len(used), len(images), plan)
 	}
 }
 

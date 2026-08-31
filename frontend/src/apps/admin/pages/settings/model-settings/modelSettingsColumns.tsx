@@ -55,7 +55,10 @@ function renderDefaultNameCell(value: string, isDefault: boolean, subtitle?: str
 }
 
 function renderConfiguredTag(record: ModelConfig) {
-  return <Tag color={record.apiKey ? 'green' : 'orange'}>{record.apiKey ? t("已配置") : t("未配置")}</Tag>;
+  // API keys are deliberately redacted by the backend. Use the explicit
+  // metadata flag instead of the always-empty `apiKey` response field.
+  const configured = record.isConfigured === true || Boolean(record.apiKey);
+  return <Tag color={configured ? 'green' : 'orange'}>{configured ? t("已配置") : t("未配置")}</Tag>;
 }
 
 export function getModelSettingsColumns({

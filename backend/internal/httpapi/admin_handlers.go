@@ -19,6 +19,7 @@ const (
 	permissionRoles          = "admin.route.users.roles.view"
 	permissionResources      = "admin.route.system.route_resources.view"
 	permissionModels         = "admin.route.system.models.view"
+	permissionPlugins        = "admin.route.system.plugins.view"
 	permissionBilling        = "admin.route.system.billing.view"
 	permissionSettings       = "admin.route.system.settings.view"
 	permissionAccessLogs     = "admin.route.system.access_logs.view"

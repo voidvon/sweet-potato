@@ -7,7 +7,7 @@ const preferredPort = Number(process.env.FRONTEND_PORT || 9527);
 const preferredBackendPort = Number(process.env.BACKEND_PORT || process.env.PORT || 7072);
 const rootDir = path.resolve(__dirname, "..");
 const projectRootDir = path.resolve(rootDir, "..");
-const backendDir = path.join(projectRootDir, "backend");
+const goDevScript = path.join(projectRootDir, "scripts", "dev-go.cjs");
 const webDir = rootDir;
 const viteCli = path.join(rootDir, "node_modules", "vite", "bin", "vite.js");
 
@@ -193,20 +193,21 @@ async function main() {
     FRONTEND_PORT: String(port),
     GO_SERVER_ADDR: process.env.GO_SERVER_ADDR || `127.0.0.1:${preferredBackendPort}`,
     BACKEND_PROXY_TARGET: backendBaseUrl,
+    REMOTION_PLUGIN_DIR: process.env.REMOTION_PLUGIN_DIR || path.resolve(projectRootDir, "..", "remotion-video"),
   };
 
   if (await isHttpReady(backendHealthUrl)) {
-    log(`[dev] Reusing Go backend at ${backendBaseUrl}`);
+    log(`[dev] Reusing Go backend at ${backendBaseUrl} (automatic Go reload is disabled for reused processes)`);
   } else {
     if (!await isPortAvailable(preferredBackendPort)) {
       throw new Error(`Backend port ${preferredBackendPort} is in use, but ${backendHealthUrl} is not healthy.`);
     }
-    log(`[dev] Starting Go backend at ${backendBaseUrl}`);
+    log(`[dev] Starting Go backend with hot reload at ${backendBaseUrl}`);
     const backendProcess = spawnTracked(
-      "Go backend",
-      "go",
-      ["run", "./cmd/sweetpotato"],
-      backendDir,
+      "Go backend watcher",
+      process.execPath,
+      [goDevScript],
+      projectRootDir,
       { ...env, GOTOOLCHAIN: process.env.GOTOOLCHAIN || "auto" },
     );
     await waitForHttp(backendHealthUrl, 120000, backendProcess);

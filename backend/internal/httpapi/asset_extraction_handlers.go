@@ -20,6 +20,25 @@ import (
 
 const defaultAssetExtractionOptionsHash = "default"
 
+const assetExtractionUpdatedMethod = "app/asset-extraction-updated"
+
+func (s *Server) publishAssetExtractionUpdated(extraction store.AssetExtraction) {
+	s.publishAppEvent(extraction.UserID, assetExtractionUpdatedMethod, map[string]any{
+		"assetId":      extraction.AssetID,
+		"extractionId": extraction.ID,
+		"status":       extraction.Status,
+		"updatedAt":    extraction.UpdatedAt,
+		"userId":       extraction.UserID,
+		"extraction":   extraction,
+	})
+}
+
+func (s *Server) failAssetExtractionAndPublish(extraction store.AssetExtraction, code, message string) {
+	if failed, err := s.store.FailAssetExtraction(extraction.ID, extraction.UserID, code, message); err == nil {
+		s.publishAssetExtractionUpdated(failed)
+	}
+}
+
 func (s *Server) handleAssetExtraction(w http.ResponseWriter, r *http.Request, assetID string) {
 	user, ok := s.requireUser(w, r)
 	if !ok {
@@ -89,6 +108,7 @@ func (s *Server) handleAssetExtraction(w http.ResponseWriter, r *http.Request, a
 			writeError(w, http.StatusInternalServerError, "解析任务创建失败")
 			return
 		}
+		s.publishAssetExtractionUpdated(extraction)
 		s.startBackgroundTask(func() { s.executeAssetExtraction(extraction.ID, extraction.UserID) })
 		writeJSON(w, http.StatusAccepted, extraction)
 	default:
@@ -103,30 +123,32 @@ func (s *Server) executeAssetExtraction(extractionID, userID string) {
 	}
 	asset, found, err := s.store.FindContentAsset(extraction.AssetID)
 	if err != nil || !found || asset.UserID != userID {
-		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, "asset_not_found", "素材不存在或已被删除")
+		s.failAssetExtractionAndPublish(extraction, "asset_not_found", "素材不存在或已被删除")
 		return
 	}
 	contentHash, err := hashLocalFile(asset.FilePath)
 	if err != nil {
-		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, "source_unavailable", err.Error())
+		s.failAssetExtractionAndPublish(extraction, "source_unavailable", err.Error())
 		return
 	}
-	if _, err := s.store.MarkAssetExtractionRunning(extraction.ID, userID, contentHash); err != nil {
+	running, err := s.store.MarkAssetExtractionRunning(extraction.ID, userID, contentHash)
+	if err != nil {
 		return
 	}
+	s.publishAssetExtractionUpdated(running)
 	result, err := s.assetExtract.Parse(s.taskContext(), assetExtractionInput(asset))
 	if err != nil {
 		code := "parse_failed"
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			code = "parse_cancelled"
 		}
-		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, code, err.Error())
+		s.failAssetExtractionAndPublish(extraction, code, err.Error())
 		return
 	}
 	filterSummary := extractionFilterSummary(result.Artifacts)
 	derivedAssets, artifactIDs, err := s.persistExtractionArtifacts(asset, extraction.ID, result)
 	if err != nil {
-		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, "artifact_persist_failed", err.Error())
+		s.failAssetExtractionAndPublish(extraction, "artifact_persist_failed", err.Error())
 		return
 	}
 	persistedArtifacts := make([]assetextract.Artifact, 0, len(derivedAssets))
@@ -158,14 +180,15 @@ func (s *Server) executeAssetExtraction(extractionID, userID string) {
 	result.Metadata = mergeAnyMaps(result.Metadata, map[string]any{"filterSummary": filterSummary})
 	resultMap, err := assetExtractionResultMap(result)
 	if err != nil {
-		_, _ = s.store.FailAssetExtraction(extraction.ID, userID, "result_encode_failed", err.Error())
+		s.failAssetExtractionAndPublish(extraction, "result_encode_failed", err.Error())
 		return
 	}
 	derivedIDs := make([]string, 0, len(persistedArtifacts))
 	for _, artifact := range persistedArtifacts {
 		derivedIDs = append(derivedIDs, artifact.ID)
 	}
-	if _, err := s.store.CompleteAssetExtraction(extraction.ID, userID, resultMap, derivedIDs); err == nil {
+	if completed, err := s.store.CompleteAssetExtraction(extraction.ID, userID, resultMap, derivedIDs); err == nil {
+		s.publishAssetExtractionUpdated(completed)
 		_, _ = s.store.PruneAssetExtractionHistory(asset.ID, userID, 3)
 	}
 }

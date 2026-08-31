@@ -1,4 +1,4 @@
-import { Button, InputNumber, Modal, Select, Spin } from 'antd';
+import { Button, Modal, Select, Spin } from 'antd';
 import {
   ArrowLeft,
   BrainCircuit,
@@ -11,6 +11,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { t } from '@shared/i18n';
+import { AppNumberInput } from '@shared/components/AppNumberInput';
 import { resolveAssetUrl } from '../../../../api/request';
 import { AttachmentExtractionModal } from './AttachmentExtractionModal';
 import type {
@@ -338,7 +339,7 @@ function CreationWorkflowStage({
               size="small"
               value={controller.narrationVoice}
             />
-            <InputNumber
+            <AppNumberInput
               aria-label={t('语速')}
               max={2}
               min={0.5}

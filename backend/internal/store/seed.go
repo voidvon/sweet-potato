@@ -42,6 +42,7 @@ var foundationResources = []seededResource{
 	{ID: "rr-admin-discover", Name: "发现", NameEN: "Discover", ResourceKey: "admin.discover", ResourceType: "menu", Platform: "admin", Path: "/discover", PermissionCode: "admin.route.discover.view", SortOrder: 37},
 	{ID: "rr-admin-system-billing", Name: "积分设置", NameEN: "Credit Settings", ResourceKey: "admin.system.billing", ResourceType: "menu", Platform: "admin", Path: "/billing", PermissionCode: "admin.route.system.billing.view", SortOrder: 40},
 	{ID: "rr-admin-system-models", Name: "模型配置", NameEN: "Model Configuration", ResourceKey: "admin.system.models", ResourceType: "menu", Platform: "admin", Path: "/models", PermissionCode: "admin.route.system.models.view", SortOrder: 50},
+	{ID: "rr-admin-system-plugins", Name: "插件管理", NameEN: "Plugin Management", ResourceKey: "admin.system.plugins", ResourceType: "menu", Platform: "admin", Path: "/plugins", PermissionCode: "admin.route.system.plugins.view", SortOrder: 55},
 	{ID: "rr-admin-system-route-resources", Name: "路由管理", NameEN: "Route Management", ResourceKey: "admin.system.route_resources", ResourceType: "menu", Platform: "admin", Path: "/system/routes", PermissionCode: "admin.route.system.route_resources.view", SortOrder: 60},
 	{ID: "rr-admin-system-file-management", Name: "文件管理", NameEN: "File Management", ResourceKey: "admin.system.file_management", ResourceType: "menu", Platform: "admin", Path: "/system/files", PermissionCode: "admin.route.system.file_management.view", SortOrder: 70},
 	{ID: "rr-admin-system-temporary-assets", Name: "临时素材清理", NameEN: "Temporary Asset Cleanup", ResourceKey: "admin.system.temporary_assets", ResourceType: "menu", Platform: "admin", Path: "/system/temporary-assets", PermissionCode: "admin.route.system.temporary_assets.view", SortOrder: 80},
@@ -95,6 +96,32 @@ VALUES ('role-default-full-access', 'default-full-access', '默认全量权限',
 		if _, err := db.Exec(`UPDATE route_resources SET name_en = ? WHERE id = ? AND TRIM(COALESCE(name_en, '')) = ''`, resource.NameEN, resource.ID); err != nil {
 			return fmt.Errorf("backfill route resource translation %s: %w", resource.ID, err)
 		}
+	}
+	attachments, err := json.Marshal([]string{"image", "video", "ppt", "pptx", "pdf"})
+	if err != nil {
+		return fmt.Errorf("encode built-in plugin attachments: %w", err)
+	}
+	if _, err := db.Exec(`INSERT INTO plugin_definitions (
+plugin_key, name, category, version, required_permission, workflow_version,
+render_adapter, accepted_attachments, created_at, updated_at)
+VALUES ('lightweight-marketing-video', '轻量营销视频生成', 'video', '1.0.0',
+'web.module.content.create_video', '1', 'remotion-json-video', ?, ?, ?)
+ON CONFLICT(plugin_key) DO UPDATE SET
+name = excluded.name,
+category = excluded.category,
+version = excluded.version,
+required_permission = excluded.required_permission,
+workflow_version = excluded.workflow_version,
+render_adapter = excluded.render_adapter,
+accepted_attachments = excluded.accepted_attachments,
+updated_at = excluded.updated_at`, string(attachments), now, now); err != nil {
+		return fmt.Errorf("seed lightweight marketing video plugin: %w", err)
+	}
+	if _, err := db.Exec(`INSERT OR IGNORE INTO plugin_settings (
+plugin_key, enabled, sort_order, timeout_seconds,
+max_concurrency, template_version, created_at, updated_at)
+VALUES ('lightweight-marketing-video', 0, 10, 120, 1, '1.1', ?, ?)`, now, now); err != nil {
+		return fmt.Errorf("seed lightweight marketing video plugin settings: %w", err)
 	}
 	if _, err := db.Exec(`UPDATE route_resources SET name_en = 'Image' WHERE id = 'rr-web.module.chat' AND name_en = 'Image Creation'`); err != nil {
 		return fmt.Errorf("update default image route translation: %w", err)

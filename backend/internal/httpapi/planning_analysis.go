@@ -181,9 +181,12 @@ func (s *Server) executePlanningAnalysis(sessionID, requestedModelID string) {
 	session.Analysis = normalizePlanningAnalysis(raw, analysisContext)
 	session.Status, session.UIStep, session.JobStage = "confirming", "step2", "completed"
 	session.ErrorMessage = ""
-	if _, err := s.store.UpdatePlanningSession(session); err != nil {
+	updated, err := s.store.UpdatePlanningSession(session)
+	if err != nil {
 		s.failPlanningAnalysis(session, err)
+		return
 	}
+	s.publishPlanningSessionUpdated(updated, "analysis")
 }
 
 func (s *Server) callPlanningAnalysisResponses(ctx context.Context, session store.ContentPlanningSession, model store.ModelConfig, input []map[string]any) (responsesResult, error) {
@@ -228,7 +231,9 @@ func (s *Server) failPlanningAnalysis(session store.ContentPlanningSession, caus
 	}
 	session.Status, session.JobStage = "failed", "failed"
 	session.ErrorMessage = cause.Error()
-	_, _ = s.store.UpdatePlanningSession(session)
+	if updated, updateErr := s.store.UpdatePlanningSession(session); updateErr == nil {
+		s.publishPlanningSessionUpdated(updated, "analysis")
+	}
 }
 
 func (s *Server) buildPlanningAnalysisContext(ctx context.Context, session store.ContentPlanningSession) (planningAnalysisContext, error) {
@@ -278,8 +283,7 @@ func (s *Server) buildPlanningAnalysisContext(ctx context.Context, session store
 		result.warnings = append(result.warnings, "文档文本较长，本轮仅分析前 60000 个字符。")
 	}
 	if len(result.images) > planningAnalysisMaxImages {
-		result.images = result.images[:planningAnalysisMaxImages]
-		result.warnings = append(result.warnings, "图片数量较多，本轮最多分析前 16 张有效图片。")
+		result.warnings = append(result.warnings, "图片数量较多，AI 将重点理解前 16 张有效图片，其余图片仍会尽量分配到宣传画面规划中。")
 	}
 	return result, nil
 }
@@ -379,13 +383,18 @@ func planningExtractionText(asset store.ContentAsset, result map[string]any) str
 func planningAnalysisModelInput(session store.ContentPlanningSession, analysisContext planningAnalysisContext) []map[string]any {
 	parts := []map[string]any{{"type": "input_text", "text": strings.Join([]string{
 		"请结合营销需求和所有附件，完成营销视频前置内容分析。不得编造附件中不存在的产品参数；不确定内容请写入 notes。",
-		"同时规划 2 至 6 个宣传视频场景。先确定贯穿全片的视觉风格，再为每个场景生成主标题、副标题、旁白、CTA、用途、时长和中文图片提示词。每个场景最多引用 6 个附件索引中的真实图片 asset_id。图片提示词不得要求生成文字、字幕、Logo、水印、UI 标签或边框，并为后续叠加文案预留清晰区域。",
+		"同时规划 2 至 6 个宣传视频场景。宣传图片是视频的核心画面，必须为每个场景提供可直接生图的中文 imagePrompt，不得返回空的 campaignPlan 或 scenes。先确定贯穿全片的视觉风格，再为每个场景生成主标题、副标题、旁白、CTA、用途、时长和中文图片提示词。",
+		"必须尽可能使用附件索引中的真实图片：每张有效图片 asset_id 至少分配给一个场景，不得只反复使用少数图片；若图片较多，可在不同场景间均匀分配，每个场景最多引用 6 张。即使没有可用原图，也必须根据文案规划完整的宣传图片场景。图片提示词不得要求生成文字、字幕、Logo、水印、UI 标签或边框，并为后续叠加文案预留清晰区域。",
 		"产品名称：" + stringValue(session.MaterialBundle, "productName"),
 		"营销需求：" + stringValue(session.MaterialBundle, "prompt"),
 		"附件索引：\n" + strings.Join(analysisContext.sourceInfo, "\n"),
 		"文档提取文本：" + analysisContext.text,
 	}, "\n\n")}}
-	for _, asset := range analysisContext.images {
+	modelImages := analysisContext.images
+	if len(modelImages) > planningAnalysisMaxImages {
+		modelImages = modelImages[:planningAnalysisMaxImages]
+	}
+	for _, asset := range modelImages {
 		parts = append(parts, map[string]any{"type": "input_text", "text": fmt.Sprintf("以下图片对应 asset_id=%s，文件名=%s。", asset.ID, asset.OriginalFileName)})
 		if thumbnail, err := imageDecisionThumbnailDataURL(asset.FilePath, 768); err == nil {
 			parts = append(parts, map[string]any{"type": "input_image", "image_url": thumbnail, "detail": "low"})
@@ -510,9 +519,6 @@ func normalizePlanningAnalysis(raw map[string]any, analysisContext planningAnaly
 }
 
 func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningAnalysisContext) any {
-	if len(raw) == 0 {
-		return nil
-	}
 	availableIDs := make([]string, 0, len(analysisContext.images))
 	allowed := map[string]bool{}
 	for _, asset := range analysisContext.images {
@@ -557,10 +563,66 @@ func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningA
 			"assetIds": assetIDs, "imagePrompt": prompt,
 		})
 	}
-	if len(scenes) == 0 {
-		return nil
+	// A campaign image plan is required by all downstream video stages. Keep a
+	// deterministic fallback so an incomplete model response never makes image
+	// generation unusable.
+	fallbackScenes := []map[string]string{
+		{"title": "核心亮相", "purpose": "快速建立产品认知", "voiceover": "让核心价值，从第一眼就清晰可见。", "prompt": "突出产品或服务核心主体的专业营销主视觉，主体清晰，构图有吸引力，背景简洁并预留文案区域"},
+		{"title": "卖点展示", "purpose": "呈现核心价值与使用场景", "voiceover": "聚焦真实需求，带来更清晰、更高效的体验。", "prompt": "展示产品核心卖点与真实使用情境的专业营销画面，画面自然可信，层次清晰并预留文案区域"},
+		{"title": "行动引导", "purpose": "强化品牌记忆并推动行动", "voiceover": "现在开始，体验更适合你的选择。", "prompt": "产品英雄镜头或品牌收束画面，视觉聚焦、质感专业，背景简洁并为行动文案预留区域"},
 	}
-	return map[string]any{"visualStyle": strings.TrimSpace(stringValue(raw, "visualStyle")), "scenes": scenes}
+	minimumScenes := 2
+	for len(scenes) < minimumScenes {
+		index := len(scenes)
+		fallback := fallbackScenes[index]
+		scenes = append(scenes, map[string]any{
+			"id": fmt.Sprintf("scene-%d", index+1), "title": fallback["title"], "subtitle": "", "voiceover": fallback["voiceover"],
+			"cta": "", "purpose": fallback["purpose"], "durationInSeconds": float64(4),
+			"assetIds": []string{}, "imagePrompt": fallback["prompt"],
+		})
+	}
+
+	// Ensure every usable source image participates in at least one scene. Add
+	// scenes when necessary instead of silently dropping assets because a scene
+	// already reached the per-request reference limit.
+	used := map[string]bool{}
+	for _, value := range scenes {
+		for _, assetID := range stringSlice(objectValue(value)["assetIds"]) {
+			used[assetID] = true
+		}
+	}
+	for _, assetID := range availableIDs {
+		if used[assetID] {
+			continue
+		}
+		assigned := false
+		for sceneIndex := range scenes {
+			scene := objectValue(scenes[sceneIndex])
+			assetIDs := stringSlice(scene["assetIds"])
+			if len(assetIDs) >= planningCampaignMaxReferences {
+				continue
+			}
+			scene["assetIds"] = append(assetIDs, assetID)
+			scenes[sceneIndex] = scene
+			assigned = true
+			break
+		}
+		if !assigned && len(scenes) < 6 {
+			index := len(scenes)
+			fallback := fallbackScenes[index%len(fallbackScenes)]
+			scenes = append(scenes, map[string]any{
+				"id": fmt.Sprintf("scene-%d", index+1), "title": fallback["title"], "subtitle": "", "voiceover": fallback["voiceover"],
+				"cta": "", "purpose": fallback["purpose"], "durationInSeconds": float64(4),
+				"assetIds": []string{assetID}, "imagePrompt": fallback["prompt"],
+			})
+		}
+		used[assetID] = true
+	}
+	visualStyle := strings.TrimSpace(stringValue(raw, "visualStyle"))
+	if visualStyle == "" {
+		visualStyle = "专业、统一、清晰的营销视频视觉，主体突出，适合后续叠加文案"
+	}
+	return map[string]any{"visualStyle": visualStyle, "scenes": scenes}
 }
 
 func planningContainsString(values []string, target string) bool {

@@ -1,6 +1,8 @@
 import { Input } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@shared/i18n';
+import { showApiError } from '@shared/utils/apiError';
+import { appSocketManager } from '@/app/AppSocketManager';
 import type { MediaAttachmentItem } from '../../../../components/MediaAttachmentStack';
 import { resolveAssetUrl } from '../../../../api/request';
 import {
@@ -9,6 +11,7 @@ import {
   startAssetExtraction,
   uploadContentAsset,
 } from '../../../../api/content';
+import type { AssetExtraction, AssetExtractionUpdatedEvent } from '../../../../api/content';
 import {
   analyzePlanningSession,
   createPlanningSession,
@@ -17,7 +20,11 @@ import {
   getPlanningVoices,
   getPlanningSession,
 } from '../../../../api/content-planning';
-import type { PlanningSession, PlanningVoice } from '../../../../api/content-planning';
+import type {
+  PlanningSession,
+  PlanningSessionUpdatedEvent,
+  PlanningVoice,
+} from '../../../../api/content-planning';
 import {
   listContentWorkflows,
   saveContentWorkflow,
@@ -224,39 +231,74 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     const narrationStatus = session?.analysis.narrationGeneration?.status;
     if (!selectedRecord || !session || (session.status !== 'analyzing' && campaignImageStatus !== 'generating' && narrationStatus !== 'generating')) return undefined;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async () => {
+    // Analysis and promotion-image tasks may need one state reconciliation
+    // request. Narration is fully event-driven after its POST response so its
+    // generation never turns into session-query traffic in the Network panel.
+    const allowStateReconciliation = session.status === 'analyzing' || campaignImageStatus === 'generating';
+    let hasSeenSocketConnection = false;
+
+    const applySession = (latest: PlanningSession, notifyFailure = false) => {
+      if (cancelled || latest.id !== session.id) return;
+      const errorMessage = latest.status === 'failed'
+        ? latest.errorMessage || t('AI 内容分析失败')
+        : latest.analysis.campaignImageGeneration?.status === 'failed'
+          ? latest.analysis.campaignImageGeneration.errorMessage || t('宣传图片生成失败')
+          : latest.analysis.narrationGeneration?.status === 'failed'
+            ? latest.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
+            : '';
+      updateRecord(selectedRecord.id, (record) => {
+        if (record.analysisSession?.updatedAt && latest.updatedAt < record.analysisSession.updatedAt) {
+          return record;
+        }
+        return {
+          ...record,
+          analysisError: errorMessage,
+          analysisSession: latest,
+        };
+      });
+      if (notifyFailure && errorMessage) {
+        showApiError(new Error(errorMessage));
+      }
+    };
+
+    const syncLatestSession = async () => {
       try {
         const latest = await getPlanningSession(session.id, currentUser.id);
-        if (cancelled) return;
-        updateRecord(selectedRecord.id, (record) => ({
-          ...record,
-          analysisError: latest.status === 'failed'
-            ? latest.errorMessage || t('AI 内容分析失败')
-            : latest.analysis.campaignImageGeneration?.status === 'failed'
-              ? latest.analysis.campaignImageGeneration.errorMessage || t('宣传图片生成失败')
-              : latest.analysis.narrationGeneration?.status === 'failed'
-                ? latest.analysis.narrationGeneration.errorMessage || t('旁白与字幕生成失败')
-              : '',
-          analysisSession: latest,
-        }));
-        if (latest.status === 'analyzing' || latest.analysis.campaignImageGeneration?.status === 'generating' || latest.analysis.narrationGeneration?.status === 'generating') {
-          timer = setTimeout(() => void poll(), 1000);
-        }
+        applySession(latest);
       } catch (error) {
         if (!cancelled) {
           updateRecord(selectedRecord.id, (record) => ({
             ...record,
             analysisError: error instanceof Error ? error.message : t('AI 内容分析状态读取失败'),
           }));
-          timer = setTimeout(() => void poll(), 2000);
         }
       }
     };
-    timer = setTimeout(() => void poll(), 800);
+
+    const unsubscribe = appSocketManager.subscribe((event) => {
+      const method = String(event.method || '');
+      if (method === 'app/connected') {
+        if (allowStateReconciliation && hasSeenSocketConnection) {
+          void syncLatestSession();
+        }
+        hasSeenSocketConnection = true;
+        return;
+      }
+      if (method !== 'content-planning-session-updated' && method !== 'app/content-planning-session-updated') return;
+      const payload = (event.params || {}) as PlanningSessionUpdatedEvent;
+      if (payload.sessionId !== session.id || payload.userId !== currentUser.id || !payload.session) return;
+      applySession(payload.session, true);
+    });
+
+    // Covers the narrow race where a very fast task finishes between the POST
+    // response and this subscription being attached. Subsequent updates are
+    // delivered exclusively through the application WebSocket.
+    if (allowStateReconciliation) {
+      void syncLatestSession();
+    }
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      unsubscribe();
     };
   }, [
     currentUser.id,
@@ -382,7 +424,7 @@ export function useLightweightMarketingVideoController(currentUser: User) {
       const views: DocumentExtractionView[] = [];
       for (const document of uploaded.filter(isDocument)) {
         if (!document.assetId) continue;
-        const extraction = await waitForAssetExtraction(document.assetId);
+        const extraction = await waitForAssetExtraction(document.assetId, currentUser.id);
         const derivedAssets = await Promise.allSettled(
           [...(extraction.result.artifacts || []), ...(extraction.result.filteredArtifacts || [])]
             .map((artifact) => getContentAsset(artifact.id)),
@@ -439,9 +481,10 @@ export function useLightweightMarketingVideoController(currentUser: User) {
       updateRecord(id, () => updatedRecord);
       await persistRecord(updatedRecord);
     } catch (error) {
+      const errorMessage = showApiError(error, t('AI 内容分析失败'));
       updateRecord(id, (current) => ({
         ...current,
-        analysisError: error instanceof Error ? error.message : t('AI 内容分析失败'),
+        analysisError: errorMessage,
       }));
     }
   };
@@ -451,18 +494,20 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     const session = record?.analysisSession;
     if (!record || !session || session.status !== 'confirming'
       || session.analysis.campaignImageGeneration?.status === 'generating') return;
+    updateRecord(id, (current) => ({ ...current, analysisError: '' }));
     try {
       const queued = await generatePlanningCampaignImages({
         sessionId: session.id,
         userId: currentUser.id,
       });
-      const updatedRecord = { ...record, analysisSession: queued };
+      const updatedRecord = { ...record, analysisError: '', analysisSession: queued };
       updateRecord(id, () => updatedRecord);
       await persistRecord(updatedRecord);
     } catch (error) {
+      const errorMessage = showApiError(error, t('宣传图片生成失败'));
       updateRecord(id, (current) => ({
         ...current,
-        analysisError: error instanceof Error ? error.message : t('宣传图片生成失败'),
+        analysisError: errorMessage,
       }));
     }
   };
@@ -473,6 +518,7 @@ export function useLightweightMarketingVideoController(currentUser: User) {
     const scenes = session?.analysis.campaignPlan?.scenes || [];
     if (!record || !session || session.status !== 'confirming' || scenes.length === 0
       || session.analysis.narrationGeneration?.status === 'generating') return;
+    updateRecord(id, (current) => ({ ...current, analysisError: '' }));
     try {
       const queued = await generatePlanningNarration({
         sessionId: session.id,
@@ -480,13 +526,14 @@ export function useLightweightMarketingVideoController(currentUser: User) {
         voice: narrationVoice || narrationVoices[0]?.id || '',
         speed: narrationSpeed,
       });
-      const updatedRecord = { ...record, analysisSession: queued };
+      const updatedRecord = { ...record, analysisError: '', analysisSession: queued };
       updateRecord(id, () => updatedRecord);
       await persistRecord(updatedRecord);
     } catch (error) {
+      const errorMessage = showApiError(error, t('旁白与字幕生成失败'));
       updateRecord(id, (current) => ({
         ...current,
-        analysisError: error instanceof Error ? error.message : t('旁白与字幕生成失败'),
+        analysisError: errorMessage,
       }));
     }
   };
@@ -657,7 +704,7 @@ async function hydrateWorkflowRecord(
     const views: DocumentExtractionView[] = [];
     for (const document of attachments.filter(isDocument)) {
       if (!document.assetId) continue;
-      const extraction = await waitForAssetExtraction(document.assetId);
+      const extraction = await waitForAssetExtraction(document.assetId, userId);
       views.push(await extractionView(document, extraction));
     }
     const analysisSession = workflow.state.analysisSessionId
@@ -688,7 +735,7 @@ async function hydrateWorkflowRecord(
 
 async function extractionView(
   document: LightweightReferenceAttachment,
-  extraction: Awaited<ReturnType<typeof waitForAssetExtraction>>,
+  extraction: AssetExtraction,
 ): Promise<DocumentExtractionView> {
   const derivedAssets = await Promise.allSettled(
     [...(extraction.result.artifacts || []), ...(extraction.result.filteredArtifacts || [])]
@@ -748,7 +795,7 @@ function recordToWorkflowInput(record: LightweightCreationRecord) {
   };
 }
 
-async function waitForAssetExtraction(assetId: string) {
+async function waitForAssetExtraction(assetId: string, userId: string) {
   let extraction = await startAssetExtraction(assetId);
   const filterSummary = extraction.result.metadata?.filterSummary;
   const excludedCount = filterSummary && typeof filterSummary === 'object'
@@ -757,11 +804,48 @@ async function waitForAssetExtraction(assetId: string) {
   if (extraction.status === 'completed' && excludedCount > 0 && !extraction.result.filteredArtifacts) {
     extraction = await startAssetExtraction(assetId, true);
   }
-  for (let attempt = 0; attempt < 320; attempt += 1) {
-    if (extraction.status === 'completed') return extraction;
-    if (extraction.status === 'failed') throw new Error(extraction.errorMessage || t('附件解析失败'));
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    extraction = await getAssetExtraction(assetId);
-  }
-  throw new Error(t('附件解析超时，请稍后重试。'));
+  if (extraction.status === 'completed') return extraction;
+  if (extraction.status === 'failed') throw new Error(extraction.errorMessage || t('附件解析失败'));
+
+  return new Promise<AssetExtraction>((resolve, reject) => {
+    let latest = extraction;
+    let settled = false;
+    let unsubscribe: () => void = () => undefined;
+    const timeout = window.setTimeout(() => {
+      finish(new Error(t('附件解析超时，请稍后重试。')));
+    }, 4 * 60 * 1000);
+
+    const finish = (result: AssetExtraction | Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      unsubscribe();
+      if (result instanceof Error) reject(result);
+      else resolve(result);
+    };
+    const applyExtraction = (next: AssetExtraction) => {
+      if (next.assetId !== assetId || next.id !== extraction.id) return;
+      if (latest.updatedAt && next.updatedAt < latest.updatedAt) return;
+      latest = next;
+      if (next.status === 'completed') finish(next);
+      else if (next.status === 'failed') finish(new Error(next.errorMessage || t('附件解析失败')));
+    };
+    const syncLatest = () => {
+      void getAssetExtraction(assetId).then(applyExtraction).catch(() => undefined);
+    };
+
+    unsubscribe = appSocketManager.subscribe((event) => {
+      const method = String(event.method || '');
+      if (method === 'app/connected') {
+        syncLatest();
+        return;
+      }
+      if (method !== 'asset-extraction-updated' && method !== 'app/asset-extraction-updated') return;
+      const payload = (event.params || {}) as AssetExtractionUpdatedEvent;
+      if (payload.assetId !== assetId || payload.userId !== userId || !payload.extraction) return;
+      applyExtraction(payload.extraction);
+    });
+    // Covers completion between the POST response and WebSocket subscription.
+    syncLatest();
+  });
 }

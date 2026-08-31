@@ -43,6 +43,7 @@ func TestPlanningCampaignImagesGeneratesAndPersistsAssets(t *testing.T) {
 		t.Fatalf("create planning session: %v", err)
 	}
 	session.Status = "confirming"
+	session.MaterialBundle["imageMaterials"] = []any{planningAssetRef(reference, "image")}
 	session.Analysis["campaignPlan"] = map[string]any{
 		"visualStyle": "明亮简洁的产品摄影",
 		"scenes": []any{map[string]any{
@@ -65,12 +66,38 @@ func TestPlanningCampaignImagesGeneratesAndPersistsAssets(t *testing.T) {
 	}
 	generation := objectValue(completed.Analysis["campaignImageGeneration"])
 	images := anySlice(generation["images"])
-	if stringValue(generation, "status") != "completed" || len(images) != 1 {
+	if stringValue(generation, "status") != "completed" || len(images) != 2 {
 		t.Fatalf("campaign image generation = %#v", generation)
 	}
 	assetID := stringValue(objectValue(images[0]), "assetId")
 	asset, found, err := server.store.FindContentAsset(assetID)
 	if err != nil || !found || asset.AssetKind != "generated_image" {
 		t.Fatalf("generated asset = %#v found=%v err=%v", asset, found, err)
+	}
+}
+
+func TestQueuePlanningCampaignImagesRepairsLegacyEmptyPlan(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir(), AuthTokenSecret: "test-secret"})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("legacy-campaign-user", "password123", "Legacy Campaign")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	session, err := server.store.CreatePlanningSession(user.ID, "create_video", "制作宣传视频", "测试产品")
+	if err != nil {
+		t.Fatalf("create planning session: %v", err)
+	}
+	session.Status = "confirming"
+	session.Analysis["campaignPlan"] = nil
+	queued, _, err := server.queuePlanningCampaignImages(session)
+	if err != nil {
+		t.Fatalf("queue campaign images with empty legacy plan: %v", err)
+	}
+	plan := objectValue(queued.Analysis["campaignPlan"])
+	if len(anySlice(plan["scenes"])) < 2 {
+		t.Fatalf("repaired campaign plan = %#v", plan)
 	}
 }

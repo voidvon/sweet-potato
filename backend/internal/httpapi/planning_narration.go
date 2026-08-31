@@ -68,7 +68,14 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 		s.failPlanningNarration(session, runID, err, nil, nil, 0)
 		return
 	}
-	voice := valueOr(stringValue(generation, "voice"), defaultAudioVoice(model))
+	voice := strings.TrimSpace(stringValue(generation, "voice"))
+	if !isSupportedPresetAudioVoice(model, voice) {
+		// Older sessions may contain a voice from another provider (for example
+		// `alloy`) or may have been created while a voice-clone model was the
+		// default. Never forward that stale value to MiMo: its API returns the
+		// unhelpful "Param Incorrect" response for an invalid voice contract.
+		voice = defaultAudioVoice(model)
+	}
 	speed := numberValue(generation["speed"], 1)
 	if speed < 0.5 || speed > 2 {
 		speed = 1
@@ -134,11 +141,13 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 			"durationMs": totalDurationMs, "scenes": results, "captions": allCaptions, "errorMessage": "",
 			"startedAt": stringValue(generation, "startedAt"),
 		}
-		if _, updateErr := s.store.UpdatePlanningSession(current); updateErr != nil {
+		updated, updateErr := s.store.UpdatePlanningSession(current)
+		if updateErr != nil {
 			s.failPlanningNarration(current, runID, updateErr, results, allCaptions, totalDurationMs)
 			return
 		}
-		session = current
+		s.publishPlanningSessionUpdated(updated, "narration")
+		session = updated
 		generation = objectValue(session.Analysis["narrationGeneration"])
 	}
 	current, found, err := s.store.FindPlanningSession(sessionID)
@@ -151,7 +160,9 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 		"durationMs": totalDurationMs, "scenes": results, "captions": allCaptions, "errorMessage": "",
 		"startedAt": stringValue(generation, "startedAt"), "completedAt": time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	_, _ = s.store.UpdatePlanningSession(current)
+	if updated, updateErr := s.store.UpdatePlanningSession(current); updateErr == nil {
+		s.publishPlanningSessionUpdated(updated, "narration")
+	}
 }
 
 func (s *Server) persistNarrationAudio(userID, groupID, sessionID string, scene planningNarrationScene, index int, data []byte, model store.ModelConfig) (store.ContentAsset, error) {
@@ -228,7 +239,9 @@ func (s *Server) failPlanningNarration(session store.ContentPlanningSession, run
 		"durationMs": durationMs, "scenes": scenes, "captions": captions, "errorMessage": cause.Error(),
 		"startedAt": stringValue(generation, "startedAt"), "completedAt": time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	_, _ = s.store.UpdatePlanningSession(current)
+	if updated, updateErr := s.store.UpdatePlanningSession(current); updateErr == nil {
+		s.publishPlanningSessionUpdated(updated, "narration")
+	}
 }
 
 func narrationCaptions(text string, startMs, durationMs int) []any {
@@ -293,34 +306,54 @@ func (s *Server) resolveAudioModelConfig(userID, requestedID string) (store.Mode
 	if requestedID != "" {
 		if model, found, err := s.store.FindUserModelConfig(userID, requestedID); err != nil {
 			return store.ModelConfig{}, err
-		} else if found && model.Type == "audio" {
-			return withAudioEnvironmentCredentials(model), nil
+		} else if found {
+			if model.Type != "audio" {
+				return store.ModelConfig{}, errors.New("音频模型不存在或无权使用")
+			}
+			model = withAudioEnvironmentCredentials(model)
+			if audioModelSupportsPresetVoice(model) {
+				return model, nil
+			}
 		}
 		if model, found, err := s.store.FindModelConfig(requestedID); err != nil {
 			return store.ModelConfig{}, err
-		} else if found && model.Type == "audio" {
-			return withAudioEnvironmentCredentials(model), nil
+		} else if found {
+			if model.Type != "audio" {
+				return store.ModelConfig{}, errors.New("音频模型不存在或无权使用")
+			}
+			model = withAudioEnvironmentCredentials(model)
+			if audioModelSupportsPresetVoice(model) {
+				return model, nil
+			}
 		}
-		return store.ModelConfig{}, errors.New("音频模型不存在或无权使用")
+		// The marketing-video narrator only sends a preset voice ID. A voice
+		// clone/design model cannot consume that value, so prefer another
+		// configured audio model that supports preset voices when a stale or
+		// incompatible model ID is supplied by an older session.
+		if model, found, err := s.findPresetAudioModel(userID, requestedID); err != nil {
+			return store.ModelConfig{}, err
+		} else if found {
+			return model, nil
+		}
+		return store.ModelConfig{}, errors.New("当前音频模型不支持预置音色，请配置并启用 MiMo TTS（mimo-v2.5-tts）")
 	}
 	if models, err := s.store.ListUserModelConfigs(userID, "audio"); err == nil {
-		for _, model := range models {
-			if model.IsDefault {
-				return withAudioEnvironmentCredentials(model), nil
-			}
+		if model, found := selectPresetAudioModel(models); found {
+			return withAudioEnvironmentCredentials(model), nil
 		}
 	}
 	models, err := s.store.ListModelConfigs("audio")
 	if err != nil {
 		return store.ModelConfig{}, err
 	}
-	for _, model := range models {
-		if model.IsDefault {
-			return withAudioEnvironmentCredentials(model), nil
-		}
+	if model, found := selectPresetAudioModel(models); found {
+		return withAudioEnvironmentCredentials(model), nil
 	}
+	// Keep the error explicit when the only configured model is a voice clone
+	// or voice design model. Falling through to environment defaults would hide
+	// a configuration mistake and produce the same opaque upstream 400.
 	if len(models) > 0 {
-		return withAudioEnvironmentCredentials(models[0]), nil
+		return store.ModelConfig{}, errors.New("当前音频模型不支持预置音色，请配置并启用 MiMo TTS（mimo-v2.5-tts）")
 	}
 	provider := strings.TrimSpace(os.Getenv("AUDIO_MODEL_PROVIDER"))
 	if provider == "" {
@@ -331,6 +364,50 @@ func (s *Server) resolveAudioModelConfig(userID, requestedID string) (store.Mode
 		}
 	}
 	return withAudioEnvironmentCredentials(store.ModelConfig{ID: "env-audio", Type: "audio", Provider: provider}), nil
+}
+
+// findPresetAudioModel searches user and system configurations for a model
+// that can consume the preset voice IDs exposed by this feature. The requested
+// ID is excluded so a stale voice-clone/design session cannot select itself
+// again. Defaults win over non-default configurations, followed by the
+// existing sort order returned by the store.
+func (s *Server) findPresetAudioModel(userID, excludedID string) (store.ModelConfig, bool, error) {
+	if models, err := s.store.ListUserModelConfigs(userID, "audio"); err != nil {
+		return store.ModelConfig{}, false, err
+	} else if model, found := selectPresetAudioModelExcluding(models, excludedID); found {
+		return withAudioEnvironmentCredentials(model), true, nil
+	}
+	models, err := s.store.ListModelConfigs("audio")
+	if err != nil {
+		return store.ModelConfig{}, false, err
+	}
+	model, found := selectPresetAudioModelExcluding(models, excludedID)
+	if !found {
+		return store.ModelConfig{}, false, nil
+	}
+	return withAudioEnvironmentCredentials(model), true, nil
+}
+
+func selectPresetAudioModel(models []store.ModelConfig) (store.ModelConfig, bool) {
+	return selectPresetAudioModelExcluding(models, "")
+}
+
+func selectPresetAudioModelExcluding(models []store.ModelConfig, excludedID string) (store.ModelConfig, bool) {
+	var fallback store.ModelConfig
+	foundFallback := false
+	for _, model := range models {
+		if model.Type != "audio" || strings.TrimSpace(model.ID) == strings.TrimSpace(excludedID) || !audioModelSupportsPresetVoice(model) {
+			continue
+		}
+		if model.IsDefault {
+			return model, true
+		}
+		if !foundFallback {
+			fallback = model
+			foundFallback = true
+		}
+	}
+	return fallback, foundFallback
 }
 
 func withAudioEnvironmentCredentials(model store.ModelConfig) store.ModelConfig {
@@ -372,6 +449,30 @@ func isMiMoAudioModel(model store.ModelConfig) bool {
 	return strings.Contains(value, "mimo") || strings.Contains(value, "xiaomimimo")
 }
 
+// MiMo voice-clone and voice-design models use a different voice contract
+// from the preset-voice TTS model. The marketing-video workflow currently
+// exposes only preset voice IDs, so those models must not be selected here.
+func audioModelSupportsPresetVoice(model store.ModelConfig) bool {
+	if !isMiMoAudioModel(model) {
+		return true
+	}
+	modelID := strings.ToLower(strings.TrimSpace(model.Model))
+	return !strings.Contains(modelID, "voiceclone") && !strings.Contains(modelID, "voicedesign")
+}
+
+func isSupportedPresetAudioVoice(model store.ModelConfig, voice string) bool {
+	voice = strings.TrimSpace(voice)
+	if voice == "" || !audioModelSupportsPresetVoice(model) {
+		return false
+	}
+	for _, candidate := range contentPlanningAudioVoices(model) {
+		if strings.TrimSpace(stringValue(candidate, "id")) == voice {
+			return true
+		}
+	}
+	return false
+}
+
 func defaultAudioVoice(model store.ModelConfig) string {
 	if isMiMoAudioModel(model) {
 		return "mimo_default"
@@ -381,6 +482,9 @@ func defaultAudioVoice(model store.ModelConfig) string {
 
 func contentPlanningAudioVoices(model store.ModelConfig) []map[string]any {
 	if isMiMoAudioModel(model) {
+		if !audioModelSupportsPresetVoice(model) {
+			return []map[string]any{}
+		}
 		return []map[string]any{
 			{"id": "mimo_default", "name": "MiMo 默认音色", "language": "中文/English", "provider": "mimo"},
 			{"id": "冰糖", "name": "MiMo 冰糖（女声）", "language": "中文", "provider": "mimo"},
