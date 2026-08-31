@@ -363,7 +363,7 @@
   position: relative;
 }
 
-.chat-image-generation-info-button.ant-btn {
+.chat-image-generation-menu-button.ant-btn {
   background: transparent;
   bottom: 8px;
   color: rgb(var(--color-black-rgb) / 0.58);
@@ -375,25 +375,13 @@
   z-index: 2;
 }
 
-.chat-image-regeneration-button.ant-btn {
-  background: transparent;
-  bottom: 8px;
-  color: rgb(var(--color-black-rgb) / 0.58);
-  height: 28px;
-  min-width: 28px;
-  position: absolute;
-  right: 40px;
-  width: 28px;
-  z-index: 2;
-}
-
-.chat-image-regeneration-button.ant-btn:hover,
-.chat-image-regeneration-button.ant-btn:focus-visible {
+.chat-image-generation-menu-button.ant-btn:hover,
+.chat-image-generation-menu-button.ant-btn:focus-visible {
   background: transparent;
   color: rgb(var(--color-black-rgb) / 0.74);
 }
 
-.chat-image-regeneration-button.ant-btn svg {
+.chat-image-generation-menu-button.ant-btn svg {
   filter:
     drop-shadow(0 0 1px rgb(var(--color-white-rgb) / 0.95))
     drop-shadow(0 1px 1px rgb(var(--color-black-rgb) / 0.32));
@@ -423,6 +411,24 @@
   justify-content: flex-end;
 }
 
+.chat-image-watermark-popover {
+  display: grid;
+  gap: 10px;
+  width: min(320px, calc(100vw - 48px));
+}
+
+.chat-image-watermark-popover > strong {
+  color: var(--color-neutral-800);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.chat-image-watermark-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .chat-image-generation-cell.is-regenerating .chat-image-generation-image,
 .chat-image-generation-cell.is-regenerating .ant-image-img {
   opacity: 0.42;
@@ -444,18 +450,6 @@
 
 .chat-image-regeneration-loading > svg {
   animation: chat-image-generating-spin 0.9s linear infinite;
-}
-
-.chat-image-generation-info-button.ant-btn:hover,
-.chat-image-generation-info-button.ant-btn:focus-visible {
-  background: transparent;
-  color: rgb(var(--color-black-rgb) / 0.74);
-}
-
-.chat-image-generation-info-button.ant-btn svg {
-  filter:
-    drop-shadow(0 0 1px rgb(var(--color-white-rgb) / 0.95))
-    drop-shadow(0 1px 1px rgb(var(--color-black-rgb) / 0.32));
 }
 
 .chat-image-generation-info-popover {
