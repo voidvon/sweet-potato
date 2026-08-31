@@ -100,6 +100,88 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 	}
 }
 
+func TestRegenerateChatImageReplacesOnlyRequestedSlot(t *testing.T) {
+	var receivedPrompt string
+	imageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode image request: %v", err)
+		}
+		receivedPrompt = stringValue(body, "prompt")
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("regenerated-image"))},
+		}})
+	}))
+	defer imageServer.Close()
+
+	server, err := New(config.Config{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("regenerate-slot-user", "password123", "Regenerate Slot User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	model, err := server.store.SaveModelConfig(store.ModelConfig{
+		ID:       "regenerate-slot-model",
+		Type:     "image",
+		Name:     "Regenerate slot model",
+		Provider: "openai-images",
+		Model:    "compatible-image-model",
+		APIKey:   "test-key",
+		BaseURL:  imageServer.URL + "/v1",
+	}, true)
+	if err != nil {
+		t.Fatalf("save image model: %v", err)
+	}
+	conversation, err := server.store.SaveChatConversation(store.ChatConversation{
+		UserID:  user.ID,
+		Title:   "多图生成",
+		AgentID: "quick-answer",
+	}, true)
+	if err != nil {
+		t.Fatalf("save conversation: %v", err)
+	}
+	message, err := server.store.SaveChatMessage(store.ChatMessage{
+		ConversationID:     conversation.ID,
+		Role:               "assistant",
+		AgentID:            "quick-answer",
+		ImageModelConfigID: &model.ID,
+		IsCompleted:        true,
+		CapabilityContext: map[string]any{"imageGeneration": map[string]any{
+			"modeKey":   "dialog",
+			"modeTitle": "对话生图",
+		}},
+		Attachments: []any{
+			map[string]any{"id": "old-0", "kind": "image", "imageGenerationSlotIndex": 0, "imageGenerationPrompt": "第一张提示词"},
+			map[string]any{"id": "old-1", "kind": "image", "imageGenerationSlotIndex": 1, "imageGenerationPrompt": "第二张提示词"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("save assistant message: %v", err)
+	}
+
+	updated, err := server.regenerateChatImage(t.Context(), user.ID, conversation.ID, message.ID, 1, "让光线更柔和")
+	if err != nil {
+		t.Fatalf("regenerate image: %v", err)
+	}
+	if receivedPrompt != "第二张提示词\n\n补充要求：让光线更柔和" {
+		t.Fatalf("prompt = %q", receivedPrompt)
+	}
+	if got := stringValue(objectValue(updated.Attachments[0]), "id"); got != "old-0" {
+		t.Fatalf("unselected attachment changed: %q", got)
+	}
+	replacement := objectValue(updated.Attachments[1])
+	if got := int(numberValue(replacement["imageGenerationSlotIndex"], -1)); got != 1 {
+		t.Fatalf("replacement slot = %d", got)
+	}
+	if got := stringValue(replacement, "imageGenerationPrompt"); got != receivedPrompt {
+		t.Fatalf("replacement prompt = %q", got)
+	}
+}
+
 func TestGenerateImageAssetsWithProgressPreservesCompletedImagesOnLaterFailure(t *testing.T) {
 	var requestCount atomic.Int32
 	imageServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

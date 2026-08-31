@@ -8,6 +8,7 @@ import {
   deleteChatMessage,
   getChatConversation,
   listChatConversations,
+  regenerateChatMessageImage,
   renameChatConversation,
   streamChatMessage,
   uploadChatAttachment,
@@ -913,6 +914,18 @@ export function useChatSession() {
     });
   }, [location.pathname, sendMessage]);
 
+  const regenerateSingleImageMessage = useCallback(async (messageItem: ChatMessage, slotIndex: number, additionalPrompt: string) => {
+    const result = await regenerateChatMessageImage(
+      messageItem.conversationId,
+      messageItem.id,
+      slotIndex,
+      additionalPrompt,
+    );
+    setMessages((items) => items.map((item) => item.id === result.message.id
+      ? { ...result.message, capability: item.capability || 'image_generation' }
+      : item));
+  }, []);
+
   const continueEditImageMessage = useCallback((messageItem: ChatMessage) => {
     const imageAttachments = (messageItem.attachments || []).filter((attachment) => attachment.kind === 'image');
     if (!imageAttachments.length) {
@@ -974,6 +987,7 @@ export function useChatSession() {
     sendCurrentMessage,
     sendPresetMessage,
     regenerateImageMessage,
+    regenerateSingleImageMessage,
     sending,
     setInput,
     showWelcome: !isResolvingConversation

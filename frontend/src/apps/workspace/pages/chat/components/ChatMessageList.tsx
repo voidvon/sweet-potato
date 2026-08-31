@@ -1,6 +1,6 @@
-import { Button, Dropdown, Image, Modal, Popover, Tag, Tooltip, message } from 'antd';
+import { Button, Dropdown, Image, Input, Modal, Popover, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, FilePdfOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, ImageOff, Info, RefreshCw } from 'lucide-react';
+import { ChevronRight, ImageOff, Info, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
@@ -28,6 +28,7 @@ type ChatMessageListProps = {
   onDeleteMessage: (message: ChatMessage) => void;
   onRefillComposerFromMessage: (message: ChatMessage) => void;
   onRegenerateImage: (userMessage: ChatMessage, assistantMessage: ChatMessage, currentCreditCost?: number) => void;
+  onRegenerateSingleImage: (assistantMessage: ChatMessage, slotIndex: number, additionalPrompt: string) => Promise<void>;
   onScroll: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sending: boolean;
@@ -97,6 +98,7 @@ export function ChatMessageList({
   onDeleteMessage,
   onRefillComposerFromMessage,
   onRegenerateImage,
+  onRegenerateSingleImage,
   onScroll,
   scrollContainerRef,
   sending,
@@ -104,6 +106,9 @@ export function ChatMessageList({
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [loadedImageUrls, setLoadedImageUrls] = useState<Set<string>>(() => new Set());
   const [unavailableImageUrls, setUnavailableImageUrls] = useState<Set<string>>(() => new Set());
+  const [imageRegenerationDraft, setImageRegenerationDraft] = useState('');
+  const [imageRegenerationPopoverKey, setImageRegenerationPopoverKey] = useState<string>();
+  const [regeneratingImageKey, setRegeneratingImageKey] = useState<string>();
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
     images: ChatAttachment[];
@@ -711,6 +716,84 @@ export function ChatMessageList({
     );
   }
 
+  function renderImageRegeneration(
+    messageItem: ChatMessage,
+    slotIndex: number,
+  ) {
+    const imageKey = `${messageItem.id}:${slotIndex}`;
+    const isRegenerating = regeneratingImageKey === imageKey;
+    const content = (
+      <div className="chat-image-regeneration-popover" onClick={(event) => event.stopPropagation()}>
+        <strong>{t("重新生成这张图片")}</strong>
+        <Input.TextArea
+          autoFocus
+          autoSize={{ minRows: 3, maxRows: 6 }}
+          maxLength={1000}
+          onChange={(event) => setImageRegenerationDraft(event.target.value)}
+          placeholder={t("补充要求（选填），例如：调整光线、风格、姿态…")}
+          value={imageRegenerationDraft}
+        />
+        <div className="chat-image-regeneration-actions">
+          <Button
+            onClick={() => {
+              setImageRegenerationPopoverKey(undefined);
+              setImageRegenerationDraft('');
+            }}
+            size="small"
+          >
+            {t("取消")}
+          </Button>
+          <Button
+            loading={isRegenerating}
+            onClick={async () => {
+              setRegeneratingImageKey(imageKey);
+              try {
+                await onRegenerateSingleImage(messageItem, slotIndex, imageRegenerationDraft.trim());
+                setImageRegenerationPopoverKey(undefined);
+                setImageRegenerationDraft('');
+                message.success(t("图片已重新生成"));
+              } catch (error) {
+                message.error(error instanceof Error ? error.message : t("图片重新生成失败"));
+              } finally {
+                setRegeneratingImageKey(undefined);
+              }
+            }}
+            size="small"
+            type="primary"
+          >
+            {t("重新生成")}
+          </Button>
+        </div>
+      </div>
+    );
+    return (
+      <Popover
+        content={content}
+        onOpenChange={(open) => {
+          if (isRegenerating) {
+            return;
+          }
+          setImageRegenerationPopoverKey(open ? imageKey : undefined);
+          setImageRegenerationDraft('');
+        }}
+        open={imageRegenerationPopoverKey === imageKey}
+        placement="topRight"
+        trigger="click"
+      >
+        <Button
+          aria-label={t("重新生成这张图片")}
+          className="chat-image-regeneration-button"
+          disabled={Boolean(regeneratingImageKey)}
+          icon={<RefreshCw size={15} strokeWidth={2.2} />}
+          onClick={(event) => event.stopPropagation()}
+          shape="circle"
+          size="small"
+          type="text"
+        />
+      </Popover>
+    );
+  }
+
   function imageGenerationAspectRatio(
     attachment?: ChatAttachment,
     imageGeneration?: ImageGenerationContext,
@@ -868,9 +951,10 @@ export function ChatMessageList({
                           {Array.from({ length: imageGenerationSlotCount }, (_, index) => {
                             const attachment = imageGenerationAttachmentsBySlot.get(index);
                             const failure = imageGenerationFailureBySlot.get(index);
+                            const isRegenerating = regeneratingImageKey === `${item.id}:${index}`;
                             return attachment ? (
                               <div
-                                className={imageGenerationCellClassName(attachment, imageGenerationContext)}
+                                className={`${imageGenerationCellClassName(attachment, imageGenerationContext)}${isRegenerating ? ' is-regenerating' : ''}`}
                                 key={attachment.id}
                                 style={imageGenerationCellStyle(attachment, imageGenerationContext)}
                               >
@@ -885,6 +969,13 @@ export function ChatMessageList({
                                     width="100%"
                                   />
                                 )}
+                                {isRegenerating ? (
+                                  <span className="chat-image-regeneration-loading">
+                                    <LoaderCircle aria-hidden="true" size={22} />
+                                    <span>{t("重新生成中…")}</span>
+                                  </span>
+                                ) : null}
+                                {renderImageRegeneration(item, index)}
                                 {renderImageGenerationInfo(attachment, imageGenerationContext, index)}
                               </div>
                             ) : failure || isLegacyImageGenerationFailed ? (
