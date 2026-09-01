@@ -21,6 +21,8 @@ import { t } from '@shared/i18n';const sourceTypeMap: Record<string, string> = {
   real_person: t("真人素材"),
   scene: t("场景"),
   chat_image_generation: t("图片创作"),
+  image_generation: t("图片创作"),
+  chat_image_decision: t("图片创作 · 意图分析"),
   video_generation: t("视频创作"),
   video_upscale: t("视频高清放大"),
   url: '链接',

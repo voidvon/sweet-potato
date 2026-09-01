@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,9 +46,13 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 		Model:    "compatible-image-model",
 		APIKey:   "test-key",
 		BaseURL:  imageServer.URL + "/v1",
+		Settings: map[string]any{"billing": map[string]any{"creditsPerRequest": 1}},
 	}, true)
 	if err != nil {
 		t.Fatalf("save image model: %v", err)
+	}
+	if _, err := server.store.AdjustCredits(user.ID, user.ID, 10); err != nil {
+		t.Fatalf("add credits: %v", err)
 	}
 	missingLLM := "missing-llm-model"
 	type progressEvent struct {
@@ -97,6 +102,14 @@ func TestDirectImageGenerationDoesNotRequireLLMModel(t *testing.T) {
 		if message.ModelConfigID != nil {
 			t.Fatalf("%s message LLM model = %q, want nil", message.Role, *message.ModelConfigID)
 		}
+	}
+	assistant := messages[len(messages)-1]
+	if assistant.CreditCost == nil || *assistant.CreditCost != 2 {
+		t.Fatalf("assistant credit cost = %v, want 2", assistant.CreditCost)
+	}
+	updatedUser, _, _ := server.store.FindUserByID(user.ID)
+	if updatedUser.CreditBalance != 8 {
+		t.Fatalf("credit balance = %v, want 8", updatedUser.CreditBalance)
 	}
 }
 
@@ -218,6 +231,10 @@ func TestGenerateImageAssetsWithProgressPreservesCompletedImagesOnLaterFailure(t
 		Model:    "gpt-image-2",
 		APIKey:   "test-key",
 		BaseURL:  imageServer.URL + "/v1",
+		Settings: map[string]any{"billing": map[string]any{"creditsPerRequest": 2}},
+	}
+	if _, err := server.store.AdjustCredits(user.ID, user.ID, 10); err != nil {
+		t.Fatalf("add credits: %v", err)
 	}
 	callbackCount := 0
 	assets, generateErr := server.generateImageAssetsContextWithProgress(
@@ -246,6 +263,36 @@ func TestGenerateImageAssetsWithProgressPreservesCompletedImagesOnLaterFailure(t
 	}
 	if _, found, findErr := server.store.FindContentAsset(assets[0].ID); findErr != nil || !found {
 		t.Fatalf("completed asset was not preserved: found=%v err=%v", found, findErr)
+	}
+	updatedUser, _, _ := server.store.FindUserByID(user.ID)
+	if updatedUser.CreditBalance != 8 {
+		t.Fatalf("partial generation balance = %v, want 8", updatedUser.CreditBalance)
+	}
+}
+
+func TestGenerateBillableImageAssetsRejectsInsufficientCreditsBeforeGeneration(t *testing.T) {
+	server, err := New(config.Config{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("create server: %v", err)
+	}
+	defer server.Close()
+	user, err := server.store.CreateUser("insufficient-image-user", "password123", "Insufficient Image User")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	called := false
+	_, err = server.generateBillableImageAssets(t.Context(), user.ID, store.ModelConfig{
+		ID: "paid-image-model", Type: "image", Provider: "test", Model: "test-image",
+		Settings: map[string]any{"billing": map[string]any{"creditsPerRequest": 2}},
+	}, 1, "dialog", nil, func() ([]store.ContentAsset, error) {
+		called = true
+		return nil, nil
+	})
+	if !errors.Is(err, store.ErrInsufficientCredits) {
+		t.Fatalf("generation error = %v, want insufficient credits", err)
+	}
+	if called {
+		t.Fatal("provider generation ran without sufficient credits")
 	}
 }
 
@@ -281,7 +328,13 @@ func TestGenerateImageAssetsForPromptsHonorsModelConcurrency(t *testing.T) {
 		Model:    "gpt-image-2",
 		APIKey:   "test-key",
 		BaseURL:  imageServer.URL + "/v1",
-		Settings: map[string]any{"imageGeneration": map[string]any{"maxConcurrency": 2}},
+		Settings: map[string]any{
+			"imageGeneration": map[string]any{"maxConcurrency": 2},
+			"billing":         map[string]any{"creditsPerRequest": 1},
+		},
+	}
+	if _, err := server.store.AdjustCredits(user.ID, user.ID, 10); err != nil {
+		t.Fatalf("add credits: %v", err)
 	}
 	prompts := []string{"chapter-1", "chapter-2", "chapter-3", "chapter-4"}
 	assets, generateErr := server.generateImageAssetsForPromptsContextWithProgress(
@@ -300,6 +353,10 @@ func TestGenerateImageAssetsForPromptsHonorsModelConcurrency(t *testing.T) {
 		if got := stringValue(asset.Metadata, "prompt"); got != prompts[index] {
 			t.Fatalf("asset %d prompt = %q, want %q", index, got, prompts[index])
 		}
+	}
+	updatedUser, _, _ := server.store.FindUserByID(user.ID)
+	if updatedUser.CreditBalance != 6 {
+		t.Fatalf("detail generation balance = %v, want 6", updatedUser.CreditBalance)
 	}
 }
 

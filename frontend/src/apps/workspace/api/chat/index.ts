@@ -143,6 +143,12 @@ function createAbortError() {
   return error;
 }
 
+function createWebSocketDisconnectError() {
+  const error = new Error(t("聊天 WebSocket 连接已断开"));
+  error.name = 'WebSocketDisconnectError';
+  return error;
+}
+
 export async function streamChatMessage(
   payload: SendChatPayload,
   onEvent: (event: ChatStreamEvent) => void,
@@ -191,7 +197,7 @@ export async function streamChatMessage(
           error?: { message?: string };
         };
         if (event.method === 'app/disconnected') {
-          settle(() => reject(new Error(t("聊天 WebSocket 连接已断开"))));
+          settle(() => reject(createWebSocketDisconnectError()));
           return;
         }
         if (event.id && event.id !== turnId && !event.method) return;

@@ -315,6 +315,15 @@ func (s *Server) regenerateChatImage(ctx context.Context, userID, conversationID
 	}
 
 	message.Attachments[attachmentIndex] = chatGeneratedImageAttachmentPayload(assets[0], slotIndex, prompt, references)
+	regenerationCreditCost, creditErr := s.imageGenerationCreditCost(imageModel, len(assets))
+	if creditErr != nil {
+		return store.ChatMessage{}, creditErr
+	}
+	totalCreditCost := regenerationCreditCost
+	if message.CreditCost != nil {
+		totalCreditCost += *message.CreditCost
+	}
+	message.CreditCost = &totalCreditCost
 	filteredFailures := make([]any, 0, len(message.ImageGenerationFailures))
 	for _, rawFailure := range message.ImageGenerationFailures {
 		if int(numberValue(objectValue(rawFailure)["slotIndex"], -1)) != slotIndex {
@@ -534,6 +543,11 @@ func (s *Server) createChatResponseContext(ctx context.Context, user store.User,
 		} else {
 			answer = valueOr(imageDecision.Answer, fmt.Sprintf("已生成 %d 张图片。", len(assets)))
 		}
+		generatedCreditCost, creditErr := s.imageGenerationCreditCost(imageModel, len(assets))
+		if creditErr != nil {
+			return nil, creditErr
+		}
+		assistantMessage.CreditCost = &generatedCreditCost
 		imageModelID = stringPointer(imageModel.ID)
 		value := count
 		imageExpectedCount = &value
@@ -1624,7 +1638,10 @@ func (session *chatWebSocketSession) startTurn(command chatTurnCommand) error {
 		session.clearTurn(turnID)
 		return err
 	}
-	go session.runTurn(ctx, turnID, input)
+	go func() {
+		defer cancel()
+		session.runTurn(ctx, turnID, input)
+	}()
 	return nil
 }
 
@@ -1664,6 +1681,20 @@ func (session *chatWebSocketSession) runTurn(ctx context.Context, turnID string,
 	messages, _ := result["messages"].([]store.ChatMessage)
 	creditBalance, _ := result["creditBalance"].(float64)
 	session.server.publishAppEvent(session.user.ID, "app/credit-balance-updated", map[string]any{"userId": session.user.ID, "creditBalance": creditBalance, "creditDelta": 0, "at": time.Now().UTC().Format(time.RFC3339Nano)})
+	if len(messages) > 0 {
+		assistant := messages[len(messages)-1]
+		if assistant.Role == "assistant" && assistant.ImageGenerationExpectedCount != nil {
+			session.server.publishAppEvent(session.user.ID, "app/generation-job-updated", map[string]any{
+				"userId": session.user.ID,
+				"job": map[string]any{
+					"conversationId": conversation.ID,
+					"status":         "completed",
+				},
+				"message": assistant,
+				"at":      time.Now().UTC().Format(time.RFC3339Nano),
+			})
+		}
+	}
 	_ = session.writeJSON(map[string]any{"method": "thread/updated", "params": map[string]any{"conversation": conversation}})
 	if len(messages) >= 2 {
 		_ = session.writeJSON(map[string]any{"method": "item/completed", "params": map[string]any{"kind": "user_message", "message": messages[len(messages)-2]}})
@@ -1686,13 +1717,13 @@ func (session *chatWebSocketSession) clearTurn(turnID string) {
 	}
 }
 
-func (session *chatWebSocketSession) cancelActive() {
+// detachActive releases the WebSocket session without canceling the server-side
+// turn. A browser refresh is a transport disconnect, not an explicit request to
+// stop generation; turn/interrupt remains responsible for cancellation.
+func (session *chatWebSocketSession) detachActive() {
 	session.turnMu.Lock()
 	defer session.turnMu.Unlock()
-	if session.active != nil {
-		session.active.cancel()
-		session.active = nil
-	}
+	session.active = nil
 }
 
 func chatTurnError(id any, status int, message string) map[string]any {

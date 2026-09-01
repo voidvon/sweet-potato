@@ -235,7 +235,7 @@ func (s *Store) creditSummary(userID string) (creditTotals, error) {
 SELECT COALESCE(SUM(CASE WHEN credit_delta > 0 THEN credit_delta ELSE 0 END), 0),
        COALESCE(SUM(CASE WHEN credit_delta < 0 THEN -credit_delta ELSE 0 END), 0)
 FROM credit_ledger
-WHERE user_id = ? AND type NOT IN ('reservation', 'reservation_release')`, userID).Scan(&totals.recharge, &totals.usage)
+WHERE user_id = ? AND type NOT IN ('reservation', 'reservation_release', 'reserve_debit', 'reserve_refund')`, userID).Scan(&totals.recharge, &totals.usage)
 	if err != nil {
 		return creditTotals{}, fmt.Errorf("load credit summary: %w", err)
 	}
@@ -1179,13 +1179,27 @@ func (s *Store) UpdateBillingSettings(settings BillingSettings) (BillingSettings
 
 func (s *Store) ListLedger(userID string, limit int) ([]CreditLedgerEntry, error) {
 	limit = clampLimit(limit)
-	query := `SELECT id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, created_at FROM credit_ledger`
+	query := `SELECT l.id, l.user_id, l.type, l.credit_delta, l.credit_balance_after, l.source_type, l.source_id, l.created_at FROM credit_ledger l`
 	args := []any{}
 	if userID != "" {
-		query += ` WHERE user_id = ?`
+		query += ` WHERE l.user_id = ? AND `
 		args = append(args, userID)
+	} else {
+		query += ` WHERE `
 	}
-	query += ` ORDER BY created_at DESC LIMIT ?`
+	query += `(
+		l.type NOT IN ('reservation', 'reservation_release', 'reserve_debit', 'reserve_refund')
+		OR (
+			l.type IN ('reservation', 'reserve_debit')
+			AND NOT EXISTS (
+				SELECT 1 FROM credit_ledger settled
+				WHERE settled.user_id = l.user_id
+					AND settled.source_type IS l.source_type
+					AND settled.source_id IS l.source_id
+					AND settled.type IN ('reservation_release', 'reserve_refund', 'usage', 'usage_debit')
+			)
+		)
+	) ORDER BY l.created_at DESC LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
@@ -1204,6 +1218,14 @@ func (s *Store) ListLedger(userID string, limit int) ([]CreditLedgerEntry, error
 		}
 		if sourceID.Valid {
 			item.SourceID = &sourceID.String
+		}
+		switch item.Type {
+		case "reservation":
+			item.Type = "reserve_debit"
+		case "reservation_release":
+			item.Type = "reserve_refund"
+		case "usage":
+			item.Type = "usage_debit"
 		}
 		result = append(result, item)
 	}

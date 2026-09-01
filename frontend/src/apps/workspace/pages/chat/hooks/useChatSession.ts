@@ -327,6 +327,28 @@ export function useChatSession() {
     };
   }, [activeConversationId, currentUserId]);
 
+  const hasPendingAssistantMessage = messages.some((item) => (
+    item.role === 'assistant' && item.isCompleted === false
+  ));
+
+  useEffect(() => {
+    if (!activeConversationId || !currentUserId || sending || !hasPendingAssistantMessage) {
+      return undefined;
+    }
+    let refreshing = false;
+    const timer = window.setInterval(() => {
+      if (refreshing) {
+        return;
+      }
+      refreshing = true;
+      void loadConversation(activeConversationId, { syncUrl: false })
+        .finally(() => {
+          refreshing = false;
+        });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [activeConversationId, currentUserId, hasPendingAssistantMessage, loadConversation, sending]);
+
   const isAtBottom = useCallback(() => {
     const element = scrollContainerRef.current;
     if (!element) {
@@ -569,9 +591,12 @@ export function useChatSession() {
     const baseMessages = editTargetIndex >= 0 ? messages.slice(0, editTargetIndex) : messages;
     const requestedCapabilities = override?.requestedCapabilities;
     const autoImageGeneration = override?.autoImageGeneration === true;
-    const isImageGenerationRequest = Boolean(requestedCapabilities?.includes('image_generation'));
     const resolvedCapabilityContext = override?.capabilityContext || {};
     const imageModeKey = resolvedCapabilityContext.imageGeneration?.modeKey;
+    const isImageGenerationRequest = Boolean(
+      requestedCapabilities?.includes('image_generation')
+      || (autoImageGeneration && usesImageAgent(imageModeKey)),
+    );
     const contentForSend = content || (isImageGenerationRequest
       ? ''
       : autoImageGeneration && imageModeKey === 'detail'
@@ -783,6 +808,11 @@ export function useChatSession() {
         return;
       }
 
+      if (error instanceof Error && error.name === 'WebSocketDisconnectError' && activeConversationId) {
+        await loadConversation(activeConversationId, { syncUrl: false });
+        return;
+      }
+
       if (isImageGenerationRequest) {
         const errorMessage = error instanceof Error ? error.message : t("图片生成失败");
         const failureCount = Math.max(1, imageGenerationExpectedCount || 0);
@@ -822,7 +852,7 @@ export function useChatSession() {
       }
       setSending(false);
     }
-  }, [activeAgent, activeConversationId, attachments, composerEditMessageId, currentUser, input, location.pathname, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
+  }, [activeAgent, activeConversationId, attachments, composerEditMessageId, currentUser, input, loadConversation, location.pathname, messages, refreshConversations, scrollToBottom, syncConversationUrl]);
 
   const sendCurrentMessage = useCallback(async (options?: {
     capabilityContext?: SendChatPayload['capabilityContext'];

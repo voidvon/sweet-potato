@@ -44,7 +44,7 @@ func (s *Server) handleAppWebSocket(w http.ResponseWriter, r *http.Request) {
 	session := &chatWebSocketSession{server: s, connection: connection, user: userFromRequest(r, s)}
 	s.registerAppWebSocket(session)
 	defer s.unregisterAppWebSocket(session)
-	defer session.cancelActive()
+	defer session.detachActive()
 	write := session.writeFrame
 
 	// Keep the connection alive and detect client disconnects. Event fan-out is

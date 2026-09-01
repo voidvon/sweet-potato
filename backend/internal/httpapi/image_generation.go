@@ -89,6 +89,89 @@ func imageDefaultBaseURL(provider string) string {
 	return valueOr(strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")), "https://api.openai.com/v1")
 }
 
+func (s *Server) imageGenerationCreditCost(model store.ModelConfig, successfulCount int) (float64, error) {
+	if successfulCount <= 0 {
+		return 0, nil
+	}
+	settings, err := s.store.GetBillingSettings()
+	if err != nil {
+		return 0, fmt.Errorf("读取计费设置失败: %w", err)
+	}
+	if !settings.Enabled {
+		return 0, nil
+	}
+	billing := objectValue(model.Settings["billing"])
+	creditsPerRequest := numberValue(billing["creditsPerRequest"], numberValue(billing["perRequestUsd"], 0))
+	if creditsPerRequest < 0 {
+		return 0, errors.New("图片模型单张积分不能为负数")
+	}
+	return creditsPerRequest * float64(successfulCount), nil
+}
+
+func (s *Server) generateBillableImageAssets(ctx context.Context, userID string, model store.ModelConfig, expectedCount int, mode string, requestSnapshot map[string]any, generate func() ([]store.ContentAsset, error)) ([]store.ContentAsset, error) {
+	if expectedCount < 1 {
+		expectedCount = 1
+	}
+	reservedCredits, err := s.imageGenerationCreditCost(model, expectedCount)
+	if err != nil {
+		return nil, err
+	}
+	if reservedCredits <= 0 || strings.TrimSpace(userID) == "" {
+		return generate()
+	}
+	billing := objectValue(model.Settings["billing"])
+	creditsPerRequest := reservedCredits / float64(expectedCount)
+	sourceID := randomIDForHTTP()
+	snapshot := map[string]any{
+		"modelConfigId":     model.ID,
+		"provider":          model.Provider,
+		"model":             model.Model,
+		"pricingMode":       "per_request",
+		"creditsPerRequest": creditsPerRequest,
+		"expectedCount":     expectedCount,
+		"mode":              mode,
+		"priceSource":       stringValue(billing, "priceSource"),
+	}
+	reservationID, err := s.store.ReserveCredits(userID, "image_generation", sourceID, reservedCredits, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	assets, generateErr := generate()
+	if len(assets) == 0 && generateErr != nil {
+		if releaseErr := s.store.ReleaseCredits(reservationID, userID); releaseErr != nil {
+			return nil, fmt.Errorf("%v；释放图片生成预留积分失败: %w", generateErr, releaseErr)
+		}
+		return nil, generateErr
+	}
+	actualCredits := creditsPerRequest * float64(len(assets))
+	responseSnapshot := map[string]any{"successfulCount": len(assets)}
+	if generateErr != nil {
+		responseSnapshot["error"] = generateErr.Error()
+	}
+	if err := s.store.SettleBillableReservation(reservationID, userID, actualCredits, store.BillableUsageSettlement{
+		Category:         "image",
+		ModelConfigID:    model.ID,
+		Provider:         model.Provider,
+		Model:            model.Model,
+		SourceType:       "image_generation",
+		SourceID:         sourceID,
+		PricingMode:      "per_request",
+		QuantitySnapshot: map[string]any{"expectedCount": expectedCount, "successfulCount": len(assets), "creditsPerRequest": creditsPerRequest},
+		UsageRaw:         map[string]any{"outputCount": len(assets)},
+		RequestSnapshot:  requestSnapshot,
+		ResponseSnapshot: responseSnapshot,
+	}); err != nil {
+		return assets, fmt.Errorf("结算图片生成费用失败: %w", err)
+	}
+	if updatedUser, found, findErr := s.store.FindUserByID(userID); findErr == nil && found {
+		s.publishAppEvent(userID, "app/credit-balance-updated", map[string]any{
+			"userId": userID, "creditBalance": updatedUser.CreditBalance, "creditDelta": -actualCredits,
+			"at": time.Now().UTC().Format(time.RFC3339Nano),
+		})
+	}
+	return assets, generateErr
+}
+
 func (s *Server) generateImageAssets(userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string) ([]store.ContentAsset, error) {
 	return s.generateImageAssetsContext(context.Background(), userID, model, prompt, count, references, options, mode, title, parentAssetID)
 }
@@ -106,8 +189,21 @@ func (s *Server) generateImageAssetsForPromptsContextWithProgress(ctx context.Co
 }
 
 func (s *Server) generateImageAssetsForPromptPlansContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompts []string, referenceSets [][]store.ContentAsset, count int, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
+	expectedCount := count
+	if len(prompts) > 1 {
+		expectedCount = len(prompts)
+	}
+	return s.generateBillableImageAssets(ctx, userID, model, expectedCount, mode, map[string]any{
+		"promptCount": len(prompts),
+		"title":       title,
+	}, func() ([]store.ContentAsset, error) {
+		return s.generateRawImageAssetsForPromptPlansContextWithProgress(ctx, userID, model, prompts, referenceSets, count, options, mode, title, parentAssetID, onAsset)
+	})
+}
+
+func (s *Server) generateRawImageAssetsForPromptPlansContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompts []string, referenceSets [][]store.ContentAsset, count int, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
 	if len(prompts) == 1 {
-		return s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[0], count, imageReferencesForSlot(referenceSets, 0), options, mode, title, parentAssetID, onAsset)
+		return s.generateRawImageAssetsContextWithProgress(ctx, userID, model, prompts[0], count, imageReferencesForSlot(referenceSets, 0), options, mode, title, parentAssetID, onAsset)
 	}
 	if _, err := s.ensureContentGroup(userID, "finished_video"); err != nil {
 		return nil, fmt.Errorf("创建图片作品分组失败: %w", err)
@@ -127,7 +223,7 @@ func (s *Server) generateImageAssetsForPromptPlansContextWithProgress(ctx contex
 		go func() {
 			defer workers.Done()
 			for slotIndex := range jobs {
-				generated, err := s.generateImageAssetsContextWithProgress(ctx, userID, model, prompts[slotIndex], 1, imageReferencesForSlot(referenceSets, slotIndex), options, mode, title, parentAssetID, func(asset store.ContentAsset, _ int) {
+				generated, err := s.generateRawImageAssetsContextWithProgress(ctx, userID, model, prompts[slotIndex], 1, imageReferencesForSlot(referenceSets, slotIndex), options, mode, title, parentAssetID, func(asset store.ContentAsset, _ int) {
 					if onAsset != nil {
 						callbackMu.Lock()
 						onAsset(asset, slotIndex)
@@ -174,6 +270,15 @@ func imageModelMaxConcurrency(model store.ModelConfig) int {
 }
 
 func (s *Server) generateImageAssetsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
+	return s.generateBillableImageAssets(ctx, userID, model, count, mode, map[string]any{
+		"promptCount": 1,
+		"title":       title,
+	}, func() ([]store.ContentAsset, error) {
+		return s.generateRawImageAssetsContextWithProgress(ctx, userID, model, prompt, count, references, options, mode, title, parentAssetID, onAsset)
+	})
+}
+
+func (s *Server) generateRawImageAssetsContextWithProgress(ctx context.Context, userID string, model store.ModelConfig, prompt string, count int, references []store.ContentAsset, options imagegen.GenerateInput, mode, title string, parentAssetID *string, onAsset func(store.ContentAsset, int)) ([]store.ContentAsset, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("图片提示词不能为空")
 	}

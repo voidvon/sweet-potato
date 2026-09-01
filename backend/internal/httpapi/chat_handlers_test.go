@@ -50,6 +50,23 @@ func TestChatTurnInterruptCancelsActiveContext(t *testing.T) {
 	}
 }
 
+func TestChatDisconnectDetachesWithoutCancelingActiveContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	session := &chatWebSocketSession{active: &activeChatTurn{id: "turn-1", cancel: cancel}}
+
+	session.detachActive()
+
+	if session.active != nil {
+		t.Fatal("active turn was not detached")
+	}
+	select {
+	case <-ctx.Done():
+		t.Fatal("disconnect canceled the active turn context")
+	default:
+	}
+}
+
 func TestCallResponsesContextCancelsUpstreamRequest(t *testing.T) {
 	requestStarted := make(chan struct{})
 	requestCanceled := make(chan struct{})

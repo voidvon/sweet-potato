@@ -21,9 +21,26 @@ type LLMUsageSettlement struct {
 	BillingSnapshot    map[string]any
 }
 
+type BillableUsageSettlement struct {
+	Category         string
+	ModelConfigID    string
+	Provider         string
+	Model            string
+	SourceType       string
+	SourceID         string
+	TaskID           string
+	SessionID        string
+	GroupID          string
+	PricingMode      string
+	QuantitySnapshot map[string]any
+	UsageRaw         map[string]any
+	RequestSnapshot  map[string]any
+	ResponseSnapshot map[string]any
+}
+
 // ReserveCredits atomically removes a provisional amount from the user's
-// balance. The amount is returned by SettleLLMReservation after the provider
-// reports actual usage, or restored by ReleaseCredits on failure.
+// balance. The unused amount is returned by a settlement method after the
+// provider reports actual usage, or restored by ReleaseCredits on failure.
 func (s *Store) ReserveCredits(userID, sourceType, sourceID string, amount float64, snapshot map[string]any) (string, error) {
 	if amount < 0 {
 		amount = 0
@@ -49,8 +66,10 @@ func (s *Store) ReserveCredits(userID, sourceType, sourceID string, amount float
 	if _, err := tx.Exec(`INSERT INTO credit_reservations (id, user_id, source_type, source_id, reserved_credits, status, snapshot, created_at) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?)`, reservationID, userID, sourceType, sourceID, amount, string(snapshotJSON), now); err != nil {
 		return "", fmt.Errorf("create credit reservation: %w", err)
 	}
-	if _, err := tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, snapshot, created_at) VALUES (?, ?, 'reservation', ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, -amount, balance-amount, sourceType, sourceID, string(snapshotJSON), now); err != nil {
-		return "", fmt.Errorf("write reservation ledger: %w", err)
+	if amount > 1e-9 {
+		if _, err := tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, snapshot, created_at) VALUES (?, ?, 'reserve_debit', ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, -amount, balance-amount, sourceType, sourceID, string(snapshotJSON), now); err != nil {
+			return "", fmt.Errorf("write reservation ledger: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit credit reservation: %w", err)
@@ -86,7 +105,7 @@ func (s *Store) ReleaseCredits(reservationID, userID string) error {
 	if _, err := tx.Exec(`UPDATE credit_reservations SET status = 'released', settled_at = ? WHERE id = ?`, now, reservationID); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, snapshot, created_at) VALUES (?, ?, 'reservation_release', ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, amount, balance+amount, sourceType, sourceID, snapshot, now); err != nil {
+	if _, err := tx.Exec(`UPDATE credit_ledger SET type = 'reserve_refund', credit_delta = 0, credit_balance_after = ?, created_at = ? WHERE id = (SELECT id FROM credit_ledger WHERE user_id = ? AND source_type = ? AND source_id = ? AND type IN ('reserve_debit', 'reservation') ORDER BY rowid DESC LIMIT 1)`, balance+amount, now, userID, sourceType, sourceID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -121,18 +140,79 @@ func (s *Store) SettleLLMReservation(reservationID, userID string, actual float6
 	if _, err := tx.Exec(`UPDATE credit_reservations SET status = 'settled', settled_at = ? WHERE id = ?`, now, reservationID); err != nil {
 		return err
 	}
-	if reserved > 1e-9 {
-		if _, err := tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, snapshot, created_at) VALUES (?, ?, 'reservation_release', ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, reserved, balance+reserved, sourceType, sourceID, reservationSnapshot, now); err != nil {
-			return err
-		}
-	}
-	if actual > 1e-9 {
-		if _, err := tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, credit_base_cost, credit_billed_cost, snapshot, created_at) VALUES (?, ?, 'usage', ?, ?, ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, -actual, finalBalance, sourceType, sourceID, actual, actual, reservationSnapshot, now); err != nil {
-			return err
-		}
+	if err := settleReservationLedger(tx, userID, sourceType, sourceID, actual, finalBalance, reservationSnapshot, now); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(`INSERT INTO llm_usage_records (id, user_id, model_config_id, source_type, source_id, prompt_tokens, completion_tokens, cached_prompt_tokens, usage_raw, billing_snapshot, credit_base_cost, credit_billed_cost, credit_cost, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'settled', ?)`, mustRandomID(), userID, usage.ModelConfigID, usage.SourceType, usage.SourceID, usage.PromptTokens, usage.CompletionTokens, usage.CachedPromptTokens, string(usageJSON), string(billingJSON), actual, actual, actual, now); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+// SettleBillableReservation finalizes a non-LLM reservation and writes both
+// the credit ledger entry and the generic billable usage record atomically.
+func (s *Store) SettleBillableReservation(reservationID, userID string, actual float64, usage BillableUsageSettlement) error {
+	if actual < 0 {
+		actual = 0
+	}
+	quantityJSON, _ := json.Marshal(usage.QuantitySnapshot)
+	usageJSON, _ := json.Marshal(usage.UsageRaw)
+	requestJSON, _ := json.Marshal(usage.RequestSnapshot)
+	responseJSON, _ := json.Marshal(usage.ResponseSnapshot)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var reserved float64
+	var sourceType, sourceID, reservationSnapshot string
+	if err := tx.QueryRow(`SELECT reserved_credits, source_type, source_id, snapshot FROM credit_reservations WHERE id = ? AND user_id = ? AND status = 'reserved'`, reservationID, userID).Scan(&reserved, &sourceType, &sourceID, &reservationSnapshot); err != nil {
+		return err
+	}
+	if actual > reserved+1e-9 {
+		return fmt.Errorf("actual credits %.6f exceed reserved credits %.6f", actual, reserved)
+	}
+	var balance float64
+	if err := tx.QueryRow(`SELECT credit_balance FROM users WHERE id = ?`, userID).Scan(&balance); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	finalBalance := balance + reserved - actual
+	if _, err := tx.Exec(`UPDATE users SET credit_balance = ? WHERE id = ?`, finalBalance, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE credit_reservations SET status = 'settled', settled_at = ? WHERE id = ?`, now, reservationID); err != nil {
+		return err
+	}
+	if err := settleReservationLedger(tx, userID, sourceType, sourceID, actual, finalBalance, reservationSnapshot, now); err != nil {
+		return err
+	}
+	if usage.SourceType == "" {
+		usage.SourceType = sourceType
+	}
+	if usage.SourceID == "" {
+		usage.SourceID = sourceID
+	}
+	if usage.PricingMode == "" {
+		usage.PricingMode = "per_request"
+	}
+	if _, err := tx.Exec(`INSERT INTO billable_usage_records (id, user_id, category, model_config_id, provider, model, source_type, source_id, task_id, session_id, group_id, pricing_mode, quantity_snapshot, usage_raw, request_snapshot, response_snapshot, credit_base_cost, credit_billed_cost, credit_cost, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'settled', ?)`, mustRandomID(), userID, usage.Category, nullableString(usage.ModelConfigID), nullableString(usage.Provider), nullableString(usage.Model), usage.SourceType, usage.SourceID, nullableString(usage.TaskID), nullableString(usage.SessionID), nullableString(usage.GroupID), usage.PricingMode, string(quantityJSON), string(usageJSON), string(requestJSON), string(responseJSON), actual, actual, actual, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func settleReservationLedger(tx *sql.Tx, userID, sourceType, sourceID string, actual, finalBalance float64, snapshot, now string) error {
+	result, err := tx.Exec(`UPDATE credit_ledger SET type = 'usage_debit', credit_delta = ?, credit_balance_after = ?, credit_base_cost = ?, credit_billed_cost = ?, created_at = ? WHERE id = (SELECT id FROM credit_ledger WHERE user_id = ? AND source_type = ? AND source_id = ? AND type IN ('reserve_debit', 'reservation') ORDER BY rowid DESC LIMIT 1)`, -actual, finalBalance, actual, actual, now, userID, sourceType, sourceID)
+	if err != nil {
+		return err
+	}
+	if affected, affectedErr := result.RowsAffected(); affectedErr == nil && affected > 0 {
+		return nil
+	}
+	if actual <= 1e-9 {
+		return nil
+	}
+	_, err = tx.Exec(`INSERT INTO credit_ledger (id, user_id, type, credit_delta, credit_balance_after, source_type, source_id, credit_base_cost, credit_billed_cost, snapshot, created_at) VALUES (?, ?, 'usage_debit', ?, ?, ?, ?, ?, ?, ?, ?)`, mustRandomID(), userID, -actual, finalBalance, sourceType, sourceID, actual, actual, snapshot, now)
+	return err
 }

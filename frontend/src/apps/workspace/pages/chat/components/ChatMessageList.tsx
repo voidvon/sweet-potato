@@ -620,9 +620,11 @@ export function ChatMessageList({
   }
 
   function resolveImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
-    return typeof messageItem.creditCost === 'number'
-      ? messageItem.creditCost
-      : fallbackImageGenerationCreditCost(messageItem, previousUserMessage);
+    if (typeof messageItem.creditCost === 'number') {
+      return numericValue(previousUserMessage?.capabilityContext?.imageGeneration?.accumulatedCreditCost, 0)
+        + messageItem.creditCost;
+    }
+    return fallbackImageGenerationCreditCost(messageItem, previousUserMessage);
   }
 
   function renderImageGenerationCreditCost(messageItem: ChatMessage, previousUserMessage: ChatMessage | undefined) {
