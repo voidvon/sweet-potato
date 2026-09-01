@@ -30,11 +30,11 @@ import './PluginManagementPage.scss';
 type PluginFormValues = PluginSettingsPayload;
 
 const installStageLabels: Record<NonNullable<ManagedPlugin['runtime']['installStage']>, string> = {
-  preparing_source: '正在准备插件源码',
-  preparing_bun: '正在准备 Bun',
-  installing_dependencies: '正在安装 Remotion 依赖',
-  installing_browser: '正在安装 Chromium',
-  finalizing: '正在完成安装',
+  preparing_source: t('正在准备插件源码'),
+  preparing_bun: t('正在准备 Bun'),
+  installing_dependencies: t('正在安装 Remotion 依赖'),
+  installing_browser: t('正在安装 Chromium'),
+  finalizing: t('正在完成安装'),
 };
 
 export function PluginManagementPage() {
@@ -242,7 +242,7 @@ export function PluginManagementPage() {
                 ? t('正在下载 Bun {{0}}%', {
                   '0': Math.min(100, Math.round((Number(plugin.runtime.downloadedBytes) || 0) * 100 / Number(plugin.runtime.totalBytes))),
                 })
-                : t(installStageLabels[plugin.runtime.installStage ?? 'preparing_source'])}
+                : installStageLabels[plugin.runtime.installStage ?? 'preparing_source']}
             </Typography.Text>
           ) : null}
           {plugin.runtime.lastError ? <Typography.Text type="danger">{plugin.runtime.lastError}</Typography.Text> : null}
