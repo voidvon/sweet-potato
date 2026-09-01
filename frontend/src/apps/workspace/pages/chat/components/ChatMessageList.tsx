@@ -1,6 +1,6 @@
 import { Button, Dropdown, Image, Input, Modal, Popover, Tag, Tooltip, message } from 'antd';
 import { CloseCircleOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileOutlined, FilePdfOutlined, MoreOutlined } from '@ant-design/icons';
-import { ChevronRight, ImageOff, Info, LoaderCircle, RefreshCw } from 'lucide-react';
+import { ChevronRight, ImageOff, Info, LoaderCircle, RefreshCw, Type } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { CreditIcon } from '@shared/components/CreditIcon';
 import { formatCreditAmount } from '@shared/utils/credits';
@@ -108,6 +108,10 @@ export function ChatMessageList({
   const [unavailableImageUrls, setUnavailableImageUrls] = useState<Set<string>>(() => new Set());
   const [imageRegenerationDraft, setImageRegenerationDraft] = useState('');
   const [imageRegenerationPopoverKey, setImageRegenerationPopoverKey] = useState<string>();
+  const [imageInfoPopoverKey, setImageInfoPopoverKey] = useState<string>();
+  const [imageWatermarkPopoverKey, setImageWatermarkPopoverKey] = useState<string>();
+  const [imageWatermarkText, setImageWatermarkText] = useState('');
+  const [watermarkDownloadingImageKey, setWatermarkDownloadingImageKey] = useState<string>();
   const [regeneratingImageKey, setRegeneratingImageKey] = useState<string>();
   const [previewImageGroup, setPreviewImageGroup] = useState<{
     current: number;
@@ -456,6 +460,77 @@ export function ChatMessageList({
     window.URL.revokeObjectURL(objectUrl);
   }
 
+  async function downloadWatermarkedImage(
+    attachment: ChatAttachment,
+    imageGeneration: ImageGenerationContext | undefined,
+    watermarkText: string,
+  ) {
+    const response = await fetch(resolveAssetUrl(attachment.url));
+    if (!response.ok) {
+      throw new Error(t("图片下载失败"));
+    }
+    const sourceBlob = await response.blob();
+    const sourceUrl = window.URL.createObjectURL(sourceBlob);
+    try {
+      const sourceImage = new window.Image();
+      sourceImage.src = sourceUrl;
+      await sourceImage.decode();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = sourceImage.naturalWidth;
+      canvas.height = sourceImage.naturalHeight;
+      const context = canvas.getContext('2d');
+      if (!context || !canvas.width || !canvas.height) {
+        throw new Error(t("水印图片下载失败"));
+      }
+      context.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
+
+      const fontSize = Math.max(18, Math.min(96, Math.round(Math.min(canvas.width, canvas.height) * 0.035)));
+      const horizontalGap = Math.max(250, fontSize * 11);
+      const verticalGap = Math.max(200, fontSize * 8);
+      context.fillStyle = 'rgba(0, 0, 0, 0.06)';
+      context.font = `500 ${fontSize}px sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+
+      for (let y = -verticalGap; y < canvas.height + verticalGap; y += verticalGap) {
+        const row = Math.round(y / verticalGap);
+        const offset = Math.abs(row) % 2 === 1 ? horizontalGap / 2 : 0;
+        for (let x = -horizontalGap + offset; x < canvas.width + horizontalGap; x += horizontalGap) {
+          context.save();
+          context.translate(x, y);
+          context.rotate(-22 * Math.PI / 180);
+          context.fillText(watermarkText, 0, 0);
+          context.restore();
+        }
+      }
+
+      const watermarkedBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error(t("水印图片下载失败")));
+          }
+        }, 'image/png');
+      });
+      const downloadUrl = window.URL.createObjectURL(watermarkedBlob);
+      try {
+        const baseName = imageDownloadFileName(attachment, imageGeneration, 'image/png', new Date()).replace(/\.png$/i, '');
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${baseName}-watermark.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } finally {
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } finally {
+      window.URL.revokeObjectURL(sourceUrl);
+    }
+  }
+
   function downloadGeneratedImages(attachments: ChatAttachment[], imageGeneration: ImageGenerationContext | undefined) {
     const downloadedAt = new Date();
     attachments.forEach((attachment, index) => {
@@ -659,11 +734,14 @@ export function ChatMessageList({
     );
   }
 
-  function renderImageGenerationInfo(
+  function renderImageGenerationMenu(
+    messageItem: ChatMessage,
     attachment: ChatAttachment,
     imageGeneration: ImageGenerationContext | undefined,
     slotIndex: number,
   ) {
+    const imageKey = `${messageItem.id}:${slotIndex}`;
+    const isRegenerating = regeneratingImageKey === imageKey;
     const prompt = attachment.imageGenerationPrompt?.trim()
       || imageGeneration?.chapterPrompts?.[slotIndex]?.trim()
       || imageGeneration?.resolvedPrompt?.trim()
@@ -671,7 +749,7 @@ export function ChatMessageList({
     const references = attachment.imageGenerationReferenceAttachments
       ?? imageGeneration?.referenceAttachments
       ?? [];
-    const content = (
+    const infoContent = (
       <div className="chat-image-generation-info-popover">
         <section>
           <span className="chat-image-generation-info-label">{t("发送给图片 AI 的完整提示词")}</span>
@@ -701,28 +779,7 @@ export function ChatMessageList({
         </section>
       </div>
     );
-    return (
-      <Popover content={content} placement="topRight" trigger="click">
-        <Button
-          aria-label={t("查看生成信息")}
-          className="chat-image-generation-info-button"
-          icon={<Info size={15} strokeWidth={2.2} />}
-          onClick={(event) => event.stopPropagation()}
-          shape="circle"
-          size="small"
-          type="text"
-        />
-      </Popover>
-    );
-  }
-
-  function renderImageRegeneration(
-    messageItem: ChatMessage,
-    slotIndex: number,
-  ) {
-    const imageKey = `${messageItem.id}:${slotIndex}`;
-    const isRegenerating = regeneratingImageKey === imageKey;
-    const content = (
+    const regenerationContent = (
       <div className="chat-image-regeneration-popover" onClick={(event) => event.stopPropagation()}>
         <strong>{t("重新生成这张图片")}</strong>
         <Input.TextArea
@@ -766,30 +823,124 @@ export function ChatMessageList({
         </div>
       </div>
     );
+    const isInfoOpen = imageInfoPopoverKey === imageKey;
+    const isRegenerationOpen = imageRegenerationPopoverKey === imageKey;
+    const isWatermarkOpen = imageWatermarkPopoverKey === imageKey;
+    const isWatermarkDownloading = watermarkDownloadingImageKey === imageKey;
+    const watermarkContent = (
+      <div className="chat-image-watermark-popover" onClick={(event) => event.stopPropagation()}>
+        <strong>{t("添加水印")}</strong>
+        <Input
+          autoFocus
+          maxLength={100}
+          onChange={(event) => setImageWatermarkText(event.target.value)}
+          placeholder={t("请输入水印文字")}
+          value={imageWatermarkText}
+        />
+        <div className="chat-image-watermark-actions">
+          <Button
+            onClick={() => {
+              setImageWatermarkPopoverKey(undefined);
+              setImageWatermarkText('');
+            }}
+            size="small"
+          >
+            {t("取消")}
+          </Button>
+          <Button
+            disabled={!imageWatermarkText.trim()}
+            loading={isWatermarkDownloading}
+            onClick={async () => {
+              setWatermarkDownloadingImageKey(imageKey);
+              try {
+                await downloadWatermarkedImage(attachment, imageGeneration, imageWatermarkText.trim());
+                setImageWatermarkPopoverKey(undefined);
+                setImageWatermarkText('');
+              } catch (error) {
+                message.error(error instanceof Error ? error.message : t("水印图片下载失败"));
+              } finally {
+                setWatermarkDownloadingImageKey(undefined);
+              }
+            }}
+            size="small"
+            type="primary"
+          >
+            {t("添加水印并下载")}
+          </Button>
+        </div>
+      </div>
+    );
     return (
       <Popover
-        content={content}
+        content={isInfoOpen ? infoContent : isWatermarkOpen ? watermarkContent : regenerationContent}
         onOpenChange={(open) => {
-          if (isRegenerating) {
+          if (open) {
             return;
           }
-          setImageRegenerationPopoverKey(open ? imageKey : undefined);
+          if (isRegenerating || isWatermarkDownloading) {
+            return;
+          }
+          setImageInfoPopoverKey(undefined);
+          setImageRegenerationPopoverKey(undefined);
+          setImageWatermarkPopoverKey(undefined);
           setImageRegenerationDraft('');
+          setImageWatermarkText('');
         }}
-        open={imageRegenerationPopoverKey === imageKey}
+        open={isInfoOpen || isRegenerationOpen || isWatermarkOpen}
         placement="topRight"
         trigger="click"
       >
-        <Button
-          aria-label={t("重新生成这张图片")}
-          className="chat-image-regeneration-button"
-          disabled={Boolean(regeneratingImageKey)}
-          icon={<RefreshCw size={15} strokeWidth={2.2} />}
-          onClick={(event) => event.stopPropagation()}
-          shape="circle"
-          size="small"
-          type="text"
-        />
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'regenerate',
+                icon: <RefreshCw size={15} strokeWidth={2.2} />,
+                label: t("重新生成"),
+                disabled: Boolean(regeneratingImageKey),
+              },
+              {
+                key: 'info',
+                icon: <Info size={15} strokeWidth={2.2} />,
+                label: t("生成信息"),
+              },
+              {
+                key: 'watermark',
+                icon: <Type size={15} strokeWidth={2.2} />,
+                label: t("添加水印"),
+                disabled: Boolean(watermarkDownloadingImageKey),
+              },
+            ],
+            onClick: ({ key, domEvent }) => {
+              domEvent.stopPropagation();
+              setImageInfoPopoverKey(undefined);
+              setImageRegenerationPopoverKey(undefined);
+              setImageWatermarkPopoverKey(undefined);
+              if (key === 'regenerate') {
+                setImageRegenerationPopoverKey(imageKey);
+                setImageRegenerationDraft('');
+                return;
+              }
+              if (key === 'watermark') {
+                setImageWatermarkPopoverKey(imageKey);
+                setImageWatermarkText('');
+                return;
+              }
+              setImageInfoPopoverKey(imageKey);
+            },
+          }}
+          trigger={['click']}
+        >
+          <Button
+            aria-label={t("更多操作")}
+            className="chat-image-generation-menu-button"
+            icon={<MoreOutlined />}
+            onClick={(event) => event.stopPropagation()}
+            shape="circle"
+            size="small"
+            type="text"
+          />
+        </Dropdown>
       </Popover>
     );
   }
@@ -975,8 +1126,7 @@ export function ChatMessageList({
                                     <span>{t("重新生成中…")}</span>
                                   </span>
                                 ) : null}
-                                {renderImageRegeneration(item, index)}
-                                {renderImageGenerationInfo(attachment, imageGenerationContext, index)}
+                                {renderImageGenerationMenu(item, attachment, imageGenerationContext, index)}
                               </div>
                             ) : failure || isLegacyImageGenerationFailed ? (
                               <div
