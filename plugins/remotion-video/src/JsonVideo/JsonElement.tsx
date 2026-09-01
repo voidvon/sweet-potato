@@ -4,6 +4,8 @@ import { Audio, Video } from "@remotion/media";
 import {
   AnimatedImage,
   CanvasImage,
+  interpolate,
+  spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -21,6 +23,27 @@ const getCaptionTextShadow = (color: string, blur: number) => {
   const offset = Math.max(1, Math.round(blur / 6));
   const glow = Math.max(1, Math.round(blur / 2));
   return `0 ${offset}px ${blur}px ${color}, 0 0 ${glow}px ${color}`;
+};
+
+const getCaptionMotionStyle = (
+  preset: "none" | "fade" | "rise" | "word-highlight",
+  currentTimeMs: number,
+  startMs: number,
+  endMs: number,
+): CSSProperties => {
+  if (preset === "none" || preset === "word-highlight") return {};
+  const enter = interpolate(currentTimeMs, [startMs, Math.min(endMs, startMs + 180)], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const exit = interpolate(currentTimeMs, [Math.max(startMs, endMs - 150), endMs], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const opacity = Math.min(enter, exit);
+  return preset === "rise"
+    ? { opacity, translate: `0 ${18 * (1 - enter)}px` }
+    : { opacity };
 };
 
 const CaptionsContent: React.FC<{
@@ -62,6 +85,12 @@ const CaptionsContent: React.FC<{
           padding: element.style.padding,
           whiteSpace: "pre-wrap",
           boxSizing: "border-box",
+          ...getCaptionMotionStyle(
+            element.animationPreset,
+            currentTimeMs,
+            activeCaption.startMs,
+            activeCaption.endMs,
+          ),
         }}
       >
         {activeCaption.text}
@@ -119,7 +148,12 @@ const ElementContent: React.FC<{ element: VisualElement }> = ({ element }) => {
   if (element.type === "text") {
     const contentAnimation = element.animations.find(
       (animation) =>
-        animation.type === "typewriter" || animation.type === "count-up",
+        animation.type === "typewriter" ||
+        animation.type === "count-up" ||
+        animation.type === "char-bounce-in",
+    );
+    const shineAnimation = element.animations.find(
+      (animation) => animation.type === "shine-in",
     );
     let content = element.content;
 
@@ -150,23 +184,91 @@ const ElementContent: React.FC<{ element: VisualElement }> = ({ element }) => {
       content = `${contentAnimation.prefix}${formattedValue}${contentAnimation.suffix}`;
     }
 
+    const textStyle: CSSProperties = shineAnimation
+      ? {
+          color: "transparent",
+          backgroundImage: `linear-gradient(110deg, ${element.style.color} 30%, ${shineAnimation.shineColor} 50%, ${element.style.color} 70%)`,
+          backgroundSize: "250% 100%",
+          backgroundPosition: `${interpolate(
+            frame,
+            [
+              shineAnimation.from,
+              shineAnimation.from + shineAnimation.durationInFrames,
+            ],
+            [200, -100],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+          )}% 0`,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }
+      : { color: element.style.color };
+    const sharedStyle: CSSProperties = {
+      width: element.style.width,
+      fontFamily: element.style.fontFamily,
+      fontSize: element.style.fontSize,
+      fontWeight: element.style.fontWeight,
+      lineHeight: element.style.lineHeight,
+      textAlign: element.style.textAlign,
+      backgroundColor: element.style.backgroundColor,
+      padding: element.style.padding,
+      borderRadius: element.style.borderRadius,
+      whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere",
+      boxSizing: "border-box",
+      ...textStyle,
+    };
+
+    if (contentAnimation?.type === "char-bounce-in") {
+      const characters = Array.from(element.content);
+      const maxStagger =
+        (contentAnimation.durationInFrames * 0.65) /
+        Math.max(1, characters.length - 1);
+      const stagger = Math.min(contentAnimation.staggerFrames, maxStagger);
+      return (
+        <div style={sharedStyle}>
+          {characters.map((character, index) => {
+            const offset = index * stagger;
+            const progress = spring({
+              frame: Math.max(0, frame - contentAnimation.from - offset),
+              fps,
+              durationInFrames: Math.max(
+                6,
+                contentAnimation.durationInFrames - offset,
+              ),
+              config: {
+                damping: contentAnimation.damping,
+                mass: contentAnimation.mass,
+                stiffness: contentAnimation.stiffness,
+              },
+            });
+            return (
+              <span
+                key={`${character}-${index}`}
+                style={{
+                  display: "inline-block",
+                  opacity: interpolate(progress, [0, 1], [0, 1], {
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
+                  }),
+                  translate: `0 ${contentAnimation.fromY * (1 - progress)}px`,
+                  scale:
+                    contentAnimation.fromScale +
+                    (1 - contentAnimation.fromScale) * progress,
+                  whiteSpace: character === " " ? "pre" : undefined,
+                }}
+              >
+                {character}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
       <div
-        style={{
-          width: element.style.width,
-          color: element.style.color,
-          fontFamily: element.style.fontFamily,
-          fontSize: element.style.fontSize,
-          fontWeight: element.style.fontWeight,
-          lineHeight: element.style.lineHeight,
-          textAlign: element.style.textAlign,
-          backgroundColor: element.style.backgroundColor,
-          padding: element.style.padding,
-          borderRadius: element.style.borderRadius,
-          whiteSpace: "pre-wrap",
-          overflowWrap: "anywhere",
-          boxSizing: "border-box",
-        }}
+        style={sharedStyle}
       >
         {content}
       </div>

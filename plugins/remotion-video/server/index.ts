@@ -6,6 +6,7 @@ import { makeRenderQueue } from "./render-queue";
 import { createRenderSchema } from "./schema";
 import { CURRENT_JSON_VIDEO_VERSION } from "../src/JsonVideo/schema";
 import { remotionVideoCapabilities } from "./capabilities";
+import { composeRequestSchema, composeVideo } from "./compose";
 
 const packageMetadata = (await Bun.file(path.resolve("package.json")).json()) as {
   version?: string;
@@ -89,6 +90,28 @@ const server = Bun.serve({
 
     if (request.method === "GET" && url.pathname === "/capabilities") {
       return json(remotionVideoCapabilities);
+    }
+
+    if (request.method === "POST" && url.pathname === "/compose") {
+      const contentLength = Number(request.headers.get("content-length") || 0);
+      if (contentLength > maxRequestBytes) {
+        return json({ message: "Compose request is too large" }, 413);
+      }
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ message: "Request body must be valid JSON" }, 400);
+      }
+      const parsed = composeRequestSchema.safeParse(body);
+      if (!parsed.success) {
+        return json({ message: "Invalid compose request", issues: parsed.error.issues }, 400);
+      }
+      try {
+        return json(composeVideo(parsed.data));
+      } catch (error) {
+        return json({ message: error instanceof Error ? error.message : "Compose failed" }, 400);
+      }
     }
 
     if (request.method === "POST" && url.pathname === "/validate") {

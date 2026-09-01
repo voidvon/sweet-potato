@@ -496,7 +496,7 @@ function RemotionJSONResult({ record }: { record: LightweightCreationRecord }) {
       <div className="lightweight-remotion-json-summary">
         <div>
           <strong>{generation.preset?.name || generation.presetId}</strong>
-          <span>JsonVideo {generation.validation?.schemaVersion || generation.preset?.schemaVersion || '1.1'}</span>
+          <span>JsonVideo {generation.validation?.schemaVersion || generation.preset?.schemaVersion || '2.0'}</span>
         </div>
         <span>{generation.validation?.valid ? t('Schema 校验通过') : t('等待 Schema 校验')}</span>
       </div>

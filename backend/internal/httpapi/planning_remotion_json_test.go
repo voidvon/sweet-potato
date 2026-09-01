@@ -29,7 +29,7 @@ func TestRemotionPresetsAndGenerationRequireRunningPlugin(t *testing.T) {
 		Presets []map[string]any `json:"presets"`
 		Runtime map[string]any   `json:"runtime"`
 	}
-	if err := json.NewDecoder(presetsResponse.Body).Decode(&presets); err != nil || len(presets.Presets) != 3 || presets.Runtime["state"] != "not_installed" {
+	if err := json.NewDecoder(presetsResponse.Body).Decode(&presets); err != nil || len(presets.Presets) != 0 || presets.Runtime["state"] != "not_installed" {
 		t.Fatalf("presets = %#v err=%v", presets, err)
 	}
 
@@ -51,9 +51,8 @@ func TestRemotionPresetsAndGenerationRequireRunningPlugin(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("find planning session: found=%v err=%v", found, err)
 	}
-	generation := objectValue(updated.Analysis["remotionGeneration"])
-	if stringValue(generation, "status") != "failed" || stringValue(generation, "presetId") != "clean-marketing" {
-		t.Fatalf("generation = %#v", generation)
+	if generation := objectValue(updated.Analysis["remotionGeneration"]); len(generation) != 0 {
+		t.Fatalf("generation should not be persisted before the plugin accepts compose: %#v", generation)
 	}
 }
 

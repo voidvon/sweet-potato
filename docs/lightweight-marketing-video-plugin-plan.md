@@ -248,7 +248,11 @@ draft
 
 轻量营销视频页面在 AI 内容分析之前提供独立的“附件解析”阶段：上传 PPTX/PDF 后可显式触发解析，完成后通过按钮打开结果弹窗；弹窗按文档切换，左侧展示逐页文案，右侧展示过滤后写入 `content_assets` 的图片。没有文档附件时该阶段显示为无需执行，不阻塞普通图片和营销需求的 AI 分析。
 
-AI 内容分析同时输出宣传图场景规划，包括全片统一视觉风格、2 至 6 个场景、场景文案、旁白、CTA、时长、图片提示词和真实参考素材 ID。宣传图片阶段通过 `POST /api/content-planning/sessions/:id/campaign-images` 异步按场景生成 16:9 图片；结果保存到 `content_assets`，策划会话仅保存生成状态、场景关联和资产 ID。页面刷新后通过策划会话恢复进度和结果，不依赖浏览器内存。
+AI 内容分析同时输出宣传图场景规划，包括全片统一视觉风格、2 至 6 个场景、场景文案、旁白、CTA、时长、图片提示词和真实参考素材 ID。每个场景可通过 `imagePrompts` 规划 1 至 3 个不同镜头；遇到拼图、PPT 页面、照片墙或包含多个独立主体的参考图时，应按区域或主题拆分镜头，而不是只生成一张整图复刻。宣传图片阶段通过 `POST /api/content-planning/sessions/:id/campaign-images` 异步生成最多 12 张 16:9 图片，先保证每个场景一张主图，再依次生成第二、第三镜头。结果保存到 `content_assets`，策划会话仅保存生成状态、`sceneId`、`variantId`、`variantIndex` 和资产 ID。页面刷新后通过策划会话恢复进度和结果，不依赖浏览器内存。
+
+生成 Remotion JSON 前会调用独立的 AI 分镜编排步骤。Go 实时读取插件 `GET /capabilities` 的分类能力，并据此生成严格的 AI 工具参数；AI 只输出受约束的图片顺序、构图方向、文字入场与强调、图片持续运动与切换、场景转场和字幕动效。Go 不再维护任何具体 Remotion 动画参数，而是把业务分镜与分类化 `motionPlan` 提交给插件 `POST /compose`，由插件唯一地编译 JsonVideo 2.0。AI 编排失败或未配置模型时提交空场景计划，由插件使用当前预设默认值完成编译，不阻断视频生成；启用计费时该步骤使用 `content_planning_remotion_arrangement` 单独记录费用。蒙版揭示暂不纳入本阶段。
+
+同一场景包含多张图片时，图片片段通过 6 至 12 帧重叠实现交叉淡化，时间轴扩展部分由重叠抵消，因此不改变场景和旁白总时长。全屏图片的缩放动效始终保持比例不小于 `1.0`，避免缩放过程中暴露场景背景或产生四周黑边。
 
 ## 8. 数据与任务建议
 
@@ -276,7 +280,13 @@ AI 内容分析同时输出宣传图场景规划，包括全片统一视觉风�
 - `DELETE /renders/:jobId`：取消排队中或渲染中的任务。
 - `GET /renders/:jobId/video`：读取完成后的 MP4。
 
-当前 `inputProps` 使用 `version: "1.1"` 的 JsonVideo 数据，包含 `video`、`scenes`、`elements`、动画和转场等字段。接入时应复用 `src/JsonVideo/schema` 的 Schema，而不是在两个项目里分别手写不一致的校验规则。
+当前 `inputProps` 只接受 `version: "2.0"` 的 JsonVideo 数据，包含 `video`、`scenes`、`elements`、动画和转场等字段。插件是能力注册、具体动画参数、时间轴编译和 Schema 校验的唯一来源，Agent Tool 不复制这些规则。旧 1.x JSON 不兼容，也不迁移；用户需要重新生成 JSON。
+
+插件契约还包括：
+
+- `GET /capabilities`：返回分类化 `motion`、文字位置、视频预设和限制，不再返回扁平的 `animationTypes` 或 `transitionTypes`。
+- `POST /compose`：接收业务分镜和分类化 `motionPlan`，输出预设、语义计划及 JsonVideo 2.0 渲染请求。
+- `POST /validate`：使用插件内同一份 Schema 校验最终渲染请求。
 
 ### 9.2 建议补强
 
@@ -373,10 +383,11 @@ Remotion JSON 中不要出现服务器本地绝对路径。推荐使用以下方
 
 - 接入 TTS 音色、语速和试听。
 - 依据真实音频时长生成字幕及场景时间轴。
-- 在 Go 侧生成版本化 JsonVideo 输入并完成预校验。
+- 动态读取插件分类能力，由 AI 输出分类化 `motionPlan`。
+- 调用插件 `/compose` 生成 JsonVideo 2.0，再调用 `/validate` 校验。
 - 支持查看 JSON 和必要的高级编辑，但默认不要求用户手写 JSON。
 
-当前实现采用“语义编排 + 确定性 Builder”方案：AI 内容分析产出的 `campaignPlan` 作为语义场景计划，Go 根据已启用的视频风格预设，将宣传图片、旁白和场景内相对字幕映射为 `JsonVideo 1.1`。Remotion 插件通过 `GET /capabilities` 声明元素、动效、转场和限制，通过 `POST /validate` 对最终渲染请求执行严格 Schema 校验。只有校验通过的 JSON 才写入 `content_planning_sessions.analysis.remotionGeneration`。
+当前实现采用“业务编排 + 插件编译”方案：AI 内容分析产出的 `campaignPlan` 作为语义场景计划，AI 根据插件实时声明的分类能力生成 `motionPlan`；Go 仅整理宣传图片、旁白、字幕和可访问素材 URL，并调用插件 `/compose`。插件负责图片时间轴、动画参数、文字布局、字幕显示和场景转场，生成 JsonVideo 2.0 后再由 `/validate` 严格校验。只有校验通过的结果才写入 `content_planning_sessions.analysis.remotionGeneration`。
 
 第一批内置风格为“简约营销”“动感促销”和“科技聚焦”。风格预设只组合插件已经注册的原子能力，不允许 AI 自由发明动效名称。重新生成宣传图片或旁白时，已有 `remotionGeneration` 会自动失效，防止继续使用旧素材 JSON。
 

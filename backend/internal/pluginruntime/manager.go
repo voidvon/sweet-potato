@@ -251,6 +251,10 @@ func (m *Manager) Validate(ctx context.Context, key string, payload any) (map[st
 	return m.requestJSON(ctx, key, http.MethodPost, "/validate", payload)
 }
 
+func (m *Manager) Compose(ctx context.Context, key string, payload any) (map[string]any, error) {
+	return m.requestJSON(ctx, key, http.MethodPost, "/compose", payload)
+}
+
 func (m *Manager) SubmitRender(ctx context.Context, key string, payload any) (string, error) {
 	result, err := m.requestJSON(ctx, key, http.MethodPost, "/renders", payload)
 	if err != nil {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CURRENT_JSON_VIDEO_VERSION = "1.1" as const;
+export const CURRENT_JSON_VIDEO_VERSION = "2.0" as const;
 
 const finiteNumber = z.number().finite();
 const frame = z.number().int().min(0);
@@ -158,6 +158,26 @@ export const animationSchema = z.discriminatedUnion("type", [
       durationInFrames: duration.default(30),
       cursor: z.string().max(4).default("|"),
       showCursor: z.boolean().default(true),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("shine-in"),
+      ...timedAnimation,
+      shineColor: cssColor.default("#FFFFFF"),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("char-bounce-in"),
+      from: frame.default(0),
+      durationInFrames: duration.default(36),
+      staggerFrames: finiteNumber.min(0.25).max(12).default(2),
+      fromY: finiteNumber.min(-500).max(500).default(36),
+      fromScale: finiteNumber.min(0).max(10).default(0.65),
+      damping: finiteNumber.min(1).max(1000).default(14),
+      mass: finiteNumber.min(0.01).max(100).default(0.8),
+      stiffness: finiteNumber.min(1).max(1000).default(150),
     })
     .strict(),
   z
@@ -362,6 +382,9 @@ const captionsElementSchema = z
       .min(100)
       .max(10000)
       .default(1200),
+    animationPreset: z
+      .enum(["none", "fade", "rise", "word-highlight"])
+      .default("none"),
     style: z
       .object({
         width: finiteNumber.min(1).max(4096).default(1600),
@@ -482,7 +505,7 @@ export const jsonVideoSceneSchema = z
 
 export const jsonVideoSchema = z
   .object({
-    version: z.enum(["1.0", CURRENT_JSON_VIDEO_VERSION]),
+    version: z.literal(CURRENT_JSON_VIDEO_VERSION),
     video: z
       .object({
         width: z.number().int().min(240).max(4096),
@@ -535,7 +558,9 @@ export const jsonVideoSchema = z
 
           if (
             (animation.type === "typewriter" ||
-              animation.type === "count-up") &&
+              animation.type === "count-up" ||
+              animation.type === "shine-in" ||
+              animation.type === "char-bounce-in") &&
             element.type !== "text"
           ) {
             context.addIssue({
@@ -548,7 +573,9 @@ export const jsonVideoSchema = z
 
         const contentAnimationCount = element.animations.filter(
           (animation) =>
-            animation.type === "typewriter" || animation.type === "count-up",
+            animation.type === "typewriter" ||
+            animation.type === "count-up" ||
+            animation.type === "char-bounce-in",
         ).length;
         if (contentAnimationCount > 1) {
           context.addIssue({
@@ -587,14 +614,6 @@ export const jsonVideoSchema = z
       return;
     }
     const scenes = value.scenes;
-
-    if (value.version === "1.0") {
-      context.addIssue({
-        code: "custom",
-        message: 'Scenes require DSL version "1.1"',
-        path: ["version"],
-      });
-    }
 
     validateElements(value.elements, value.video.durationInFrames, [
       "elements",

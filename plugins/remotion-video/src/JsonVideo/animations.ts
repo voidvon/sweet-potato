@@ -16,7 +16,11 @@ export const getAnimationProgress = (
   frame: number,
   fps: number,
 ) => {
-  if (animation.type === "spring-in" || animation.type === "bounce-in") {
+  if (
+    animation.type === "spring-in" ||
+    animation.type === "bounce-in" ||
+    animation.type === "char-bounce-in"
+  ) {
     return spring({
       frame: Math.max(0, frame - animation.from),
       fps,
@@ -120,6 +124,7 @@ export const getAnimationValues = ({
     if (animation.type === "blur-in") {
       blur += animation.blur * (1 - progress);
     }
+    if (animation.type === "shine-in") opacity *= progress;
     if (animation.type === "blur-out") {
       blur += animation.blur * progress;
     }

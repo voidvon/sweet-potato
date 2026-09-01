@@ -366,12 +366,14 @@ func (s *Server) finalizeRemotionRender(session store.ContentPlanningSession, ru
 	insights := objectValue(session.Analysis["productInsights"])
 	name := valueOr(strings.TrimSpace(stringValue(insights, "productName")), "轻量营销视频")
 	videoTaskID := "remotion-" + runID
+	remotionGeneration := objectValue(current.Analysis["remotionGeneration"])
+	schemaVersion := stringValue(objectValue(remotionGeneration["validation"]), "schemaVersion")
 	asset, err := s.store.CreateContentAsset(store.ContentAsset{
 		UserID: session.UserID, GroupID: groupID, ResourceType: "finished_video", Type: "generated",
 		Name: name, OriginalFileName: storedName, StoredFileName: storedName, MimeType: "video/mp4",
 		FileSize: written, Size: written, FilePath: finalPath, FileURL: "/files/" + storedName,
 		AssetKind: "lightweight_marketing_video", LifecycleStatus: "permanent",
-		Metadata: map[string]any{"taskId": videoTaskID, "planningSessionId": session.ID, "pluginJobId": jobID, "provider": "remotion", "renderMode": "remotion-json", "schemaVersion": "1.1"},
+		Metadata: map[string]any{"taskId": videoTaskID, "planningSessionId": session.ID, "pluginJobId": jobID, "provider": "remotion", "renderMode": "remotion-json", "schemaVersion": schemaVersion},
 	})
 	if err != nil {
 		_ = os.Remove(finalPath)

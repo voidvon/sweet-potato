@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { getJsonVideoDuration, jsonVideoSchema } from "./schema";
 
 const validVideo = {
-  version: "1.0" as const,
+  version: "2.0" as const,
   video: {
     width: 1920,
     height: 1080,
@@ -134,7 +134,7 @@ describe("jsonVideoSchema", () => {
   test("accepts scenes and subtracts transition overlap from duration", () => {
     const parsed = jsonVideoSchema.parse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       elements: [],
       scenes: [
         {
@@ -162,7 +162,7 @@ describe("jsonVideoSchema", () => {
   test("accepts global narration and captions over scenes", () => {
     const parsed = jsonVideoSchema.safeParse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       video: { ...validVideo.video, durationInFrames: 195 },
       elements: [
         {
@@ -203,7 +203,7 @@ describe("jsonVideoSchema", () => {
   test("rejects a transition after the final scene", () => {
     const parsed = jsonVideoSchema.safeParse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       elements: [],
       scenes: [
         {
@@ -220,7 +220,7 @@ describe("jsonVideoSchema", () => {
   test("rejects transitions as long as an adjacent scene", () => {
     const parsed = jsonVideoSchema.safeParse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       elements: [],
       scenes: [
         {
@@ -238,7 +238,7 @@ describe("jsonVideoSchema", () => {
   test("rejects an element extending past its scene", () => {
     const parsed = jsonVideoSchema.safeParse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       elements: [],
       scenes: [
         {
@@ -253,16 +253,6 @@ describe("jsonVideoSchema", () => {
           ],
         },
       ],
-    });
-
-    expect(parsed.success).toBe(false);
-  });
-
-  test("rejects scenes in DSL version 1.0", () => {
-    const parsed = jsonVideoSchema.safeParse({
-      ...validVideo,
-      elements: [],
-      scenes: [{ id: "intro", durationInFrames: 60 }],
     });
 
     expect(parsed.success).toBe(false);
@@ -284,26 +274,36 @@ describe("jsonVideoSchema", () => {
             { type: "float" },
             { type: "ken-burns" },
             { type: "typewriter" },
+            { type: "shine-in" },
           ],
         },
       ],
     });
 
     const element = parsed.elements[0];
-    expect(element.animations).toHaveLength(9);
+    expect(element.animations).toHaveLength(10);
     expect(element.animations[0]).toMatchObject({
       type: "blur-in",
       blur: 16,
     });
   });
 
-  test("accepts count-up on text and rejects content animations elsewhere", () => {
+  test("accepts content animations on text and rejects them elsewhere", () => {
     const countUp = jsonVideoSchema.safeParse({
       ...validVideo,
       elements: [
         {
           ...validVideo.elements[0],
           animations: [{ type: "count-up", toValue: 10000, suffix: "+" }],
+        },
+      ],
+    });
+    const charBounce = jsonVideoSchema.safeParse({
+      ...validVideo,
+      elements: [
+        {
+          ...validVideo.elements[0],
+          animations: [{ type: "char-bounce-in" }],
         },
       ],
     });
@@ -317,12 +317,13 @@ describe("jsonVideoSchema", () => {
           durationInFrames: 150,
           position: { x: 960, y: 540 },
           size: { width: 400, height: 300 },
-          animations: [{ type: "typewriter" }],
+          animations: [{ type: "char-bounce-in" }],
         },
       ],
     });
 
     expect(countUp.success).toBe(true);
+    expect(charBounce.success).toBe(true);
     expect(invalidImage.success).toBe(false);
   });
 
@@ -347,7 +348,7 @@ describe("jsonVideoSchema", () => {
 
     const parsed = jsonVideoSchema.safeParse({
       ...validVideo,
-      version: "1.1",
+      version: "2.0",
       elements: [],
       scenes: [...scenes, { id: "scene-4", durationInFrames: 45 }],
     });

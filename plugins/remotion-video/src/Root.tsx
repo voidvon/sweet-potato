@@ -18,7 +18,7 @@ export const RemotionRoot: React.FC = () => {
         height: props.video.height,
       })}
       defaultProps={{
-        version: "1.0",
+        version: "2.0",
         video: {
           width: 1920,
           height: 1080,

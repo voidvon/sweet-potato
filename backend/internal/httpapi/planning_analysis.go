@@ -17,6 +17,8 @@ const (
 	planningAnalysisMaxImages     = 16
 	planningAnalysisMaxText       = 60000
 	planningCampaignMaxReferences = 6
+	planningCampaignMaxVariants   = 3
+	planningCampaignMaxImages     = 12
 )
 
 type planningAnalysisContext struct {
@@ -386,8 +388,9 @@ func planningExtractionText(asset store.ContentAsset, result map[string]any) str
 func planningAnalysisModelInput(session store.ContentPlanningSession, analysisContext planningAnalysisContext) []map[string]any {
 	parts := []map[string]any{{"type": "input_text", "text": strings.Join([]string{
 		"请结合营销需求和所有附件，完成营销视频前置内容分析。不得编造附件中不存在的产品参数；不确定内容请写入 notes。",
-		"同时规划 2 至 6 个宣传视频场景。宣传图片是视频的核心画面，必须为每个场景提供可直接生图的中文 imagePrompt，不得返回空的 campaignPlan 或 scenes。先确定贯穿全片的视觉风格，再为每个场景生成主标题、副标题、旁白、CTA、用途、时长和中文图片提示词。",
+		"同时规划 2 至 6 个宣传视频场景。宣传图片是视频的核心画面，每个场景必须提供主 imagePrompt，并在 imagePrompts 中规划 1 至 3 个内容或构图明显不同、可直接生图的中文镜头提示词，不得返回空的 campaignPlan 或 scenes。先确定贯穿全片的视觉风格，再为每个场景生成主标题、副标题、旁白、CTA、用途、时长和图片提示词。",
 		"必须尽可能使用附件索引中的真实图片：每张有效图片 asset_id 至少分配给一个场景，不得只反复使用少数图片；若图片较多，可在不同场景间均匀分配，每个场景最多引用 6 张。即使没有可用原图，也必须根据文案规划完整的宣传图片场景。图片提示词不得要求生成文字、字幕、Logo、水印、UI 标签或边框，并为后续叠加文案预留清晰区域。",
+		"如果一张参考图是拼图、PPT 页面、照片墙或同时包含多个独立产品/场景，必须识别其中可独立使用的视觉区域，并用多个 imagePrompts 分别聚焦不同区域或主题，不要只生成一张概括全部内容的图片。普通单主体参考图也应尽量提供全景、特写或不同使用场景等至少 2 个镜头。全部场景合计最多规划 12 张宣传图片。",
 		"产品名称：" + stringValue(session.MaterialBundle, "productName"),
 		"营销需求：" + stringValue(session.MaterialBundle, "prompt"),
 		"附件索引：\n" + strings.Join(analysisContext.sourceInfo, "\n"),
@@ -413,13 +416,14 @@ func planningAnalysisResultTool() map[string]any {
 	stringArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 	campaignScene := map[string]any{
 		"type": "object", "additionalProperties": false,
-		"required": []string{"id", "title", "subtitle", "voiceover", "cta", "purpose", "durationInSeconds", "assetIds", "imagePrompt"},
+		"required": []string{"id", "title", "subtitle", "voiceover", "cta", "purpose", "durationInSeconds", "assetIds", "imagePrompt", "imagePrompts"},
 		"properties": map[string]any{
 			"id": map[string]any{"type": "string"}, "title": map[string]any{"type": "string"}, "subtitle": map[string]any{"type": "string"},
 			"voiceover": map[string]any{"type": "string"}, "cta": map[string]any{"type": "string"}, "purpose": map[string]any{"type": "string"},
 			"durationInSeconds": map[string]any{"type": "number", "minimum": 2, "maximum": 10},
 			"assetIds":          map[string]any{"type": "array", "maxItems": planningCampaignMaxReferences, "items": map[string]any{"type": "string"}},
 			"imagePrompt":       map[string]any{"type": "string"},
+			"imagePrompts":      map[string]any{"type": "array", "minItems": 1, "maxItems": planningCampaignMaxVariants, "items": map[string]any{"type": "string"}},
 		},
 	}
 	campaignPlan := map[string]any{
@@ -560,10 +564,11 @@ func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningA
 		if prompt == "" {
 			prompt = fmt.Sprintf("生成与“%s”匹配的专业营销视频画面", valueOr(title, fmt.Sprintf("场景 %d", index+1)))
 		}
+		imagePrompts := normalizePlanningImagePrompts(item["imagePrompts"], prompt, len(assetIDs) > 0)
 		scenes = append(scenes, map[string]any{
 			"id": id, "title": title, "subtitle": stringValue(item, "subtitle"), "voiceover": stringValue(item, "voiceover"),
 			"cta": stringValue(item, "cta"), "purpose": stringValue(item, "purpose"), "durationInSeconds": duration,
-			"assetIds": assetIDs, "imagePrompt": prompt,
+			"assetIds": assetIDs, "imagePrompt": prompt, "imagePrompts": imagePrompts,
 		})
 	}
 	// A campaign image plan is required by all downstream video stages. Keep a
@@ -581,7 +586,7 @@ func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningA
 		scenes = append(scenes, map[string]any{
 			"id": fmt.Sprintf("scene-%d", index+1), "title": fallback["title"], "subtitle": "", "voiceover": fallback["voiceover"],
 			"cta": "", "purpose": fallback["purpose"], "durationInSeconds": float64(4),
-			"assetIds": []string{}, "imagePrompt": fallback["prompt"],
+			"assetIds": []string{}, "imagePrompt": fallback["prompt"], "imagePrompts": []string{fallback["prompt"]},
 		})
 	}
 
@@ -616,7 +621,7 @@ func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningA
 			scenes = append(scenes, map[string]any{
 				"id": fmt.Sprintf("scene-%d", index+1), "title": fallback["title"], "subtitle": "", "voiceover": fallback["voiceover"],
 				"cta": "", "purpose": fallback["purpose"], "durationInSeconds": float64(4),
-				"assetIds": []string{assetID}, "imagePrompt": fallback["prompt"],
+				"assetIds": []string{assetID}, "imagePrompt": fallback["prompt"], "imagePrompts": normalizePlanningImagePrompts(nil, fallback["prompt"], true),
 			})
 		}
 		used[assetID] = true
@@ -626,6 +631,32 @@ func normalizePlanningCampaignPlan(raw map[string]any, analysisContext planningA
 		visualStyle = "专业、统一、清晰的营销视频视觉，主体突出，适合后续叠加文案"
 	}
 	return map[string]any{"visualStyle": visualStyle, "scenes": scenes}
+}
+
+func normalizePlanningImagePrompts(raw any, primary string, hasReferences bool) []string {
+	result := []string{}
+	appendPrompt := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" || planningContainsString(result, value) || len(result) >= planningCampaignMaxVariants {
+			return
+		}
+		result = append(result, value)
+	}
+	appendPrompt(primary)
+	for _, value := range stringSlice(raw) {
+		appendPrompt(value)
+	}
+	// Legacy analyses only had one prompt. A referenced image may contain more
+	// than one useful subject (for example a PPT photo wall), so regeneration
+	// should immediately gain another distinct shot without requiring users to
+	// pay for AI analysis again.
+	if hasReferences && len(result) == 1 {
+		appendPrompt(primary + "；从参考素材中选择另一个可独立使用的主体、局部或场景，采用不同景别和构图，避免复制上一张画面")
+	}
+	if len(result) == 0 {
+		result = []string{"专业营销视频画面，主体清晰，构图有吸引力，并预留文案区域"}
+	}
+	return result
 }
 
 func planningContainsString(values []string, target string) bool {

@@ -105,15 +105,14 @@ func (s *Server) executePlanningCampaignImages(sessionID, runID, requestedModelI
 func (s *Server) planningCampaignImageInputs(session store.ContentPlanningSession) ([]string, [][]store.ContentAsset, []map[string]any, error) {
 	plan := objectValue(session.Analysis["campaignPlan"])
 	visualStyle := strings.TrimSpace(stringValue(plan, "visualStyle"))
-	prompts := []string{}
-	referenceSets := [][]store.ContentAsset{}
-	scenes := []map[string]any{}
+	type sceneImagePlan struct {
+		scene      map[string]any
+		references []store.ContentAsset
+		prompts    []string
+	}
+	plans := []sceneImagePlan{}
 	for _, value := range anySlice(plan["scenes"]) {
 		scene := objectValue(value)
-		imagePrompt := strings.TrimSpace(stringValue(scene, "imagePrompt"))
-		if imagePrompt == "" {
-			continue
-		}
 		references := []store.ContentAsset{}
 		for _, assetID := range stringSlice(scene["assetIds"]) {
 			asset, found, err := s.store.FindContentAsset(assetID)
@@ -128,14 +127,43 @@ func (s *Server) planningCampaignImageInputs(session store.ContentPlanningSessio
 				break
 			}
 		}
-		prompt := strings.TrimSpace(fmt.Sprintf(`全片统一视觉方向：%s
+		plans = append(plans, sceneImagePlan{
+			scene:      scene,
+			references: references,
+			prompts:    normalizePlanningImagePrompts(scene["imagePrompts"], stringValue(scene, "imagePrompt"), len(references) > 0),
+		})
+	}
+
+	prompts := []string{}
+	referenceSets := [][]store.ContentAsset{}
+	scenes := []map[string]any{}
+	// Fill one image for every scene before adding second and third variants.
+	// This keeps the global limit from starving scenes near the end of the plan.
+	for variantIndex := 0; variantIndex < planningCampaignMaxVariants; variantIndex++ {
+		for _, imagePlan := range plans {
+			if len(prompts) >= planningCampaignMaxImages {
+				break
+			}
+			if variantIndex >= len(imagePlan.prompts) {
+				continue
+			}
+			imagePrompt := imagePlan.prompts[variantIndex]
+			prompt := strings.TrimSpace(fmt.Sprintf(`全片统一视觉方向：%s
 
 %s
 
-请生成一张精致、专业的 16:9 营销视频画面。严格依据上述场景描述和参考图片确定画面，不要自行套用办公室、会议室或团队协作等通用场景。图片中不要生成文字、字幕、Logo、水印、UI 标签或边框。请为后续叠加主标题、副标题和行动文案预留视觉简洁、对比清晰的区域。`, visualStyle, imagePrompt))
-		prompts = append(prompts, prompt)
-		referenceSets = append(referenceSets, references)
-		scenes = append(scenes, scene)
+请生成一张精致、专业的 16:9 营销视频画面。严格依据上述场景描述和参考图片确定画面。如果参考图包含拼图、照片墙或多个独立场景，只聚焦本提示词对应的主体或区域，将其扩展为完整画面，不要把整张拼图原样复刻。不要自行套用办公室、会议室或团队协作等通用场景。图片中不要生成文字、字幕、Logo、水印、UI 标签或边框。请为后续叠加主标题、副标题和行动文案预留视觉简洁、对比清晰的区域。`, visualStyle, imagePrompt))
+			variantScene := planningCloneMap(imagePlan.scene)
+			variantScene["imagePrompt"] = imagePrompt
+			variantScene["variantIndex"] = variantIndex
+			variantScene["variantId"] = fmt.Sprintf("%s-image-%d", stringValue(imagePlan.scene, "id"), variantIndex+1)
+			prompts = append(prompts, prompt)
+			referenceSets = append(referenceSets, imagePlan.references)
+			scenes = append(scenes, variantScene)
+		}
+		if len(prompts) >= planningCampaignMaxImages {
+			break
+		}
 	}
 	if len(prompts) == 0 {
 		return nil, nil, nil, errors.New("宣传图片规划中没有可用的图片提示词")
@@ -156,8 +184,17 @@ func planningCampaignImageResults(assets []store.ContentAsset, references [][]st
 		result = append(result, map[string]any{
 			"sceneId": stringValue(scenes[slotIndex], "id"), "title": stringValue(scenes[slotIndex], "title"),
 			"assetId": asset.ID, "fileUrl": asset.FileURL, "prompt": stringValue(scenes[slotIndex], "imagePrompt"),
+			"variantId": stringValue(scenes[slotIndex], "variantId"), "variantIndex": scenes[slotIndex]["variantIndex"],
 			"referenceAssetIds": contentAssetIDs(imageReferencesForSlot(references, slotIndex)),
 		})
+	}
+	return result
+}
+
+func planningCloneMap(source map[string]any) map[string]any {
+	result := make(map[string]any, len(source)+3)
+	for key, value := range source {
+		result[key] = value
 	}
 	return result
 }

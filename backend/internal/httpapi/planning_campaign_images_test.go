@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"sweet-potato-go/internal/config"
@@ -66,13 +67,28 @@ func TestPlanningCampaignImagesGeneratesAndPersistsAssets(t *testing.T) {
 	}
 	generation := objectValue(completed.Analysis["campaignImageGeneration"])
 	images := anySlice(generation["images"])
-	if stringValue(generation, "status") != "completed" || len(images) != 2 {
+	if stringValue(generation, "status") != "completed" || len(images) != 3 {
 		t.Fatalf("campaign image generation = %#v", generation)
+	}
+	first, second := objectValue(images[0]), objectValue(images[1])
+	if stringValue(first, "sceneId") != "scene-1" || stringValue(second, "sceneId") != "scene-2" {
+		t.Fatalf("primary images should cover every scene first: %#v", images)
+	}
+	third := objectValue(images[2])
+	if stringValue(third, "sceneId") != "scene-1" || numberValue(third["variantIndex"], -1) != 1 {
+		t.Fatalf("reference scene variant = %#v", third)
 	}
 	assetID := stringValue(objectValue(images[0]), "assetId")
 	asset, found, err := server.store.FindContentAsset(assetID)
 	if err != nil || !found || asset.AssetKind != "generated_image" {
 		t.Fatalf("generated asset = %#v found=%v err=%v", asset, found, err)
+	}
+}
+
+func TestNormalizePlanningImagePromptsExpandsLegacyReferenceScene(t *testing.T) {
+	prompts := normalizePlanningImagePrompts(nil, "展示组合素材中的实验室", true)
+	if len(prompts) != 2 || prompts[0] != "展示组合素材中的实验室" || !strings.Contains(prompts[1], "另一个可独立使用") {
+		t.Fatalf("prompts = %#v", prompts)
 	}
 }
 

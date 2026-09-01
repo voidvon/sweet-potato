@@ -65,6 +65,7 @@ export type PlanningCampaignScene = {
   durationInSeconds: number;
   assetIds: string[];
   imagePrompt: string;
+  imagePrompts?: string[];
 };
 
 export type PlanningCampaignImage = {
@@ -74,6 +75,8 @@ export type PlanningCampaignImage = {
   fileUrl: string;
   prompt: string;
   referenceAssetIds: string[];
+  variantId?: string;
+  variantIndex?: number;
 };
 
 export type PlanningCampaignImageGeneration = {
@@ -123,12 +126,18 @@ export type RemotionVideoPreset = {
   id: string;
   name: string;
   description: string;
-  schemaVersion: string;
-  imageAnimation: string;
-  titleAnimation: string;
-  transition: string;
+  schemaVersion: '2.0';
   backgroundColor: string;
   accentColor: string;
+  defaults: {
+    titleEntrance: string;
+    subtitleEntrance: string;
+    textEmphasis: string;
+    imageMotion: string;
+    imageTransition: string;
+    sceneTransition: string;
+    captionAnimation: string;
+  };
 };
 
 export type PlanningRemotionGeneration = {
@@ -136,6 +145,7 @@ export type PlanningRemotionGeneration = {
   presetId: string;
   preset?: RemotionVideoPreset;
   plan?: Record<string, unknown>;
+  motionPlan?: Record<string, unknown>;
   renderRequest?: Record<string, unknown>;
   validation?: { valid: boolean; compositionId: string; schemaVersion: string };
   generatedAt?: string;

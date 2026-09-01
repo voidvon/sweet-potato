@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"sweet-potato-go/internal/pluginruntime"
-	"sweet-potato-go/internal/remotionjson"
 	"sweet-potato-go/internal/store"
 )
 
@@ -42,11 +41,12 @@ func (s *Server) handleContentPlanning(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 1 && parts[0] == "remotion-presets" && r.Method == http.MethodGet {
 		payload := map[string]any{
-			"presets": remotionjson.Presets(),
+			"presets": []any{},
 			"runtime": s.plugins.Status(pluginruntime.RemotionPluginKey),
 		}
 		if capabilities, err := s.plugins.Capabilities(r.Context(), pluginruntime.RemotionPluginKey); err == nil {
 			payload["capabilities"] = capabilities
+			payload["presets"] = anySlice(capabilities["presets"])
 		}
 		writeJSON(w, http.StatusOK, payload)
 		return
