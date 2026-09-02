@@ -34,7 +34,7 @@ import {
   listContentWorkflows,
   saveContentWorkflow,
 } from '../../../../api/content-workflows';
-import type { ContentWorkflow } from '../../../../api/content-workflows';
+import type { ContentWorkflow, SaveContentWorkflowInput } from '../../../../api/content-workflows';
 import type { ContentAssetResourceType, User } from '../../../../types';
 import type { MaterialKind } from '../types';
 import type { DocumentExtractionView } from './AttachmentExtractionModal';
@@ -129,6 +129,7 @@ export function useLightweightMarketingVideoController(
   const previewUrlsRef = useRef(new Set<string>());
   const uploadGroupIdsRef = useRef<Partial<Record<ContentAssetResourceType, string>>>({});
   const workflowSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const workflowSaveSignaturesRef = useRef(new Map<string, string>());
   const notifiedRenderAssetIdsRef = useRef(new Set<string>());
   const selectedRecord = records.find((record) => record.id === selectedRecordId);
 
@@ -193,11 +194,23 @@ export function useLightweightMarketingVideoController(
     setRecords((current) => current.map((record) => (record.id === id ? updater(record) : record)));
   };
 
-  const persistRecord = (record: LightweightCreationRecord) => {
-    const operation = workflowSaveQueueRef.current.then(() => saveContentWorkflow(recordToWorkflowInput(record)));
+  const persistWorkflow = (input: SaveContentWorkflowInput<LightweightWorkflowState>) => {
+    const signature = JSON.stringify(input);
+    if (workflowSaveSignaturesRef.current.get(input.recordKey) === signature) {
+      return Promise.resolve();
+    }
+    workflowSaveSignaturesRef.current.set(input.recordKey, signature);
+    const operation = workflowSaveQueueRef.current.then(() => saveContentWorkflow(input));
+    void operation.catch(() => {
+      if (workflowSaveSignaturesRef.current.get(input.recordKey) === signature) {
+        workflowSaveSignaturesRef.current.delete(input.recordKey);
+      }
+    });
     workflowSaveQueueRef.current = operation.catch(() => undefined);
     return operation.then(() => undefined);
   };
+
+  const persistRecord = (record: LightweightCreationRecord) => persistWorkflow(recordToWorkflowInput(record));
 
   useEffect(() => {
     const previewUrls = previewUrlsRef.current;
@@ -244,22 +257,25 @@ export function useLightweightMarketingVideoController(
         brief,
         kind: 'draft',
       };
-      const recordSnapshots = records.map(recordToWorkflowInput);
-      workflowSaveQueueRef.current = workflowSaveQueueRef.current.then(async () => {
-        await saveContentWorkflow({
-          currentStep: 'materials',
-          moduleKey: 'lightweight-marketing-video',
-          recordKey: 'default',
-          schemaVersion: 1,
-          state: draftState,
-          status: 'draft',
-          title: t('轻量营销视频草稿'),
-        });
-        await Promise.all(recordSnapshots.map((snapshot) => saveContentWorkflow(snapshot)));
+      void persistWorkflow({
+        currentStep: 'materials',
+        moduleKey: 'lightweight-marketing-video',
+        recordKey: 'default',
+        schemaVersion: 1,
+        state: draftState,
+        status: 'draft',
+        title: t('轻量营销视频草稿'),
       }).catch(() => undefined);
     }, 350);
     return () => clearTimeout(timer);
-  }, [attachments, brief, records, workflowsLoaded]);
+  }, [attachments, brief, workflowsLoaded]);
+
+  useEffect(() => {
+    if (!workflowsLoaded) return;
+    records.forEach((record) => {
+      void persistRecord(record).catch(() => undefined);
+    });
+  }, [records, workflowsLoaded]);
 
   useEffect(() => {
     const session = selectedRecord?.analysisSession;

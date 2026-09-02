@@ -83,7 +83,7 @@ const CaptionsContent: React.FC<{
           textAlign: element.style.textAlign,
           textShadow,
           padding: element.style.padding,
-          whiteSpace: "pre-wrap",
+          whiteSpace: "nowrap",
           boxSizing: "border-box",
           ...getCaptionMotionStyle(
             element.animationPreset,
@@ -118,7 +118,7 @@ const CaptionsContent: React.FC<{
         textAlign: element.style.textAlign,
         textShadow,
         padding: element.style.padding,
-        whiteSpace: "pre-wrap",
+        whiteSpace: "nowrap",
         boxSizing: "border-box",
       }}
     >
@@ -155,6 +155,9 @@ const ElementContent: React.FC<{ element: VisualElement }> = ({ element }) => {
     const shineAnimation = element.animations.find(
       (animation) => animation.type === "shine-in",
     );
+    const shineIsActive = shineAnimation
+      && frame >= shineAnimation.from
+      && frame < shineAnimation.from + shineAnimation.durationInFrames;
     let content = element.content;
 
     if (contentAnimation?.type === "typewriter") {
@@ -184,7 +187,7 @@ const ElementContent: React.FC<{ element: VisualElement }> = ({ element }) => {
       content = `${contentAnimation.prefix}${formattedValue}${contentAnimation.suffix}`;
     }
 
-    const textStyle: CSSProperties = shineAnimation
+    const textStyle: CSSProperties = shineAnimation && shineIsActive
       ? {
           color: "transparent",
           backgroundImage: `linear-gradient(110deg, ${element.style.color} 30%, ${shineAnimation.shineColor} 50%, ${element.style.color} 70%)`,

@@ -189,9 +189,13 @@ const workspaceBlockRenderers: Record<WorkspaceBlockType, WorkspaceBlockRenderer
 };
 
 export function ToolResultWorkspace({
+  lightweightMarketing,
   onEdit,
   state,
-}: Pick<ToolWorkspaceProps, 'state'> & { onEdit: (task: VideoGenerationTask) => Promise<void> }) {
+}: ToolWorkspaceProps & { onEdit: (task: VideoGenerationTask) => Promise<void> }) {
+  const activeLightweightRenders = state.tool.key === 'lightweight-marketing-video'
+    ? lightweightMarketing.records.flatMap(lightweightRenderResultTask)
+    : [];
   return (
     <ResultPanel
       filters={state.filters}
@@ -206,11 +210,61 @@ export function ToolResultWorkspace({
       onFilterOpenChange={state.setFilterOpen}
       onLoadMore={state.loadMoreVideoProductions}
       onRetry={state.retryVideoProduction}
-      records={state.videoProductions}
+      records={[...activeLightweightRenders, ...state.videoProductions]}
       deletingTaskId={state.deletingTaskId}
       retryingTaskId={state.retryingTaskId}
     />
   );
+}
+
+const emptyVideoParseResult = {
+  person: '',
+  scene: '',
+  voice: '',
+  shotLanguage: '',
+  product: '',
+  pip: '',
+  spokenContent: '',
+  extraDetails: '',
+};
+
+function lightweightRenderResultTask(
+  record: LightweightMarketingVideoController['records'][number],
+): VideoGenerationTask[] {
+  const session = record.analysisSession;
+  const render = session?.analysis.renderGeneration;
+  if (!session || !render || (render.status !== 'queued' && render.status !== 'rendering')) return [];
+  const taskId = `lightweight-render-${render.runId || session.id}`;
+  const timestamp = render.startedAt || render.updatedAt || record.createdAt;
+  return [{
+    id: taskId,
+    userId: session.userId,
+    sourceUrl: '',
+    title: record.title,
+    status: 'generating',
+    rawParseResult: { ...emptyVideoParseResult },
+    editableParseResult: {
+      ...emptyVideoParseResult,
+      videoGenerationResult: {
+        version: 1,
+        taskId,
+        status: render.status === 'queued' ? 'pending' : 'running',
+        provider: 'remotion',
+        jobId: render.pluginJobId,
+        duration: '',
+        ratio: '',
+        renderStatus: render.status,
+        generatedAt: timestamp,
+      },
+    },
+    expertContext: {
+      mode: 'lightweight_marketing_video',
+      renderProgress: render.progress,
+    },
+    aspectRatio: '',
+    createdAt: timestamp,
+    updatedAt: render.updatedAt || timestamp,
+  }];
 }
 
 function ToolMaterialPanel({ showVoiceToggle, state }: Pick<ToolWorkspaceProps, 'state'> & { showVoiceToggle: boolean }) {

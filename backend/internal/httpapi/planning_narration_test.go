@@ -2,10 +2,34 @@ package httpapi
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"sweet-potato-go/internal/config"
 	"sweet-potato-go/internal/store"
 )
+
+func TestNarrationCaptionsSplitLongCopyIntoSingleLineSegments(t *testing.T) {
+	captions := narrationCaptions("这是一段明显超过单行字幕长度的营销旁白文案，需要自动拆分并保持时间连续。", 1000, 4000)
+	if len(captions) < 2 {
+		t.Fatalf("captions = %#v; want multiple short segments", captions)
+	}
+	previousEnd := 1000
+	for index, value := range captions {
+		caption := objectValue(value)
+		if count := utf8.RuneCountInString(stringValue(caption, "text")); count > planningCaptionMaxRunes {
+			t.Fatalf("caption %d contains %d runes", index, count)
+		}
+		start := int(numberValue(caption["startMs"], 0))
+		end := int(numberValue(caption["endMs"], 0))
+		if start != previousEnd || end <= start {
+			t.Fatalf("caption %d timing = %d-%d, previous end = %d", index, start, end, previousEnd)
+		}
+		previousEnd = end
+	}
+	if previousEnd != 5000 {
+		t.Fatalf("last caption end = %d, want 5000", previousEnd)
+	}
+}
 
 func TestSelectPresetAudioModelSkipsMiMoVoiceCloneDefault(t *testing.T) {
 	models := []store.ModelConfig{

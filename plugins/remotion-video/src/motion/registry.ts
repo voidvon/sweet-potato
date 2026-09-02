@@ -32,10 +32,9 @@ export const motionRegistry = {
   ],
   imageTransition: [
     option("crossfade", "交叉淡化", "相邻图片重叠并平滑淡化"),
-    option("dissolve", "溶解", "更柔和的透明混合切换"),
   ],
   sceneTransition: [
-    option("dissolve", "溶解", "通用且柔和的场景衔接"),
+    option("fade", "淡化", "通用且自然的场景衔接"),
     option("slide", "滑动", "适合节奏感较强的营销视频"),
     option("wipe", "擦除", "适合科技和结构化内容"),
   ],
@@ -59,7 +58,7 @@ export const videoPresets = [
   {
     id: "clean-marketing",
     name: "简约营销",
-    description: "克制的文字与溶解转场，适合产品介绍和品牌宣传。",
+    description: "克制的文字与平滑淡化，适合产品介绍和品牌宣传。",
     backgroundColor: "#0F172A",
     accentColor: "#FFFFFF",
     defaults: {
@@ -68,7 +67,7 @@ export const videoPresets = [
       textEmphasis: "none",
       imageMotion: "ken-burns",
       imageTransition: "crossfade",
-      sceneTransition: "dissolve",
+      sceneTransition: "fade",
       captionAnimation: "fade",
     },
   },
@@ -91,7 +90,7 @@ export const videoPresets = [
   {
     id: "tech-focus",
     name: "科技聚焦",
-    description: "模糊渐显与擦除转场，适合软件、科技和专业服务。",
+    description: "模糊渐显与平滑淡化，适合软件、科技和专业服务。",
     backgroundColor: "#020617",
     accentColor: "#67E8F9",
     defaults: {
@@ -99,8 +98,8 @@ export const videoPresets = [
       subtitleEntrance: "fade",
       textEmphasis: "shine",
       imageMotion: "ken-burns",
-      imageTransition: "dissolve",
-      sceneTransition: "wipe",
+      imageTransition: "crossfade",
+      sceneTransition: "fade",
       captionAnimation: "word-highlight",
     },
   },

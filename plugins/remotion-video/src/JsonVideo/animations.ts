@@ -124,7 +124,6 @@ export const getAnimationValues = ({
     if (animation.type === "blur-in") {
       blur += animation.blur * (1 - progress);
     }
-    if (animation.type === "shine-in") opacity *= progress;
     if (animation.type === "blur-out") {
       blur += animation.blur * progress;
     }

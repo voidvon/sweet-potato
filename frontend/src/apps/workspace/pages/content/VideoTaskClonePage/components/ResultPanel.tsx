@@ -357,6 +357,8 @@ function taskVideoGenerationResult(task: VideoGenerationTask) {
 
 function viewState(task: VideoGenerationTask) {
   const result = taskVideoGenerationResult(task);
+  const isLightweightRender = task.expertContext?.mode === 'lightweight_marketing_video';
+  const renderProgress = Number(task.expertContext?.renderProgress);
   const isUpscale = task.expertContext?.mode === 'video_upscale';
   const isSubtitleRemoval = task.expertContext?.mode === 'subtitle_removal';
   const isVideoTranslation = task.expertContext?.mode === 'video_translation';
@@ -420,8 +422,18 @@ function viewState(task: VideoGenerationTask) {
   return {
     kind: 'running' as const,
     label: isPreparing ? t("准备中") : result?.renderStatus === 'queued' || result?.status === 'pending' ? t("排队中") : isUpscale ? t("放大中") : isSubtitleRemoval ? t("擦除中") : isVideoTranslation ? t("翻译中") : t("生成中"),
-    posterText: isPreparing ? t("正在准备参考视频") : isUpscale ? t("正在进行高清放大") : isSubtitleRemoval ? t("正在擦除字幕") : isVideoTranslation ? t("正在翻译视频") : t("正在生成视频"),
-    note: isPreparing ? t("正在下载并裁剪视频，完成后将自动提交生成。") : result?.jobId ? t("任务号 {{0}}", { "0": String(result.jobId).slice(0, 12) }) : t("模型处理中，完成后会自动刷新。"),
+    posterText: isPreparing
+      ? t("正在准备参考视频")
+      : isLightweightRender && Number.isFinite(renderProgress)
+        ? result?.renderStatus === 'queued'
+          ? t("视频等待渲染")
+          : t("视频渲染 {{0}}%", { "0": Math.round(Math.max(0, Math.min(1, renderProgress)) * 100) })
+        : isUpscale ? t("正在进行高清放大") : isSubtitleRemoval ? t("正在擦除字幕") : isVideoTranslation ? t("正在翻译视频") : t("正在生成视频"),
+    note: isPreparing
+      ? t("正在下载并裁剪视频，完成后将自动提交生成。")
+      : isLightweightRender
+        ? t("进度通过 WebSocket 实时更新")
+        : result?.jobId ? t("任务号 {{0}}", { "0": String(result.jobId).slice(0, 12) }) : t("模型处理中，完成后会自动刷新。"),
     metric: formatMetric(result, task),
     videoUrl: '',
     coverUrl,

@@ -26,6 +26,9 @@ func TestRemotionMotionPlanToolUsesPluginCapabilities(t *testing.T) {
 	if len(titleEntrance) != 1 || titleEntrance[0] != "custom-entrance" {
 		t.Fatalf("title entrance enum = %#v", titleEntrance)
 	}
+	if pattern := stringValue(objectValue(textProperties["titleColor"]), "pattern"); pattern != "^#[0-9A-Fa-f]{6}$" {
+		t.Fatalf("title color pattern = %q", pattern)
+	}
 	layoutProperties := objectValue(objectValue(properties["layout"])["properties"])
 	titlePosition := stringSlice(objectValue(layoutProperties["titlePosition"])["enum"])
 	if len(titlePosition) != 1 || titlePosition[0] != "custom-position" {

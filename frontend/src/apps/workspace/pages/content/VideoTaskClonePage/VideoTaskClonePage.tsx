@@ -103,7 +103,7 @@ export function VideoTaskClonePage({ currentUser }: VideoTaskClonePageProps) {
       ) : null}
       {showTalkingVideoHistory ? <TalkingVideoPromptWorkspace state={state} /> : null}
 
-      <ToolResultWorkspace onEdit={handleEditProduction} state={state} />
+      <ToolResultWorkspace lightweightMarketing={lightweightMarketing} onEdit={handleEditProduction} state={state} />
 
       {state.showModelPicker && (
         <ModelPicker

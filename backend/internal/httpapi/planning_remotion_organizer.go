@@ -11,17 +11,35 @@ import (
 )
 
 func (s *Server) organizeRemotionScenes(ctx context.Context, session store.ContentPlanningSession, model store.ModelConfig, capabilities map[string]any) (map[string]any, error) {
+	images := anySlice(objectValue(session.Analysis["campaignImageGeneration"])["images"])
 	inputJSON, err := json.Marshal(map[string]any{
 		"campaignPlan": objectValue(session.Analysis["campaignPlan"]),
-		"images":       anySlice(objectValue(session.Analysis["campaignImageGeneration"])["images"]),
+		"images":       images,
 		"capabilities": capabilities,
 	})
 	if err != nil {
 		return nil, err
 	}
+	parts := []map[string]any{{"type": "input_text", "text": string(inputJSON)}}
+	for _, value := range images {
+		image := objectValue(value)
+		assetID := stringValue(image, "assetId")
+		asset, found, assetErr := s.store.FindContentAsset(assetID)
+		if assetErr != nil || !found || asset.UserID != session.UserID || !strings.HasPrefix(strings.ToLower(asset.MimeType), "image/") {
+			continue
+		}
+		thumbnail, thumbnailErr := imageDecisionThumbnailDataURL(asset.FilePath, 768)
+		if thumbnailErr != nil {
+			continue
+		}
+		parts = append(parts,
+			map[string]any{"type": "input_text", "text": fmt.Sprintf("以下图片对应 scene_id=%s、asset_id=%s。请根据图片主体、明暗和留白选择该场景文案的位置与颜色。", stringValue(image, "sceneId"), assetID)},
+			map[string]any{"type": "input_image", "image_url": thumbnail, "detail": "low"},
+		)
+	}
 	input := []map[string]any{
-		{"role": "system", "content": "你是专业的营销视频分镜导演。只使用插件 capabilities 中声明的分类动效，不创建能力 ID，不改变文案事实，不遗漏已生成图片。必须调用 submit_motion_plan。为每个场景分别编排文字入场与强调、图片持续运动与图片切换、场景转场和字幕动效。主副标题可以位于同一区域，编译器会建立层级，但应让文字尽量避开图片主体。相邻场景应有节奏变化，副标题和字幕保持克制。"},
-		{"role": "user", "content": []map[string]any{{"type": "input_text", "text": string(inputJSON)}}},
+		{"role": "system", "content": "你是专业的营销视频分镜与视觉设计导演。只使用插件 capabilities 中声明的分类动效，不创建能力 ID，不改变文案事实，不遗漏已生成图片。必须调用 submit_motion_plan。你会收到每张成片图片的视觉预览；必须结合图片主体、留白、局部明暗和文案长度，为每个场景选择主副标题组成的统一文案块位置与高对比度的六位十六进制颜色，避开人物、产品和视觉焦点。titlePosition 与 subtitlePosition 必须选择相同位置，保持主副标题层级紧凑，不得将副标题单独放到画面另一处。不得依赖遮罩、色块或统一固定颜色解决可读性。继续编排文字入场与强调、图片持续运动与图片切换、场景转场和字幕动效。相邻场景应有节奏变化，副标题和字幕保持克制。"},
+		{"role": "user", "content": parts},
 	}
 	tool, err := remotionMotionPlanTool(capabilities)
 	if err != nil {
@@ -118,7 +136,7 @@ func remotionMotionPlanTool(capabilities map[string]any) (map[string]any, error)
 		"properties": map[string]any{
 			"sceneId": map[string]any{"type": "string"}, "imageAssetIds": stringArray,
 			"layout":  map[string]any{"type": "object", "additionalProperties": false, "required": []string{"titlePosition", "subtitlePosition"}, "properties": map[string]any{"titlePosition": stringEnum(positions), "subtitlePosition": stringEnum(positions)}},
-			"text":    map[string]any{"type": "object", "additionalProperties": false, "required": []string{"titleEntrance", "subtitleEntrance", "emphasis"}, "properties": map[string]any{"titleEntrance": stringEnum(textEntrance), "subtitleEntrance": stringEnum(textEntrance), "emphasis": stringEnum(textEmphasis)}},
+			"text":    map[string]any{"type": "object", "additionalProperties": false, "required": []string{"titleEntrance", "subtitleEntrance", "emphasis", "titleColor", "subtitleColor"}, "properties": map[string]any{"titleEntrance": stringEnum(textEntrance), "subtitleEntrance": stringEnum(textEntrance), "emphasis": stringEnum(textEmphasis), "titleColor": map[string]any{"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"}, "subtitleColor": map[string]any{"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"}}},
 			"image":   map[string]any{"type": "object", "additionalProperties": false, "required": []string{"motion", "transition"}, "properties": map[string]any{"motion": stringEnum(imageMotion), "transition": stringEnum(imageTransition)}},
 			"scene":   map[string]any{"type": "object", "additionalProperties": false, "required": []string{"transition"}, "properties": map[string]any{"transition": stringEnum(sceneTransition)}},
 			"caption": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"animation"}, "properties": map[string]any{"animation": stringEnum(captionAnimation)}},

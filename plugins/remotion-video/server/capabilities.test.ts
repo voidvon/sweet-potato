@@ -17,6 +17,8 @@ describe("Remotion video capabilities", () => {
     expect("animationTypes" in remotionVideoCapabilities).toBe(false);
     expect("transitionTypes" in remotionVideoCapabilities).toBe(false);
     expect(remotionVideoCapabilities.presets.every((preset) => preset.schemaVersion === "2.0")).toBe(true);
+    expect(remotionVideoCapabilities.motion.imageTransition.map(({ id }) => id)).toEqual(["crossfade"]);
+    expect(remotionVideoCapabilities.motion.sceneTransition.map(({ id }) => id)).not.toContain("dissolve");
   });
 
   test("compose contract accepts categorized motion and emits JsonVideo 2.0", () => {
@@ -34,22 +36,43 @@ describe("Remotion video capabilities", () => {
           assetId: "audio-1",
           url: "https://example.com/audio.mp3",
           startMs: 0,
-          captions: [{ text: "稳定可靠", startMs: 0, endMs: 1500, timestampMs: null, confidence: null }],
+          captions: [{ text: "稳定可靠并且可以显著提升团队日常工作的处理效率和交付质量", startMs: 0, endMs: 3000, timestampMs: null, confidence: null }],
+        },
+      }, {
+        id: "scene-2",
+        title: "立即体验",
+        subtitle: "开启高效工作",
+        cta: "",
+        durationMs: 3000,
+        images: [{ assetId: "image-2", url: "https://example.com/image-2.png" }],
+        narration: {
+          assetId: "audio-2",
+          url: "https://example.com/audio-2.mp3",
+          startMs: 4000,
+          captions: [],
         },
       }],
       motionPlan: { scenes: [{
         sceneId: "scene-1",
         imageAssetIds: ["image-1"],
-        layout: { titlePosition: "top_left", subtitlePosition: "top_left" },
-        text: { titleEntrance: "blur", subtitleEntrance: "fade", emphasis: "shine" },
+        layout: { titlePosition: "top_left", subtitlePosition: "bottom_right" },
+        text: { titleEntrance: "blur", subtitleEntrance: "fade", emphasis: "shine", titleColor: "#FFF2A8", subtitleColor: "#102A43" },
         image: { motion: "ken-burns", transition: "crossfade" },
-        scene: { transition: "dissolve" },
+        scene: { transition: "fade" },
+        caption: { animation: "fade" },
+      }, {
+        sceneId: "scene-2",
+        imageAssetIds: ["image-2"],
+        layout: { titlePosition: "top_left", subtitlePosition: "top_left" },
+        text: { titleEntrance: "fade", subtitleEntrance: "fade", emphasis: "none", titleColor: "#FFFFFF", subtitleColor: "#D9EAF7" },
+        image: { motion: "ken-burns", transition: "crossfade" },
+        scene: { transition: "fade" },
         caption: { animation: "fade" },
       }] },
     });
     const result = composeVideo(input);
     expect(result.renderRequest.inputProps.version).toBe("2.0");
-    expect(result.renderRequest.inputProps.scenes).toHaveLength(1);
+    expect(result.renderRequest.inputProps.scenes).toHaveLength(2);
     const elements = result.renderRequest.inputProps.scenes?.[0].elements ?? [];
     const title = elements.find((element) => element.id === "scene-1-title");
     const subtitle = elements.find((element) => element.id === "scene-1-subtitle");
@@ -60,7 +83,30 @@ describe("Remotion video capabilities", () => {
       throw new Error("Expected title and subtitle text elements");
     }
     expect(title.position.y).not.toBe(subtitle.position.y);
+    expect(title.position.x).toBe(subtitle.position.x);
+    expect(title.style.color).toBe("#FFF2A8");
+    expect(subtitle.style.color).toBe("#102A43");
+    expect(elements.some((element) => element.id === "scene-1-overlay")).toBe(false);
     expect(captions?.type === "captions" ? captions.animationPreset : null).toBe("fade");
+    expect(captions?.type === "captions" ? captions.captions.length : 0).toBeGreaterThan(1);
+    expect(captions?.type === "captions" ? captions.captions.every((caption) => Array.from(caption.text).length <= 18) : false).toBe(true);
+    const image = elements.find((element) => element.type === "image");
+    expect(image?.animations.some((animation) =>
+      animation.type === "ken-burns" && animation.easing === "linear"
+    )).toBe(true);
+    expect(title.animations.some((animation) =>
+      animation.type === "fade-out"
+      && animation.from + animation.durationInFrames === title.durationInFrames
+    )).toBe(true);
+    expect(title.animations.some((animation) =>
+      animation.type === "shine-in"
+      && animation.easing === "linear"
+      && animation.durationInFrames > 30
+    )).toBe(true);
+    const finalTitle = result.renderRequest.inputProps.scenes?.[1].elements.find(
+      (element) => element.id === "scene-2-title",
+    );
+    expect(finalTitle?.animations.some((animation) => animation.type === "fade-out")).toBe(false);
   });
 
   test("compose defaults keep multi-image coverage continuous", () => {
@@ -96,7 +142,10 @@ describe("Remotion video capabilities", () => {
     expect(images[1].from + images[1].durationInFrames).toBe(scene.durationInFrames);
     expect(images.every((image) => image.size.width === 1920 && image.size.height === 1080)).toBe(true);
     expect(images.every((image) => image.animations.some((animation) =>
-      animation.type === "scale-in" && animation.fromScale >= 1
+      animation.type === "scale-in"
+      && animation.fromScale >= 1
+      && animation.easing === "linear"
+      && animation.durationInFrames === image.durationInFrames
     ))).toBe(true);
   });
 });

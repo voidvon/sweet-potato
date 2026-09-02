@@ -38,6 +38,8 @@ const sceneMotionSchema = z
       titleEntrance: z.enum(ids(motionRegistry.textEntrance)),
       subtitleEntrance: z.enum(ids(motionRegistry.textEntrance)),
       emphasis: z.enum(ids(motionRegistry.textEmphasis)),
+      titleColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+      subtitleColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
     }).strict(),
     image: z.object({
       motion: z.enum(ids(motionRegistry.imageMotion)),
@@ -88,9 +90,9 @@ const splitFrames = (total: number, parts: number) => {
   return Array.from({ length: parts }, (_, index) => base + (index < remainder ? 1 : 0));
 };
 
-const buildImageTimeline = (total: number, count: number, transition: string) => {
+const buildImageTimeline = (total: number, count: number) => {
   if (count === 1) return [{ from: 0, duration: total, fadeIn: 0 }];
-  const overlapBase = transition === "dissolve" ? 15 : 12;
+  const overlapBase = 12;
   const overlap = Math.min(overlapBase, Math.max(6, Math.floor(total / (count * 4))));
   const durations = splitFrames(total + overlap * (count - 1), count);
   let from = 0;
@@ -107,8 +109,8 @@ const imageAnimations = (
   fadeIn: number,
 ): JsonVideoAnimation[] => {
   const movement: JsonVideoAnimation = motion === "slow-zoom"
-    ? { type: "scale-in", from: 0, durationInFrames: Math.min(24, duration), easing: "ease-in-out", fromScale: 1.08 }
-    : { type: "ken-burns", from: 0, durationInFrames: duration, easing: "ease-in-out", fromScale: 1, toScale: 1.12, fromX: 0, toX: 0, fromY: 0, toY: 0 };
+    ? { type: "scale-in", from: 0, durationInFrames: duration, easing: "linear", fromScale: 1.08 }
+    : { type: "ken-burns", from: 0, durationInFrames: duration, easing: "linear", fromScale: 1, toScale: 1.12, fromX: 0, toX: 0, fromY: 0, toY: 0 };
   if (fadeIn === 0) return [movement];
   return [movement, { type: "fade-in", from: 0, durationInFrames: fadeIn, easing: "ease-in-out" }];
 };
@@ -118,6 +120,7 @@ const textEntranceAnimations = (
   emphasis: SceneMotion["text"]["emphasis"],
   elementDuration: number,
   delayed: boolean,
+  exitDuration: number,
 ): JsonVideoAnimation[] => {
   let from = delayed && elementDuration >= 24 ? Math.min(6, Math.floor(elementDuration / 5)) : 0;
   let duration = Math.min(30, elementDuration - from);
@@ -153,9 +156,20 @@ const textEntranceAnimations = (
       result = [fade()];
   }
   if (emphasis === "shine") {
-    result.push({ type: "shine-in", from: Math.min(elementDuration - 1, from + duration), durationInFrames: Math.max(1, Math.min(30, elementDuration - from - duration)), easing: "ease-out", shineColor: "#FFFFFF" });
+    const shineFrom = Math.min(elementDuration - 1, from + duration);
+    const shineDuration = Math.max(1, elementDuration - shineFrom - exitDuration);
+    result.push({ type: "shine-in", from: shineFrom, durationInFrames: shineDuration, easing: "linear", shineColor: "#FFFFFF" });
   } else if (emphasis === "pulse") {
     result.push({ type: "pulse", from: Math.min(elementDuration - 1, from + duration), durationInFrames: Math.max(1, Math.min(30, elementDuration - from - duration)), easing: "ease-in-out", scale: 1.06, cycles: 1 });
+  }
+  if (exitDuration > 0) {
+    const safeExitDuration = Math.min(exitDuration, elementDuration);
+    result.push({
+      type: "fade-out",
+      from: elementDuration - safeExitDuration,
+      durationInFrames: safeExitDuration,
+      easing: "ease-in-out",
+    });
   }
   return result;
 };
@@ -180,6 +194,7 @@ const textElement = (
   emphasis: SceneMotion["text"]["emphasis"],
   color: string,
   subtitle: boolean,
+  exitDuration: number,
 ): JsonVideoElement => {
   const placement = textPlacement(position, subtitle);
   return {
@@ -191,7 +206,7 @@ const textElement = (
     position: { x: placement.x, y: placement.y, anchor: "center" },
     zIndex: 3,
     opacity: 1,
-    animations: textEntranceAnimations(entrance, emphasis, duration, subtitle),
+    animations: textEntranceAnimations(entrance, emphasis, duration, subtitle, exitDuration),
     style: {
       width: placement.width,
       fontSize: subtitle ? 46 : 84,
@@ -207,11 +222,45 @@ const textElement = (
   };
 };
 
+const captionCharacterWeight = (character: string) => character.codePointAt(0)! <= 0x7f ? 0.55 : 1;
+
+const splitCaptionText = (text: string, maxVisualUnits = 18) => {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return [];
+  const parts: string[] = [];
+  let current = "";
+  let units = 0;
+  for (const character of Array.from(normalized)) {
+    const weight = captionCharacterWeight(character);
+    if (current && units + weight > maxVisualUnits) {
+      parts.push(current.trim());
+      current = "";
+      units = 0;
+    }
+    current += character;
+    units += weight;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
 const localCaptions = (captions: ComposeRequest["scenes"][number]["narration"]["captions"], startMs: number, durationMs: number) =>
   captions.flatMap((caption) => {
     const start = Math.max(0, Math.round(caption.startMs - startMs));
     const end = Math.min(durationMs, Math.round(caption.endMs - startMs));
-    return end > start ? [{ ...caption, startMs: start, endMs: end }] : [];
+    if (end <= start) return [];
+    const parts = splitCaptionText(caption.text);
+    const weights = parts.map((part) => Array.from(part).reduce((sum, character) => sum + captionCharacterWeight(character), 0));
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0);
+    let elapsedWeight = 0;
+    return parts.map((part, index) => {
+      const partStart = start + Math.round(((end - start) * elapsedWeight) / totalWeight);
+      elapsedWeight += weights[index];
+      const partEnd = index === parts.length - 1
+        ? end
+        : start + Math.round(((end - start) * elapsedWeight) / totalWeight);
+      return { ...caption, text: part, startMs: partStart, endMs: Math.max(partStart + 1, partEnd), timestampMs: partStart };
+    });
   });
 
 const defaultMotion = (sceneId: string, preset: typeof videoPresets[number]): SceneMotion => ({
@@ -222,6 +271,8 @@ const defaultMotion = (sceneId: string, preset: typeof videoPresets[number]): Sc
     titleEntrance: preset.defaults.titleEntrance,
     subtitleEntrance: preset.defaults.subtitleEntrance,
     emphasis: preset.defaults.textEmphasis,
+    titleColor: preset.accentColor,
+    subtitleColor: "#FFFFFF",
   },
   image: { motion: preset.defaults.imageMotion, transition: preset.defaults.imageTransition },
   scene: { transition: preset.defaults.sceneTransition },
@@ -262,7 +313,7 @@ export const composeVideo = (input: ComposeRequest) => {
     totalFrames += durationFrames;
     transitionFramesTotal += transitionFrames;
     const elements: JsonVideoElement[] = [];
-    const timeline = buildImageTimeline(durationFrames, images.length, motion.image.transition);
+    const timeline = buildImageTimeline(durationFrames, images.length);
     images.forEach((image, imageIndex) => {
       const timing = timeline[imageIndex];
       elements.push({
@@ -279,15 +330,10 @@ export const composeVideo = (input: ComposeRequest) => {
         style: { objectFit: "cover", borderRadius: 0 },
       });
     });
-    elements.push({
-      id: `${scene.id}-overlay`, type: "shape", shape: "rectangle", from: 0, durationInFrames: durationFrames,
-      position: { x: 960, y: 540, anchor: "center" }, size: { width: 1920, height: 1080 }, zIndex: 1, opacity: 0.32, animations: [],
-      style: { backgroundColor: "#000000", borderColor: "#000000", borderWidth: 0, borderRadius: 0 },
-    });
-    elements.push(textElement(`${scene.id}-title`, scene.title, durationFrames, motion.layout.titlePosition, motion.text.titleEntrance, motion.text.emphasis, preset.accentColor, false));
+    elements.push(textElement(`${scene.id}-title`, scene.title, durationFrames, motion.layout.titlePosition, motion.text.titleEntrance, motion.text.emphasis, motion.text.titleColor, false, transitionFrames));
     const subtitle = scene.subtitle || scene.cta;
     if (subtitle) {
-      elements.push(textElement(`${scene.id}-subtitle`, subtitle, durationFrames, motion.layout.subtitlePosition, motion.text.subtitleEntrance, "none", "#FFFFFF", true));
+      elements.push(textElement(`${scene.id}-subtitle`, subtitle, durationFrames, motion.layout.titlePosition, motion.text.subtitleEntrance, "none", motion.text.subtitleColor, true, transitionFrames));
     }
     elements.push({
       id: `${scene.id}-audio`, type: "audio", src: scene.narration.url, from: 0, durationInFrames: durationFrames,
@@ -301,7 +347,7 @@ export const composeVideo = (input: ComposeRequest) => {
         displayMode: motion.caption.animation === "word-highlight" ? "page" : "sentence",
         combineTokensWithinMilliseconds: 1200,
         animationPreset: motion.caption.animation,
-        style: { width: 1600, fontSize: 54, fontFamily: "Arial, sans-serif", fontWeight: 700, lineHeight: 1.2, color: "#FFFFFF", highlightColor: preset.accentColor, shadowColor: "#000000E6", shadowBlur: 12, textAlign: "center", padding: 20 },
+        style: { width: 1720, fontSize: 50, fontFamily: "Arial, sans-serif", fontWeight: 700, lineHeight: 1.2, color: "#FFFFFF", highlightColor: preset.accentColor, shadowColor: "#000000E6", shadowBlur: 12, textAlign: "center", padding: 0 },
       });
     }
     scenes.push({

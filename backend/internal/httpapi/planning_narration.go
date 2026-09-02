@@ -15,7 +15,10 @@ import (
 	"sweet-potato-go/internal/store"
 )
 
-const planningNarrationMaxScenes = 6
+const (
+	planningNarrationMaxScenes = 6
+	planningCaptionMaxRunes    = 18
+)
 
 type planningNarrationScene struct {
 	ID   string
@@ -250,7 +253,7 @@ func (s *Server) failPlanningNarration(session store.ContentPlanningSession, run
 }
 
 func narrationCaptions(text string, startMs, durationMs int) []any {
-	parts := splitNarrationSentences(text)
+	parts := splitNarrationCaptionParts(text, planningCaptionMaxRunes)
 	if len(parts) == 0 {
 		parts = []string{text}
 	}
@@ -271,6 +274,25 @@ func narrationCaptions(text string, startMs, durationMs int) []any {
 			end = start + 1
 		}
 		result = append(result, map[string]any{"text": part, "startMs": start, "endMs": end, "timestampMs": start, "confidence": 1})
+	}
+	return result
+}
+
+func splitNarrationCaptionParts(text string, maxRunes int) []string {
+	parts := splitNarrationSentences(text)
+	if maxRunes < 1 {
+		return parts
+	}
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		runes := []rune(part)
+		for len(runes) > maxRunes {
+			result = append(result, strings.TrimSpace(string(runes[:maxRunes])))
+			runes = runes[maxRunes:]
+		}
+		if remainder := strings.TrimSpace(string(runes)); remainder != "" {
+			result = append(result, remainder)
+		}
 	}
 	return result
 }

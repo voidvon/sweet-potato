@@ -345,7 +345,7 @@ function CreationWorkflowStage({
           ? renderCompleted
             ? t('已完成')
             : renderGeneration?.status === 'rendering'
-              ? t('渲染中 {{0}}%', { '0': Math.round((renderGeneration.progress || 0) * 100) })
+              ? t('渲染中')
               : renderGeneration?.status === 'queued'
                 ? t('排队中')
                 : renderFailed
