@@ -190,15 +190,15 @@ const ElementContent: React.FC<{ element: VisualElement }> = ({ element }) => {
     const textStyle: CSSProperties = shineAnimation && shineIsActive
       ? {
           color: "transparent",
-          backgroundImage: `linear-gradient(110deg, ${element.style.color} 30%, ${shineAnimation.shineColor} 50%, ${element.style.color} 70%)`,
-          backgroundSize: "250% 100%",
+          backgroundImage: `linear-gradient(110deg, ${element.style.color} 45%, ${shineAnimation.shineColor} 50%, ${element.style.color} 55%)`,
+          backgroundSize: "200% 100%",
           backgroundPosition: `${interpolate(
             frame,
             [
               shineAnimation.from,
               shineAnimation.from + shineAnimation.durationInFrames,
             ],
-            [200, -100],
+            [110, -10],
             { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
           )}% 0`,
           WebkitBackgroundClip: "text",

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -394,6 +395,10 @@ func numberValue(value any, fallback float64) float64 {
 		return number
 	case int:
 		return float64(number)
+	case json.Number:
+		if parsed, err := number.Float64(); err == nil {
+			return parsed
+		}
 	case string:
 		var parsed float64
 		if _, err := fmt.Sscan(number, &parsed); err == nil {

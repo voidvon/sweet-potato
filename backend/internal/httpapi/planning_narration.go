@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"sweet-potato-go/internal/audio"
@@ -46,18 +48,19 @@ func (s *Server) queuePlanningNarration(session store.ContentPlanningSession, in
 	}
 	runID := randomIDForHTTP()
 	session.Analysis["narrationGeneration"] = map[string]any{
-		"runId":         runID,
-		"status":        "generating",
-		"provider":      strings.TrimSpace(stringValue(input, "provider")),
-		"voice":         voice,
-		"speed":         speed,
-		"instruction":   strings.TrimSpace(stringValue(input, "instruction")),
-		"modelConfigId": strings.TrimSpace(stringValue(input, "modelConfigId")),
-		"durationMs":    0,
-		"scenes":        []any{},
-		"captions":      []any{},
-		"errorMessage":  "",
-		"startedAt":     time.Now().UTC().Format(time.RFC3339Nano),
+		"runId":          runID,
+		"status":         "generating",
+		"provider":       strings.TrimSpace(stringValue(input, "provider")),
+		"voice":          voice,
+		"speed":          speed,
+		"instruction":    strings.TrimSpace(stringValue(input, "instruction")),
+		"modelConfigId":  strings.TrimSpace(stringValue(input, "modelConfigId")),
+		"durationMs":     0,
+		"scenes":         []any{},
+		"captions":       []any{},
+		"previousScenes": anySlice(generation["scenes"]),
+		"errorMessage":   "",
+		"startedAt":      time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	session.Analysis["remotionGeneration"] = map[string]any{"status": "idle", "presetId": "", "errorMessage": ""}
 	session.Analysis["renderGeneration"] = map[string]any{"status": "idle", "progress": 0, "pluginJobId": "", "assetId": "", "fileUrl": "", "errorMessage": ""}
@@ -103,6 +106,11 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 	ctx, cancel := context.WithTimeout(s.taskContext(), 15*time.Minute)
 	defer cancel()
 	scenes := planningNarrationInputs(session)
+	scenes, err = s.rewritePlanningNarrationCopy(ctx, session, scenes, anySlice(generation["previousScenes"]), runID)
+	if err != nil {
+		s.failPlanningNarration(session, runID, err, nil, nil, 0)
+		return
+	}
 	results := make([]any, 0, len(scenes))
 	allCaptions := make([]any, 0)
 	totalDurationMs := 0
@@ -117,7 +125,7 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 			s.failPlanningNarration(session, runID, synthErr, results, allCaptions, totalDurationMs)
 			return
 		}
-		durationMs, durationErr := audio.DurationMs(output.Bytes)
+		rawDurationMs, durationErr := audio.DurationMs(output.Bytes)
 		if durationErr != nil {
 			s.failPlanningNarration(session, runID, durationErr, results, allCaptions, totalDurationMs)
 			return
@@ -127,15 +135,18 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 			s.failPlanningNarration(session, runID, persistErr, results, allCaptions, totalDurationMs)
 			return
 		}
+		durationMs, playbackRate := planningNarrationPlaybackTiming(rawDurationMs, speed, output.SpeedApplied)
 		captions := narrationCaptions(scene.Text, totalDurationMs, durationMs)
 		results = append(results, map[string]any{
-			"sceneId":    scene.ID,
-			"text":       scene.Text,
-			"assetId":    asset.ID,
-			"fileUrl":    asset.FileURL,
-			"durationMs": durationMs,
-			"startMs":    totalDurationMs,
-			"captions":   captions,
+			"sceneId":       scene.ID,
+			"text":          scene.Text,
+			"assetId":       asset.ID,
+			"fileUrl":       asset.FileURL,
+			"durationMs":    durationMs,
+			"rawDurationMs": rawDurationMs,
+			"playbackRate":  playbackRate,
+			"startMs":       totalDurationMs,
+			"captions":      captions,
 		})
 		allCaptions = append(allCaptions, captions...)
 		totalDurationMs += durationMs
@@ -171,6 +182,117 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 	if updated, updateErr := s.store.UpdatePlanningSession(current); updateErr == nil {
 		s.publishPlanningSessionUpdated(updated, "narration")
 	}
+}
+
+func planningNarrationPlaybackTiming(rawDurationMs int, requestedSpeed float64, providerAppliedSpeed bool) (int, float64) {
+	if providerAppliedSpeed || requestedSpeed <= 0 {
+		return maxInt(1, rawDurationMs), 1
+	}
+	return maxInt(1, int(math.Round(float64(rawDurationMs)/requestedSpeed))), requestedSpeed
+}
+
+func (s *Server) rewritePlanningNarrationCopy(ctx context.Context, session store.ContentPlanningSession, scenes []planningNarrationScene, previousScenes []any, runID string) ([]planningNarrationScene, error) {
+	model, err := s.resolveLLMModelConfig(session.UserID, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("旁白文案重写需要可用的文本模型: %w", err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"rewriteRequestId":  runID,
+		"productInsights":   objectValue(session.Analysis["productInsights"]),
+		"campaignPlan":      objectValue(session.Analysis["campaignPlan"]),
+		"previousNarration": previousScenes,
+		"scenes":            scenes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	input := []map[string]any{
+		{"role": "system", "content": "你是中文企业营销视频的旁白文案编辑。必须调用 submit_narration_copy。只重写旁白，不改变产品事实和场景顺序。整体采用自然、直接、面向企业客户和老板的产品推介口吻：从“你是不是在找一款……”式需求问题切入，依次介绍公司开发的产品、资料明确提供的性能或能力、适用需求与成本优势、公司类型与主营业务，最后自然邀请各位老板合作共赢。根据场景数量合并环节，不要机械照抄模板。尽量使用中文；常见英文应翻译或换成中文，只有品牌、正式产品名、型号和必要行业缩写可以保留。不得编造性能数值、价格、降本幅度或公司背景。每次重新生成都应在事实不变的前提下明显调整措辞和句式，不能照抄 previousNarration。"},
+		{"role": "user", "content": []map[string]any{{"type": "input_text", "text": string(payload)}}},
+	}
+	result, err := s.callPlanningNarrationCopyResponses(ctx, session, model, input, runID)
+	if err != nil {
+		return nil, err
+	}
+	return decodePlanningNarrationCopy(result, scenes)
+}
+
+func planningNarrationCopyTool() map[string]any {
+	item := map[string]any{
+		"type": "object", "additionalProperties": false,
+		"required": []string{"sceneId", "text"},
+		"properties": map[string]any{
+			"sceneId": map[string]any{"type": "string"},
+			"text":    map[string]any{"type": "string", "minLength": 1, "maxLength": 180},
+		},
+	}
+	return map[string]any{
+		"type": "function", "name": "submit_narration_copy", "description": "提交按场景重写后的中文旁白文案", "strict": true,
+		"parameters": map[string]any{
+			"type": "object", "additionalProperties": false, "required": []string{"scenes"},
+			"properties": map[string]any{"scenes": map[string]any{"type": "array", "items": item}},
+		},
+	}
+}
+
+func (s *Server) callPlanningNarrationCopyResponses(ctx context.Context, session store.ContentPlanningSession, model store.ModelConfig, input []map[string]any, runID string) (responsesResult, error) {
+	settings, err := s.store.GetBillingSettings()
+	if err != nil {
+		return responsesResult{}, fmt.Errorf("读取旁白文案计费设置: %w", err)
+	}
+	tools := []map[string]any{planningNarrationCopyTool()}
+	if !settings.Enabled || settings.ContentPlanningAnalysisCredits <= 0 {
+		return callResponsesContext(ctx, model, input, tools)
+	}
+	cost := settings.ContentPlanningAnalysisCredits
+	snapshot := map[string]any{"modelConfigId": model.ID, "provider": model.Provider, "model": model.Model, "creditsPerRequest": cost}
+	reservationID, err := s.store.ReserveCredits(session.UserID, "content_planning_narration_copy", runID, cost, snapshot)
+	if err != nil {
+		return responsesResult{}, err
+	}
+	result, err := callResponsesContext(ctx, model, input, tools)
+	if err != nil {
+		_ = s.store.ReleaseCredits(reservationID, session.UserID)
+		return responsesResult{}, fmt.Errorf("调用旁白文案模型: %w", err)
+	}
+	usage := store.LLMUsageSettlement{
+		ModelConfigID: model.ID, SourceType: "content_planning_narration_copy", SourceID: runID,
+		PromptTokens: result.Usage.InputTokens, CompletionTokens: result.Usage.OutputTokens, CachedPromptTokens: result.Usage.CachedInputTokens,
+		UsageRaw: map[string]any{"inputTokens": result.Usage.InputTokens, "outputTokens": result.Usage.OutputTokens, "totalTokens": result.Usage.TotalTokens, "estimated": result.Usage.Estimated}, BillingSnapshot: snapshot,
+	}
+	if err := s.store.SettleLLMReservation(reservationID, session.UserID, cost, usage); err != nil {
+		return responsesResult{}, fmt.Errorf("结算旁白文案费用: %w", err)
+	}
+	return result, nil
+}
+
+func decodePlanningNarrationCopy(result responsesResult, original []planningNarrationScene) ([]planningNarrationScene, error) {
+	for _, output := range result.Output {
+		if output.Type != "function_call" || output.Name != "submit_narration_copy" || strings.TrimSpace(output.Arguments) == "" {
+			continue
+		}
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(output.Arguments), &raw); err != nil {
+			return nil, fmt.Errorf("解析旁白文案: %w", err)
+		}
+		byID := map[string]string{}
+		for _, value := range anySlice(raw["scenes"]) {
+			item := objectValue(value)
+			if id, text := strings.TrimSpace(stringValue(item, "sceneId")), strings.TrimSpace(stringValue(item, "text")); id != "" && text != "" {
+				byID[id] = text
+			}
+		}
+		rewritten := make([]planningNarrationScene, 0, len(original))
+		for _, scene := range original {
+			text := byID[scene.ID]
+			if text == "" {
+				return nil, fmt.Errorf("旁白文案缺少场景 %s", scene.ID)
+			}
+			rewritten = append(rewritten, planningNarrationScene{ID: scene.ID, Text: text})
+		}
+		return rewritten, nil
+	}
+	return nil, errors.New("旁白文案模型没有返回有效结果")
 }
 
 func (s *Server) persistNarrationAudio(userID, groupID, sessionID string, scene planningNarrationScene, index int, data []byte, model store.ModelConfig) (store.ContentAsset, error) {
@@ -255,7 +377,11 @@ func (s *Server) failPlanningNarration(session store.ContentPlanningSession, run
 func narrationCaptions(text string, startMs, durationMs int) []any {
 	parts := splitNarrationCaptionParts(text, planningCaptionMaxRunes)
 	if len(parts) == 0 {
-		parts = []string{text}
+		if fallback := trimCaptionBoundaryPunctuation(text); fallback != "" {
+			parts = []string{fallback}
+		} else {
+			return nil
+		}
 	}
 	totalWeight := 0
 	for _, part := range parts {
@@ -287,14 +413,28 @@ func splitNarrationCaptionParts(text string, maxRunes int) []string {
 	for _, part := range parts {
 		runes := []rune(part)
 		for len(runes) > maxRunes {
-			result = append(result, strings.TrimSpace(string(runes[:maxRunes])))
+			if chunk := trimCaptionBoundaryPunctuation(string(runes[:maxRunes])); chunk != "" {
+				result = append(result, chunk)
+			}
 			runes = runes[maxRunes:]
 		}
-		if remainder := strings.TrimSpace(string(runes)); remainder != "" {
+		if remainder := trimCaptionBoundaryPunctuation(string(runes)); remainder != "" {
 			result = append(result, remainder)
 		}
 	}
 	return result
+}
+
+func trimCaptionBoundaryPunctuation(text string) string {
+	return strings.TrimFunc(strings.TrimSpace(text), func(character rune) bool {
+		return unicode.IsPunct(character) || unicode.IsSpace(character)
+	})
+}
+
+func trimLeadingCaptionPunctuation(text string) string {
+	return strings.TrimLeftFunc(strings.TrimSpace(text), func(character rune) bool {
+		return unicode.IsPunct(character) || unicode.IsSpace(character)
+	})
 }
 
 func splitNarrationSentences(text string) []string {

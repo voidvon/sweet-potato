@@ -102,6 +102,8 @@ export type PlanningNarrationScene = {
   assetId: string;
   fileUrl: string;
   durationMs: number;
+  rawDurationMs?: number;
+  playbackRate?: number;
   startMs: number;
   captions: PlanningNarrationCaption[];
 };

@@ -136,6 +136,10 @@ export function getModelSettingsColumns({
         ),
       },
       {
+        title: t("模型名称"),
+        dataIndex: 'model',
+      },
+      {
         title: t("Key 状态"),
         render: (_, record) => renderConfiguredTag(record),
       },

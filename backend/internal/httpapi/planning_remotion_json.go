@@ -143,7 +143,7 @@ func planningRemotionComposeInput(session store.ContentPlanningSession, presetID
 		scenes = append(scenes, map[string]any{
 			"id": sceneID, "title": stringValue(scene, "title"), "subtitle": stringValue(scene, "subtitle"), "cta": stringValue(scene, "cta"), "durationMs": durationMs,
 			"images":    composeImages,
-			"narration": map[string]any{"assetId": stringValue(narration, "assetId"), "url": audioURL, "startMs": numberValue(narration["startMs"], 0), "captions": anySlice(narration["captions"])},
+			"narration": map[string]any{"assetId": stringValue(narration, "assetId"), "url": audioURL, "startMs": numberValue(narration["startMs"], 0), "playbackRate": numberValue(narration["playbackRate"], 1), "captions": anySlice(narration["captions"])},
 		})
 	}
 	return map[string]any{"presetId": presetID, "visualStyle": stringValue(plan, "visualStyle"), "scenes": scenes, "motionPlan": motionPlan}, nil

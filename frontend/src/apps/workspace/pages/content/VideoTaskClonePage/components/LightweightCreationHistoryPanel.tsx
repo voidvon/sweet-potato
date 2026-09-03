@@ -402,7 +402,11 @@ function CreationWorkflowStage({
               aria-label={t('语速')}
               max={2}
               min={0.5}
-              onChange={(value) => controller.setNarrationSpeed(Number(value || 1))}
+              onChange={(value) => {
+                if (typeof value === 'number' && Number.isFinite(value)) {
+                  controller.setNarrationSpeed(value);
+                }
+              }}
               size="small"
               step={0.1}
               value={controller.narrationSpeed}
@@ -545,7 +549,19 @@ function NarrationResults({ record }: { record: LightweightCreationRecord }) {
               <span>{formatMilliseconds(scene.durationMs)}</span>
             </div>
             <p>{scene.text}</p>
-            <audio controls preload="metadata" src={resolveAssetUrl(scene.fileUrl)} />
+            <audio
+              controls
+              onLoadedMetadata={(event) => {
+                const playbackRate = scene.playbackRate || 1;
+                event.currentTarget.defaultPlaybackRate = playbackRate;
+                event.currentTarget.playbackRate = playbackRate;
+              }}
+              onPlay={(event) => {
+                event.currentTarget.playbackRate = scene.playbackRate || 1;
+              }}
+              preload="metadata"
+              src={resolveAssetUrl(scene.fileUrl)}
+            />
             <div className="lightweight-narration-caption-list">
               {scene.captions.map((caption, captionIndex) => (
                 <div className="lightweight-narration-caption" key={`${scene.sceneId}-${caption.startMs}-${captionIndex}`}>

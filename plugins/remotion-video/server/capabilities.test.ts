@@ -36,7 +36,8 @@ describe("Remotion video capabilities", () => {
           assetId: "audio-1",
           url: "https://example.com/audio.mp3",
           startMs: 0,
-          captions: [{ text: "稳定可靠并且可以显著提升团队日常工作的处理效率和交付质量", startMs: 0, endMs: 3000, timestampMs: null, confidence: null }],
+          playbackRate: 1.5,
+          captions: [{ text: "，稳定可靠并且可以显著提升团队日常工作的处理效率和交付质量", startMs: 0, endMs: 3000, timestampMs: null, confidence: null }],
         },
       }, {
         id: "scene-2",
@@ -77,6 +78,7 @@ describe("Remotion video capabilities", () => {
     const title = elements.find((element) => element.id === "scene-1-title");
     const subtitle = elements.find((element) => element.id === "scene-1-subtitle");
     const captions = elements.find((element) => element.id === "scene-1-captions");
+    const audio = elements.find((element) => element.id === "scene-1-audio");
     expect(title?.type).toBe("text");
     expect(subtitle?.type).toBe("text");
     if (title?.type !== "text" || subtitle?.type !== "text") {
@@ -88,8 +90,17 @@ describe("Remotion video capabilities", () => {
     expect(subtitle.style.color).toBe("#102A43");
     expect(elements.some((element) => element.id === "scene-1-overlay")).toBe(false);
     expect(captions?.type === "captions" ? captions.animationPreset : null).toBe("fade");
+    expect(captions?.type === "captions" ? captions.displayMode : null).toBe("sentence");
+    expect(captions?.type === "captions" ? captions.style.width : 0).toBeLessThanOrEqual(1920 * 0.8);
+    expect(audio?.type === "audio" ? audio.playbackRate : 0).toBe(1.5);
+    const firstScene = result.renderRequest.inputProps.scenes?.[0];
+    expect(firstScene?.transitionAfter).toBeDefined();
+    expect(firstScene && audio?.type === "audio"
+      ? firstScene.durationInFrames - firstScene.transitionAfter!.durationInFrames - audio.durationInFrames
+      : 0).toBe(14);
     expect(captions?.type === "captions" ? captions.captions.length : 0).toBeGreaterThan(1);
     expect(captions?.type === "captions" ? captions.captions.every((caption) => Array.from(caption.text).length <= 18) : false).toBe(true);
+    expect(captions?.type === "captions" ? captions.captions.every((caption) => !/^\p{P}/u.test(caption.text)) : false).toBe(true);
     const image = elements.find((element) => element.type === "image");
     expect(image?.animations.some((animation) =>
       animation.type === "ken-burns" && animation.easing === "linear"

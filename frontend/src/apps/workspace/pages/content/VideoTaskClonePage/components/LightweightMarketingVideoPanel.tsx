@@ -92,6 +92,7 @@ type LightweightWorkflowState = Record<string, unknown> & {
   createdAt?: string;
   extractionError?: string;
   kind: 'draft' | 'record';
+  narrationSpeed?: number;
 };
 
 function getAttachmentKind(file: File): ReferenceAttachmentKind | null {
@@ -107,10 +108,25 @@ function isDocument(attachment: LightweightReferenceAttachment) {
   return attachment.kind === 'presentation' || attachment.kind === 'pdf';
 }
 
+function narrationSpeedStorageKey(userId: string) {
+  return `lightweight-marketing-video:narration-speed:${userId}`;
+}
+
+function readNarrationSpeedPreference(userId: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = Number(window.localStorage.getItem(narrationSpeedStorageKey(userId)));
+    return Number.isFinite(value) && value >= 0.5 && value <= 2 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useLightweightMarketingVideoController(
   currentUser: User,
   onVideoProductionsChange?: () => void | Promise<unknown>,
 ) {
+  const initialNarrationSpeedRef = useRef(readNarrationSpeedPreference(currentUser.id));
   const [attachments, setAttachments] = useState<LightweightReferenceAttachment[]>([]);
   const [brief, setBriefValue] = useState('');
   const [records, setRecords] = useState<LightweightCreationRecord[]>([]);
@@ -120,7 +136,7 @@ export function useLightweightMarketingVideoController(
   const [uploadNotice, setUploadNotice] = useState('');
   const [narrationVoices, setNarrationVoices] = useState<PlanningVoice[]>([]);
   const [narrationVoice, setNarrationVoiceValue] = useState('');
-  const [narrationSpeed, setNarrationSpeedValue] = useState(1);
+  const [narrationSpeed, setNarrationSpeedValue] = useState(initialNarrationSpeedRef.current ?? 1);
   const [remotionPresets, setRemotionPresets] = useState<RemotionVideoPreset[]>([]);
   const [remotionPresetId, setRemotionPresetIdValue] = useState('clean-marketing');
   const [generatingRemotionRecordId, setGeneratingRemotionRecordId] = useState('');
@@ -131,6 +147,9 @@ export function useLightweightMarketingVideoController(
   const workflowSaveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const workflowSaveSignaturesRef = useRef(new Map<string, string>());
   const notifiedRenderAssetIdsRef = useRef(new Set<string>());
+  const narrationSpeedDirtyRef = useRef(false);
+  const narrationSpeedRef = useRef(initialNarrationSpeedRef.current ?? 1);
+  const narrationSpeedPreferenceRef = useRef(initialNarrationSpeedRef.current !== null);
   const selectedRecord = records.find((record) => record.id === selectedRecordId);
 
   useEffect(() => {
@@ -152,6 +171,10 @@ export function useLightweightMarketingVideoController(
   }, [currentUser.id]);
 
   useEffect(() => {
+    narrationSpeedDirtyRef.current = false;
+  }, [selectedRecordId]);
+
+  useEffect(() => {
     let cancelled = false;
     void getRemotionVideoPresets().then((result) => {
       if (cancelled) return;
@@ -169,16 +192,20 @@ export function useLightweightMarketingVideoController(
 
   useEffect(() => {
     const generation = selectedRecord?.analysisSession?.analysis.narrationGeneration;
-    if (!generation || !selectedRecordId) return;
-    if (generation.voice) {
+    if (!selectedRecordId) return;
+    if (generation?.voice) {
       setNarrationVoiceValue((current) => {
         if (narrationVoices.length === 0) return generation.voice;
         if (narrationVoices.some((voice) => voice.id === generation.voice)) return generation.voice;
         return narrationVoices[0]?.id || '';
       });
     }
-    if (generation.speed > 0) setNarrationSpeedValue(generation.speed);
-  }, [narrationVoices, selectedRecord?.analysisSession?.analysis.narrationGeneration?.voice, selectedRecordId]);
+    if (!narrationSpeedDirtyRef.current && !narrationSpeedPreferenceRef.current) {
+      const restoredSpeed = generation?.speed && generation.speed > 0 ? generation.speed : 1;
+      narrationSpeedRef.current = restoredSpeed;
+      setNarrationSpeedValue(restoredSpeed);
+    }
+  }, [narrationVoices, selectedRecord?.analysisSession?.analysis.narrationGeneration?.speed, selectedRecord?.analysisSession?.analysis.narrationGeneration?.voice, selectedRecordId]);
 
   useEffect(() => {
     const presetId = selectedRecord?.analysisSession?.analysis.remotionGeneration?.presetId;
@@ -226,6 +253,15 @@ export function useLightweightMarketingVideoController(
         const draft = workflows.find((workflow) => workflow.recordKey === 'default' && workflow.state.kind === 'draft');
         if (draft) {
           setBriefValue(String(draft.state.brief || ''));
+          const restoredNarrationSpeed = Number(draft.state.narrationSpeed);
+          if (!narrationSpeedPreferenceRef.current
+            && Number.isFinite(restoredNarrationSpeed)
+            && restoredNarrationSpeed >= 0.5
+            && restoredNarrationSpeed <= 2) {
+            narrationSpeedPreferenceRef.current = true;
+            narrationSpeedRef.current = restoredNarrationSpeed;
+            setNarrationSpeedValue(restoredNarrationSpeed);
+          }
           const restoredDraftAttachments = await restoreAttachments(draft.state.attachments.filter((attachment) => attachment.assetId));
           if (cancelled) return;
           setAttachments(restoredDraftAttachments);
@@ -256,6 +292,7 @@ export function useLightweightMarketingVideoController(
         attachments: serializeAttachments(attachments),
         brief,
         kind: 'draft',
+        narrationSpeed,
       };
       void persistWorkflow({
         currentStep: 'materials',
@@ -268,7 +305,7 @@ export function useLightweightMarketingVideoController(
       }).catch(() => undefined);
     }, 350);
     return () => clearTimeout(timer);
-  }, [attachments, brief, workflowsLoaded]);
+  }, [attachments, brief, narrationSpeed, workflowsLoaded]);
 
   useEffect(() => {
     if (!workflowsLoaded) return;
@@ -592,7 +629,7 @@ export function useLightweightMarketingVideoController(
         sessionId: session.id,
         userId: currentUser.id,
         voice: narrationVoice || narrationVoices[0]?.id || '',
-        speed: narrationSpeed,
+        speed: narrationSpeedRef.current,
       });
       const updatedRecord = { ...record, analysisError: '', analysisSession: queued };
       updateRecord(id, () => updatedRecord);
@@ -710,7 +747,18 @@ export function useLightweightMarketingVideoController(
       setCreateError('');
     },
     setNarrationSpeed: (value: number) => {
-      if (Number.isFinite(value)) setNarrationSpeedValue(Math.min(2, Math.max(0.5, value)));
+      if (Number.isFinite(value)) {
+        const normalized = Math.min(2, Math.max(0.5, value));
+        narrationSpeedDirtyRef.current = true;
+        narrationSpeedPreferenceRef.current = true;
+        narrationSpeedRef.current = normalized;
+        try {
+          window.localStorage.setItem(narrationSpeedStorageKey(currentUser.id), String(normalized));
+        } catch {
+          // The workflow draft remains the cross-session persistence fallback.
+        }
+        setNarrationSpeedValue(normalized);
+      }
     },
     setNarrationVoice: (value: string) => setNarrationVoiceValue(value),
     setRemotionPresetId: (value: string) => setRemotionPresetIdValue(value),

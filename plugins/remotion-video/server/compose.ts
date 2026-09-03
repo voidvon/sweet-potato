@@ -72,6 +72,7 @@ export const composeRequestSchema = z
         assetId: z.string().min(1),
         url: z.url(),
         startMs: z.number().min(0),
+        playbackRate: z.number().min(0.5).max(2).default(1),
         captions: z.array(captionInputSchema),
       }).strict(),
     }).strict()).min(1),
@@ -83,6 +84,7 @@ type ComposeRequest = z.infer<typeof composeRequestSchema>;
 type SceneMotion = z.infer<typeof sceneMotionSchema>;
 
 const defaultFps = 30;
+const interSceneNarrationPauseFrames = Math.round(defaultFps * 0.45);
 
 const splitFrames = (total: number, parts: number) => {
   const base = Math.floor(total / parts);
@@ -224,6 +226,8 @@ const textElement = (
 
 const captionCharacterWeight = (character: string) => character.codePointAt(0)! <= 0x7f ? 0.55 : 1;
 
+const trimLeadingCaptionPunctuation = (text: string) => text.trim().replace(/^\p{P}+/u, "").trimStart();
+
 const splitCaptionText = (text: string, maxVisualUnits = 18) => {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return [];
@@ -233,14 +237,16 @@ const splitCaptionText = (text: string, maxVisualUnits = 18) => {
   for (const character of Array.from(normalized)) {
     const weight = captionCharacterWeight(character);
     if (current && units + weight > maxVisualUnits) {
-      parts.push(current.trim());
+      const part = trimLeadingCaptionPunctuation(current);
+      if (part) parts.push(part);
       current = "";
       units = 0;
     }
     current += character;
     units += weight;
   }
-  if (current.trim()) parts.push(current.trim());
+  const remainder = trimLeadingCaptionPunctuation(current);
+  if (remainder) parts.push(remainder);
   return parts;
 };
 
@@ -306,10 +312,14 @@ export const composeVideo = (input: ComposeRequest) => {
   input.scenes.forEach((scene, sceneIndex) => {
     const motion = motionByScene.get(scene.id) ?? defaultMotion(scene.id, preset);
     const images = arrangeImages(scene.images, motion.imageAssetIds);
-    const durationFrames = Math.max(1, Math.ceil((scene.durationMs * defaultFps) / 1000));
+    const narrationDurationFrames = Math.max(1, Math.ceil((scene.durationMs * defaultFps) / 1000));
     const transitionFrames = sceneIndex < input.scenes.length - 1
-      ? Math.min(12, Math.max(1, Math.floor(durationFrames / 5)))
+      ? Math.min(12, Math.max(1, Math.floor(narrationDurationFrames / 5)))
       : 0;
+    const narrationPauseFrames = sceneIndex < input.scenes.length - 1
+      ? interSceneNarrationPauseFrames
+      : 0;
+    const durationFrames = narrationDurationFrames + transitionFrames + narrationPauseFrames;
     totalFrames += durationFrames;
     transitionFramesTotal += transitionFrames;
     const elements: JsonVideoElement[] = [];
@@ -336,18 +346,19 @@ export const composeVideo = (input: ComposeRequest) => {
       elements.push(textElement(`${scene.id}-subtitle`, subtitle, durationFrames, motion.layout.titlePosition, motion.text.subtitleEntrance, "none", motion.text.subtitleColor, true, transitionFrames));
     }
     elements.push({
-      id: `${scene.id}-audio`, type: "audio", src: scene.narration.url, from: 0, durationInFrames: durationFrames,
-      volume: 1, playbackRate: 1, trimBefore: 0, loop: false, toneFrequency: 1, animations: [],
+      id: `${scene.id}-audio`, type: "audio", src: scene.narration.url, from: 0, durationInFrames: narrationDurationFrames,
+      volume: 1, playbackRate: scene.narration.playbackRate, trimBefore: 0, loop: false, toneFrequency: 1, animations: [],
     });
     const captions = localCaptions(scene.narration.captions, scene.narration.startMs, scene.durationMs);
     if (captions.length > 0) {
+      const captionAnimation = motion.caption.animation === "word-highlight" ? "fade" : motion.caption.animation;
       elements.push({
-        id: `${scene.id}-captions`, type: "captions", captions, from: 0, durationInFrames: durationFrames,
+        id: `${scene.id}-captions`, type: "captions", captions, from: 0, durationInFrames: narrationDurationFrames,
         position: { x: 960, y: 940, anchor: "center" }, zIndex: 4, opacity: 1, animations: [],
-        displayMode: motion.caption.animation === "word-highlight" ? "page" : "sentence",
+        displayMode: "sentence",
         combineTokensWithinMilliseconds: 1200,
-        animationPreset: motion.caption.animation,
-        style: { width: 1720, fontSize: 50, fontFamily: "Arial, sans-serif", fontWeight: 700, lineHeight: 1.2, color: "#FFFFFF", highlightColor: preset.accentColor, shadowColor: "#000000E6", shadowBlur: 12, textAlign: "center", padding: 0 },
+        animationPreset: captionAnimation,
+        style: { width: 1536, fontSize: 50, fontFamily: "Arial, sans-serif", fontWeight: 700, lineHeight: 1.2, color: "#FFFFFF", highlightColor: preset.accentColor, shadowColor: "#000000E6", shadowBlur: 12, textAlign: "center", padding: 0 },
       });
     }
     scenes.push({

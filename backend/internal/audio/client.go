@@ -28,8 +28,9 @@ type SpeechInput struct {
 }
 
 type Output struct {
-	Bytes    []byte
-	MimeType string
+	Bytes        []byte
+	MimeType     string
+	SpeedApplied bool
 }
 
 func (c Client) Synthesize(ctx context.Context, input SpeechInput) (Output, error) {
@@ -77,23 +78,23 @@ func (c Client) synthesizeSpeech(ctx context.Context, input SpeechInput) (Output
 	if err != nil {
 		return Output{}, fmt.Errorf("编码语音请求失败: %w", err)
 	}
-	return c.do(ctx, http.MethodPost, "audio/speech", encoded, false)
+	output, err := c.do(ctx, http.MethodPost, "audio/speech", encoded, false)
+	output.SpeedApplied = err == nil
+	return output, err
 }
 
 func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, error) {
 	instruction := strings.TrimSpace(input.Instruction)
 	if instruction == "" {
-		instruction = "用自然、专业、适合营销视频的语气朗读，发音清晰，节奏适中。"
+		instruction = "用自然、专业、适合营销视频的语气朗读，发音清晰。"
 	}
-	speedHint := "语速适中。"
-	if input.Speed != 1 {
-		speedHint = fmt.Sprintf("语速约为正常语速的 %.1f 倍。", input.Speed)
-	}
+	instruction = strings.TrimSpace(instruction + " " + mimoSpeedInstruction(input.Speed))
+	text := mimoSpeedTaggedText(input.Text, input.Speed)
 	body := map[string]any{
 		"model": c.Model,
 		"messages": []map[string]string{
-			{"role": "user", "content": strings.TrimSpace(instruction + " " + speedHint)},
-			{"role": "assistant", "content": input.Text},
+			{"role": "user", "content": instruction},
+			{"role": "assistant", "content": text},
 		},
 		"audio": map[string]string{"format": "wav", "voice": input.Voice},
 	}
@@ -101,7 +102,35 @@ func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, 
 	if err != nil {
 		return Output{}, fmt.Errorf("编码 MiMo 语音请求失败: %w", err)
 	}
-	return c.do(ctx, http.MethodPost, "chat/completions", encoded, true)
+	output, err := c.do(ctx, http.MethodPost, "chat/completions", encoded, true)
+	output.SpeedApplied = err == nil
+	return output, err
+}
+
+func mimoSpeedInstruction(speed float64) string {
+	switch {
+	case speed >= 1.8:
+		return fmt.Sprintf("使用快速、紧凑且连贯的节奏，语速约为日常语速的 %.1f 倍，明显减少停顿。", speed)
+	case speed > 1.1:
+		return fmt.Sprintf("使用明显偏快、紧凑且连贯的节奏，语速约为日常语速的 %.1f 倍，减少不必要的停顿。", speed)
+	case speed <= 0.7:
+		return fmt.Sprintf("使用明显舒缓、从容的节奏，语速约为日常语速的 %.1f 倍。", speed)
+	case speed < 0.9:
+		return fmt.Sprintf("使用稍慢、清晰且从容的节奏，语速约为日常语速的 %.1f 倍。", speed)
+	default:
+		return "使用自然适中的语速和停顿。"
+	}
+}
+
+func mimoSpeedTaggedText(text string, speed float64) string {
+	switch {
+	case speed > 1.1:
+		return "(变快)" + text
+	case speed < 0.9:
+		return "(放慢)" + text
+	default:
+		return text
+	}
 }
 
 func (c Client) do(ctx context.Context, method, path string, body []byte, expectBase64 bool) (Output, error) {
