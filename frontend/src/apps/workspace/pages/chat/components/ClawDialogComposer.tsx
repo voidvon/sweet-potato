@@ -419,7 +419,7 @@ export function ClawDialogComposer({
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
   const [selectedBackground, setSelectedBackground] = useState<ClawBackgroundKey>('transparent');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
-  const [selectedOutputCount, setSelectedOutputCount] = useState(0);
+  const [selectedOutputCount, setSelectedOutputCount] = useState(selectedModeKey === 'dialog' ? 1 : 0);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
   const [hoveredReferenceGroupIndex, setHoveredReferenceGroupIndex] = useState<number | null>(null);
   const textareaRef = useRef<MentionRichTextareaRef | null>(null);

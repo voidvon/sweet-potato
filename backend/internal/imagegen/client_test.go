@@ -86,6 +86,38 @@ func TestGenerateCompatibleImagesInChunksUpToTwelve(t *testing.T) {
 	}
 }
 
+func TestGenerateGPTImage2OmitsImageCountFromInitialRequests(t *testing.T) {
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		requestCount++
+		if request.URL.Path != "/v1/images/generations" {
+			t.Fatalf("path = %s", request.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if _, exists := body["n"]; exists {
+			t.Fatalf("gpt-image-2 request must omit n: %#v", body)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"data": []any{
+			map[string]any{"b64_json": base64.StdEncoding.EncodeToString([]byte("generated"))},
+		}})
+	}))
+	defer server.Close()
+
+	results, err := (Client{BaseURL: server.URL + "/v1", APIKey: "test-key", Provider: "openai-images", Model: "gpt-image-2"}).Generate(
+		t.Context(), GenerateInput{Prompt: "draw products", Count: 2},
+	)
+	if err != nil {
+		t.Fatalf("generate images: %v", err)
+	}
+	if len(results) != 2 || requestCount != 2 {
+		t.Fatalf("results = %d, requests = %d, want 2 results in 2 requests", len(results), requestCount)
+	}
+}
+
 func TestGenerateOpenAIImageFromSSE(t *testing.T) {
 	preview := base64.StdEncoding.EncodeToString([]byte("preview"))
 	completed := base64.StdEncoding.EncodeToString([]byte("completed"))
@@ -320,6 +352,9 @@ func TestGenerateOpenAIEditPreservesReferenceMIMEType(t *testing.T) {
 			}
 			if nextErr != nil {
 				t.Fatalf("next multipart part: %v", nextErr)
+			}
+			if part.FormName() == "n" {
+				t.Fatal("gpt-image-2 edit request must omit n")
 			}
 			if part.FormName() != "image[]" {
 				continue

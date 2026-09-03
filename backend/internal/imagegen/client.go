@@ -111,6 +111,22 @@ func (c Client) generate(ctx context.Context, input GenerateInput, emit func(Out
 		}
 		return results, nil
 	}
+	if c.isGPTImage2() && input.Count > 1 {
+		results := make([]Output, 0, input.Count)
+		for index := 0; index < input.Count; index++ {
+			single := input
+			single.Count = 1
+			items, err := c.generateJSON(ctx, single, emit)
+			results = append(results, items...)
+			if err != nil {
+				return results, fmt.Errorf("image generation %d: %w", index+1, err)
+			}
+			if len(items) == 0 {
+				return results, errors.New("image model returned no images")
+			}
+		}
+		return results, nil
+	}
 	if !c.isSeedream() && input.Count > 4 {
 		results := make([]Output, 0, input.Count)
 		for remaining := input.Count; remaining > 0; remaining -= min(4, remaining) {
@@ -170,7 +186,9 @@ func (c Client) generateJSON(ctx context.Context, input GenerateInput, emit func
 			}
 		}
 	} else {
-		body["n"] = input.Count
+		if !c.isGPTImage2() {
+			body["n"] = input.Count
+		}
 		body["size"] = openAIImageSize(input.Size, input.AspectRatio)
 		body["response_format"] = "b64_json"
 	}
@@ -193,7 +211,9 @@ func (c Client) generateMultipartEdit(ctx context.Context, input GenerateInput, 
 	fields := map[string]string{
 		"model":  c.Model,
 		"prompt": input.Prompt,
-		"n":      "1",
+	}
+	if !c.isGPTImage2() {
+		fields["n"] = "1"
 	}
 	if size := strings.TrimSpace(input.Size); size != "" {
 		fields["size"] = size
@@ -668,6 +688,10 @@ func (c Client) httpClient() *http.Client {
 func (c Client) isOpenAI() bool {
 	value := strings.ToLower(c.Provider + " " + c.BaseURL + " " + c.Model)
 	return strings.Contains(value, "openai") || strings.Contains(value, "image2")
+}
+
+func (c Client) isGPTImage2() bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(c.Model)), "gpt-image-2")
 }
 
 func (c Client) isSeedream() bool {
