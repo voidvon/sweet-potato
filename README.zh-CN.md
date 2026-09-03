@@ -47,17 +47,17 @@
 
 | 平台 | 文件 |
 | --- | --- |
-| Linux x86_64 | `sweet-potato-v0.1.58-linux-amd64.tar.gz` |
-| Linux ARM64 | `sweet-potato-v0.1.58-linux-arm64.tar.gz` |
-| macOS Intel | `sweet-potato-v0.1.58-darwin-amd64.tar.gz` |
-| macOS Apple Silicon | `sweet-potato-v0.1.58-darwin-arm64.tar.gz` |
-| Windows x86_64 | `sweet-potato-v0.1.58-windows-amd64.zip` |
+| Linux x86_64 | `sweet-potato-v0.1.59-linux-amd64.tar.gz` |
+| Linux ARM64 | `sweet-potato-v0.1.59-linux-arm64.tar.gz` |
+| macOS Intel | `sweet-potato-v0.1.59-darwin-amd64.tar.gz` |
+| macOS Apple Silicon | `sweet-potato-v0.1.59-darwin-arm64.tar.gz` |
+| Windows x86_64 | `sweet-potato-v0.1.59-windows-amd64.zip` |
 
-可以使用 Release 中的 [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.58/SHA256SUMS.txt) 校验下载文件。以 Linux amd64 为例：
+可以使用 Release 中的 [`SHA256SUMS.txt`](https://github.com/voidvon/sweet-potato/releases/download/v0.1.59/SHA256SUMS.txt) 校验下载文件。以 Linux amd64 为例：
 
 ```bash
 mkdir -p /opt/sweet-potato
-tar -xzf sweet-potato-v0.1.58-linux-amd64.tar.gz -C /opt/sweet-potato
+tar -xzf sweet-potato-v0.1.59-linux-amd64.tar.gz -C /opt/sweet-potato
 cd /opt/sweet-potato
 ./sweet-potato
 ```
