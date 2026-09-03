@@ -88,6 +88,17 @@ func TestPlanningNarrationPlaybackTimingAppliesMiMoSpeed(t *testing.T) {
 	}
 }
 
+func TestCombinedPlanningNarrationUsesOneContinuousParagraphSequence(t *testing.T) {
+	scenes := []planningNarrationScene{{ID: "one", Text: "第一段"}, {ID: "two", Text: "第二段！"}}
+	if got, want := combinedPlanningNarrationText(scenes), "第一段。\n第二段！"; got != want {
+		t.Fatalf("combined narration = %q, want %q", got, want)
+	}
+	durations := planningNarrationSceneDurations(scenes, 5000)
+	if len(durations) != 2 || durations[0]+durations[1] != 5000 || durations[0] <= 0 || durations[1] <= 0 {
+		t.Fatalf("scene durations = %#v", durations)
+	}
+}
+
 func TestSelectPresetAudioModelSkipsMiMoVoiceCloneDefault(t *testing.T) {
 	models := []store.ModelConfig{
 		{

@@ -72,6 +72,7 @@ export const composeRequestSchema = z
         assetId: z.string().min(1),
         url: z.url(),
         startMs: z.number().min(0),
+		sourceStartMs: z.number().min(0).default(0),
         playbackRate: z.number().min(0.5).max(2).default(1),
         captions: z.array(captionInputSchema),
       }).strict(),
@@ -84,7 +85,7 @@ type ComposeRequest = z.infer<typeof composeRequestSchema>;
 type SceneMotion = z.infer<typeof sceneMotionSchema>;
 
 const defaultFps = 30;
-const interSceneNarrationPauseFrames = Math.round(defaultFps * 0.45);
+const interSceneNarrationPauseFrames = 0;
 
 const splitFrames = (total: number, parts: number) => {
   const base = Math.floor(total / parts);
@@ -347,7 +348,9 @@ export const composeVideo = (input: ComposeRequest) => {
     }
     elements.push({
       id: `${scene.id}-audio`, type: "audio", src: scene.narration.url, from: 0, durationInFrames: narrationDurationFrames,
-      volume: 1, playbackRate: scene.narration.playbackRate, trimBefore: 0, loop: false, toneFrequency: 1, animations: [],
+	  volume: 1, playbackRate: scene.narration.playbackRate,
+	  trimBefore: Math.round((scene.narration.sourceStartMs * defaultFps) / 1000),
+	  loop: false, toneFrequency: 1, animations: [],
     });
     const captions = localCaptions(scene.narration.captions, scene.narration.startMs, scene.durationMs);
     if (captions.length > 0) {

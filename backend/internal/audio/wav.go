@@ -1,8 +1,10 @@
 package audio
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 )
 
 type WaveInfo struct {
@@ -64,4 +66,104 @@ func DurationMs(input []byte) (int, error) {
 		duration = 1
 	}
 	return duration, nil
+}
+
+// TrimBoundarySilence removes excess silence generated around an utterance
+// while retaining a short natural pause at both edges.
+func TrimBoundarySilence(input []byte, keepMs int) ([]byte, error) {
+	info, dataOffset, dataSize, err := inspectWAVData(input)
+	if err != nil {
+		return nil, err
+	}
+	if info.AudioFormat != 1 || info.BitsPerSample != 16 {
+		return input, nil
+	}
+	frameBytes := int(info.Channels) * 2
+	frameCount := dataSize / frameBytes
+	if frameCount == 0 {
+		return input, nil
+	}
+	data := input[dataOffset : dataOffset+dataSize]
+	windowFrames := maxWAVInt(1, int(info.SampleRate)/100)
+	threshold := float64(math.MaxInt16) * 0.01
+	firstActive, lastActive := -1, -1
+	for start := 0; start < frameCount; start += windowFrames {
+		end := minWAVInt(frameCount, start+windowFrames)
+		var sumSquares float64
+		for frame := start; frame < end; frame++ {
+			for channel := 0; channel < int(info.Channels); channel++ {
+				offset := frame*frameBytes + channel*2
+				sample := float64(int16(binary.LittleEndian.Uint16(data[offset : offset+2])))
+				sumSquares += sample * sample
+			}
+		}
+		sampleCount := (end - start) * int(info.Channels)
+		if math.Sqrt(sumSquares/float64(sampleCount)) >= threshold {
+			if firstActive < 0 {
+				firstActive = start
+			}
+			lastActive = end
+		}
+	}
+	if firstActive < 0 {
+		return input, nil
+	}
+	keepFrames := maxWAVInt(0, keepMs) * int(info.SampleRate) / 1000
+	trimStart := maxWAVInt(0, firstActive-keepFrames)
+	trimEnd := minWAVInt(frameCount, lastActive+keepFrames)
+	if trimStart == 0 && trimEnd == frameCount {
+		return input, nil
+	}
+	trimmedData := data[trimStart*frameBytes : trimEnd*frameBytes]
+	dataHeaderOffset := dataOffset - 8
+	originalChunkEnd := dataOffset + dataSize
+	if dataSize%2 != 0 {
+		originalChunkEnd++
+	}
+	var output bytes.Buffer
+	output.Grow(len(input) - dataSize + len(trimmedData) + 1)
+	output.Write(input[:dataHeaderOffset])
+	output.WriteString("data")
+	_ = binary.Write(&output, binary.LittleEndian, uint32(len(trimmedData)))
+	output.Write(trimmedData)
+	if len(trimmedData)%2 != 0 {
+		output.WriteByte(0)
+	}
+	output.Write(input[originalChunkEnd:])
+	result := output.Bytes()
+	binary.LittleEndian.PutUint32(result[4:8], uint32(len(result)-8))
+	return result, nil
+}
+
+func inspectWAVData(input []byte) (WaveInfo, int, int, error) {
+	info, err := InspectWAV(input)
+	if err != nil {
+		return WaveInfo{}, 0, 0, err
+	}
+	for offset := 12; offset+8 <= len(input); {
+		chunkSize := int(binary.LittleEndian.Uint32(input[offset+4 : offset+8]))
+		start := offset + 8
+		if string(input[offset:offset+4]) == "data" {
+			return info, start, chunkSize, nil
+		}
+		offset = start + chunkSize
+		if chunkSize%2 != 0 {
+			offset++
+		}
+	}
+	return WaveInfo{}, 0, 0, errors.New("WAV 文件缺少音频数据区块")
+}
+
+func minWAVInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
+func maxWAVInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }

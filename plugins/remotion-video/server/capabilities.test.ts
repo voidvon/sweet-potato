@@ -48,8 +48,9 @@ describe("Remotion video capabilities", () => {
         images: [{ assetId: "image-2", url: "https://example.com/image-2.png" }],
         narration: {
           assetId: "audio-2",
-          url: "https://example.com/audio-2.mp3",
+		  url: "https://example.com/audio.mp3",
           startMs: 4000,
+		  sourceStartMs: 4000,
           captions: [],
         },
       }],
@@ -93,11 +94,15 @@ describe("Remotion video capabilities", () => {
     expect(captions?.type === "captions" ? captions.displayMode : null).toBe("sentence");
     expect(captions?.type === "captions" ? captions.style.width : 0).toBeLessThanOrEqual(1920 * 0.8);
     expect(audio?.type === "audio" ? audio.playbackRate : 0).toBe(1.5);
+	const secondAudio = result.renderRequest.inputProps.scenes?.[1].elements.find(
+	  (element) => element.id === "scene-2-audio",
+	);
+	expect(secondAudio?.type === "audio" ? secondAudio.trimBefore : 0).toBe(120);
     const firstScene = result.renderRequest.inputProps.scenes?.[0];
     expect(firstScene?.transitionAfter).toBeDefined();
-    expect(firstScene && audio?.type === "audio"
+	expect(firstScene && audio?.type === "audio"
       ? firstScene.durationInFrames - firstScene.transitionAfter!.durationInFrames - audio.durationInFrames
-      : 0).toBe(14);
+	  : 0).toBe(0);
     expect(captions?.type === "captions" ? captions.captions.length : 0).toBeGreaterThan(1);
     expect(captions?.type === "captions" ? captions.captions.every((caption) => Array.from(caption.text).length <= 18) : false).toBe(true);
     expect(captions?.type === "captions" ? captions.captions.every((caption) => !/^\p{P}/u.test(caption.text)) : false).toBe(true);

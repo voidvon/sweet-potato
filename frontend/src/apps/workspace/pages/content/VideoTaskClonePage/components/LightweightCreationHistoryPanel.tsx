@@ -411,7 +411,7 @@ function CreationWorkflowStage({
               step={0.1}
               value={controller.narrationSpeed}
             />
-            <span>{t('倍速')}</span>
+			<span title={t('模型不支持原生倍速时，自动使用 FFmpeg 保音调变速')}>{t('倍速')}</span>
           </div>
         ) : null}
         {isRemotionJSON && campaignImagesCompleted && narrationCompleted ? (
@@ -538,7 +538,7 @@ function NarrationResults({ record }: { record: LightweightCreationRecord }) {
   return (
     <div className="lightweight-narration-results">
       <div className="lightweight-narration-summary">
-        <strong>{t('已生成 {{0}} 段旁白', { '0': scenes.length })}</strong>
+		<strong>{t('已生成 1 条连续旁白 · {{0}} 个场景', { '0': scenes.length })}</strong>
         <span>{formatMilliseconds(generation.durationMs)} · {t('{{0}} 条字幕', { '0': generation.captions.length })}</span>
       </div>
       <div className="lightweight-narration-scene-list">
@@ -555,9 +555,21 @@ function NarrationResults({ record }: { record: LightweightCreationRecord }) {
                 const playbackRate = scene.playbackRate || 1;
                 event.currentTarget.defaultPlaybackRate = playbackRate;
                 event.currentTarget.playbackRate = playbackRate;
+				event.currentTarget.currentTime = (scene.sourceStartMs || 0) / 1000;
               }}
               onPlay={(event) => {
                 event.currentTarget.playbackRate = scene.playbackRate || 1;
+				const startSeconds = (scene.sourceStartMs || 0) / 1000;
+				const endSeconds = startSeconds + scene.durationMs / 1000;
+				if (event.currentTarget.currentTime < startSeconds || event.currentTarget.currentTime >= endSeconds) {
+				  event.currentTarget.currentTime = startSeconds;
+				}
+			  }}
+			  onTimeUpdate={(event) => {
+				const endSeconds = (scene.sourceStartMs || 0) / 1000 + scene.durationMs / 1000;
+				if (event.currentTarget.currentTime >= endSeconds) {
+				  event.currentTarget.pause();
+				}
               }}
               preload="metadata"
               src={resolveAssetUrl(scene.fileUrl)}

@@ -105,6 +105,7 @@ export type PlanningNarrationScene = {
   rawDurationMs?: number;
   playbackRate?: number;
   startMs: number;
+  sourceStartMs?: number;
   captions: PlanningNarrationCaption[];
 };
 

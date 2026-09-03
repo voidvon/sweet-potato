@@ -37,10 +37,10 @@ func TestSynthesizeMiMoUsesPresetVoiceRequest(t *testing.T) {
 		if payload.Model != "mimo-v2.5-tts" || payload.Audio.Format != "wav" || payload.Audio.Voice != "mimo_default" {
 			t.Fatalf("request payload = %#v", payload)
 		}
-		if len(payload.Messages) != 2 || payload.Messages[0].Role != "user" || payload.Messages[1].Role != "assistant" || payload.Messages[1].Content != "(变快)测试旁白" {
+		if len(payload.Messages) != 2 || payload.Messages[0].Role != "user" || payload.Messages[1].Role != "assistant" || payload.Messages[1].Content != "测试旁白" {
 			t.Fatalf("request messages = %#v", payload.Messages)
 		}
-		if !strings.Contains(payload.Messages[0].Content, "语速约为日常语速的 1.5 倍") || strings.Contains(payload.Messages[0].Content, "节奏适中") {
+		if !strings.Contains(payload.Messages[0].Content, "日常自然语速") || !strings.Contains(payload.Messages[0].Content, "均匀、稳定的语速") || strings.Contains(payload.Messages[0].Content, "1.5 倍") {
 			t.Fatalf("MiMo speed instruction = %q", payload.Messages[0].Content)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -64,7 +64,7 @@ func TestSynthesizeMiMoUsesPresetVoiceRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("synthesize: %v", err)
 	}
-	if !reflect.DeepEqual(output.Bytes, wantAudio) || output.MimeType != "audio/wav" || !output.SpeedApplied {
+	if !reflect.DeepEqual(output.Bytes, wantAudio) || output.MimeType != "audio/wav" || output.SpeedApplied {
 		t.Fatalf("output = %#v", output)
 	}
 }

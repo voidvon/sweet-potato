@@ -114,28 +114,46 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 	results := make([]any, 0, len(scenes))
 	allCaptions := make([]any, 0)
 	totalDurationMs := 0
+	if !planningNarrationRunActiveForSession(sessionID, runID, s) {
+		return
+	}
+	output, synthErr := client.Synthesize(ctx, audio.SpeechInput{
+		Voice: voice, Text: combinedPlanningNarrationText(scenes), Speed: speed,
+		Instruction: strings.TrimSpace(instruction + " 将所有段落作为一条完整旁白连续朗读，段落之间只做简短自然的停顿，段落切换时保持相同语速和音色。"),
+	})
+	if synthErr != nil {
+		s.failPlanningNarration(session, runID, synthErr, nil, nil, 0)
+		return
+	}
+	if !output.SpeedApplied {
+		adjusted, tempoErr := audio.ApplyTempo(ctx, output.Bytes, speed)
+		if tempoErr != nil {
+			s.failPlanningNarration(session, runID, tempoErr, nil, nil, 0)
+			return
+		}
+		output.Bytes = adjusted
+		output.SpeedApplied = true
+	}
+	if trimmed, trimErr := audio.TrimBoundarySilence(output.Bytes, 80); trimErr == nil {
+		output.Bytes = trimmed
+	}
+	rawTotalDurationMs, durationErr := audio.DurationMs(output.Bytes)
+	if durationErr != nil {
+		s.failPlanningNarration(session, runID, durationErr, nil, nil, 0)
+		return
+	}
+	asset, persistErr := s.persistNarrationAudio(session.UserID, groupID, sessionID, planningNarrationScene{ID: "完整旁白"}, 0, output.Bytes, model)
+	if persistErr != nil {
+		s.failPlanningNarration(session, runID, persistErr, nil, nil, 0)
+		return
+	}
+	fullDurationMs, playbackRate := planningNarrationPlaybackTiming(rawTotalDurationMs, speed, output.SpeedApplied)
+	sceneDurations := planningNarrationSceneDurations(scenes, fullDurationMs)
 	for index, scene := range scenes {
 		if !planningNarrationRunActiveForSession(sessionID, runID, s) {
 			return
 		}
-		output, synthErr := client.Synthesize(ctx, audio.SpeechInput{
-			Voice: voice, Text: scene.Text, Speed: speed, Instruction: instruction,
-		})
-		if synthErr != nil {
-			s.failPlanningNarration(session, runID, synthErr, results, allCaptions, totalDurationMs)
-			return
-		}
-		rawDurationMs, durationErr := audio.DurationMs(output.Bytes)
-		if durationErr != nil {
-			s.failPlanningNarration(session, runID, durationErr, results, allCaptions, totalDurationMs)
-			return
-		}
-		asset, persistErr := s.persistNarrationAudio(session.UserID, groupID, sessionID, scene, index, output.Bytes, model)
-		if persistErr != nil {
-			s.failPlanningNarration(session, runID, persistErr, results, allCaptions, totalDurationMs)
-			return
-		}
-		durationMs, playbackRate := planningNarrationPlaybackTiming(rawDurationMs, speed, output.SpeedApplied)
+		durationMs := sceneDurations[index]
 		captions := narrationCaptions(scene.Text, totalDurationMs, durationMs)
 		results = append(results, map[string]any{
 			"sceneId":       scene.ID,
@@ -143,9 +161,10 @@ func (s *Server) executePlanningNarration(sessionID, runID string) {
 			"assetId":       asset.ID,
 			"fileUrl":       asset.FileURL,
 			"durationMs":    durationMs,
-			"rawDurationMs": rawDurationMs,
+			"rawDurationMs": durationMs,
 			"playbackRate":  playbackRate,
 			"startMs":       totalDurationMs,
+			"sourceStartMs": totalDurationMs,
 			"captions":      captions,
 		})
 		allCaptions = append(allCaptions, captions...)
@@ -189,6 +208,46 @@ func planningNarrationPlaybackTiming(rawDurationMs int, requestedSpeed float64, 
 		return maxInt(1, rawDurationMs), 1
 	}
 	return maxInt(1, int(math.Round(float64(rawDurationMs)/requestedSpeed))), requestedSpeed
+}
+
+func combinedPlanningNarrationText(scenes []planningNarrationScene) string {
+	parts := make([]string, 0, len(scenes))
+	for _, scene := range scenes {
+		text := strings.TrimSpace(scene.Text)
+		if text == "" {
+			continue
+		}
+		if !strings.ContainsRune("。！？!?；;", []rune(text)[utf8.RuneCountInString(text)-1]) {
+			text += "。"
+		}
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func planningNarrationSceneDurations(scenes []planningNarrationScene, totalDurationMs int) []int {
+	if len(scenes) == 0 {
+		return nil
+	}
+	weights := make([]int, len(scenes))
+	totalWeight := 0
+	for index, scene := range scenes {
+		weights[index] = maxInt(1, utf8.RuneCountInString(strings.TrimSpace(scene.Text)))
+		totalWeight += weights[index]
+	}
+	durations := make([]int, len(scenes))
+	elapsedWeight := 0
+	previousBoundary := 0
+	for index, weight := range weights {
+		elapsedWeight += weight
+		boundary := int(math.Round(float64(totalDurationMs) * float64(elapsedWeight) / float64(totalWeight)))
+		if index == len(weights)-1 {
+			boundary = totalDurationMs
+		}
+		durations[index] = maxInt(1, boundary-previousBoundary)
+		previousBoundary = boundary
+	}
+	return durations
 }
 
 func (s *Server) rewritePlanningNarrationCopy(ctx context.Context, session store.ContentPlanningSession, scenes []planningNarrationScene, previousScenes []any, runID string) ([]planningNarrationScene, error) {

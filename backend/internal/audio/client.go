@@ -86,15 +86,16 @@ func (c Client) synthesizeSpeech(ctx context.Context, input SpeechInput) (Output
 func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, error) {
 	instruction := strings.TrimSpace(input.Instruction)
 	if instruction == "" {
-		instruction = "用自然、专业、适合营销视频的语气朗读，发音清晰。"
+		instruction = "用中性、克制、专业的播音方式朗读，发音清晰，弱化情绪和重音变化。"
 	}
-	instruction = strings.TrimSpace(instruction + " " + mimoSpeedInstruction(input.Speed))
-	text := mimoSpeedTaggedText(input.Text, input.Speed)
+	// MiMo has no native numeric speed parameter. Generate steady 1x audio and
+	// let the caller apply one pitch-preserving tempo adjustment to the result.
+	instruction = strings.TrimSpace(instruction + " " + mimoSpeedInstruction(1))
 	body := map[string]any{
 		"model": c.Model,
 		"messages": []map[string]string{
 			{"role": "user", "content": instruction},
-			{"role": "assistant", "content": text},
+			{"role": "assistant", "content": input.Text},
 		},
 		"audio": map[string]string{"format": "wav", "voice": input.Voice},
 	}
@@ -103,33 +104,19 @@ func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, 
 		return Output{}, fmt.Errorf("编码 MiMo 语音请求失败: %w", err)
 	}
 	output, err := c.do(ctx, http.MethodPost, "chat/completions", encoded, true)
-	output.SpeedApplied = err == nil
+	output.SpeedApplied = false
 	return output, err
 }
 
 func mimoSpeedInstruction(speed float64) string {
-	switch {
-	case speed >= 1.8:
-		return fmt.Sprintf("使用快速、紧凑且连贯的节奏，语速约为日常语速的 %.1f 倍，明显减少停顿。", speed)
-	case speed > 1.1:
-		return fmt.Sprintf("使用明显偏快、紧凑且连贯的节奏，语速约为日常语速的 %.1f 倍，减少不必要的停顿。", speed)
-	case speed <= 0.7:
-		return fmt.Sprintf("使用明显舒缓、从容的节奏，语速约为日常语速的 %.1f 倍。", speed)
-	case speed < 0.9:
-		return fmt.Sprintf("使用稍慢、清晰且从容的节奏，语速约为日常语速的 %.1f 倍。", speed)
-	default:
-		return "使用自然适中的语速和停顿。"
-	}
-}
-
-func mimoSpeedTaggedText(text string, speed float64) string {
+	const steady = "从头到尾使用同一种均匀、稳定的语速。每个词语采用相近的朗读节奏，弱化重音，不做情绪化演绎，不因语义强调、标点或段落切换而加速或减速。"
 	switch {
 	case speed > 1.1:
-		return "(变快)" + text
+		return fmt.Sprintf("在保持匀速的前提下，以约为日常语速 %.1f 倍的稳定速度连续朗读。%s", speed, steady)
 	case speed < 0.9:
-		return "(放慢)" + text
+		return fmt.Sprintf("在保持匀速的前提下，以约为日常语速 %.1f 倍的稳定速度连续朗读。%s", speed, steady)
 	default:
-		return text
+		return "使用日常自然语速连续朗读。" + steady
 	}
 }
 
