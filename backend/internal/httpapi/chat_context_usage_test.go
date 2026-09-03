@@ -45,8 +45,8 @@ func TestImageDialogContextUsageKeepsTokenCountWithoutWindow(t *testing.T) {
 	}
 }
 
-func TestIsImageAgentContextSupportsDialogAndDetail(t *testing.T) {
-	for _, modeKey := range []string{"dialog", "detail"} {
+func TestIsImageAgentContextSupportsPlannedImageModes(t *testing.T) {
+	for _, modeKey := range []string{"dialog", "detail", "main"} {
 		contextValue := map[string]any{"imageGeneration": map[string]any{"modeKey": modeKey}}
 		if !isImageAgentContext(contextValue) {
 			t.Fatalf("mode %q should use image agent context", modeKey)

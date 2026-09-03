@@ -36,7 +36,7 @@ func resolveImageGenerationAspectRatio(content string, contextValue map[string]a
 	// For detail images, an explicit automatic selection must not inherit a
 	// previous chapter's fixed ratio. The current request can still opt into a
 	// fixed ratio by stating it in the message, handled above.
-	if strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+	if isPlannedCommerceImageMode(generation) {
 		result["imageGeneration"] = generation
 		return result
 	}

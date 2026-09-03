@@ -683,7 +683,7 @@ func (s *Server) decideImageGeneration(ctx context.Context, userID, sourceID str
 	if err != nil {
 		return imageGenerationDecision{}, err
 	}
-	if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {
+	if isPlannedCommerceImageMode(objectValue(contextValue["imageGeneration"])) {
 		pdfCandidates, pdfErr := s.pdfPageReferenceCandidates(ctx, userID, history)
 		if pdfErr != nil {
 			return imageGenerationDecision{}, pdfErr
@@ -723,11 +723,14 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		systemPrompt = "你是一个高效、准确的 AI 助手。"
 	}
 	contextJSON, _ := json.Marshal(contextValue)
-	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。画面比例为 auto 时，3:4 仅为建议尺寸，必须按内容选择能完整容纳文字和主体的画布；画面比例为非 auto 时必须严格保持该比例，并通过缩放、排版和留白容纳内容，禁止裁切、溢出或遮挡。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。当前用户消息携带的图片附件是本轮强制参考图，必须全部保留；AI 只能决定是否追加历史消息中的图片。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要历史参考图，不追加历史图片。"
-	systemPrompt += detailImageGenerationSystemPrompt(contextValue)
+	systemPrompt += "\n在图片工作台中，只有当用户明确要求生成、修改、编辑、放大或处理图片时才调用 image_generation；普通咨询、询问和闲聊不要调用。工具参数必须来自用户需求和工作台上下文，不要编造素材。工作台已指定 outputCount 时必须保持该数量；未指定时根据用户意图在 1 到 12 张内自动选择合适数量。后续翻译、改文案、再生成或风格调整必须保留工作台中已确定的画面比例，除非用户本轮明确要求更改。画面比例为 auto 时必须遵循当前功能的专属画布规则；画面比例为非 auto 时必须严格保持该比例，并通过缩放、排版和留白容纳内容，禁止裁切、溢出或遮挡。当用户指代当前或历史图片时，自主选择 reference_asset_ids；只能使用候选列表中的 asset_id，不得编造 ID。当前用户消息携带的图片附件是本轮强制参考图，必须全部保留；AI 只能决定是否追加历史消息中的图片。如果根据所属消息、附件位置和文件名已能确定引用，inspect_reference_images 必须为 false；只有必须观察图片视觉内容才能决定时才为 true。如果任务不需要历史参考图，不追加历史图片。"
+	systemPrompt += plannedCommerceImageSystemPrompt(contextValue)
 	if includePreviews {
-		if strings.EqualFold(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")), "detail") {
+		modeKey := strings.ToLower(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")))
+		if modeKey == "detail" {
 			systemPrompt += "候选图片的低清预览已提供，请直接完成逐章插图规划，inspect_reference_images 返回 false。每个 chapter_prompts 只能按对应 chapter_reference_asset_ids 子数组的顺序称呼参考图：子数组第一项就是本章的“参考图1”和主参考图，第二项才是本章的“参考图2”；不得沿用候选列表、历史附件或全局 reference_asset_ids 的位置编号。对本章未选图片的排除要求必须改写成具体可见特征，不得引用其编号。"
+		} else if modeKey == "main" {
+			systemPrompt += "候选图片的低清预览已提供，请直接完成逐张主图规划，inspect_reference_images 返回 false。每个 chapter_prompts 只能按对应 chapter_reference_asset_ids 子数组的顺序称呼参考图：子数组第一项就是该主图的“参考图1”和主参考图，第二项才是“参考图2”；不得沿用候选列表、历史附件或全局 reference_asset_ids 的位置编号。对未选图片的排除要求必须改写成具体可见特征，不得引用其编号。"
 		} else {
 			systemPrompt += "候选图片的低清预览已提供，请直接完成选择，inspect_reference_images 返回 false。最终 prompt 必须与 reference_asset_ids 严格一致：不得沿用历史对话中的附件编号。只选一张时，统一称为“提供的参考图片”，不使用图1、图2或第几张。选中多张时，可按 selected_reference_position 使用“参考图1”至“参考图N”，该位置就是实际发送顺序。对未选图片的排除要求，必须改写为具体可见的构图、造型、色彩或元素特征，不得引用其历史编号。"
 		}
@@ -761,6 +764,14 @@ func (s *Server) callImageGenerationDecision(ctx context.Context, userID, source
 		break
 	}
 	return decision, nil
+}
+
+func plannedCommerceImageSystemPrompt(contextValue map[string]any) string {
+	modeKey := strings.ToLower(strings.TrimSpace(stringValue(objectValue(contextValue["imageGeneration"]), "modeKey")))
+	if modeKey == "main" {
+		return mainImageGenerationSystemPrompt(contextValue)
+	}
+	return detailImageGenerationSystemPrompt(contextValue)
 }
 
 func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
@@ -812,6 +823,50 @@ func detailImageGenerationSystemPrompt(contextValue map[string]any) string {
 		"\n7. 章节与数量：" + countInstruction +
 		"\n8. 文案、字号与合规：只使用用户描述和产品资料中可验证的信息。以淘宝移动端阅读为第一优先、PC 端协调展示为第二优先，默认采用竖向单栏、从上到下的清晰信息层级。需要画面文字时保持简洁并建立清楚的标题、卖点和正文层级；以约 850px 宽的淘宝详情内容区为排版基准，标题建议不小于 48px，关键卖点不小于 36px，正文不小于 28px，并使用充足行距和留白。内容放不下时必须精简文案、增加画布高度或拆分章节，禁止改成横排多栏或缩小字号。文字也不能过大而挤压产品画面、过密或贴近边缘；不得使用虚构数据、绝对化承诺或无依据卖点。" +
 		"\n9. 工具输出：必须调用 image_generation。count 必须等于最终章节数；chapter_prompts 和 chapter_reference_asset_ids 必须都与 count 数量完全一致。每个 chapter_prompts 元素只描述对应的一个章节，并独立写全插图方案、参考图角色、主题、画面主体、构图、背景、光线、允许出现的文案和产品保真约束；严禁在任一元素中列出、概括或要求生成其他章节。prompt 仅用于记录整套详情图的总体规划，不会直接用于逐章生图。"
+}
+
+func mainImageGenerationSystemPrompt(contextValue map[string]any) string {
+	generation := objectValue(contextValue["imageGeneration"])
+	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "main") {
+		return ""
+	}
+
+	aspectRatio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
+	if aspectRatio == "" || strings.EqualFold(aspectRatio, "auto") {
+		aspectRatio = "1:1"
+	}
+	ratioInstruction := fmt.Sprintf("所有输出必须严格使用 %s 宽高比；淘宝主图的宽和高均不得低于 1440px，默认 1:1 画布至少输出 1440×1440，界面选择更高规格时以更高规格为准；通过主体缩放、构图和安全留白完整容纳商品，不得裁切商品、Logo、边缘或阴影。", aspectRatio)
+
+	outputCount := int(numberValue(generation["outputCount"], 0))
+	countInstruction := "界面未指定数量：根据用户需求在 1 到 12 张内选择合适数量，每张都是可单独投放的完整主图方案。"
+	if outputCount > 0 {
+		countInstruction = fmt.Sprintf("界面已指定生成 %d 张：必须规划并输出 %d 个相互独立的主图方案，不得擅自改变数量。", outputCount, outputCount)
+	}
+
+	resolution := strings.TrimSpace(valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution")))
+	resolutionInstruction := "使用当前图片模型的默认清晰度。"
+	if resolution != "" {
+		resolutionInstruction = fmt.Sprintf("界面已选择输出规格 %s，必须保持该规格。", resolution)
+	}
+
+	background := strings.TrimSpace(stringValue(generation, "outputBackground"))
+	backgroundInstruction := "界面未指定背景：选择能突出商品且符合电商展示的简洁背景，保留自然边缘、真实接触阴影与材质细节。"
+	if background != "" && !strings.EqualFold(background, "auto") {
+		backgroundInstruction = fmt.Sprintf("界面已指定背景为 %s，必须遵循该设置，并保留商品自然边缘、真实接触阴影与材质细节。", background)
+	}
+
+	return "\n你正在执行【淘宝宝贝主图生成】，必须遵循以下专属规则：" +
+		"\n1. 任务目标：根据用户描述和附件，为同一个商品制作可独立用于电商列表、搜索结果或商品首屏展示的营销主图。每张图必须同时突出商品主体、产品品牌和核心营销卖点；生成多张时每张都必须是完整方案，并允许变化构图、场景或卖点表达。" +
+		"\n1.1 同批风格一致：开始逐张规划前，先为本批主图确定一套统一视觉系统，包括品牌调性、主辅色板、字体风格、标题层级、背景质感、光线方向、商品精修程度、装饰语言和标签样式。所有 chapter_prompts 都必须明确沿用这套视觉系统，保持同一系列的色彩、字体、光影、留白和品牌识别；允许构图与卖点不同，但禁止在同一批中混用互不相关的设计风格。" +
+		"\n2. 商品保真：商品轮廓、结构、比例、颜色、材质、纹理、Logo、文字和所有可见细节必须与实拍图一致。只允许调整展示所需的视角、光线、构图和背景；不可见或不确定的结构、接口、铭牌、Logo、孔位和细节不得猜测、补造、拼接或改动。" +
+		"\n3. 资料边界与检索：实拍照片是商品外观的唯一事实来源。不同照片只可提供各自可见视角和局部信息，不得跨照片合成不存在的结构。PDF 页面可用于理解明确写出的商品名称、参数、卖点和合规文案，不得把线稿、表格或页面版式当作商品实拍外观，也不得引用页眉、页脚、页码、文档编号、版本号、路径、版权行或保密标识。可以结合模型已有知识组织营销表达；当附件中能识别出明确的品牌、商品名或型号且需要补充信息时，可以使用网络搜索，优先查找品牌官网、官方产品页、说明书或可信经销资料。搜索信息必须与同一品牌和同一型号准确对应；与用户附件冲突时以附件为准，无法核实的信息不得写成产品事实。" +
+		"\n4. 参考图规划：先为每张主图确定主商品实拍图、必要的辅助参考、商品角度、主体占比、背景、光线、品牌展示位置、营销文案层级和安全留白，再写 chapter_prompts。chapter_reference_asset_ids 必须与 count 一一对应；每个子数组只放该张主图实际需要的 asset_id，主商品实拍图排第一。每个 chapter_prompts 必须独立写全该张图的参考图角色、主体、构图、背景、光线、品牌名称、营销文案、文字呈现方式、统一视觉系统和保真要求，不得要求在一张输出中同时生成多套方案。" +
+		"\n5. 视觉表达：商品主体完整、清晰、突出并占据合理视觉面积，画面焦点唯一，背景和装饰不得喧宾夺主。避免拼贴式信息堆叠、过多道具、复杂边框、水印、角标以及与商品无关的元素。除非用户明确要求，不添加人物、手部、赠品、配件或包装内容。" +
+		"\n6. 品牌与营销文案：每张主图都必须存在清晰、醒目的营销文案，并体现产品品牌。优先从商品实拍、Logo、包装、PDF、用户描述、模型已有知识或经核实的网络资料中提取准确品牌名称与商品定位，品牌文字或品牌 Logo 至少出现一种且不得拼错、变形或杜撰；若资料中没有可识别品牌，使用不虚构品牌名的品牌化版式并在提示词中说明。AI 必须根据商品品类、真实功能、品牌调性、目标受众和投放场景自主组织文案，而不是套用固定词库。文案采用“品牌/品名主标题 + 1 至 3 条卖点短句”的层级，主标题必须使用明显大字号和高对比度，成为仅次于商品主体的第二视觉焦点；卖点文字也要达到缩略图状态下清晰可读的尺寸，禁止使用细小字号、低对比文字或把关键文案缩在角落。文案既可直接排版在背景留白区域，也可放入高对比色块、圆角标签、卖点徽章、贴纸或角标组件中；标签可与商品局部轻微叠合，但不得遮挡商品主体、Logo 或关键结构。所有文字组件必须沿用本批统一字体、色板和样式。“原装正品”“耐用”“高性能”“大流量”“贵一点，‘好’很多”“厂家直销”仅是表达方向示例，不是必选文案；只有与当前商品事实和营销定位匹配时才可采用，也可以创作更合适的同类短句。生成多张时应尽量使用不同卖点。禁止大段说明、密集参数表和文字堆叠。" +
+		"\n7. 背景：" + backgroundInstruction +
+		"\n8. 画布：" + ratioInstruction + " " + resolutionInstruction +
+		"\n9. 数量：" + countInstruction +
+		"\n10. 工具输出：必须调用 image_generation。count 必须等于最终主图方案数；chapter_prompts 和 chapter_reference_asset_ids 必须都与 count 数量完全一致。prompt 仅记录整组主图的总体视觉方向，不会直接用于逐张生图。"
 }
 
 func (s *Server) chatResponsesInput(userID string, history []store.ChatMessage) ([]map[string]any, error) {
@@ -886,7 +941,7 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 	// A detail request in automatic mode must use the provider's adaptive
 	// sizing path. Ignore a model-invented square pixel size instead of turning
 	// the 3:4 recommendation into a hard canvas constraint.
-	if strings.EqualFold(strings.TrimSpace(stringValue(copyGeneration, "modeKey")), "detail") {
+	if isPlannedCommerceImageMode(copyGeneration) {
 		if ratio := strings.TrimSpace(stringValue(copyGeneration, "aspectRatio")); ratio == "" || strings.EqualFold(ratio, "auto") {
 			delete(copyGeneration, "outputSize")
 		}
@@ -896,24 +951,33 @@ func applyImageToolArguments(contextValue map[string]any, arguments map[string]a
 }
 
 func detailImagePrompts(generation map[string]any, fallback string, count int) ([]string, error) {
-	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+	if !isPlannedCommerceImageMode(generation) {
 		return []string{fallback}, nil
+	}
+	isMainImage := strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "main")
+	imageLabel := "详情图章节"
+	planLabel := "章节规划"
+	commonPrompt := detailImageModelCommonPrompt(generation)
+	if isMainImage {
+		imageLabel = "主图"
+		planLabel = "主图规划"
+		commonPrompt = mainImageModelCommonPrompt(generation)
 	}
 	prompts := stringSlice(generation["chapterPrompts"])
 	if len(prompts) != count {
-		return nil, fmt.Errorf("详情图章节提示词数量为 %d，与生成图片数量 %d 不一致，请重新生成章节规划", len(prompts), count)
+		return nil, fmt.Errorf("%s提示词数量为 %d，与生成图片数量 %d 不一致，请重新生成%s", imageLabel, len(prompts), count, planLabel)
 	}
 	for index, prompt := range prompts {
 		if strings.TrimSpace(prompt) == "" {
-			return nil, fmt.Errorf("详情图第 %d 个章节提示词为空，请重新生成章节规划", index+1)
+			return nil, fmt.Errorf("第 %d 个%s提示词为空，请重新生成%s", index+1, imageLabel, planLabel)
 		}
-		prompts[index] = strings.TrimSpace(prompt) + "\n\n" + detailImageModelCommonPrompt(generation)
+		prompts[index] = strings.TrimSpace(prompt) + "\n\n" + commonPrompt
 	}
 	return prompts, nil
 }
 
 func detailImageReferenceSets(generation map[string]any, count int, selected []store.ContentAsset) ([][]store.ContentAsset, error) {
-	if !strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+	if !isPlannedCommerceImageMode(generation) {
 		return [][]store.ContentAsset{selected}, nil
 	}
 	chapterIDs := nestedStringSlices(generation["chapterReferenceAssetIds"])
@@ -987,6 +1051,28 @@ func detailImageModelCommonPrompt(generation map[string]any) string {
 		canvasInstruction = "优先使用 3:4 或更高的竖向画布和自上而下的单栏排版；内容较多时增加画布高度，不得改用横向画布、多栏密排或缩小文字；只有用户明确要求横版或原始技术图必须保持横向结构时才可例外；必须完整容纳所有文字、主体、边缘和阴影，四周保留安全留白，不得裁切、溢出、遮挡或贴边"
 	}
 	return fmt.Sprintf("公共约束（本段与本章节提示词一起发送给图片模型）：这是同一个产品详情页的单独章节图片；%s，输出规格为%s，背景要求：%s。版式以淘宝移动端阅读为第一优先、PC 端协调展示为第二优先；按约 850px 内容宽度，标题建议不小于 48px、关键卖点不小于 36px、正文不小于 28px，内容放不下时精简文案、增加高度或拆分章节，禁止缩小字号硬塞。只有标记为实拍照片的参考图才能作为实体产品事实来源；产品轮廓、结构、比例、颜色、材质、Logo、铭牌、铸字、接口和可见细节必须严格以本章提供的实拍照片为准。某个实拍视角看不到的细节不得从其他视角拼接、覆盖或补到当前视角上，尤其不得凭空添加铭牌、Logo、孔位或侧视结构。标记为 PDF 页面图片的参考图只能用于重现其中可见的结构线稿、尺寸图、曲线、表格、文字和版式，不得把 PDF 线稿当作实体照片，也不得让它改变实拍产品外观。PDF 顶部和底部的页眉页脚必须完整排除，不得引用、复现或改写其中的页码、文档编号、版本号、日期、Logo、公司抬头、文件名、路径、版权行、保密标识和装饰线；正文或图表内部具有实际产品含义的编号、Logo、标签和单位除外。任一参考素材包含折线图、曲线图或趋势图时，必须逐细节忠实复现其坐标轴、刻度、单位、数据点、折线走向、峰谷、拐点、线型、图例、标签和序列关系；禁止改写、平滑、补点、删减、重算或生成近似曲线，仅允许在不改变信息对应关系的前提下换色，无法准确复现时直接保留原图表区域。本章如果没有实拍图，只能生成文字、表格或 PDF 技术图示版式，不得幻想产品视角。只使用用户描述和产品资料中可验证的信息，不得虚构参数、认证、功效、绝对化承诺或其他章节内容。", canvasInstruction, resolution, background)
+}
+
+func mainImageModelCommonPrompt(generation map[string]any) string {
+	ratio := strings.TrimSpace(stringValue(generation, "aspectRatio"))
+	if ratio == "" || strings.EqualFold(ratio, "auto") {
+		ratio = "1:1"
+	}
+	resolution := strings.TrimSpace(valueOr(stringValue(generation, "outputSize"), stringValue(generation, "resolution")))
+	if resolution == "" {
+		resolution = "当前模型默认清晰度"
+	}
+	resolution += "；淘宝主图的宽和高均不得低于 1440px，1:1 画布至少输出 1440×1440，指定规格更高时使用更高规格"
+	background := strings.TrimSpace(stringValue(generation, "outputBackground"))
+	if background == "" || strings.EqualFold(background, "auto") {
+		background = "使用简洁、能突出商品的电商展示背景，保留自然边缘、真实接触阴影和材质细节"
+	}
+	return fmt.Sprintf("主图公共约束（本段与本张提示词一起发送给图片模型）：生成一张可独立投放、带品牌与营销文案的商品主图。画布严格使用 %s，输出规格为%s；背景要求：%s。本张必须严格沿用上游提示词为同批主图确定的统一视觉系统，包括品牌调性、主辅色板、字体、标题层级、背景质感、光线和标签样式，不得另起无关风格。商品必须完整、清晰、突出并占据合理视觉面积，焦点唯一，所有边缘、Logo、营销文字和阴影均在安全区内，不得裁切、遮挡或贴边。商品轮廓、结构、比例、颜色、材质、纹理、Logo、文字、铭牌、接口和可见细节必须严格以本张提供的实拍照片为准；不得跨视角拼接、补造不可见结构或把 PDF 线稿当成商品外观。画面必须准确体现上游提示词中已经核实的品牌名称或品牌 Logo，并逐字呈现为本张主图自主规划的营销文案；使用“品牌/品名主标题 + 1 至 3 条卖点短句”的层级，不得自行套用固定文案或添加上游提示词未指定的产品事实。主标题使用明显大字号和高对比度，成为仅次于商品的第二视觉焦点；卖点在缩略图中也必须清晰可读，禁止小字和低对比文字。文案既可排版在背景留白中，也可使用高对比色块、圆角标签、卖点徽章、贴纸或角标呈现；标签不得遮挡商品主体、Logo 或关键结构。禁止大段文字、密集参数表、水印、复杂边框、无关道具、人物、手部、赠品或配件。", ratio, resolution, background)
+}
+
+func isPlannedCommerceImageMode(generation map[string]any) bool {
+	modeKey := strings.ToLower(strings.TrimSpace(stringValue(generation, "modeKey")))
+	return modeKey == "detail" || modeKey == "main"
 }
 
 func isImageGenerationRequest(input chatRequest) bool {
@@ -1443,13 +1529,13 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 				"prompt": map[string]any{"type": "string", "description": "整套图片的总体规划或普通模式的最终图片提示词"},
 				"chapter_prompts": map[string]any{
 					"type":        "array",
-					"description": "详情图模式专用：与 count 一一对应的逐章独立提示词，每项只能描述一张图的一个章节；其他模式返回空数组",
+					"description": "详情图和主图模式专用：与 count 一一对应的逐图独立提示词，每项只能描述一张图；其他模式返回空数组",
 					"items":       map[string]any{"type": "string"},
 					"maxItems":    12,
 				},
 				"chapter_reference_asset_ids": map[string]any{
 					"type":        "array",
-					"description": "详情图模式专用：与 count 一一对应的逐章参考图 ID 数组；每章主参考图排第一，只放该章实际需要的图片；其他模式返回空数组",
+					"description": "详情图和主图模式专用：与 count 一一对应的逐图参考图 ID 数组；每张图的主参考图排第一，只放实际需要的图片；其他模式返回空数组",
 					"items": map[string]any{
 						"type":     "array",
 						"items":    referenceItems,
@@ -1458,7 +1544,7 @@ func imageGenerationTool(referenceAssetIDs ...string) map[string]any {
 					"maxItems": 12,
 				},
 				"count":        map[string]any{"type": "integer", "minimum": 1, "maximum": 12, "description": "生成图片数量；工作台未指定数量时根据用户需求自动选择"},
-				"size":         map[string]any{"type": "string", "description": "仅在用户手动指定或工作台明确指定固定画布时填写宽x高；详情图自动比例不要填写，交由模型按内容自适应"},
+				"size":         map[string]any{"type": "string", "description": "仅在用户手动指定或工作台明确指定固定画布时填写宽x高；自动比例不要填写，交由模型按内容自适应"},
 				"aspect_ratio": map[string]any{"type": "string", "description": "画面宽高比。手动选择时必须保留当前工作台已确定的比例；自动模式仅把 3:4 作为建议，不要强制固定"},
 				"resolution":   map[string]any{"type": "string"},
 				"background":   map[string]any{"type": "string", "enum": []string{"transparent", "opaque", "auto"}},

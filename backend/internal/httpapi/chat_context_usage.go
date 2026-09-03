@@ -84,5 +84,5 @@ func resolveModelContextCapacity(pricing *store.LlmModelPricing) modelContextCap
 func isImageAgentContext(contextValue map[string]any) bool {
 	generation := objectValue(contextValue["imageGeneration"])
 	modeKey := strings.ToLower(strings.TrimSpace(stringValue(generation, "modeKey")))
-	return modeKey == "dialog" || modeKey == "detail"
+	return modeKey == "dialog" || modeKey == "detail" || modeKey == "main"
 }

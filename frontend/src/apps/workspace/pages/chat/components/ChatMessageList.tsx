@@ -43,6 +43,7 @@ type ImageGenerationCellStyle = CSSProperties & {
 const imageGenerationModeToneMap: Record<string, string> = {
   dialog: 'blue',
   detail: 'amber',
+  main: 'orange',
   outfit: 'violet',
   'model-views': 'indigo',
   'pose-reference': 'cyan',
@@ -691,7 +692,7 @@ export function ChatMessageList({
     const previousContext = previousUserMessage?.capabilityContext?.imageGeneration;
     const resolvedPrompt = resultContext?.resolvedPrompt?.trim() || '';
     const referenceAttachments = resultContext?.referenceAttachments || [];
-    const isConfirmedImageAgentGeneration = ['dialog', 'detail'].includes(resultContext?.modeKey || previousContext?.modeKey || '')
+    const isConfirmedImageAgentGeneration = ['dialog', 'detail', 'main'].includes(resultContext?.modeKey || previousContext?.modeKey || '')
       && Boolean(resolvedPrompt)
       && resultContext?.referenceAttachments !== undefined
       && referenceAttachments.length > 0;

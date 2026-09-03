@@ -74,6 +74,7 @@ type ClawDialogComposerProps = {
 type ClawModeKey =
   | 'dialog'
   | 'detail'
+  | 'main'
   | 'outfit'
   | 'model-views'
   | 'pose-reference'
@@ -90,6 +91,7 @@ type ClawModeKey =
   | 'face-enhance';
 
 type ClawModeConfig = {
+  defaultAspectRatio?: ClawAspectRatioKey;
   description: string;
   Icon: LucideIcon;
   inputPlaceholder?: string;
@@ -125,6 +127,10 @@ const defaultModeOutputConfig: ClawModeOutputConfig = {
   allowedResolutions: ['2K', '4K'],
   defaultOutputCount: 0,
   defaultResolution: '2K',
+};
+const singleImageModeOutputConfig: ClawModeOutputConfig = {
+  ...defaultModeOutputConfig,
+  defaultOutputCount: 1,
 };
 
 function renderPromptHint(
@@ -165,7 +171,7 @@ const clawModeConfigs: ClawModeConfig[] = [
     description: t("多图对话"),
     Icon: MessageCircle,
     inputPlaceholder: t("描述你要的画面，可上传参考图，输入 @ 引用图片。"),
-    outputConfig: defaultModeOutputConfig,
+    outputConfig: singleImageModeOutputConfig,
     referenceGroups: [{ key: 'reference', label: t("附件"), maxCount: 8 }],
     requiresPrompt: true,
   },
@@ -177,6 +183,20 @@ const clawModeConfigs: ClawModeConfig[] = [
     inputPlaceholder: defaultOptionalPlaceholder,
     outputConfig: defaultModeOutputConfig,
     promptHint: t("描述详情图需求，例如：整体高级、文字少一点，适合淘宝详情页"),
+    referenceGroups: [
+      { key: 'product', label: t("产品资料"), acceptsPdf: true, maxCount: 12, required: true },
+      { key: 'reference', label: t("参考图"), maxCount: 10 },
+    ],
+  },
+  {
+    key: 'main',
+    title: t("主图生成"),
+    description: t("商品主图"),
+    Icon: ImagePlus,
+    inputPlaceholder: defaultOptionalPlaceholder,
+    outputConfig: singleImageModeOutputConfig,
+    defaultAspectRatio: '1:1',
+    promptHint: t("描述主图需求，例如：主体突出、背景简洁，适合淘宝商品主图"),
     referenceGroups: [
       { key: 'product', label: t("产品资料"), acceptsPdf: true, maxCount: 12, required: true },
       { key: 'reference', label: t("参考图"), maxCount: 10 },
@@ -416,10 +436,12 @@ export function ClawDialogComposer({
   const [selectedModelConfigId, setSelectedModelConfigId] = useState('');
   const [imageConfigs, setImageConfigs] = useState<ModelConfig[]>([]);
   const [selectedImageModelValue, setSelectedImageModelValue] = useState('');
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>('auto');
+  const initialMode = clawModeConfigs.find((mode) => mode.key === selectedModeKey) ?? clawModeConfigs[0];
+  const initialOutputConfig = initialMode.outputConfig ?? defaultModeOutputConfig;
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<ClawAspectRatioKey>(initialMode.defaultAspectRatio ?? 'auto');
   const [selectedBackground, setSelectedBackground] = useState<ClawBackgroundKey>('transparent');
   const [selectedResolution, setSelectedResolution] = useState<ClawResolutionKey>('2K');
-  const [selectedOutputCount, setSelectedOutputCount] = useState(selectedModeKey === 'dialog' ? 1 : 0);
+  const [selectedOutputCount, setSelectedOutputCount] = useState(initialOutputConfig.defaultOutputCount);
   const [attachmentGroupById, setAttachmentGroupById] = useState<Record<string, string>>({});
   const [hoveredReferenceGroupIndex, setHoveredReferenceGroupIndex] = useState<number | null>(null);
   const textareaRef = useRef<MentionRichTextareaRef | null>(null);
@@ -436,7 +458,7 @@ export function ClawDialogComposer({
   const selectedToolbarControls = selectedMode.toolbarControls ?? defaultToolbarControls;
   const outputCountStrategy = selectedMode.outputCountStrategy ?? 'selectable';
   const showImageModelControl = selectedToolbarControls.includes('model');
-  const showLlmModelControl = selectedMode.key === 'dialog' || selectedMode.key === 'detail';
+  const showLlmModelControl = ['dialog', 'detail', 'main'].includes(selectedMode.key);
   const showOutputSizeControl = selectedToolbarControls.includes('outputSize');
   const showOutputCountControl = selectedToolbarControls.includes('outputCount') && outputCountStrategy === 'selectable';
   const showBackgroundControl = selectedToolbarControls.includes('background');
@@ -497,6 +519,9 @@ export function ClawDialogComposer({
   const canStartGeneration = !generationBlockReason;
 
   const selectMode = useCallback((modeKey: ClawModeKey, replace = false) => {
+    const nextMode = clawModeConfigs.find((mode) => mode.key === modeKey) ?? clawModeConfigs[0];
+    setSelectedAspectRatio(nextMode.defaultAspectRatio ?? 'auto');
+    setSelectedOutputCount((nextMode.outputConfig ?? defaultModeOutputConfig).defaultOutputCount);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('mode', modeKey);
@@ -736,7 +761,7 @@ export function ClawDialogComposer({
   });
   const imageCreditsPerRequest = imageGenerationCreditsPerRequest(selectedRawImageConfig);
   const totalImageCredits = estimateImageGenerationCredits(imageCreditsPerRequest, resolvedOutputCount);
-  const showImageCredits = selectedMode.key !== 'detail' || selectedOutputCount !== 0;
+  const showImageCredits = !['detail', 'main'].includes(selectedMode.key) || selectedOutputCount !== 0;
 
   useEffect(() => {
     if (!selectableResolutions.includes(selectedResolution)) {

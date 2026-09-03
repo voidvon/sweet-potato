@@ -12,6 +12,7 @@ export const allWorksFunctionOption: WorksFunctionOption = {
 export const imageWorksFunctionOptions: WorksFunctionOption[] = [
   { key: 'image:dialog', label: t("对话生图"), modeKeys: ['dialog'], modeTitles: [t("对话生图")] },
   { key: 'image:detail', label: t("详情图生成"), modeKeys: ['detail'], modeTitles: [t("详情图生成")] },
+  { key: 'image:main', label: t("主图生成"), modeKeys: ['main'], modeTitles: [t("主图生成")] },
   { key: 'image:outfit', label: t("换装"), modeKeys: ['outfit'], modeTitles: [t("换装")] },
   { key: 'image:model-views', label: t("模特三视图"), modeKeys: ['model-views'], modeTitles: [t("模特三视图")] },
   { key: 'image:pose-reference', label: t("姿势参考"), modeKeys: ['pose-reference'], modeTitles: [t("姿势参考")] },

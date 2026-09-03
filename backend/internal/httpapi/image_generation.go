@@ -492,7 +492,7 @@ func (s *Server) imageGenerationOptions(contextValue map[string]any, params map[
 		generation = params
 	}
 	size := stringValue(generation, "outputSize")
-	if strings.EqualFold(strings.TrimSpace(stringValue(generation, "modeKey")), "detail") {
+	if isPlannedCommerceImageMode(generation) {
 		if ratio := strings.TrimSpace(stringValue(generation, "aspectRatio")); ratio == "" || strings.EqualFold(ratio, "auto") {
 			size = ""
 		}

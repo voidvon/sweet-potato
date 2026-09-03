@@ -63,7 +63,7 @@ const maxAttachmentCount = 6;
 const maxAttachmentSizeMb = 10;
 const maxAttachmentBytes = maxAttachmentSizeMb * 1024 * 1024;
 const bottomLockThreshold = 4;
-const imageAgentModeKeys = new Set(['dialog', 'detail']);
+const imageAgentModeKeys = new Set(['dialog', 'detail', 'main']);
 
 function usesImageAgent(modeKey: string | undefined) {
   return Boolean(modeKey && imageAgentModeKeys.has(modeKey));
@@ -599,8 +599,10 @@ export function useChatSession() {
     );
     const contentForSend = content || (isImageGenerationRequest
       ? ''
-      : autoImageGeneration && imageModeKey === 'detail'
-        ? t("请根据产品资料生成商品详情图。")
+      : autoImageGeneration && (imageModeKey === 'detail' || imageModeKey === 'main')
+        ? imageModeKey === 'main'
+          ? t("请根据产品资料生成商品主图。")
+          : t("请根据产品资料生成商品详情图。")
         : t("请分析附件内容"));
     const resolvedImageModelConfigId = override?.imageModelConfigId || null;
     const resolvedModelConfigId = override?.modelConfigId || null;

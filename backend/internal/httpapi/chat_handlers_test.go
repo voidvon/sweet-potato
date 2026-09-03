@@ -388,6 +388,36 @@ func TestDetailImageGenerationSystemPromptUsesWorkspaceSelections(t *testing.T) 
 	}
 }
 
+func TestMainImageGenerationUsesPlannedPromptsAndSquareCanvas(t *testing.T) {
+	generation := map[string]any{
+		"modeKey":        "main",
+		"aspectRatio":    "1:1",
+		"outputCount":    1,
+		"chapterPrompts": []any{"突出商品主体"},
+	}
+	prompt := mainImageGenerationSystemPrompt(map[string]any{"imageGeneration": generation})
+	for _, want := range []string{"淘宝宝贝主图生成", "1:1", "1440×1440", "宽和高均不得低于 1440px", "生成 1 张", "主体完整、清晰、突出", "每张主图都必须存在清晰、醒目的营销文案", "产品品牌", "模型已有知识", "网络搜索", "品牌官网", "自主组织文案", "不是必选文案", "同批风格一致", "统一视觉系统", "明显大字号", "缩略图状态下清晰可读", "背景留白区域", "圆角标签", "卖点徽章"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("main image prompt missing %q: %s", want, prompt)
+		}
+	}
+	for _, unwanted := range []string{"详情图", "详情页", "竖向画布", "拆分章节"} {
+		if strings.Contains(prompt, unwanted) {
+			t.Fatalf("main image prompt unexpectedly contains %q: %s", unwanted, prompt)
+		}
+	}
+	prompts, err := detailImagePrompts(generation, "总体规划", 1)
+	if err != nil {
+		t.Fatalf("main image prompts: %v", err)
+	}
+	if len(prompts) != 1 || !strings.Contains(prompts[0], "带品牌与营销文案的商品主图") || !strings.Contains(prompts[0], "画布严格使用 1:1") || !strings.Contains(prompts[0], "至少输出 1440×1440") || !strings.Contains(prompts[0], "品牌/品名主标题 + 1 至 3 条卖点短句") || !strings.Contains(prompts[0], "不得自行套用固定文案") || !strings.Contains(prompts[0], "严格沿用上游提示词为同批主图确定的统一视觉系统") || !strings.Contains(prompts[0], "主标题使用明显大字号") || !strings.Contains(prompts[0], "圆角标签") {
+		t.Fatalf("main image prompts = %#v", prompts)
+	}
+	if strings.Contains(prompts[0], "详情页") || strings.Contains(prompts[0], "章节") {
+		t.Fatalf("main image model prompt mixed with detail instructions: %s", prompts[0])
+	}
+}
+
 func TestPrepareCutoutGenerationUsesOpaqueGreenScreen(t *testing.T) {
 	prompt, options, applyChromaKey := prepareCutoutGeneration("移除背景", "cutout", imagegen.GenerateInput{Background: "transparent"})
 	if !applyChromaKey {

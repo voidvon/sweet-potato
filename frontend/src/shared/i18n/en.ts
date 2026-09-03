@@ -172,4 +172,8 @@ export const englishMessages: Record<string, string> = {
   '登录': 'Sign in',
   '注册': 'Register',
   '退出登录': 'Sign out',
+  '主图生成': 'Main image generation',
+  '商品主图': 'Product main image',
+  '描述主图需求，例如：主体突出、背景简洁，适合淘宝商品主图': 'Describe the main image, for example: emphasize the product with a clean background suitable for a Taobao listing.',
+  '请根据产品资料生成商品主图。': 'Generate a product main image from the supplied product materials.',
 };
