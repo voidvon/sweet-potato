@@ -86,7 +86,7 @@ func (c Client) synthesizeSpeech(ctx context.Context, input SpeechInput) (Output
 func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, error) {
 	instruction := strings.TrimSpace(input.Instruction)
 	if instruction == "" {
-		instruction = "用中性、克制、专业的播音方式朗读，发音清晰，弱化情绪和重音变化。"
+		instruction = "用自然、专业、有感染力、适合营销视频的语气朗读，发音清晰，重点信息使用适度重音。"
 	}
 	// MiMo has no native numeric speed parameter. Generate steady 1x audio and
 	// let the caller apply one pitch-preserving tempo adjustment to the result.
@@ -109,7 +109,7 @@ func (c Client) synthesizeMiMo(ctx context.Context, input SpeechInput) (Output, 
 }
 
 func mimoSpeedInstruction(speed float64) string {
-	const steady = "从头到尾使用同一种均匀、稳定的语速。每个词语采用相近的朗读节奏，弱化重音，不做情绪化演绎，不因语义强调、标点或段落切换而加速或减速。"
+	const steady = "从头到尾保持均匀、稳定的语速和整体节奏，不因语义强调、标点或段落切换而突然加速或减速。可以通过自然的重音和语气变化表达重点，但不要改变整体速度。"
 	switch {
 	case speed > 1.1:
 		return fmt.Sprintf("在保持匀速的前提下，以约为日常语速 %.1f 倍的稳定速度连续朗读。%s", speed, steady)

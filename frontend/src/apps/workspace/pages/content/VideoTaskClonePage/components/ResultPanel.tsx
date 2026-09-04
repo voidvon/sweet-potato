@@ -450,8 +450,9 @@ function resolveTaskMediaUrl(value?: string | null) {
 
 function formatMetric(result?: VideoGenerationResult, task?: VideoGenerationTask) {
   if (task?.expertContext?.mode === 'lightweight_marketing_video') {
-    const metric = [result?.ratio, result?.duration].filter(Boolean).join(' · ');
-    return metric ? t("轻量营销视频 · {{0}}", { "0": metric }) : t("轻量营销视频");
+    return result?.ratio
+      ? t("轻量营销视频 · {{0}}", { "0": result.ratio })
+      : t("轻量营销视频");
   }
   if (task?.expertContext?.mode === 'dance_remake') {
     return t("跳舞复刻");

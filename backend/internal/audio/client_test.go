@@ -43,6 +43,9 @@ func TestSynthesizeMiMoUsesPresetVoiceRequest(t *testing.T) {
 		if !strings.Contains(payload.Messages[0].Content, "日常自然语速") || !strings.Contains(payload.Messages[0].Content, "均匀、稳定的语速") || strings.Contains(payload.Messages[0].Content, "1.5 倍") {
 			t.Fatalf("MiMo speed instruction = %q", payload.Messages[0].Content)
 		}
+		if strings.Contains(payload.Messages[0].Content, "中性、克制") || strings.Contains(payload.Messages[0].Content, "弱化重音") || !strings.Contains(payload.Messages[0].Content, "有感染力") {
+			t.Fatalf("MiMo delivery instruction = %q", payload.Messages[0].Content)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []any{map[string]any{
